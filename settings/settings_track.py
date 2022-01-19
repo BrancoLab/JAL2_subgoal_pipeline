@@ -14,6 +14,6 @@ settings_track = Settings_track(
     by_session=True,
     sessions=[0,1,2], 
 
-    dlc_settings_file='D:\\data\\DLC_nets\\Barnes-Philip-2018-11-22\\config.yaml', # 'D:\\data\\DLC_nets\\behave-philip-2021-07-26\\config.yaml'
+    dlc_settings_file='D:\\data\\DLC_nets\\Barnes-Philip-2018-11-22\\config.yaml', # 'D:\\data\\DLC_nets\\opto-philip-2021-07-26\\config.yaml'
     inverse_fisheye_correction_file = '.\\sample_data\\inverse_fisheye_maps.npy' # remove setting if n/a
 )

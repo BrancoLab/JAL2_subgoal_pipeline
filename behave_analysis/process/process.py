@@ -1,6 +1,5 @@
 from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
-from behave_analysis.process.laser import get_Laser
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 import os
