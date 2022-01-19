@@ -1,7 +1,7 @@
 import random
 import numpy as np
 from scipy.stats import percentileofscore
-from opto_analysis.utils.flatten import flatten
+from behave_analysis.utils.flatten import flatten
 
 def permutation_test(data: np.ndarray, groups: np.ndarray, sessions: np.ndarray, group_1:int=1, group_2:int=2, iterations:int = 1000, two_tailed:bool= True):
     ''' the test statistic is the pooled mean and data are shuffled by session'''

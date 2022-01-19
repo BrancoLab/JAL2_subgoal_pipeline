@@ -1,8 +1,8 @@
-from opto_analysis.utils.open_tracking_data import open_tracking_data
-from opto_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
-from opto_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
-from opto_analysis.utils.generate_stim_status_array import generate_stim_status_array
-from opto_analysis.utils.directory import Directory
+from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
+from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
+from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
+from behave_analysis.utils.directory import Directory
 import cv2
 import numpy as np
 

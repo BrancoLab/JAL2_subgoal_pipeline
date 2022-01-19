@@ -2,8 +2,8 @@ import dill as pickle
 import numpy as np
 from dataclasses import dataclass
 from scipy.ndimage import gaussian_filter1d
-from opto_analysis.utils.open_tracking_data import open_tracking_data
-from opto_analysis.utils.get_onset_and_duration import get_onset_and_duration
+from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 
 @dataclass(frozen=True)
 class Homings:

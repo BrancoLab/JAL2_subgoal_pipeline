@@ -1,4 +1,4 @@
-from opto_analysis.utils.settings_objects import Settings_analyze_global as Settings_analyze
+from behave_analysis.utils.settings_objects import Settings_analyze_global as Settings_analyze
 from settings.analyses import analyses
 
 settings_analyze = Settings_analyze(

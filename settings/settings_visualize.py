@@ -1,4 +1,4 @@
-from opto_analysis.utils.settings_objects import Settings_visualize
+from behave_analysis.utils.settings_objects import Settings_visualize
 
 settings_visualize = Settings_visualize(
 

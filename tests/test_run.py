@@ -1,4 +1,4 @@
-from opto_analysis.run import process, track, analyze, visualize, homings
+from behave_analysis.run import process, track, analyze, visualize, homings
 
 # These tests use the currently active settings
 

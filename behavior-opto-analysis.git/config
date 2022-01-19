@@ -5,4 +5,4 @@
 	symlinks = false
 	ignorecase = true
 [remote "origin"]
-	url = https://github.com/philshams/behavior-opto-analysis.git
+	url = https://github.com/philshams/behavior-behave-analysis.git

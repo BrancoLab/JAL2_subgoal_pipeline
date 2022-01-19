@@ -1,4 +1,4 @@
-from opto_analysis.utils.settings_objects import Settings_analyze_local
+from behave_analysis.utils.settings_objects import Settings_analyze_local
 analyses = {}
 
 # ----------LASER----------------------------------------------

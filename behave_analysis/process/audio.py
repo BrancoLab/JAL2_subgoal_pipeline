@@ -1,5 +1,5 @@
-from opto_analysis.process.session import Session
-from opto_analysis.utils.get_onset_and_duration import get_onset_and_duration
+from behave_analysis.process.session import Session
+from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 import os
 import numpy as np
 from dataclasses import dataclass

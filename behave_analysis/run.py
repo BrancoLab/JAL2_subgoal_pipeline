@@ -3,14 +3,14 @@ from settings.settings_track import settings_track as settings_t
 from settings.settings_visualize import settings_visualize as settings_v
 from settings.settings_analyze import settings_analyze as settings_a
 from settings.settings_homings import settings_homings as settings_h
-from opto_analysis.process.process import Process
-from opto_analysis.track.track import Track
-from opto_analysis.homings.homings import get_Homings
-from opto_analysis.homings.threshold_crossings import get_Threshold_crossings
-from opto_analysis.visualize.visualize import Visualize
-from opto_analysis.analyze.analyze import Analyze
-from opto_analysis.utils.print_settings import print_settings, print_settings_analysis
-from opto_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
+from behave_analysis.process.process import Process
+from behave_analysis.track.track import Track
+from behave_analysis.homings.homings import get_Homings
+from behave_analysis.homings.threshold_crossings import get_Threshold_crossings
+from behave_analysis.visualize.visualize import Visualize
+from behave_analysis.analyze.analyze import Analyze
+from behave_analysis.utils.print_settings import print_settings, print_settings_analysis
+from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
 from databank import databank
 
 

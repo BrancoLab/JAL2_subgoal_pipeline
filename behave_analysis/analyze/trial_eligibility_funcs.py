@@ -1,4 +1,4 @@
-from opto_analysis.analyze.analysis_funcs import get_escape_initiation_idx, get_which_side
+from behave_analysis.analyze.analysis_funcs import get_escape_initiation_idx, get_which_side
 
 def trial_is_eligible(self, onset_frames: list) -> bool:
     eligible = (self.stim_type in ['laser', 'homing', 'threshold_crossing'] \

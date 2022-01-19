@@ -1,4 +1,4 @@
-from opto_analysis.utils.color_funcs import get_colormap, generate_list_of_colors, get_color_based_on_target_score
+from behave_analysis.utils.color_funcs import get_colormap, generate_list_of_colors, get_color_based_on_target_score
 import matplotlib.pyplot as plt
 import matplotlib.collections as plt_coll
 import numpy as np

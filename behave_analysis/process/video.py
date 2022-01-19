@@ -1,5 +1,5 @@
-from opto_analysis.process.session import Session
-from opto_analysis.track.register import Register
+from behave_analysis.process.session import Session
+from behave_analysis.track.register import Register
 from dataclasses import dataclass
 from glob import glob
 import numpy as np

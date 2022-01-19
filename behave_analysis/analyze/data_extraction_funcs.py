@@ -1,6 +1,6 @@
 from typing import Tuple
 import numpy as np
-from opto_analysis.analyze.analysis_funcs import *
+from behave_analysis.analyze.analysis_funcs import *
 
 def create_trial_dict(self, trial_start_idx: int, trial_end_idx: int, epoch: str) -> dict:
     trial = {}

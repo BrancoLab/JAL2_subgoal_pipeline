@@ -1,4 +1,4 @@
-from opto_analysis.utils.directory import Directory
+from behave_analysis.utils.directory import Directory
 import os
 
 def test_directory():

@@ -1,4 +1,4 @@
-from opto_analysis.process.session import Session
+from behave_analysis.process.session import Session
 from settings.settings_process import settings_process
 import sys
 import cv2

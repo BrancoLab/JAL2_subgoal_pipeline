@@ -1,5 +1,5 @@
-from opto_analysis.process.process import Process
-from opto_analysis.run import collect_session_IDs
+from behave_analysis.process.process import Process
+from behave_analysis.run import collect_session_IDs
 from sample_data.sample_settings.sample_settings_process import settings_process
 from sample_data.sample_databank import databank
 import numpy as np
@@ -68,7 +68,7 @@ def equal_dict_contents_assertions(dict1, dict2):
     for entry1, entry2 in zip(dict1, dict2):
         data1 = dict1[entry1]
         data2 = dict2[entry2]
-        if 'opto_analysis' in str(data1.__class__):
+        if 'behave_analysis' in str(data1.__class__):
             equal_dict_contents_assertions(data1.__dict__, data2.__dict__)
         elif isinstance(data1, (list, tuple, np.ndarray)) and isinstance(data1[0], (list, tuple, np.ndarray)):
             assert np.concatenate([[a==b for a, b in zip(x, y)] for x, y in zip(data1, data2)]).all()

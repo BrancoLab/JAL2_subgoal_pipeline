@@ -1,4 +1,4 @@
-from opto_analysis.utils.settings_objects import Settings_homings
+from behave_analysis.utils.settings_objects import Settings_homings
 
 settings_homings = Settings_homings(
 
