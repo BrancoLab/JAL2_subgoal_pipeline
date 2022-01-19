@@ -15,7 +15,6 @@ class Process():
         self.load_registration_transform()
         self.print_session_details(stage=1)
         self.session.camera_trigger = get_Camera_trigger(self.session)
-        self.session.laser          = get_Laser(self.session)
         self.session.audio          = get_Audio(self.session)
         self.session.video          = get_Video(self.session, settings, self.loaded_registration_transform)
         self.print_session_details(stage=2)
@@ -54,6 +53,6 @@ class Process():
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
             print("\n - Video contains {} frames, but {} frames were triggered! (for experiment: {}, mouse: {})---".format(self.session.video.num_frames, self.session.camera_trigger.num_frames, self.session.experiment, self.session.mouse))
 
-    def verify_aligned_data_streams(self, known_offset: list = [3000,4500, 6000, 7500]) -> None:
-        if self.session.camera_trigger.num_samples != self.session.audio.num_samples or not (self.session.camera_trigger.num_samples - self.session.laser.num_samples) in known_offset:
+    def verify_aligned_data_streams(self) -> None:
+        if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
             print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input:    {}\n  Laser output:   {} + {} or {} or {} or {}".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples, self.session.laser.num_samples, known_offset[0], known_offset[1], known_offset[2], known_offset[3]))
