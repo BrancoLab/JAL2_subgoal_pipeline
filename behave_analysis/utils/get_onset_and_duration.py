@@ -7,7 +7,7 @@ def get_onset_and_duration(data_on: object, session: object, stim_type: str, min
 
     if not data_on_idx.size:
         print("No {} trials detected".format(stim_type))
-        return [],[]
+        return [],[],[]
 
     idx_since_data_on     = np.append(np.inf, np.diff(data_on_idx)) 
     data_onset_idx        = data_on_idx[idx_since_data_on > min_frames_between_trials]

@@ -14,6 +14,8 @@ settings_process = Settings_process(
     experiments = ['block pre edge vectors'],
 
     by_session=True,
-    sessions=[0,1,2]
+    sessions=[1,4,5],
+
+    all_sessions=False
 
 )

@@ -1,8 +1,6 @@
 from behave_analysis.visualize.visualize import Visualize
 from behave_analysis.process.process import Process
 from behave_analysis.run import collect_session_IDs
-from sample_data.sample_databank import databank
-from sample_data.sample_settings.sample_settings_visualize import settings_visualize
 import numpy as np
 import cv2
 import os

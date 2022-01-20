@@ -2,8 +2,6 @@ from behave_analysis.homings.homings import get_Homings
 from behave_analysis.process.process import Process
 from behave_analysis.run import collect_session_IDs
 from behave_analysis.run import collect_session_IDs
-from sample_data.sample_databank import databank
-from sample_data.sample_settings.sample_settings_homings import settings_homings
 import numpy as np
 
 def test_homings():

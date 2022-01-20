@@ -1,7 +1,5 @@
 from behave_analysis.process.process import Process
 from behave_analysis.run import collect_session_IDs
-from sample_data.sample_settings.sample_settings_process import settings_process
-from sample_data.sample_databank import databank
 import numpy as np
 import cv2
 

@@ -2,9 +2,6 @@ from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
 from behave_analysis.track.register import Register
 from behave_analysis.run import collect_session_IDs
-from sample_data.sample_databank import databank
-from sample_data.sample_settings.sample_settings_track import settings_track
-from sample_data.sample_settings.sample_settings_process import settings_process
 import numpy as np
 import dill as pickle
 import cv2
