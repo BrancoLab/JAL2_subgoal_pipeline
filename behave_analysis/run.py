@@ -56,3 +56,4 @@ def analyze():
     if settings_a.analysis.plot_trial:   Analyze(session_IDs, settings_a, 'escape trial trajectory').single_trial()
     if settings_a.analysis.plot_homing:  Analyze(session_IDs, settings_a, 'homing trial trajectory').single_trial()
     if settings_a.analysis.plot_targets: Analyze(session_IDs, settings_a, 'escape targets'         ).distribution()
+    if settings_a.analysis.plot_exploration: Analyze(session_IDs, settings_a, 'escape targets'     ).distribution() # TODO: update this line

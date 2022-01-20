@@ -12,7 +12,7 @@ databank['session IDs'] = [
 [3,0,      'bedding',       False,        "1056_bedding_22JAN18"],
 [4,1,      'bedding',       True,        "1055_bedding_22JAN20"],
 
-# [5,0,      'food dish center',     True,        "1054_food dish center_22JAN20"]
+[5,0,    'food dish center',True,        "1054_food dish center_22JAN20"]
 
 
 ]

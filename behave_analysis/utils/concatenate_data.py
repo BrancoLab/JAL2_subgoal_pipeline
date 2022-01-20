@@ -14,18 +14,17 @@ import os
 import numpy as np
 import dill as pickle
 
-file_path = "D:\\Dropbox (UCL)\\DAQ\\upstairs_rig\\21APR01_9753_block pre evs"
-file_path = "D:\\Dropbox (UCL)\\DAQ\\upstairs_rig\\21APR12_9756_allow then block"
+file_path = "D:\\Dropbox (UCL)\\DAQ\\upstairs_rig\\1054_food dish center_22JAN20"
 
 # LASER BIN FILES
-laser_files = glob(os.path.join(file_path, "laser*"))
-laser_data1 = np.fromfile(laser_files[0])
-laser_data2 = np.fromfile(laser_files[1])
+# laser_files = glob(os.path.join(file_path, "laser*"))
+# laser_data1 = np.fromfile(laser_files[0])
+# laser_data2 = np.fromfile(laser_files[1])
 
-laser_data3 = np.concatenate((laser_data1,laser_data2))
+# laser_data3 = np.concatenate((laser_data1,laser_data2))
 
-with open(os.path.join(file_path, 'laser_fire3'), "wb") as dill_file: pickle.dump(laser_data3, dill_file)
-with open(os.path.join(file_path, 'laser_fire3'), "rb") as dill_file: laser_data4 = pickle.load(dill_file)
+# with open(os.path.join(file_path, 'laser_fire3'), "wb") as dill_file: pickle.dump(laser_data3, dill_file)
+# with open(os.path.join(file_path, 'laser_fire3'), "rb") as dill_file: laser_data4 = pickle.load(dill_file)
 
 # ANALOG BIN FILES
 analog_files = glob(os.path.join(file_path, "analog*"))
@@ -34,5 +33,5 @@ analog_data2 = np.fromfile(analog_files[1])
 
 analog_data3 = np.concatenate((analog_data1,analog_data2))
 
-with open(os.path.join(file_path, 'analog3'), "wb") as dill_file: pickle.dump(analog_data3, dill_file)
-with open(os.path.join(file_path, 'analog3'), "rb") as dill_file: analog_data4 = pickle.load(dill_file)
+with open(os.path.join(file_path, 'analog2'), "wb") as dill_file: pickle.dump(analog_data3, dill_file)
+with open(os.path.join(file_path, 'analog2'), "rb") as dill_file: analog_data4 = pickle.load(dill_file)

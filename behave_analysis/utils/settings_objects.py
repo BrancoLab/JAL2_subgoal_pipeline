@@ -75,6 +75,7 @@ class Settings_visualize:
 @dataclass(frozen=True)
 class Settings_analyze_local:
     plot_escape: bool=False
+    plot_exploration: bool=False
     plot_laser: bool=False
     plot_targets: bool=False
     plot_homings: bool=False

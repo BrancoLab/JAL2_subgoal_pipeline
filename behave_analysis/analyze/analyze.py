@@ -64,6 +64,10 @@ class Analyze():
         self.plot_scatterplot()
         self.save_plot()
 
+    def exploration(self):
+        pass
+        # TODO: exploration function
+
 # ----DATA EXTRACTION FUNCS---------------------------------------------
     def extract_data(self):
         for session_ID in self.session_IDs:

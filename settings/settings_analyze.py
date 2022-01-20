@@ -3,7 +3,7 @@ from settings.analyses import analyses
 
 settings_analyze = Settings_analyze(
 
-analysis = analyses["escapes test"], 
+analysis = analyses["explore"], 
 # see types_of_analysis.py for options
 
 max_num_trials = 6,

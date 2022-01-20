@@ -12,7 +12,6 @@ class Session:
     metadata_file: str
     daq_sampling_rate: int=15000
     camera_trigger: object=None
-    laser: object=None
     audio: object=None
     video: object=None
     homing: object = None
