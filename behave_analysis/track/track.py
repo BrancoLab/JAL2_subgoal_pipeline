@@ -66,7 +66,7 @@ class Track():
     def extract_data_from_dlc_file(self, session):
         dlc_tracking_file = glob.glob(os.path.join(session.file_path, "*.h5"))[0]
         self.dlc_output = pd.read_hdf(dlc_tracking_file)
-        with open(self.settings.dlc_settings_file) as file: dlc_settings = yaml.load(file)
+        with open(self.settings.dlc_settings_file) as file: dlc_settings = yaml.safe_load(file)
         self.tracking_data['bodyparts'] = dlc_settings['bodyparts']
         self.dlc_network_name = dlc_tracking_file[dlc_tracking_file.find('DeepCut_resnet'):-3]
 

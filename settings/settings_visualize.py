@@ -1,4 +1,5 @@
 from behave_analysis.utils.settings_objects import Settings_visualize
+from pathlib import Path
 
 settings_visualize = Settings_visualize(
 
@@ -22,11 +23,13 @@ settings_visualize = Settings_visualize(
     seconds_after_homing = 3,
     seconds_after_threshold_crossing = 3,
 
-    save_folder = "..\\",
+    save_folder = Path.cwd(),
 
     by_experiment=False,
     experiments = ['no laser'],
 
-    by_session=True,
-    sessions=[0,1,2],
+    # by_session=True,
+    # sessions=[0],
+
+    all_sessions=True
 )
