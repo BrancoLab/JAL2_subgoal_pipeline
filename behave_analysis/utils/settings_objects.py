@@ -52,6 +52,7 @@ class Settings_visualize:
     escape_trials: bool=True
     homing_trials: bool=False
     t_xing_trials: bool=True
+    explore_trial: bool=False
     display_tracking:bool=False
     display_trail:bool=True
     rapid: bool=True
@@ -82,6 +83,7 @@ class Settings_analyze_local:
     plot_t_xings: bool=False
     plot_trial: bool=False
     plot_homing: bool=False
+    plot_explore: bool=False
     title: str=None
     save_folder: str=None
     experiments: list = None

@@ -4,7 +4,7 @@ from typing import Tuple
 
 def get_escape_initiation_idx(self, trial_start_idx: int) -> int:
     if self.stim_type == 'laser':  return None
-    if self.stim_type in ['homing', 'threshold_crossing']: return 0
+    if self.stim_type in ['homing', 'threshold_crossing', 'explore']: return 0
     escape_initiation_idx = np.where(self.tracking_data['speed rel. to shelter'][trial_start_idx+1:] > self.settings.escape_initiation_speed)[0][0]
     assert escape_initiation_idx < (self.settings.max_escape_duration*self.fps)
     return escape_initiation_idx

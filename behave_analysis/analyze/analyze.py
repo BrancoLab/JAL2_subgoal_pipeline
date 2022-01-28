@@ -1,3 +1,4 @@
+from behave_analysis.process.camera_trigger import get_num_frames_expected, get_Camera_trigger
 from behave_analysis.process.process import Process
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.analyze.plot_funcs import *
@@ -31,6 +32,7 @@ class Analyze():
             if 'laser'  in analysis_type:  self.color_by = 'time'
             if 't xing'  in analysis_type: self.color_by = 'speed'
             if 'trial'   in analysis_type: self.color_by = 'speed'
+            if 'explor' in analysis_type: self.color_by = 'speed'
         if 'target'  in analysis_type and not self.color_by in ['target', 'session','trial','']:
             self.color_by = 'target'
         if self.settings.leftside_only:  self.title += " (leftside)"
@@ -40,6 +42,7 @@ class Analyze():
         if 'homing' in analysis_type: self.stim_type='homing'
         if 'laser' in analysis_type:  self.stim_type='laser'
         if 't xing' in analysis_type: self.stim_type='threshold_crossing'
+        if 'explor' in analysis_type: self.stim_type='explore'
 
 # ----MAIN METHODS------------------------------------------------------
     def trajectories(self):
@@ -65,8 +68,11 @@ class Analyze():
         self.save_plot()
 
     def exploration(self):
-        pass
-        # TODO: exploration function
+        self.extract_data()
+        for trial in self.trials_to_plot:
+            self.initialize_trajectory_plot()
+            self.plot_trajectory(trial)
+            self.save_plot()
 
 # ----DATA EXTRACTION FUNCS---------------------------------------------
     def extract_data(self):
@@ -74,7 +80,8 @@ class Analyze():
             self.trial_num = 0
             self.minutes_into_session = None
             self.open_session_data(session_ID) 
-            self.get_data_on_each_trial()
+            if not 'explor' in self.analysis_type: self.get_data_on_each_trial()
+            self.get_start_and_end_frames()
 
     def open_session_data(self, session_ID):
         self.session = Process(session_ID).load_session()
@@ -99,6 +106,15 @@ class Analyze():
             trial_start_idx, trial_end_idx = get_trial_start_and_end(self, onset_frames, stim_durations, epoch)
             trial                          = create_trial_dict(self, trial_start_idx, trial_end_idx, epoch)
             self.trials_to_plot.append(trial)
+
+    def get_start_and_end_frames(self):
+        session_start = 0
+        camera_trigger_data = get_Camera_trigger(self.session)[1]
+        session_end = get_num_frames_expected(self.session, camera_trigger_data)[0]
+        epoch = 'exploration'
+        trial = create_trial_dict(self, session_start, session_end, epoch)
+        self.trials_to_plot.append(trial)
+
         
 # ----STATISTICS FUNCS--------------------------------------------------
     def do_statistics(self):
@@ -176,11 +192,12 @@ class Analyze():
         self.plot_silhouettes(trial)
         self.trial_num            = trial['trial count']
         self.minutes_into_session = np.round(trial['trial start'] / self.session.video.fps / 60) 
-        self.mouse                = trial['mouse']
 
     def plot_trajectory(self, trial):
         if self.color_by in ['speed', 'speed+RT','time']: gradient_line(self, trial)
         else:                                             solid_line(self, trial)   
+        self.mouse = trial['mouse']
+        self.session.experiment = trial['experiment']   
 
     def plot_silhouettes(self, trial, mouse_size: float=38, color: tuple=(.7,.7,.7), num_silhouettes=6):
 

@@ -1,10 +1,11 @@
 from behave_analysis.utils.settings_objects import Settings_analyze_global as Settings_analyze
 from settings.analyses import analyses
+from pathlib import Path
 
 settings_analyze = Settings_analyze(
 
 analysis = analyses["explore"], 
-# see types_of_analysis.py for options
+# see analyses.py for options
 
 max_num_trials = 6,
 max_escape_duration = 9,
@@ -22,8 +23,8 @@ reflect_trajectories = False,
 color_by = 'speed', 
 # 'default' 'session' 'trial' 'target'  ''  || for all
 # 'speed'   'time'    'speed+RT'            || for trajectories
-
-save_folder = "D:\\data\\Paper II"
+    
+save_folder = Path('data')
 
 )
 

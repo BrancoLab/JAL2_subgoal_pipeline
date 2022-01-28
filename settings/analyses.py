@@ -13,16 +13,18 @@ analyses["escapes test"] = \
 analyses["escapes"] = \
     Settings_analyze_local( title='escapes trajectories', 
                             plot_escape = True, 
-                            experiments=['block edge vectors'])
+                            # experiments=['block edge vectors'])
+                            by_session=True, by_experiment=False,
+                            all_sessions=True)
 
 
 # ----------EXPLORE----------------------------------------------
 
 analyses["explore"] = \
-    Settings_analyze_local( title='exploration (test)', 
-                            plot_exploration = True, 
+    Settings_analyze_local( title='exploration', 
+                            plot_explore = True, 
                             by_session=True, by_experiment=False,
-                            sessions=[0])
+                            all_sessions=True)
 
 
 # ----------ESCAPE TARGETS----------------------------------------------

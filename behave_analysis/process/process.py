@@ -13,7 +13,7 @@ class Process():
     def create_session(self, settings) -> Session:        
         self.load_registration_transform()
         self.print_session_details(stage=1)
-        self.session.camera_trigger = get_Camera_trigger(self.session)
+        self.session.camera_trigger = get_Camera_trigger(self.session)[0]
         self.session.audio          = get_Audio(self.session)
         self.session.video          = get_Video(self.session, settings, self.loaded_registration_transform)
         self.print_session_details(stage=2)

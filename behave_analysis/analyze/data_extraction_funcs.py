@@ -8,6 +8,7 @@ def create_trial_dict(self, trial_start_idx: int, trial_end_idx: int, epoch: str
     trial['session count']         = self.session_count
     trial['trial count']           = self.trial_num
     trial['group number']          = self.group_num
+    trial['experiment']            = self.session.experiment
     trial['trial start']           = trial_start_idx
     trial['epoch']                 = epoch
     trial['speed']                 = self.tracking_data['speed'][trial_start_idx+1:trial_end_idx]

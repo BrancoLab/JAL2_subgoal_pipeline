@@ -45,6 +45,7 @@ def visualize():
         if settings_v.escape_trials: Visualize(session, settings_v).trials(stim_type = 'audio')
         if settings_v.homing_trials: Visualize(session, settings_v).trials(stim_type = 'homing')
         if settings_v.t_xing_trials: Visualize(session, settings_v).trials(stim_type = 'threshold_crossing')
+        if settings_v.explore_trial: Visualize(session, settings_v).trials(stim_type = 'audio')
 
 def analyze():
     print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a); 
@@ -56,4 +57,4 @@ def analyze():
     if settings_a.analysis.plot_trial:   Analyze(session_IDs, settings_a, 'escape trial trajectory').single_trial()
     if settings_a.analysis.plot_homing:  Analyze(session_IDs, settings_a, 'homing trial trajectory').single_trial()
     if settings_a.analysis.plot_targets: Analyze(session_IDs, settings_a, 'escape targets'         ).distribution()
-    if settings_a.analysis.plot_exploration: Analyze(session_IDs, settings_a, 'escape targets'     ).distribution() # TODO: update this line
+    if settings_a.analysis.plot_explore: Analyze(session_IDs, settings_a, 'exploration'            ).exploration() 

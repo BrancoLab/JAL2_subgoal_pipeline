@@ -23,7 +23,7 @@ def get_Camera_trigger(session: Session) -> Camera_trigger:
     num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data)
     fps = get_fps(session, num_frames_expected, duration_of_video)
     camera_trigger = Camera_trigger(camera_trigger_num_samples, num_frames_expected, frame_trigger_onsets_idx, fps)
-    return camera_trigger
+    return camera_trigger, camera_trigger_data
 
 def get_num_frames_expected(session: Session, camera_trigger_data: object) -> int:
     frame_trigger_onsets = np.diff(camera_trigger_data)

@@ -10,8 +10,8 @@ class Directory():
 
         if stim_type or 'trial' in analysis_type: self.subfolder = 'trials'
         if analysis_type:
-            if 'trajectories' in analysis_type: self.subfolder = 'trajectories'
-            if 'targets' in analysis_type:      self.subfolder = 'statistics'
+            if 'trajectories' or 'exploration' in analysis_type: self.subfolder = 'trajectories'
+            if 'targets' in analysis_type:                       self.subfolder = 'statistics'
             if 'trajectories' in analysis_type: analysis_type = analysis_type.replace(' trajectories', '')
             if 't xing' in analysis_type:       analysis_type = analysis_type.replace('t xing', 'threshold crossing')
         
@@ -27,9 +27,11 @@ class Directory():
     def generate_directory_name(self):
         if self.media_type=='plot' and not 'trial' in self.analysis_type:
             self.path = os.path.join(self.base_folder, self.subfolder, self.analysis_type)
-        if self.stim_video or 'trial' in self.analysis_type:
+        if self.media_type=='plot' and 'explor' in self.analysis_type:
+            self.path = os.path.join(self.base_folder, self.subfolder, self.analysis_type, self.experiment)
+        elif self.stim_video or 'trial' in self.analysis_type:
             self.path = os.path.join(self.base_folder, self.subfolder, self.experiment, self.leaf_folder)
-        if self.tracking_video: 
+        elif self.tracking_video: 
             self.path = os.path.join(self.base_folder, self.subfolder, "__tracking__", self.leaf_folder)
 
     def create_directory(self):
@@ -44,6 +46,6 @@ class Directory():
         if self.media_type=='plot' and not'trial' in self.analysis_type:
             if color_by: color_by_text = '_color=' + color_by
             else       : color_by_text = ''
-            self.file_name = os.path.join(self.path, title + color_by_text + plot_extension)
+            self.file_name = os.path.join(self.path, mouse + '_' + title + color_by_text + plot_extension)
 
         return self.file_name
