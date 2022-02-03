@@ -28,8 +28,8 @@ settings_visualize = Settings_visualize(
     by_experiment=False,
     experiments = ['no laser'],
 
-    # by_session=True,
-    # sessions=[0],
+    by_session=False,
+    sessions=[0,1,2],
 
     all_sessions=True
 )
