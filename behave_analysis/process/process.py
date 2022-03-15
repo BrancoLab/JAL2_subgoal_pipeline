@@ -2,9 +2,11 @@ from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
+from behave_analysis.utils.check_drop_frames import check_drop_frames
 import os
 import numpy as np
 import dill as pickle
+import cv2
 
 class Process():
     def __init__(self, session_ID):
@@ -17,9 +19,9 @@ class Process():
         self.session.audio          = get_Audio(self.session)
         self.session.video          = get_Video(self.session, settings, self.loaded_registration_transform)
         self.print_session_details(stage=2)
-        self.save_session()
         self.verify_all_frames_saved()
         self.verify_aligned_data_streams()
+        self.save_session()
         return self.session
 
     def save_session(self, overwrite=True):
@@ -51,7 +53,15 @@ class Process():
     def verify_all_frames_saved(self):
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
             print("\n - Video contains {} frames, but {} frames were triggered! (for experiment: {}, mouse: {})---".format(self.session.video.num_frames, self.session.camera_trigger.num_frames, self.session.experiment, self.session.mouse))
+            # check_drop_frames(self.session)
+            self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames=True)[0]
+            if self.session.camera_trigger.num_frames == self.session.video.num_frames:
+                print(" - Video realigned! Video contains {} frames, and {} frames were triggered (for experiment: {}, mouse: {})---".format(self.session.video.num_frames, self.session.camera_trigger.num_frames, self.session.experiment, self.session.mouse))
+            else:
+                print(" - Aligning failed")
 
     def verify_aligned_data_streams(self) -> None:
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
             print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input:    {}\n  Laser output:   {} + {} or {} or {} or {}".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples, self.session.laser.num_samples, known_offset[0], known_offset[1], known_offset[2], known_offset[3]))
+
+    
