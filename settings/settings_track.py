@@ -12,7 +12,7 @@ settings_track = Settings_track(
     experiments = ['no laser'],
 
     by_session=True,
-    sessions=[6, 7, 8, 9, 10, 11], 
+    sessions=[0], 
 
     all_sessions=False,
 

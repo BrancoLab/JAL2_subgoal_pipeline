@@ -20,6 +20,12 @@ analyses["escapes"] = \
 
 # ----------EXPLORE----------------------------------------------
 
+analyses["explore test"] = \
+    Settings_analyze_local( title='exploration', 
+                            plot_explore = True, 
+                            by_session=True, by_experiment=False,
+                            sessions=[0])
+
 analyses["explore"] = \
     Settings_analyze_local( title='exploration', 
                             plot_explore = True, 

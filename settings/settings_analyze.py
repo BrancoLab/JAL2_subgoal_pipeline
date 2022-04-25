@@ -4,7 +4,7 @@ from pathlib import Path
 
 settings_analyze = Settings_analyze(
 
-analysis = analyses["explore"], 
+analysis = analyses["explore test"], 
 # see analyses.py for options
 
 max_num_trials = 6,

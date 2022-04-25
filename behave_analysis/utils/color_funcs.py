@@ -32,18 +32,17 @@ def get_color_parameters(stim_type: str='audio', stim_status: float=0, object_to
 
     return [np.array(x) for x in colormap], speed_thresholds
 
-def get_colormap(object_to_color = 'tracking video', epoch='stimulus', plot_type='trajectory'):
+def get_colormap(object_to_color = 'tracking video', plot_type='trajectory'):
     colormap = [(0, 0, 255),(255, 0, 255),(120, 120, 255),(0, 255, 255),(0, 255, 150),(0, 150, 0),(255, 255, 0),(120,120,120),(255, 50, 0),(255, 50, 80),(255, 50, 150),(150, 0, 150),(30, 0, 180)]
     if object_to_color=='plot':
         colormap = plt.get_cmap('viridis')(np.linspace(0,.95,16))
         if plot_type =='trajectory':
-           if epoch=='stimulus':     colormap[:,3] = np.linspace(.4, .8, 16)
-           if epoch=='post-laser':   colormap[:,3] = np.linspace(.3, .6, 16)
+           colormap[:,3] = np.linspace(.4, .8, 16)
         if plot_type =='scatter':    colormap[:,3] = .6
         colormap = colormap[np.array([6,11,0,5,10,15,4,9,14,3,8,13,2,7,12,1]), :]
     return colormap
 
-def generate_list_of_colors(color_by: str='speed', stim_type: str='audio', epoch: str='stimulus', speeds: np.ndarray=None, RT: int=0, object_to_color: str='plot')->list:
+def generate_list_of_colors(color_by: str='speed', stim_type: str='audio', speeds: np.ndarray=None, RT: int=0, object_to_color: str='plot')->list:
     if 'speed' in color_by:
         colors = []
         for i, speed in enumerate(speeds):
@@ -52,10 +51,7 @@ def generate_list_of_colors(color_by: str='speed', stim_type: str='audio', epoch
             colors.append(color)
     if color_by=='time':
         colormap = plt.get_cmap('viridis_r')
-        if epoch=='stimulus': 
-            colors = colormap(np.linspace(0.03,.75,len(speeds)))
-            colors[:,3] = np.linspace(.4,1,len(speeds))[::-1]
-        if epoch=='post-laser': 
-            colors = colormap(np.linspace(.75,.75,len(speeds)))
-            colors[:,3] = .2
+        colors = colormap(np.linspace(0.03,.75,len(speeds)))
+        colors[:,3] = np.linspace(.4,1,len(speeds))[::-1]
+
     return colors

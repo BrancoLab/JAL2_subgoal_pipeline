@@ -2,7 +2,7 @@ from typing import Tuple
 import numpy as np
 from behave_analysis.analyze.analysis_funcs import *
 
-def create_trial_dict(self, trial_start_idx: int, trial_end_idx: int, epoch: str) -> dict:
+def create_trial_dict(self, trial_start_idx: int, trial_end_idx: int) -> dict:
     trial = {}
     trial['mouse']                 = self.session.mouse
     trial['session count']         = self.session_count
@@ -10,7 +10,6 @@ def create_trial_dict(self, trial_start_idx: int, trial_end_idx: int, epoch: str
     trial['group number']          = self.group_num
     trial['experiment']            = self.session.experiment
     trial['trial start']           = trial_start_idx
-    trial['epoch']                 = epoch
     trial['speed']                 = self.tracking_data['speed'][trial_start_idx+1:trial_end_idx]
     trial['trajectory x']          = self.tracking_data['avg_loc'][trial_start_idx:trial_end_idx, 0]
     trial['trajectory y']          = self.tracking_data['avg_loc'][trial_start_idx:trial_end_idx, 1]
@@ -45,16 +44,8 @@ def create_trial_dict(self, trial_start_idx: int, trial_end_idx: int, epoch: str
 
     return trial
 
-def get_trial_start_and_end(self, onset_frames: list, stim_durations: list, epoch: str) -> Tuple[int, int]:
-    if epoch=='stimulus':
-        trial_start_idx = onset_frames[0] 
-        trial_end_idx = int(onset_frames[-1] + stim_durations[-1]*self.fps)
-        if self.analysis_type == 'escape trial trajectory':
-            trial_end_idx = trial_start_idx + get_to_shelter_idx(self, trial_start_idx)
-    if epoch=='post-laser':
-        trial_start_idx = int(onset_frames[-1] + stim_durations[-1]*self.fps)
-        trial_end_idx = trial_start_idx + self.fps * self.settings.post_laser_seconds_to_plot
-    if self.stim_type=='laser' and self.session.experiment in ['block pre edge vectors', 'block edge vectors', 'block after 2nd edge vector']:
-        cross_center_idx = np.where(self.tracking_data['avg_loc'][trial_start_idx:trial_end_idx, 1] > (self.session.video.registration_size[1]/2) )[0]
-        if cross_center_idx.size: trial_end_idx = trial_start_idx + cross_center_idx[0]
+def get_trial_start_and_end(self, onset_frames: list) -> Tuple[int, int]:
+    trial_start_idx = onset_frames[0]
+    trial_end_idx = trial_start_idx + min(12*self.fps, get_to_shelter_idx(self, trial_start_idx))
+    print(trial_end_idx - trial_start_idx)
     return trial_start_idx, trial_end_idx

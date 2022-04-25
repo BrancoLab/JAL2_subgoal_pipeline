@@ -5,7 +5,7 @@ import numpy as np
 
 def solid_line(self, trial: dict):
     color = get_plot_color(self, trial, plot_type='trajectory')
-    self.ax.plot(trial['trajectory x'], trial['trajectory y'], color = color, linewidth=2 - 1*(trial['epoch']=='post-laser'))
+    self.ax.plot(trial['trajectory x'], trial['trajectory y'], color = color, linewidth=2)
 
 def get_plot_color(self, trial: dict, plot_type:str='trajectory') -> tuple:
     if not self.color_by: 
@@ -15,7 +15,7 @@ def get_plot_color(self, trial: dict, plot_type:str='trajectory') -> tuple:
     if self.color_by in ['trial', 'session']:      
         if self.color_by=='trial':   self.color_counter = trial['trial count']
         if self.color_by=='session': self.color_counter = trial['session count']
-        color = get_colormap(object_to_color='plot', epoch=trial['epoch'], plot_type=plot_type)[self.color_counter%16]
+        color = get_colormap(object_to_color='plot', plot_type=plot_type)[self.color_counter%16]
     if self.stim_type in ['homing', 'threshold_crossing'] and 'block' in self.session.experiment:
         if trial['frames before laser'] < 6*self.session.video.fps and trial['which side']=='left':
             # color[:3] = color[:3]/20
@@ -25,8 +25,8 @@ def get_plot_color(self, trial: dict, plot_type:str='trajectory') -> tuple:
 def gradient_line(self, trial: dict):
     points = np.array([trial['trajectory x'], trial['trajectory y']]).T.reshape(-1, 1, 2)
     segments = np.concatenate([points[:-1], points[1:]], axis=1)
-    colors = generate_list_of_colors(self.color_by, self.stim_type, trial['epoch'], trial['speed'], RT=trial['escape initiation idx'])
-    set_of_lines = plt_coll.LineCollection(segments, colors=colors, linewidth=2 - 1*(trial['epoch']=='post-laser'))
+    colors = generate_list_of_colors(self.color_by, self.stim_type, trial['speed'], RT=trial['escape initiation idx'])
+    set_of_lines = plt_coll.LineCollection(segments, colors=colors, linewidth=2)
     self.ax.add_collection(set_of_lines)
 
 def apply_x_jitter(self, offset_x=.35, min_distance_y=0.01, jitter_distance_x=0.04):

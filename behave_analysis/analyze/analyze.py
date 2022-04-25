@@ -49,6 +49,7 @@ class Analyze():
         self.extract_data()
         self.initialize_trajectory_plot()
         for trial in self.trials_to_plot:
+            print(len(trial['trajectory x']))
             self.plot_trajectory(trial)
         self.save_plot()
 
@@ -80,7 +81,9 @@ class Analyze():
             self.trial_num = 0
             self.minutes_into_session = None
             self.open_session_data(session_ID) 
-            if not 'explor' in self.analysis_type: self.get_data_on_each_trial()
+            if not 'explor' in self.analysis_type:
+                self.get_data_on_each_trial()
+                return
             self.get_start_and_end_frames()
 
     def open_session_data(self, session_ID):
@@ -100,19 +103,15 @@ class Analyze():
             self.trial_num+=1
 
     def generate_trial_dict(self, onset_frames: list, stim_durations: list):
-        if self.stim_type in ['audio', 'homing', 'threshold_crossing']: epochs = ['stimulus']
-        if self.stim_type=='laser':                                     epochs = ['stimulus', 'post-laser']
-        for epoch in epochs:
-            trial_start_idx, trial_end_idx = get_trial_start_and_end(self, onset_frames, stim_durations, epoch)
-            trial                          = create_trial_dict(self, trial_start_idx, trial_end_idx, epoch)
-            self.trials_to_plot.append(trial)
+        trial_start_idx, trial_end_idx = get_trial_start_and_end(self, onset_frames)
+        trial                          = create_trial_dict(self, trial_start_idx, trial_end_idx)
+        self.trials_to_plot.append(trial)
 
     def get_start_and_end_frames(self):
         session_start = 0
         camera_trigger_data = get_Camera_trigger(self.session)[1]
         session_end = get_num_frames_expected(self.session, camera_trigger_data)[0]
-        epoch = 'exploration'
-        trial = create_trial_dict(self, session_start, session_end, epoch)
+        trial = create_trial_dict(self, session_start, session_end)
         self.trials_to_plot.append(trial)
 
         
@@ -201,7 +200,7 @@ class Analyze():
 
     def plot_silhouettes(self, trial, mouse_size: float=38, color: tuple=(.7,.7,.7), num_silhouettes=6):
 
-        colors = generate_list_of_colors(self.color_by, self.stim_type, trial['epoch'], trial['speed'], RT=trial['escape initiation idx'], object_to_color='trial')
+        colors = generate_list_of_colors(self.color_by, self.stim_type, trial['speed'], RT=trial['escape initiation idx'], object_to_color='trial')
         frames_to_illustrate = np.concatenate((np.zeros(1, dtype=int), np.linspace(trial['escape initiation idx'], trial['escape end idx'] - trial['trial start'] - 2, num=num_silhouettes, dtype=int)))
 
         for i, idx in enumerate(frames_to_illustrate):
