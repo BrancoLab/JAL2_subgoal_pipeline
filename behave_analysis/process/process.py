@@ -1,12 +1,18 @@
+#Import custom libaries
 from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
+from behave_analysis.process.ttl_sync import get_ttl_pulse_trigger
 from behave_analysis.utils.check_drop_frames import check_drop_frames
+
+#Import OS libraries
 import os
 import numpy as np
 import dill as pickle
 import cv2
+import matplotlib.pyplot as plt
+from loguru import logger
 
 class Process():
     def __init__(self, session_ID):
@@ -18,8 +24,10 @@ class Process():
         self.session.camera_trigger = get_Camera_trigger(self.session)[0]
         self.session.audio          = get_Audio(self.session)
         self.session.video          = get_Video(self.session, settings, self.loaded_registration_transform)
+        self.session.ttl            = get_ttl_pulse_trigger(self.session)
         self.print_session_details(stage=2)
         self.verify_all_frames_saved()
+        self.verify_check_for_abberant_signals()
         self.verify_aligned_data_streams()
         self.save_session()
         return self.session
@@ -48,7 +56,9 @@ class Process():
             for key in self.session.__dict__.keys():
                 if key in ['camera_trigger', 'laser','audio','video']:
                     print(" {} metadata saved".format(key))
-            print(" registration transform: {}".format(isinstance(self.session.video.registration_transform, np.ndarray))) 
+            print(" registration transform: {}".format(isinstance(self.session.video.registration_transform, np.ndarray)))
+
+    #Functions for data verification -------------------------------------------------------------------------------
 
     def verify_all_frames_saved(self):
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
@@ -64,4 +74,24 @@ class Process():
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
             print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input:    {}\n  Laser output:   {} + {} or {} or {} or {}".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples, self.session.laser.num_samples, known_offset[0], known_offset[1], known_offset[2], known_offset[3]))
 
-    
+    def verify_check_for_abberant_signals(self) -> None:
+        """_summary_
+        Check for abberant signals via two means:
+        1) Check that the signal values aren't lieing outside the logical confines - conduct for both big rig and efizz ttl signal
+        2) Check the number of pulses are the same
+
+        To do:
+        - Repet for efizz box signal check
+        - Write pulse count comparison
+        """
+
+        #Bonsai TTL check
+        ttl = self.session.ttl.raw_signal #Retrieve raw TTL signal from session object
+        above_errors = len(np.where(ttl > 5.1)[0]) #Count number of recordings where TTL signal is above 5.1 V
+        below_errors = len(np.where(ttl < -0.1)[0]) #Count number of recordings where TTL signal is below <-0.1V
+        num_errors = above_errors + below_errors #Compute a total number of erroneous recordings
+        if num_errors:
+            logger.info("Found {} samples with too high values in bonsai probe signal".format(num_errors))
+            if (num_errors > 1000):
+                logger.warning("Fede says this is too many errors. Signal unfit for use, terminating program.")
+            return
