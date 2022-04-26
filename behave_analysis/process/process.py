@@ -3,7 +3,7 @@ from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
-from behave_analysis.process.ttl_sync import get_ttl_pulse_trigger
+from behave_analysis.process.ttl_sync import get_TTL
 from behave_analysis.utils.check_drop_frames import check_drop_frames
 
 #Import OS libraries
@@ -24,11 +24,12 @@ class Process():
         self.session.camera_trigger = get_Camera_trigger(self.session)[0]
         self.session.audio          = get_Audio(self.session)
         self.session.video          = get_Video(self.session, settings, self.loaded_registration_transform)
-        self.session.ttl            = get_ttl_pulse_trigger(self.session)
+        self.session.ttl            = get_TTL(self.session)
         self.print_session_details(stage=2)
         self.verify_all_frames_saved()
         self.verify_check_for_abberant_signals()
         self.verify_aligned_data_streams()
+        # self.plot_ttl_pulse_index() # Comment out to run check that onsets align with pulse
         self.save_session()
         return self.session
 
@@ -87,11 +88,24 @@ class Process():
 
         #Bonsai TTL check
         ttl = self.session.ttl.raw_signal #Retrieve raw TTL signal from session object
-        above_errors = len(np.where(ttl > 5.1)[0]) #Count number of recordings where TTL signal is above 5.1 V
-        below_errors = len(np.where(ttl < -0.1)[0]) #Count number of recordings where TTL signal is below <-0.1V
+        above_errors = len(np.where(ttl > 5.2)[0]) #Count number of recordings where TTL signal is above 5.1 V
+        below_errors = len(np.where(ttl < -0.2)[0]) #Count number of recordings where TTL signal is below <-0.1V
         num_errors = above_errors + below_errors #Compute a total number of erroneous recordings
         if num_errors:
             logger.info("Found {} samples with too high values in bonsai probe signal".format(num_errors))
             if (num_errors > 1000):
                 logger.warning("Fede says this is too many errors. Signal unfit for use, terminating program.")
             return
+    
+    def plot_ttl_pulse_index(self):
+        """_summary_
+        Takes in both the ttl pulse onset index and the raw ttl signal.
+        Produces a plot to overlay the two to check for any errors.
+        Allows the user to verify if onset pulses align with configration. 
+        """
+        pulse_index = self.session.ttl.pulse_index[:10] #Take first 10 predictions of onset pulses
+        ttl = self.session.ttl.raw_signal
+        plt.plot(ttl[:110000]) #Plot the first 100k samples of the ttl signal
+        for x in pulse_index:
+            plt.axvline(x=x, color ='r') #plot a vert line for each onset
+        plt.show()
