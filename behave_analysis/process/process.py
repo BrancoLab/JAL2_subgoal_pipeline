@@ -3,7 +3,7 @@ from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
-from behave_analysis.process.ttl_sync import get_TTL
+from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals
 from behave_analysis.utils.check_drop_frames import check_drop_frames
 from behave_analysis.utils.load_bin_or_np import load_or_open
 from behave_analysis.utils.onset_offsets import get_onset_offset
@@ -35,7 +35,6 @@ class Process():
         self.verify_check_for_abberant_signals_in_bonsai()
         self.verify_check_for_abberant_signals_in_imec(self.session.ttl.imec_TTL)
         self.verify_aligned_data_streams()
-        # self.plot_pulses() # Comment out to run check that onsets align with pulse
         self.get_onsets_and_offsets()
 
         return self.session
@@ -115,25 +114,6 @@ class Process():
         imec_ttl[errors] = imec_ttl[errors - 1]
         self.session.ttl.imec_TTL = imec_ttl
         return
-    
-    def plot_pulses(self):
-        """_summary_
-        Takes in both the ttl pulse onset index and the raw ttl signal.
-        Produces a plot to overlay the two to check for any errors.
-        Allows the user to verify if onset pulses align with configration. 
-        """
-        pulse_index = self.session.ttl.pulse_index[:10] #Take first 10 predictions of onset pulses
-        ttl = self.session.ttl.bonsai_TTL
-        # ttl = ttl * 15 #scale signal
-
-        #plot bonsai
-        # plt.plot(ttl[:1100000]) #Plot the first 100k samples of the ttl signal
-        #plot imec
-        plt.plot(self.session.ttl.imec_TTL[2100000:4000000])
-
-        # for x in pulse_index:
-        #     plt.axvline(x=x, color ='r') #plot a vert line for each onset
-        plt.show()
 
     def get_onsets_and_offsets(self):
         logger.debug("extracting sync signal pulses")
@@ -180,7 +160,7 @@ class Process():
                            f"{len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
     
         else:
-            logger.debug(f"]Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
+            logger.debug(f"Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
 
         if ephys_sync_onsets[0] <= bonsai_sync_onsets[0]:
             is_ok = False
@@ -188,15 +168,40 @@ class Process():
 
         #Check the interval between sync signals in bonsai
         onsets_delta = np.diff(bonsai_sync_onsets)
-        if len(set(onsets_delta)) > 1:
+        if len(set(onsets_delta)) > 1: #If more values exsist than just 30khz
             counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
-            logger.warning(f"Bonsai sync triggers have variable delay: {counts}")
+            logger.warning(f"Bonsai sync triggers have variable delay. [Delay: Counts attributed to that delay]: {counts}")
 
-        elif list(onsets_delta)[0] != sampling_rate:
+        elif list(onsets_delta)[0] != self.session.ttl.sampling_rate:
             # check that it lasts as long as it should
             is_ok = False
-            logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {sampling_rate})")
-        
+            logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.session.ttl.sampling_rate})")
+
+        #Check that pulse onset intervals are the same
+        #Onsets
+        delta_ephys_onsets  = np.diff(ephys_sync_onsets)
+        delta_bonsai_onsets = np.diff(bonsai_sync_onsets)
+        #Offsets
+        delta_ephys_offsets = np.diff(ephys_sync_offsets)
+        delta_bonsai_offsets = np.diff(bonsai_sync_offsets)
+
+        if not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
+        #Check that the interval pulses match between imec and bonsai
+            #Difference in temporal scale
+            temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # Compare the difference in pulse lengths
+            is_ok = False
+            logger.warning("Pulse lengths do not match between imec and efizz. The signals require modifcation before shifting")
+            if (sum(temporal_difference) > 0):
+                logger.info("Bonsai recording is longer than the ephys recording")
+            else: 
+                logger.error("Bonsai recording is shorter than the ephys recording, ending script as this goes against assumptions")
+                return
+
+        bonsai_signal = remove_idx_to_align_signals(bonsai_sync_onsets, 
+                                                    self.session.ttl.bonsai_TTL, 
+                                                    temporal_difference)
+    
+        print("test")
         return (is_ok, 
                 bonsai_sync_onsets,
                 bonsai_sync_offsets,

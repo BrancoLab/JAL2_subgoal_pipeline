@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from glob import glob
 import dill as pickle
 import pandas as pd
+import random
 
 #Store file name here now for testing
 imec_bin_file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
@@ -70,3 +71,30 @@ def find_pulse_index(ttl_signal):
     ttl_pulses_diff = np.diff(ttl_signal) #Compute the difference between xi+1-xi for len array
     ttl_pulses_idx  = np.where(ttl_pulses_diff > 1)[0] + 1 #plus one as diff index shifts
     return(ttl_pulses_idx)
+
+def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
+    """A function that takes removes samples from each pulse to ensure the
+    duration of each pulse is the same as the efixx signal. This will then
+    allow another function to shift the signals so they can be aligned.
+
+    Args:
+        bonsai_onsets (_type_): index of pulse onset
+        bonsai_signal (_type_): TTL signal out of bonsai machine
+        temporal_diff (_type_): _description_
+
+    Returns:
+        np array: A updated bonsai TTL signal that should have the same pulse intervals as
+        the matching efizz rig
+    """
+    # off by one error need to fix
+    copy_of_original_signal = bonsai_signal
+    for pulse in range(len(bonsai_onsets) - 1):
+        first_pulse = bonsai_onsets[pulse] # index of pulse
+        next_pulse  = bonsai_onsets[pulse + 1] # index of next pulse
+        num_samples_to_remove = temporal_diff[pulse] # how many samples to remove this pulse
+        print(pulse) # print current pulse as func is slow so need to check where at
+        for sample in range(num_samples_to_remove):
+            choose_index = random.randint(first_pulse, next_pulse) # generate random sample to remove between onsets
+            bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index
+    assert (len(bonsai_signal) == len(copy_of_original_signal) - sum(temporal_diff)), "The new signal does not match the old - number of changes required" 
+    return (bonsai_signal)
