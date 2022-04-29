@@ -54,10 +54,3 @@ def load_or_open(path_file_location: str, data_type: str, **kwargs):
         np.save(savepath, signal)
         logger.debug("Npy file created - check directory")
         return signal
-
-#For testing
-file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
-data = load_or_open(file, "int16", order="F", dtype="int16")
-import matplotlib.pyplot as plt
-plt.plot(data[:800000])
-plt.show()

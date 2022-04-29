@@ -6,10 +6,15 @@ collected on the big rig with the efizz data collected on the efizz machine.
 Returns an object class containing:
 - ttl pulse onsets
 - the raw ttl signal
+
+TODO:
+- Look through fede's code to see if we need any other logic
+- Look at the efizz rig and run similar checks - duplicate logic
 """
 
 #Custom libaries
 from behave_analysis.process.session import Session
+from behave_analysis.utils.load_bin_or_np import load_or_open
 
 #OS libaries
 import os
@@ -19,11 +24,16 @@ from glob import glob
 import dill as pickle
 import pandas as pd
 
-@dataclass(frozen=True)
+#Store file name here now for testing
+imec_bin_file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
+
+@dataclass(frozen=False)
 class TTL_Sync:
     # Storing relevant data to align big rig with efizz machine using the onset of TTL pulses
-    raw_signal: float # voltage recordings of ttl signal from bonsai machine
+    bonsai_TTL: float # voltage recordings of ttl signal from bonsai machine
     pulse_index: int # pulse onset index from bonsai machine
+    imec_TTL: float
+    sampling_rate: int # Should be 30khz for neuropixels
 
 def get_TTL(session: Session) -> TTL_Sync:
     """_summary_
@@ -42,8 +52,13 @@ def get_TTL(session: Session) -> TTL_Sync:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     ttl_signal = AI_data[3:-1:4] #From the 3 index until the end select every 4th sample
     ttl_pulse_index = find_pulse_index(ttl_signal)
-    ttl_object = TTL_Sync(ttl_signal, ttl_pulse_index) #define final output
+    imec_TTL = get_TTL_from_imec(imec_bin_file)
+    ttl_object = TTL_Sync(ttl_signal, ttl_pulse_index, imec_TTL, 30000) #define final output
     return (ttl_object)
+
+def get_TTL_from_imec(filename):
+    data = load_or_open(filename, "int16", order="F", dtype="int16")
+    return(data)
 
 def find_pulse_index(ttl_signal):
     """_summary_

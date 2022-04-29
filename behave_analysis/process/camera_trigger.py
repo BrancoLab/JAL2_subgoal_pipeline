@@ -30,6 +30,7 @@ def get_Camera_trigger(session: Session, drop_frames=False) -> Camera_trigger:
 def get_num_frames_expected(session: Session, camera_trigger_data: object, drop_frames=False) -> int:
     frame_trigger_onsets = np.diff(camera_trigger_data)
     frame_trigger_onsets_idx = np.where(frame_trigger_onsets > 1)[0] + 1
+    ets_idx = np.where(frame_trigger_onsets > 1)[0] + 1
     if drop_frames == True: frame_trigger_onsets_idx = find_drop_frames(session, frame_trigger_onsets_idx)
     num_frames_expected = len(frame_trigger_onsets_idx)
     duration_of_video = (frame_trigger_onsets_idx[-1] - frame_trigger_onsets_idx[0])/session.daq_sampling_rate

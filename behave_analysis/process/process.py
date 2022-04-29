@@ -5,6 +5,8 @@ from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.ttl_sync import get_TTL
 from behave_analysis.utils.check_drop_frames import check_drop_frames
+from behave_analysis.utils.load_bin_or_np import load_or_open
+from behave_analysis.utils.onset_offsets import get_onset_offset
 
 #Import OS libraries
 import os
@@ -27,10 +29,15 @@ class Process():
         self.session.ttl            = get_TTL(self.session)
         self.print_session_details(stage=2)
         self.verify_all_frames_saved()
-        self.verify_check_for_abberant_signals()
-        self.verify_aligned_data_streams()
-        # self.plot_ttl_pulse_index() # Comment out to run check that onsets align with pulse
         self.save_session()
+
+        #Verify sync pulses
+        self.verify_check_for_abberant_signals_in_bonsai()
+        self.verify_check_for_abberant_signals_in_imec(self.session.ttl.imec_TTL)
+        self.verify_aligned_data_streams()
+        # self.plot_pulses() # Comment out to run check that onsets align with pulse
+        self.get_onsets_and_offsets()
+
         return self.session
 
     def save_session(self, overwrite=True):
@@ -59,7 +66,7 @@ class Process():
                     print(" {} metadata saved".format(key))
             print(" registration transform: {}".format(isinstance(self.session.video.registration_transform, np.ndarray)))
 
-    #Functions for data verification -------------------------------------------------------------------------------
+    #Functions for data verification / cleaning -------------------------------------------------------------------------------
 
     def verify_all_frames_saved(self):
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
@@ -75,7 +82,7 @@ class Process():
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
             print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input:    {}\n  Laser output:   {} + {} or {} or {} or {}".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples, self.session.laser.num_samples, known_offset[0], known_offset[1], known_offset[2], known_offset[3]))
 
-    def verify_check_for_abberant_signals(self) -> None:
+    def verify_check_for_abberant_signals_in_bonsai(self) -> None:
         """_summary_
         Check for abberant signals via two means:
         1) Check that the signal values aren't lieing outside the logical confines - conduct for both big rig and efizz ttl signal
@@ -87,7 +94,7 @@ class Process():
         """
 
         #Bonsai TTL check
-        ttl = self.session.ttl.raw_signal #Retrieve raw TTL signal from session object
+        ttl = self.session.ttl.bonsai_TTL #Retrieve raw TTL signal from session object
         above_errors = len(np.where(ttl > 5.2)[0]) #Count number of recordings where TTL signal is above 5.1 V
         below_errors = len(np.where(ttl < -0.2)[0]) #Count number of recordings where TTL signal is below <-0.1V
         num_errors = above_errors + below_errors #Compute a total number of erroneous recordings
@@ -96,16 +103,102 @@ class Process():
             if (num_errors > 1000):
                 logger.warning("Fede says this is too many errors. Signal unfit for use, terminating program.")
             return
+
+    def verify_check_for_abberant_signals_in_imec(self, imec_ttl) -> None:
+        # check for aberrant signals in ephys
+        errors = np.where(imec_ttl > 75)[0]
+        if len(errors):
+            logger.warning(f"Found {len(errors)} samples with too high values in probe signal")
+        if len(errors) > 1000:
+            return False, 0, 0, "too_many_errors_in_ephys_sync_signal"
+        # If errors remove signals and update imec ttl signal
+        imec_ttl[errors] = imec_ttl[errors - 1]
+        self.session.ttl.imec_TTL = imec_ttl
+        return
     
-    def plot_ttl_pulse_index(self):
+    def plot_pulses(self):
         """_summary_
         Takes in both the ttl pulse onset index and the raw ttl signal.
         Produces a plot to overlay the two to check for any errors.
         Allows the user to verify if onset pulses align with configration. 
         """
         pulse_index = self.session.ttl.pulse_index[:10] #Take first 10 predictions of onset pulses
-        ttl = self.session.ttl.raw_signal
-        plt.plot(ttl[:110000]) #Plot the first 100k samples of the ttl signal
-        for x in pulse_index:
-            plt.axvline(x=x, color ='r') #plot a vert line for each onset
+        ttl = self.session.ttl.bonsai_TTL
+        # ttl = ttl * 15 #scale signal
+
+        #plot bonsai
+        # plt.plot(ttl[:1100000]) #Plot the first 100k samples of the ttl signal
+        #plot imec
+        plt.plot(self.session.ttl.imec_TTL[2100000:4000000])
+
+        # for x in pulse_index:
+        #     plt.axvline(x=x, color ='r') #plot a vert line for each onset
         plt.show()
+
+    def get_onsets_and_offsets(self):
+        logger.debug("extracting sync signal pulses")
+        is_ok = True  # until proven otherwise
+
+        # do some preliminary checks
+        if len(self.session.ttl.bonsai_TTL) - len(self.session.ttl.imec_TTL) > 20 * self.session.ttl.sampling_rate:
+            logger.warning("The sync signals have very different lengths, this cant be!")
+            is_ok = False
+        
+        if is_ok and abs(np.mean(self.session.ttl.bonsai_TTL) - 2.5) > 1:
+            logger.warning("Bonsai signal mean very far from expected average, cant be!")
+            is_ok = False
+
+        if is_ok and abs(np.mean(self.session.ttl.imec_TTL) - 38.0) > 6:
+            logger.warning("Ephys signal mean very far from exected average, cant be!")
+            is_ok = False
+        
+        # get pulses onsets
+        bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
+        ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
+
+        # remove pulses that are too brief
+        errors = np.where(np.diff(bonsai_sync_onsets) < self.session.ttl.sampling_rate / 3)[0]
+        if errors:
+            logger.warning("Removing pulses that are too brief, check signal")
+            bonsai_sync_offsets = np.delete(bonsai_sync_offsets, errors)
+            bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, errors)
+
+        # check if numbers make sense
+        if len(bonsai_sync_onsets) != len(bonsai_sync_offsets):
+            is_ok = False
+            logger.warning(f"BONSAI - Unequal number of onsets/offsets ({len(bonsai_sync_offsets)}/{len(bonsai_sync_onsets)})")
+    
+        if len(ephys_sync_onsets) != len(ephys_sync_offsets):
+            is_ok = False
+            logger.warning(f"EPHYS - Unequal number of onsets/offsets ({len(ephys_sync_offsets)}/{len(ephys_sync_onsets)})")
+
+        # check same results for bonsai and ephys
+        if len(bonsai_sync_onsets) != len(ephys_sync_onsets):
+            logger.error(f"Incosistent number of triggers! Bonsai {len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
+            is_ok = False
+            logger.warning("When inspecting probe sync signal found different number of pulses for bonsai"
+                           f"{len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
+    
+        else:
+            logger.debug(f"]Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
+
+        if ephys_sync_onsets[0] <= bonsai_sync_onsets[0]:
+            is_ok = False
+            logger.warning("Bonsai should start first!")
+
+        #Check the interval between sync signals in bonsai
+        onsets_delta = np.diff(bonsai_sync_onsets)
+        if len(set(onsets_delta)) > 1:
+            counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
+            logger.warning(f"Bonsai sync triggers have variable delay: {counts}")
+
+        elif list(onsets_delta)[0] != sampling_rate:
+            # check that it lasts as long as it should
+            is_ok = False
+            logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {sampling_rate})")
+        
+        return (is_ok, 
+                bonsai_sync_onsets,
+                bonsai_sync_offsets,
+                ephys_sync_onsets,
+                ephys_sync_offsets)
