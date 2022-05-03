@@ -3,10 +3,9 @@ from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
-from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals
+from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals, get_onset_offset
 from behave_analysis.utils.check_drop_frames import check_drop_frames
 from behave_analysis.utils.load_bin_or_np import load_or_open
-from behave_analysis.utils.onset_offsets import get_onset_offset
 
 #Import OS libraries
 import os
