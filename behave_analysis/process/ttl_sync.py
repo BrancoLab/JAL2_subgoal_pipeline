@@ -31,6 +31,10 @@ class TTL_Sync:
     bonsai_TTL: float # voltage recordings of ttl signal from bonsai machine
     imec_TTL: float
     sampling_rate: int # Should be 30khz for neuropixels
+    bonsai_sync_onsets: int # array of ints, onset/offsets
+    bonsai_sync_offsets: int # array of ints, onset/offsets
+    ephys_sync_onsets: int # array of ints, onset/offsets
+    ephys_sync_offset: int # array of ints, onset/offsets
 
 #Return the above data class
 def get_TTL(session: Session) -> TTL_Sync:
@@ -49,7 +53,18 @@ def get_TTL(session: Session) -> TTL_Sync:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     bonsai_ttl = AI_data[3:-1:4] #From the 3 index until the end select every 4th sample
     imec_TTL = get_TTL_from_imec(imec_bin_file)
-    ttl_object = TTL_Sync(bonsai_ttl, imec_TTL, 30000) #define final output
+
+    #Get onset and offsets
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
+    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
+
+    ttl_object = TTL_Sync(bonsai_ttl, 
+                          imec_TTL, 
+                          30000,
+                          bonsai_sync_onsets,
+                          bonsai_sync_offsets,
+                          ephys_sync_onsets,
+                          ephys_sync_offsets) #define final output
     return (ttl_object)
 
 #Load imec bin file
@@ -79,22 +94,21 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
         the matching efizz rig
 
     To do:
-    - # off by one error need to fix
-    - # make faster it takes like 10 minutes
+    + Add other signals from the AI group
     """
     #Copy signal to conduct length test
     copy_of_original_signal_for_test = np.copy(bonsai_signal)
 
+    choose_index = np.array([])
     #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
-        first_pulse_idx = bonsai_onsets[pulse] # index of pulse
-        next_pulse_idx  = bonsai_onsets[pulse + 1] # index of next pulse
-        num_samples_to_remove = temporal_diff[pulse] # how many samples to remove this pulse
-        print(pulse) # print current pulse as func is slow so need to check where at
-        for sample in range(num_samples_to_remove):
-            choose_index = random.randint(first_pulse_idx, next_pulse_idx) # generate random sample to remove between onsets
-            bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index
+        #Take the number of samples needed to remove. Add one and don't select it. To ensure uniformity.
+        choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse], bonsai_onsets[pulse + 1], temporal_diff[pulse]+1)[:-1])
+    bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index - all at once
+    
+    #Tests
     assert (len(bonsai_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required" 
+    assert derivative(choose_index) > 1000, "A re_sample is less than 1000 samples apart. Not uniform "
     return (bonsai_signal)
 
 #Get the onsets and offsets for bonsai / imec. Your choice!
