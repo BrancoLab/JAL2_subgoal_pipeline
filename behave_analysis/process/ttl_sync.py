@@ -1,15 +1,11 @@
-"""_summary_
-
-A script to return the onset of TTL pulses to align the behavioural data 
-collected on the big rig with the efizz data collected on the efizz machine.
+"""A script to return the onset of TTL pulses for both the imec and bonsai machine.
+This is to align the behavioural data collected on the big rig with the efizz data collected on 
+the imec machine.
 
 Returns an object class containing:
-- ttl pulse onsets
-- the raw ttl signal
-
-TODO:
-- Look through fede's code to see if we need any other logic
-- Look at the efizz rig and run similar checks - duplicate logic
+- bonsai_TTL: The TTL from the big rig machine
+- imec_TTL: The TTL from the imec bin file from the efizz machine
+- sampling_rate: This is hard coded at 30khz
 """
 
 #Custom libaries
@@ -25,76 +21,77 @@ import dill as pickle
 import pandas as pd
 import random
 
-#Store file name here now for testing
+#Store file name here now for testing - hard coded need to update
 imec_bin_file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
 
 @dataclass(frozen=False)
 class TTL_Sync:
     # Storing relevant data to align big rig with efizz machine using the onset of TTL pulses
     bonsai_TTL: float # voltage recordings of ttl signal from bonsai machine
-    pulse_index: int # pulse onset index from bonsai machine
     imec_TTL: float
     sampling_rate: int # Should be 30khz for neuropixels
 
+#Return the above data class
 def get_TTL(session: Session) -> TTL_Sync:
-    """_summary_
-    Returns the TTL_sync class containing the onset of TTL pulses.
+    """Returns the TTL_sync dataclass. 
 
     Args:
         session (Session): custom object containing experimental path file
 
     Returns:
-        TTL_Sync: TTL_Sync.pulse_onset can be used to sync with another machine
+        TTL_Sync: data class
     """
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
-    ttl_signal = AI_data[3:-1:4] #From the 3 index until the end select every 4th sample
-    ttl_pulse_index = find_pulse_index(ttl_signal)
+    bonsai_ttl = AI_data[3:-1:4] #From the 3 index until the end select every 4th sample
     imec_TTL = get_TTL_from_imec(imec_bin_file)
-    ttl_object = TTL_Sync(ttl_signal, ttl_pulse_index, imec_TTL, 30000) #define final output
+    ttl_object = TTL_Sync(bonsai_ttl, imec_TTL, 30000) #define final output
     return (ttl_object)
 
+#Load imec bin file
 def get_TTL_from_imec(filename):
+    """Load the imec bin file and convert to np memory map
+
+    Args:
+        filename (str): File name of .bin imec file produced by spikeGLX
+    """
     data = load_or_open(filename, "int16", order="F", dtype="int16")
     return(data)
 
-def find_pulse_index(ttl_signal):
-    """_summary_
-    A function that returns the index of pulse onset.
-
-    Args:
-        ttl_signal (_type_): A raw TTL signal voltage recording
-    """
-    ttl_pulses_diff = np.diff(ttl_signal) #Compute the difference between xi+1-xi for len array
-    ttl_pulses_idx  = np.where(ttl_pulses_diff > 1)[0] + 1 #plus one as diff index shifts
-    return(ttl_pulses_idx)
-
+#If the signal pulses are not of the same duration, this function is used
 def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
-    """A function that takes removes samples from each pulse to ensure the
-    duration of each pulse is the same as the efixx signal. This will then
-    allow another function to shift the signals so they can be aligned.
+    """A function that  removes samples from each pulse for the bonsai signal to ensure the
+    duration of each pulse is the same as the efizz signal. This will then
+    allow another function to shift the signals so they can be aligned. This assumes
+    the bonsai machine is slower than the imec machine.
 
     Args:
-        bonsai_onsets (_type_): index of pulse onset
+        bonsai_onsets (_type_): index of pulse onset for bonsai pulse
         bonsai_signal (_type_): TTL signal out of bonsai machine
-        temporal_diff (_type_): _description_
+        temporal_diff (_type_): temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # The difference in pulse lengths
 
     Returns:
         np array: A updated bonsai TTL signal that should have the same pulse intervals as
         the matching efizz rig
+
+    To do:
+    - # off by one error need to fix
+    - # make faster it takes like 10 minutes
     """
-    # off by one error need to fix
-    copy_of_original_signal = bonsai_signal
+    #Copy signal to conduct length test
+    copy_of_original_signal_for_test = np.copy(bonsai_signal)
+
+    #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
-        first_pulse = bonsai_onsets[pulse] # index of pulse
-        next_pulse  = bonsai_onsets[pulse + 1] # index of next pulse
+        first_pulse_idx = bonsai_onsets[pulse] # index of pulse
+        next_pulse_idx  = bonsai_onsets[pulse + 1] # index of next pulse
         num_samples_to_remove = temporal_diff[pulse] # how many samples to remove this pulse
         print(pulse) # print current pulse as func is slow so need to check where at
         for sample in range(num_samples_to_remove):
-            choose_index = random.randint(first_pulse, next_pulse) # generate random sample to remove between onsets
+            choose_index = random.randint(first_pulse_idx, next_pulse_idx) # generate random sample to remove between onsets
             bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index
-    assert (len(bonsai_signal) == len(copy_of_original_signal) - sum(temporal_diff)), "The new signal does not match the old - number of changes required" 
+    assert (len(bonsai_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required" 
     return (bonsai_signal)
