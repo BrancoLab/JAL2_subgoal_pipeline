@@ -35,6 +35,7 @@ class Process():
         self.verify_aligned_data_streams()
         self.verify_check_TTL_length_and_means()
         self.verify_onsets_and_offsets()
+        logger.info("Signals are ok and have past verification steps")
 
         return self.session
 
@@ -107,8 +108,8 @@ class Process():
         """Check that the lengths of the bonsai TTL and the imec TTL are of a similar length and are not
         too far away from expected mean.
         """
-        if len(self.session.ttl.bonsai_TTL) - len(self.session.ttl.imec_TTL) > 20 * self.session.ttl.sampling_rate:
-            logger.warning("The sync signals have very different lengths, this cant be!")
+        if len(self.session.ttl.bonsai_TTL) != len(self.session.ttl.imec_TTL):
+            logger.warning("The sync signals have very different lengths, this cant be after resampling!")
             return
         
         if abs(np.mean(self.session.ttl.bonsai_TTL) - 2.5) > 1:

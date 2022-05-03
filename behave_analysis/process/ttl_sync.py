@@ -42,7 +42,7 @@ class TTL_Sync:
     choose_index: int # which indexs to delete, array of ints
 
 #Return the above data class
-def get_TTL(session: Session) -> TTL_Sync:
+def get_TTL(session: Session, resample = True) -> TTL_Sync:
     """Returns the TTL_sync dataclass. 
 
     Args:
@@ -63,12 +63,18 @@ def get_TTL(session: Session) -> TTL_Sync:
     bonsai_ttl = AI_data[3:-1:4] #From the 3 index until the end select every 4th sample
     imec_TTL = get_TTL_from_imec(imec_bin_file)
 
+    #Check for signal differences
+    if len(bonsai_ttl) - len(imec_TTL) > 20 * sampling_rate:
+        logger.warning("The sync signals have very different lengths before resample, this cant be!")
+        return
+
     # check for aberrant signals in ephys
     errors = np.where(imec_TTL > 75)[0]
     if len(errors):
         logger.warning(f"Found {len(errors)} samples with too high values in probe signal")
     if len(errors) > 1000:
         return False, 0, 0, "too_many_errors_in_ephys_sync_signal"
+
     # If errors remove signals and update imec ttl signal
     imec_TTL[errors] = imec_TTL[errors - 1]
 
@@ -94,7 +100,7 @@ def get_TTL(session: Session) -> TTL_Sync:
         bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, errors)
 
     #If there is a delta between onsets resample bonsai signal
-    if not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
+    if resample and not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
         #Check that the interval pulses match between imec and bonsai
             #Difference in temporal scale
             temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # Compare the difference in pulse lengths
