@@ -1,4 +1,8 @@
+#Custom libs
+from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
 from behave_analysis.process.session import Session
+
+# Os libs
 import os
 import numpy as np
 from dataclasses import dataclass
@@ -13,13 +17,15 @@ class Camera_trigger:
     frame_trigger_onsets_idx: object
     fps: int
 
-def get_Camera_trigger(session: Session, drop_frames=False) -> Camera_trigger:
+def get_Camera_trigger(session: Session, indexs_to_remove, temporal_diff, down_sample = True, drop_frames=False) -> Camera_trigger:
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)] # four interleaved time series
+    if down_sample: 
+        camera_trigger_data = remove_idx_as_per_bonsai_ttl_resample("video", camera_trigger_data, indexs_to_remove, temporal_diff)
     camera_trigger_num_samples = len(camera_trigger_data)
     if drop_frames == False: num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames)
     if drop_frames == True: num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames)

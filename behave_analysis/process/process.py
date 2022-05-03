@@ -19,22 +19,22 @@ class Process():
     def __init__(self, session_ID):
         self.session = get_Session(session_ID)
 
-    def create_session(self, settings) -> Session:        
+    def create_session(self, video_settings) -> Session:        
         self.load_registration_transform()
         self.print_session_details(stage=1)
-        self.session.camera_trigger = get_Camera_trigger(self.session)[0]
-        self.session.audio          = get_Audio(self.session)
-        self.session.video          = get_Video(self.session, settings, self.loaded_registration_transform)
         self.session.ttl            = get_TTL(self.session)
+        self.session.camera_trigger = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, down_sample = True)[0]
+        self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, down_sample = True)
+        self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
         self.print_session_details(stage=2)
         self.verify_all_frames_saved()
         self.save_session()
 
         #Verify sync pulses
         self.verify_check_for_abberant_signals_in_bonsai()
-        self.verify_check_for_abberant_signals_in_imec(self.session.ttl.imec_TTL)
         self.verify_aligned_data_streams()
-        self.get_onsets_and_offsets()
+        self.verify_check_TTL_length_and_means()
+        self.verify_onsets_and_offsets()
 
         return self.session
 
@@ -78,7 +78,8 @@ class Process():
 
     def verify_aligned_data_streams(self) -> None:
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
-            print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input:    {}\n  Laser output:   {} + {} or {} or {} or {}".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples, self.session.laser.num_samples, known_offset[0], known_offset[1], known_offset[2], known_offset[3]))
+            print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input:    {}\n".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples))
+            assert self.session.camera_trigger.num_samples == self.session.audio.num_samples, "Sample lens don't match"
 
     def verify_check_for_abberant_signals_in_bonsai(self) -> None:
         """_summary_
@@ -102,45 +103,29 @@ class Process():
                 logger.warning("Fede says this is too many errors. Signal unfit for use, terminating program.")
             return
 
-    def verify_check_for_abberant_signals_in_imec(self, imec_ttl) -> None:
-        # check for aberrant signals in ephys
-        errors = np.where(imec_ttl > 75)[0]
-        if len(errors):
-            logger.warning(f"Found {len(errors)} samples with too high values in probe signal")
-        if len(errors) > 1000:
-            return False, 0, 0, "too_many_errors_in_ephys_sync_signal"
-        # If errors remove signals and update imec ttl signal
-        imec_ttl[errors] = imec_ttl[errors - 1]
-        self.session.ttl.imec_TTL = imec_ttl
-        return
-
-    def get_onsets_and_offsets(self):
-        logger.debug("extracting sync signal pulses")
-        is_ok = True  # until proven otherwise
-
-        # do some preliminary checks
+    def verify_check_TTL_length_and_means(self) -> None:
+        """Check that the lengths of the bonsai TTL and the imec TTL are of a similar length and are not
+        too far away from expected mean.
+        """
         if len(self.session.ttl.bonsai_TTL) - len(self.session.ttl.imec_TTL) > 20 * self.session.ttl.sampling_rate:
             logger.warning("The sync signals have very different lengths, this cant be!")
-            is_ok = False
+            return
         
-        if is_ok and abs(np.mean(self.session.ttl.bonsai_TTL) - 2.5) > 1:
+        if abs(np.mean(self.session.ttl.bonsai_TTL) - 2.5) > 1:
             logger.warning("Bonsai signal mean very far from expected average, cant be!")
-            is_ok = False
-
-        if is_ok and abs(np.mean(self.session.ttl.imec_TTL) - 38.0) > 6:
+            return
+        if abs(np.mean(self.session.ttl.imec_TTL) - 38.0) > 6:
             logger.warning("Ephys signal mean very far from exected average, cant be!")
-            is_ok = False
+            return
+
+    #Check onset and offsets for errors
+    def verify_onsets_and_offsets(self):
+        logger.debug("Verifying sync signal pulses")
+        is_ok = True  # until proven otherwise
         
         # get pulses onsets
         bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
         ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
-
-        # remove pulses that are too brief
-        errors = np.where(np.diff(bonsai_sync_onsets) < self.session.ttl.sampling_rate / 3)[0]
-        if errors:
-            logger.warning("Removing pulses that are too brief, check signal")
-            bonsai_sync_offsets = np.delete(bonsai_sync_offsets, errors)
-            bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, errors)
 
         # check if numbers make sense
         if len(bonsai_sync_onsets) != len(bonsai_sync_offsets):
@@ -176,33 +161,4 @@ class Process():
             is_ok = False
             logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.session.ttl.sampling_rate})")
 
-        #Check that pulse onset intervals are the same
-        #Onsets
-        delta_ephys_onsets  = np.diff(ephys_sync_onsets)
-        delta_bonsai_onsets = np.diff(bonsai_sync_onsets)
-        #Offsets
-        delta_ephys_offsets = np.diff(ephys_sync_offsets)
-        delta_bonsai_offsets = np.diff(bonsai_sync_offsets)
-
-        if not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
-        #Check that the interval pulses match between imec and bonsai
-            #Difference in temporal scale
-            temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # Compare the difference in pulse lengths
-            is_ok = False
-            logger.warning("Pulse lengths do not match between imec and efizz. The signals require modifcation before shifting")
-            if (sum(temporal_difference) > 0):
-                logger.info("Bonsai recording is longer than the ephys recording")
-            else: 
-                logger.error("Bonsai recording is shorter than the ephys recording, ending script as this goes against assumptions")
-                return
-
-        bonsai_signal = remove_idx_to_align_signals(bonsai_sync_onsets, 
-                                                    self.session.ttl.bonsai_TTL, 
-                                                    temporal_difference)
-    
-        print("test")
-        return (is_ok, 
-                bonsai_sync_onsets,
-                bonsai_sync_offsets,
-                ephys_sync_onsets,
-                ephys_sync_offsets)
+        return (is_ok)

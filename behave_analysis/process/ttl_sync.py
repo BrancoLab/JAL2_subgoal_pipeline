@@ -6,6 +6,9 @@ Returns an object class containing:
 - bonsai_TTL: The TTL from the big rig machine
 - imec_TTL: The TTL from the imec bin file from the efizz machine
 - sampling_rate: This is hard coded at 30khz
+
+Todo:
+- update script summary with new class attributes
 """
 
 #Custom libaries
@@ -35,6 +38,8 @@ class TTL_Sync:
     bonsai_sync_offsets: int # array of ints, onset/offsets
     ephys_sync_onsets: int # array of ints, onset/offsets
     ephys_sync_offset: int # array of ints, onset/offsets
+    temporal_difference: int # array of ints, differences in offsets and onsets
+    choose_index: int # which indexs to delete, array of ints
 
 #Return the above data class
 def get_TTL(session: Session) -> TTL_Sync:
@@ -46,6 +51,10 @@ def get_TTL(session: Session) -> TTL_Sync:
     Returns:
         TTL_Sync: data class
     """
+
+    #Set global sampling rate
+    sampling_rate = 30000
+
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)
@@ -54,17 +63,61 @@ def get_TTL(session: Session) -> TTL_Sync:
     bonsai_ttl = AI_data[3:-1:4] #From the 3 index until the end select every 4th sample
     imec_TTL = get_TTL_from_imec(imec_bin_file)
 
+    # check for aberrant signals in ephys
+    errors = np.where(imec_TTL > 75)[0]
+    if len(errors):
+        logger.warning(f"Found {len(errors)} samples with too high values in probe signal")
+    if len(errors) > 1000:
+        return False, 0, 0, "too_many_errors_in_ephys_sync_signal"
+    # If errors remove signals and update imec ttl signal
+    imec_TTL[errors] = imec_TTL[errors - 1]
+
     #Get onset and offsets
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
     ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
 
+    #Check that pulse onset intervals are the same
+
+    #Onsets
+    delta_ephys_onsets  = np.diff(ephys_sync_onsets)
+    delta_bonsai_onsets = np.diff(bonsai_sync_onsets)
+
+    #Offsets
+    delta_ephys_offsets = np.diff(ephys_sync_offsets)
+    delta_bonsai_offsets = np.diff(bonsai_sync_offsets)
+
+    # remove pulses that are too brief
+    errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
+    if errors:
+        logger.warning("Removing pulses that are too brief, check signal")
+        bonsai_sync_offsets = np.delete(bonsai_sync_offsets, errors)
+        bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, errors)
+
+    #If there is a delta between onsets resample bonsai signal
+    if not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
+        #Check that the interval pulses match between imec and bonsai
+            #Difference in temporal scale
+            temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # Compare the difference in pulse lengths
+            is_ok = False
+            logger.warning("Pulse lengths do not match between imec and efizz. The signals require modifcation before shifting")
+            if (sum(temporal_difference) > 0):
+                logger.info("Bonsai recording is longer than the ephys recording. Resample signal.")
+                bonsai_ttl, choose_index = remove_idx_to_align_signals(bonsai_sync_onsets, 
+                                                            bonsai_ttl, 
+                                                            temporal_difference)
+            else: 
+                logger.error("Bonsai recording is shorter than the ephys recording, ending script as this goes against assumptions")
+                return
+
     ttl_object = TTL_Sync(bonsai_ttl, 
                           imec_TTL, 
-                          30000,
+                          sampling_rate,
                           bonsai_sync_onsets,
                           bonsai_sync_offsets,
                           ephys_sync_onsets,
-                          ephys_sync_offsets) #define final output
+                          ephys_sync_offsets,
+                          temporal_difference,
+                          choose_index) #define final output
     return (ttl_object)
 
 #Load imec bin file
@@ -90,8 +143,10 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
         temporal_diff (_type_): temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # The difference in pulse lengths
 
     Returns:
-        np array: A updated bonsai TTL signal that should have the same pulse intervals as
+        np array: 
+        + A updated bonsai TTL signal that should have the same pulse intervals as
         the matching efizz rig
+        + the indexs removed to be used for downsampling the other AI data
 
     To do:
     + Add other signals from the AI group
@@ -99,6 +154,7 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     #Copy signal to conduct length test
     copy_of_original_signal_for_test = np.copy(bonsai_signal)
 
+    #Create an array for the indexs to remove
     choose_index = np.array([])
     #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
@@ -108,8 +164,8 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     
     #Tests
     assert (len(bonsai_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required" 
-    assert derivative(choose_index) > 1000, "A re_sample is less than 1000 samples apart. Not uniform "
-    return (bonsai_signal)
+    assert all(derivative(choose_index) > 1000), "A re_sample is less than 1000 samples apart. Not uniform "
+    return (bonsai_signal, choose_index)
 
 #Get the onsets and offsets for bonsai / imec. Your choice!
 def get_onset_offset(signal, threshold, clean=True):
