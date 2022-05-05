@@ -3,6 +3,7 @@ from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
+from behave_analysis.process.photoresistor import get_Photoresistor
 from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals, get_onset_offset
 from behave_analysis.utils.check_drop_frames import check_drop_frames
 from behave_analysis.utils.load_bin_or_np import load_or_open
@@ -22,10 +23,11 @@ class Process():
     def create_session(self, video_settings) -> Session:        
         self.load_registration_transform()
         self.print_session_details(stage=1)
-        self.session.ttl            = get_TTL(self.session,  down_sample = True)
-        self.session.camera_trigger = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, down_sample = True)[0]
-        self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, down_sample = True)
+        self.session.ttl            = get_TTL(self.session)
+        self.session.camera_trigger = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)[0]
+        self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
         self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
+        self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
         self.print_session_details(stage=2)
         self.verify_all_frames_saved()
         self.save_session()
@@ -85,7 +87,6 @@ class Process():
             print("Length of camera trigger:", self.session.camera_trigger.num_samples)
             print("Length of bonsai TTL:", len(self.session.ttl.bonsai_TTL))
             assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger doesn't match the length of the bonsai TTL"
-
 
     def verify_check_for_abberant_signals_in_bonsai(self) -> None:
         """_summary_
