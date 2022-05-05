@@ -22,7 +22,7 @@ def load_bin(filepath, nsigs=385, dtype=None, order=None):
     logger.debug(f'Opening BIN file: "{filepath}" ({os.path.getsize(filepath)})')
     dtype = dtype or np.float64
     order = order or "C"
-    assert os.path.isfile(file), "Path is a folder, not a file"
+    assert os.path.isfile(filepath), "Path is a folder, not a file"
     with open(filepath, "r") as fin:
         data = np.memmap(fin, dtype=dtype, order=order, mode="r")
     return data.reshape(-1, nsigs) #Reshape to [unknown dimension, nsigs]
