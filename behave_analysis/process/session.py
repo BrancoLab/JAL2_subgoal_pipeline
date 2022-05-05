@@ -14,6 +14,7 @@ class Session:
     camera_trigger: object=None
     audio: object=None
     video: object=None
+    ttl  : object=None
     homing: object = None
     threshold_crossing: object = None
 

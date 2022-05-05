@@ -1,6 +1,7 @@
 databank = {}
 # databank['path'] = ".\\sample_data\\"                          # sample data
-databank['path'] = "D:\\Dropbox (UCL)\\DAQ\\upstairs_rig\\"      # full dataset
+# databank['path'] = "D:\\Dropbox (UCL)\\DAQ\\upstairs_rig\\"      # full dataset
+databank['path'] = r"C:\Users\JoannaA\Dropbox (UCL)\DAQ\upstairs_rig"      # full dataset
 
 databank['session IDs'] = [
 #----Name of experiment-----prev session------Folder with data------
@@ -25,5 +26,7 @@ databank['session IDs'] = [
 [10,0,     'bedding and walls',         True,        "1114_bedding and walls_22FEB02"],
 
 [11,0,     'food dish and walls',       True,        "1115_food dish and walls_22FEB02"],
+
+[12, 0,    'efizz test',                True,        "2104_Ephsy_test"]
 
 ]
