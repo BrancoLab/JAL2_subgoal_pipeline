@@ -117,8 +117,8 @@ class Process():
         if abs(np.mean(self.session.ttl.bonsai_TTL) - 2.5) > 1:
             logger.warning("Bonsai signal mean very far from expected average, cant be!")
             return
-        if abs(np.mean(self.session.ttl.imec_TTL) - 38.0) > 6:
-            logger.error("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.session.ttl.imec_TTL)))
+        if abs(np.mean(self.session.ttl.imec_TTL) - 38.0) > 10:
+            logger.warning("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.session.ttl.imec_TTL)))
             return
 
     #Check onset and offsets for errors
@@ -165,8 +165,7 @@ class Process():
             logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.session.ttl.sampling_rate})")
 
         #Test differences
-        temporal_difference = derivative(bonsai_sync_onsets) - derivative(ephys_sync_onsets) # Compare the difference in pulse lengths
-        logger.warning("The last pulse onset has an acceptable difference: {}".format(temporal_difference[-1]))
-        assert np.all(temporal_difference[:-1] == 0), "Resample failed, there should be no difference in pulse length at this stage"
+        temporal_difference = np.diff(bonsai_sync_onsets) - np.diff(ephys_sync_onsets) # Compare the difference in pulse lengths
+        assert np.all(temporal_difference == 0), "Resample failed, there should be no difference in pulse length at this stage"
 
         return (is_ok)

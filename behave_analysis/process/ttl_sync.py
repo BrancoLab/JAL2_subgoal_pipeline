@@ -29,8 +29,8 @@ from loguru import logger
 
 #Store file name here now for testing - hard coded need to update
 # imec_bin_file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
-# imec_bin_file = "E:/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
-imec_bin_file = "E:/data/ephys/test1_g0_imec0/test1_g0_t0.imec0.ap.bin"
+imec_bin_file = "E:/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
+# imec_bin_file = "E:/data/ephys/test1_g0_imec0/test1_g0_t0.imec0.ap.bin"
 
 @dataclass(frozen=False)
 class TTL_Sync:
@@ -84,12 +84,12 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
 
     #Now compare delta between onsets
     #Delta Onsets
-    delta_ephys_onsets  = derivative(ephys_sync_onsets)
-    delta_bonsai_onsets = derivative(bonsai_sync_onsets)
+    delta_ephys_onsets  = np.diff(ephys_sync_onsets)
+    delta_bonsai_onsets = np.diff(bonsai_sync_onsets)
 
     #delta Offsets
-    delta_ephys_offsets = derivative(ephys_sync_offsets)
-    delta_bonsai_offsets = derivative(bonsai_sync_offsets)
+    delta_ephys_offsets = np.diff(ephys_sync_offsets)
+    delta_bonsai_offsets = np.diff(bonsai_sync_offsets)
 
     #If down_sample is set to true and there exsists a delta between onsets of efiz and bonsai, resample bonsai signal
     if down_sample and not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
@@ -153,10 +153,9 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
         #Take the number of samples needed to remove. Add one and don't select it. To ensure uniformity.
-        choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse], bonsai_onsets[pulse + 1], temporal_diff[pulse] + 1, dtype='int')[:-1])
-    choose_index = choose_index.astype(int)
+        choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse] + 7, bonsai_onsets[pulse + 1], temporal_diff[pulse] + 1, dtype='int')[:-1])
+    choose_index = list(choose_index.astype(int))
     bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index - all at once
-    
     #Tests
     assert len(choose_index) == sum(temporal_diff), "The number of indexes choosen should equal the amount of samples required for removal"
     assert (len(bonsai_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required"
