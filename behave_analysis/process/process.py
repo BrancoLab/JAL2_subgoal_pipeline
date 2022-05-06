@@ -36,7 +36,8 @@ class Process():
         self.verify_aligned_data_streams()
         self.verify_check_means()
         self.verify_all_frames_saved()
-        self.verify_onsets_and_offsets()
+        is_ok = self.verify_onsets_and_offsets()
+        if is_ok: logger.info("All verifications steps passed")
         return self.session
 
     def save_session(self, overwrite=True):
@@ -147,7 +148,7 @@ class Process():
                            f"{len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
     
         else:
-            logger.debug(f"Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
+            logger.info(f"Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
 
         if ephys_sync_onsets[0] <= bonsai_sync_onsets[0]:
             is_ok = False

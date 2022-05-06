@@ -35,3 +35,7 @@ databank['session IDs'] = [
 [14,0,     'Signaltest',                True,        "NONE_signaltest_22MAY06"],
 
 ]
+
+#need to refactor with philip if possible
+efizz = ["E:/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin",
+          "E:/data/ephys/test1_g0_imec0/test1_g0_t0.imec0.ap.bin"]

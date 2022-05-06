@@ -16,6 +16,7 @@ Todo:
 #Custom libaries
 from behave_analysis.process.session import Session
 from behave_analysis.utils.load_bin_or_np import load_or_open
+from databank import efizz
 
 #OS libaries
 import os
@@ -28,9 +29,8 @@ import random
 from loguru import logger
 
 #Store file name here now for testing - hard coded need to update
-# imec_bin_file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
-imec_bin_file = "E:/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
-# imec_bin_file = "E:/data/ephys/test1_g0_imec0/test1_g0_t0.imec0.ap.bin"
+imec_bin_file = efizz[0]
+# imec_bin_file = efizz[1]
 
 @dataclass(frozen=False)
 class TTL_Sync:
