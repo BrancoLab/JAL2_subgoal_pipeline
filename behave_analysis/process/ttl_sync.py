@@ -134,9 +134,9 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     the bonsai machine is slower than the imec machine.
 
     Args:
-        bonsai_onsets (_type_): index of pulse onset for bonsai pulse
-        bonsai_signal (_type_): TTL signal out of bonsai machine
-        temporal_diff (_type_): temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # The difference in pulse lengths
+        bonsai_onsets (array): index of pulse onset for bonsai pulse
+        bonsai_signal (array): TTL signal out of bonsai machine
+        temporal_diff (array): temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # The difference in pulse lengths
 
     Returns:
         np array: 
@@ -153,7 +153,7 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
         #Take the number of samples needed to remove. Add one and don't select it. To ensure uniformity.
-        choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse] + 7, bonsai_onsets[pulse + 1], temporal_diff[pulse] + 1, dtype='int')[:-1])
+        choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse] + 1, bonsai_onsets[pulse + 1], temporal_diff[pulse] + 1, dtype='int')[:-1])
     choose_index = list(choose_index.astype(int))
     bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index - all at once
     #Tests
