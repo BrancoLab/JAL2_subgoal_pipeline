@@ -2,6 +2,8 @@
 This is to align the behavioural data collected on the big rig with the efizz data collected on 
 the imec machine.
 
+Note - the onsets/offsets are before the resample and thus if you plot them next to resample signal they will be missaligned
+
 Returns an object class containing:
 - bonsai_TTL: The TTL from the big rig machine
 - imec_TTL: The TTL from the imec bin file from the efizz machine
@@ -26,7 +28,9 @@ import random
 from loguru import logger
 
 #Store file name here now for testing - hard coded need to update
-imec_bin_file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
+# imec_bin_file = "C:/Users/JoannaA/Desktop/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
+# imec_bin_file = "E:/data/ephys/test0_g0_imec0/test0_g0_t0.imec0.ap.bin"
+imec_bin_file = "E:/data/ephys/test1_g0_imec0/test1_g0_t0.imec0.ap.bin"
 
 @dataclass(frozen=False)
 class TTL_Sync:
@@ -34,10 +38,10 @@ class TTL_Sync:
     bonsai_TTL: float # voltage recordings of ttl signal from bonsai machine
     imec_TTL: float
     sampling_rate: int # Should be 30khz for neuropixels
-    bonsai_sync_onsets: int # array of ints, onset/offsets
-    bonsai_sync_offsets: int # array of ints, onset/offsets
-    ephys_sync_onsets: int # array of ints, onset/offsets
-    ephys_sync_offset: int # array of ints, onset/offsets
+    bonsai_sync_onsets: int # array of ints, onset/offsets PRE RESAMPLING 
+    bonsai_sync_offsets: int # array of ints, onset/offsets PRE RESAMPLING 
+    ephys_sync_onsets: int # array of ints, onset/offsets PRE RESAMPLING 
+    ephys_sync_offset: int # array of ints, onset/offsets PRE RESAMPLING 
     temporal_difference: int # array of ints, differences in offsets and onsets
     choose_index: int # which indexs to delete, array of ints
 
@@ -67,7 +71,7 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
     #Check and correct for abberant signals
     imec_TTL = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
-    #Get onset and offsets
+    #Get onset and offsets - PRE DOWNSAMPLE
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
     ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
 
@@ -80,12 +84,12 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
 
     #Now compare delta between onsets
     #Delta Onsets
-    delta_ephys_onsets  = np.diff(ephys_sync_onsets)
-    delta_bonsai_onsets = np.diff(bonsai_sync_onsets)
+    delta_ephys_onsets  = derivative(ephys_sync_onsets)
+    delta_bonsai_onsets = derivative(bonsai_sync_onsets)
 
     #delta Offsets
-    delta_ephys_offsets = np.diff(ephys_sync_offsets)
-    delta_bonsai_offsets = np.diff(bonsai_sync_offsets)
+    delta_ephys_offsets = derivative(ephys_sync_offsets)
+    delta_bonsai_offsets = derivative(bonsai_sync_offsets)
 
     #If down_sample is set to true and there exsists a delta between onsets of efiz and bonsai, resample bonsai signal
     if down_sample and not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
@@ -95,7 +99,7 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
         is_ok = False
         logger.warning("Pulse lengths do not match between imec and efizz. The signals require modifcation before shifting")
         if (sum(temporal_difference) > 0):
-            logger.info("Bonsai recording is longer than the ephys recording. Resample signal.")
+            logger.info("Bonsai pulses are longer than efizz pulses. Resample signal.")
             bonsai_ttl, choose_index = remove_idx_to_align_signals(bonsai_sync_onsets, bonsai_ttl, temporal_difference)
         else: 
             logger.error("Bonsai recording is shorter than the ephys recording, ending script as this goes against assumptions")
@@ -109,7 +113,7 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
                           ephys_sync_onsets,
                           ephys_sync_offsets,
                           temporal_difference,
-                          choose_index) #define final output
+                          choose_index)
     return (ttl_object)
 
 #Load imec bin file
@@ -149,12 +153,15 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
         #Take the number of samples needed to remove. Add one and don't select it. To ensure uniformity.
-        choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse], bonsai_onsets[pulse + 1], temporal_diff[pulse]+1)[:-1])
+        choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse], bonsai_onsets[pulse + 1], temporal_diff[pulse] + 1, dtype='int')[:-1])
+    choose_index = choose_index.astype(int)
     bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index - all at once
     
     #Tests
-    assert (len(bonsai_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required" 
-    assert all(derivative(choose_index) > 1000), "A re_sample is less than 1000 samples apart. Not uniform "
+    assert len(choose_index) == sum(temporal_diff), "The number of indexes choosen should equal the amount of samples required for removal"
+    assert (len(bonsai_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required"
+    assert (temporal_diff[3:] < 3000).all(), "Pulse onset difference between signals is greater than one milisecond. This is a considerable difference. Check pulses"
+    # assert all(derivative(choose_index) > 1000), "A re_sample is less than 1000 samples apart. Not uniform "
 
     #Logs
     logger.info("Original signal length: {}, Num indexs to remove: {}, New signal length: {}".format(len(copy_of_original_signal_for_test), len(choose_index), len(bonsai_signal))) #continue to figure out off by one error
@@ -177,7 +184,7 @@ def get_onset_offset(signal, threshold, clean=True):
             Ends: Indexes of pulse offsets
     """
     above = np.zeros_like(signal) # Creates an array of zeros of length signal
-    above[signal >= threshold] = 1 #If the signal is above threshold set to 1
+    above[signal >= threshold] = 1 #If the signal is above voltage threshold, set to 1
     der = derivative(above) #Create an array of differences 
     starts = np.where(der > 0)[0] #Where does the signal switch from 0 to 1
     ends = np.where(der < 0)[0] #Where does the signal switch from 1 to 0
@@ -218,7 +225,7 @@ def derivative(X, axis=0, order=1):
             order: int. Derivative order
     """
     #Prepend 0 so the index is realigned to prevent off by 1 error
-    return np.diff(X, n=order, axis=axis, prepend=0)
+    return np.diff(X, n=order, axis=axis)
 
 #Check for abberant signals and errors
 def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):

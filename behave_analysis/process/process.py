@@ -4,7 +4,7 @@ from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.photoresistor import get_Photoresistor
-from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals, get_onset_offset
+from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals, get_onset_offset, derivative
 from behave_analysis.utils.check_drop_frames import check_drop_frames
 from behave_analysis.utils.load_bin_or_np import load_or_open
 
@@ -29,16 +29,14 @@ class Process():
         self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
         self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
         self.print_session_details(stage=2)
-        self.verify_all_frames_saved()
         self.save_session()
 
         #Verify sync pulses
         self.verify_check_for_abberant_signals_in_bonsai()
         self.verify_aligned_data_streams()
-        self.verify_check_TTL_length_and_means()
+        self.verify_check_means()
+        self.verify_all_frames_saved()
         self.verify_onsets_and_offsets()
-        logger.info("Signals are ok and have past verification steps")
-
         return self.session
 
     def save_session(self, overwrite=True):
@@ -78,6 +76,8 @@ class Process():
                 print(" - Video realigned! Video contains {} frames, and {} frames were triggered (for experiment: {}, mouse: {})---".format(self.session.video.num_frames, self.session.camera_trigger.num_frames, self.session.experiment, self.session.mouse))
             else:
                 print(" - Aligning failed")
+        
+        else: logger.info("Frames triggered are the same number as frames captured")
 
     def verify_aligned_data_streams(self) -> None:
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
@@ -110,19 +110,15 @@ class Process():
                 logger.warning("Fede says this is too many errors. Signal unfit for use, terminating program.")
             return
 
-    def verify_check_TTL_length_and_means(self) -> None:
-        """Check that the lengths of the bonsai TTL and the imec TTL are of a similar length and are not
+    def verify_check_means(self) -> None:
+        """Check that the means of the bonsai TTL and the imec TTL are not
         too far away from expected mean.
         """
-        if len(self.session.ttl.bonsai_TTL) != len(self.session.ttl.imec_TTL):
-            logger.warning("The sync signals have very different lengths, this cant be after resampling!")
-            return
-        
         if abs(np.mean(self.session.ttl.bonsai_TTL) - 2.5) > 1:
             logger.warning("Bonsai signal mean very far from expected average, cant be!")
             return
         if abs(np.mean(self.session.ttl.imec_TTL) - 38.0) > 6:
-            logger.warning("Ephys signal mean very far from exected average, cant be!")
+            logger.error("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.session.ttl.imec_TTL)))
             return
 
     #Check onset and offsets for errors
@@ -141,7 +137,7 @@ class Process():
     
         if len(ephys_sync_onsets) != len(ephys_sync_offsets):
             is_ok = False
-            logger.warning(f"EPHYS - Unequal number of onsets/offsets ({len(ephys_sync_offsets)}/{len(ephys_sync_onsets)})")
+            logger.warning(f"EPHYS - Unequal number of offsets/onsets ({len(ephys_sync_offsets)}/{len(ephys_sync_onsets)})")
 
         # check same results for bonsai and ephys
         if len(bonsai_sync_onsets) != len(ephys_sync_onsets):
@@ -155,7 +151,7 @@ class Process():
 
         if ephys_sync_onsets[0] <= bonsai_sync_onsets[0]:
             is_ok = False
-            logger.warning("Bonsai should start first!")
+            logger.warning("The first pulse onset is the imec signal and not the bonsai signal. Check if intended.")
 
         #Check the interval between sync signals in bonsai
         onsets_delta = np.diff(bonsai_sync_onsets)
@@ -167,5 +163,10 @@ class Process():
             # check that it lasts as long as it should
             is_ok = False
             logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.session.ttl.sampling_rate})")
+
+        #Test differences
+        temporal_difference = derivative(bonsai_sync_onsets) - derivative(ephys_sync_onsets) # Compare the difference in pulse lengths
+        logger.warning("The last pulse onset has an acceptable difference: {}".format(temporal_difference[-1]))
+        assert np.all(temporal_difference[:-1] == 0), "Resample failed, there should be no difference in pulse length at this stage"
 
         return (is_ok)

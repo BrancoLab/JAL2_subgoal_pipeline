@@ -24,5 +24,5 @@ def remove_idx_as_per_bonsai_ttl_resample(name_of_signal, signal_to_downsample, 
 
     #Tests
     assert (len(down_sampled_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required" 
-    assert all(derivative(indexs_to_remove) > 1000), "A re_sample is less than 1000 samples apart. Not uniform "
+    # assert all(derivative(indexs_to_remove) > 1000), "A re_sample is less than 1000 samples apart. Not uniform "
     return(down_sampled_signal)
