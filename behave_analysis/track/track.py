@@ -14,6 +14,12 @@ class Track():
         self.settings = settings
 
     def run_deeplabcut_tracking(self, session):
+        """Check if DLC has been run on a video before if not run it.
+        This should not require updating.
+
+        Args:
+            session (object): A data class containing relevant information for tracking contained within settings_track.py
+        """
         print('\n\n---')
         dlc_already_run = bool(glob.glob(os.path.join(session.file_path, "*DeepCut*")))
         if dlc_already_run: 
@@ -24,6 +30,11 @@ class Track():
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
 
     def process_tracking_data(self, session):
+        """Some futher processing shouldn't require changing.
+
+        Args:
+            session (_type_): _description_
+        """
         already_filtered_and_registered = os.path.isfile(session.video.tracking_data_file)
         if already_filtered_and_registered and not self.settings.redo_processing_step: 
             print("Tracking data already filtered and registered for session:  {} - {}".format(session.number, session.name))
@@ -40,6 +51,12 @@ class Track():
 
 # -----HIGH-LEVEL FUNCS-------------------------------------------------------------
     def create_dlc_tracking_array(self, session):
+        """Create and fill an array of tracking data from DLC.
+        Shouldn't need changing.
+
+        Args:
+            session (object): session dataclass
+        """
         self.tracking_data = {}
         self.extract_data_from_dlc_file(session)
         self.create_array_with_dlc_tracking_data(session)
@@ -123,11 +140,10 @@ class Track():
     def compute_avg_bodypart_locations(self):
         #! This region mapping must be redone if different body parts are used during DeepLabCut tracking
         for region_mapping in [   ['avg_loc',        self.tracking_data['bodyparts']], 
-                                  ['snout_loc',      ['nose', 'L eye', 'R eye']],
-                                  ['neck_loc',       ['L ear', 'neck', 'R ear']],
-                                  ['upper_body_loc', ['L shoulder', 'upper back', 'R shoulder']],
-                                  ['lower_body_loc', ['L hind limb', 'Lower back', 'R hind limb', 'derriere']],
-                                  ['head_loc',       ['snout_loc', 'neck_loc']],
+                                  ['neck_loc',       ['left_ear', 'upper_back', 'right_ear']],
+                                  ['upper_body_loc', ['left_shoulder', 'upper_back', 'right_shoulder']],
+                                  ['lower_body_loc', ['left_hind_limb', 'lower_back', 'right_hind_limb', 'tail_base']],
+                                  ['head_loc',       ['left_ear', 'right_ear']],
                                   ['body_loc',       ['upper_body_loc', 'lower_body_loc']]  ]:
             body_region_name = region_mapping[0]
             list_of_constituent_bodyparts = region_mapping[1]
@@ -135,7 +151,7 @@ class Track():
 
     def compute_angles(self):
         for direction_to_compute, front_bodypart, back_bodypart in zip(['body_dir','neck_dir', 'head_dir'],
-                                                                       ['upper_body_loc', 'head_loc', 'snout_loc'],
+                                                                       ['upper_body_loc', 'head_loc'],
                                                                        ['lower_body_loc', 'upper_body_loc', 'neck_loc']):
             self.tracking_data[direction_to_compute] = np.angle((self.tracking_data[front_bodypart][:, 0] - self.tracking_data[back_bodypart][:, 0]) + \
                                                                (-self.tracking_data[front_bodypart][:, 1] + self.tracking_data[back_bodypart][:, 1]) * 1j, deg=True)

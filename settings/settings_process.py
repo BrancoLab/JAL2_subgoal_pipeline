@@ -4,7 +4,7 @@ import os
 settings_process = Settings_process(
 
     create_new_registration = False,
-    skip_registration = True,
+    skip_registration = False,
 
     registration = 'homography', # 'affine' 'partial affine' or 'homography' (use the least complex needed)
     fisheye_correction_file = os.path.join("sample_data", "fisheye_maps.npy"), # remove setting if n/a
@@ -15,7 +15,7 @@ settings_process = Settings_process(
     experiments = ['block pre edge vectors'],
 
     by_session=True,
-    sessions=[12],
+    sessions=[0],
 
     all_sessions=False
 
