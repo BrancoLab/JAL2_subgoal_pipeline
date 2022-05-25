@@ -1,3 +1,6 @@
+"""The following script contains several dataclasses that outline the fields of several classes used within the pipeline but contain no data themselves.
+As such each class below is just a shell"""
+
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
