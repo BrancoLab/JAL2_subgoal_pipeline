@@ -1,3 +1,5 @@
+# OS Libaries
+from loguru import logger
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 import os
@@ -59,6 +61,7 @@ class Track():
         """
         self.tracking_data = {}
         self.extract_data_from_dlc_file(session)
+        logger.error('Error after this')
         self.create_array_with_dlc_tracking_data(session)
         
     def remove_bad_tracking_data(self, session):
@@ -81,11 +84,20 @@ class Track():
 
 # -----LOW-LEVEL FUNCS--------------------------------------------------------------
     def extract_data_from_dlc_file(self, session):
-        dlc_tracking_file = glob.glob(os.path.join(session.file_path, "*.h5"))[0]
-        self.dlc_output = pd.read_hdf(dlc_tracking_file)
+        """Ingests a H5 file outputted from DLC analysis, body parts, and
+        model name. Changing the string in dlc network name maybe necessary if using different model
+        type.
+
+        Args:
+            session (obejct): Session settings object data class
+        """
+        dlc_tracking_file = glob.glob(os.path.join(session.file_path, "*.h5"))[0] #Selects the .h5 file in video dir
+        self.dlc_output = pd.read_hdf(dlc_tracking_file) #Converts .h5 to pandas
+        print(self.dlc_output)
         with open(self.settings.dlc_settings_file) as file: dlc_settings = yaml.safe_load(file)
         self.tracking_data['bodyparts'] = dlc_settings['bodyparts']
-        self.dlc_network_name = dlc_tracking_file[dlc_tracking_file.find('DeepCut_resnet'):-3]
+        self.dlc_network_name = dlc_tracking_file[dlc_tracking_file.find('DLC_resnet'):-3] #This line breaks if different model names are used
+        if not self.dlc_network_name: logger.error("No DLC name found, has a different model been used?")
 
     def create_array_with_dlc_tracking_data(self, session):
         self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data['bodyparts']), 3))
