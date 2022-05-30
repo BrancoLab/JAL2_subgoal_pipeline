@@ -6,9 +6,14 @@ from behave_analysis.analyze.data_extraction_funcs import *
 from behave_analysis.analyze.stats_funcs import permutation_test, print_stat_test_results
 from behave_analysis.analyze.trial_eligibility_funcs import trial_is_eligible
 from behave_analysis.utils.directory import Directory
+
+# OS libs
+
+from scipy.interpolate import SmoothBivariateSpline
 import matplotlib.pyplot as plt
 import matplotlib.patches as ptch
 import numpy as np
+import resampy
 
 class Analyze():
     def __init__(self, session_IDs, settings, analysis_type):
@@ -16,6 +21,7 @@ class Analyze():
         self.session_IDs = session_IDs
         self.session_count = -1
         self.trial_num = 0
+        self.avg_pos = []
         self.data_x = np.array([])
         self.data_y = np.array([])
         self.data_session_num = np.array([])
@@ -70,8 +76,11 @@ class Analyze():
 
     def exploration(self):
         self.extract_data()
+        position_data = self.tracking_data
+        self.avg_pos = position_data['avg_loc'] # The average position of the animal across the session
+        self.interp_position() # Interpolate posiiton data and extend to fs of 30khz
         for trial in self.trials_to_plot:
-            self.initialize_trajectory_plot()
+            self.initialize_trajectory_plot() # plot an empty circle w/wo an obstacle
             self.plot_trajectory(trial)
             self.save_plot()
 
@@ -109,7 +118,7 @@ class Analyze():
 
     def get_start_and_end_frames(self):
         session_start = 0
-        camera_trigger_data = get_Camera_trigger(self.session)[1]
+        camera_trigger_data = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)[1]
         session_end = get_num_frames_expected(self.session, camera_trigger_data)[0]
         trial = create_trial_dict(self, session_start, session_end)
         self.trials_to_plot.append(trial)
@@ -175,16 +184,19 @@ class Analyze():
 
 # ----PLOTTING TRAJECTORIES---------------------------------------------
     def initialize_trajectory_plot(self):
-        size = self.session.video.registration_size
-        self.fig, self.ax = plt.subplots(figsize=(9,9))
-        self.ax.set_xlim([0, size[0]])
-        self.ax.set_ylim([0, size[1]])
-        if self.stim_type in ['laser', 'homing', 'threshold_crossing']: 
-            self.ax.plot([size[0]/2-250, size[1]/2+250], [size[0]/2, size[1]/2], color=[0, 0, 0], linewidth=5) #obstacle
-        circle = plt.Circle((size[0]/2, size[1]/2), radius=460, color=[0, 0, 0], linewidth=1, fill=False)
-        self.ax.add_artist(circle)
+        """A function that inits a matplotlib fig, plots an outer black circle and an obstacle based on
+        the registration size. Obstacle is only plotted if defined by settings.
+        """
+        size = self.session.video.registration_size # Define circle plot size from registration
+        self.fig, self.ax = plt.subplots(figsize=(9,9)) # Instantiate trajectory plot
+        self.ax.set_xlim([0, size[0]]) # Define x size of circle
+        self.ax.set_ylim([0, size[1]]) # Define y size of circle 
+        if self.stim_type in ['laser', 'homing', 'threshold_crossing']: # If settings chosen
+            self.ax.plot([size[0]/2-250, size[1]/2+250], [size[0]/2, size[1]/2], color=[0, 0, 0], linewidth=5) # plot obstacle
+        circle = plt.Circle((size[0]/2, size[1]/2), radius=460, color=[0, 0, 0], linewidth=1, fill=False) # set circle parameters
+        self.ax.add_artist(circle) # add the circle border to the plot
         self.ax.invert_yaxis()
-        format_axis(self) 
+        format_axis(self) # formatting func found in plot_funcs
 
     def plot_single_trial(self, trial):
         self.plot_trajectory(trial)
@@ -193,8 +205,13 @@ class Analyze():
         self.minutes_into_session = np.round(trial['trial start'] / self.session.video.fps / 60) 
 
     def plot_trajectory(self, trial):
-        if self.color_by in ['speed', 'speed+RT','time']: gradient_line(self, trial)
-        else:                                             solid_line(self, trial)   
+
+        # if color_by in settings_analyze is defined have a gradient line
+        if self.color_by in ['speed', 'speed+RT','time']: 
+            gradient_line(self, trial) # A func found in plot_funcs
+        # else color the trajectory with a solid line
+        else:                                             
+            solid_line(self, trial)   
         self.mouse = trial['mouse']
         self.session.experiment = trial['experiment']   
 
@@ -227,3 +244,29 @@ class Analyze():
             self.ax.add_artist(upper_body_ellipse)
             self.ax.add_artist(lower_body_ellipse)
             self.ax.add_artist(body_ellipse)
+
+# TEST OUT GRID SCRIPT
+#New libs
+# from scipy.interpolate import interp1d
+
+    def interp_position(self):
+        """A function that takes in the fps of the camera, position data, and fs of signal and interpolates
+        both x and y positions
+        """
+
+        #Params
+
+        fps = self.session.video.fps
+        position = self.avg_pos
+        bonsai_TTL = self.session.bonsai_TTL_aligned
+        imec_TTL = self.session.imec_TTL_aligned
+        desired_fs = 30000
+        
+        # Interp
+        self.interp_x = resampy.resample(position[:,0], fps, desired_fs)
+        self.interp_y = resampy.resample(position[:,1], fps, desired_fs)
+
+        # Assertions
+
+        assert len(self.interp_x) == len(self.interp_y), "Interpolations should be the same length"
+        assert len(self.interp_x) > len(imec_TTL) - (30000 * 5), "New interp should be within 5 seconds of imec signal atleast"
