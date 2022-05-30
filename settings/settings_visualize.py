@@ -1,4 +1,7 @@
+# Custom lib
 from behave_analysis.utils.settings_objects import Settings_visualize
+
+# OS Lib
 from pathlib import Path
 
 settings_visualize = Settings_visualize(
@@ -7,13 +10,10 @@ settings_visualize = Settings_visualize(
     escape_trials=True,
     homing_trials = False,
     t_xing_trials = False,
-    
     display_trail=True,
-    display_tracking=False,
-
-    display_stimulus = True,
+    display_tracking=True,
+    display_stimulus = False,
     rapid = True,
-
     seconds_before_audio = 3,
     seconds_before_laser = 3,
     seconds_before_homing = 3,
@@ -22,14 +22,10 @@ settings_visualize = Settings_visualize(
     seconds_after_laser = 6,
     seconds_after_homing = 3,
     seconds_after_threshold_crossing = 3,
-
     save_folder = Path.cwd(),
-
     by_experiment=False,
     experiments = ['no laser'],
-
     by_session=True,
     sessions=[0],
-
     all_sessions=False
 )
