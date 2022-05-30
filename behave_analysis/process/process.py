@@ -29,6 +29,7 @@ class Process():
         self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
         self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
         self.print_session_details(stage=2)
+        self.return_aligning_indexes() # A function that returns the first index of pulse onset for imec and bonsai allowing alignment in future
         self.save_session()
 
         #Verify sync pulses
@@ -38,6 +39,7 @@ class Process():
         self.verify_all_frames_saved()
         is_ok = self.verify_onsets_and_offsets()
         if is_ok: logger.info("All verifications steps passed")
+        # self.visulize_sync_output() #Plot the resulting sync pulses, uncomment to see
         return self.session
 
     def save_session(self, overwrite=True):
@@ -78,7 +80,10 @@ class Process():
             else:
                 print(" - Aligning failed")
         
-        else: logger.info("Frames triggered are the same number as frames captured")
+        else: 
+            logger.info("Frames triggered are the same number as frames captured")
+            logger.info("The number of frames captured is: {}".format(self.session.camera_trigger.num_frames))
+
 
     def verify_aligned_data_streams(self) -> None:
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
@@ -170,3 +175,43 @@ class Process():
         assert np.all(temporal_difference == 0), "Resample failed, there should be no difference in pulse length at this stage"
 
         return (is_ok)
+
+    def return_aligning_indexes(self):
+        """A function that returns the first index of the first pulse. This index can
+        then be used to align the first pulse onset between the bonsai and IMEC TTL
+        """
+
+        # Set pulses onsets
+        bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
+        ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
+
+        # Get first index
+        self.session.bonsai_first_pulse_idx = bonsai_sync_onsets[0]
+        self.session.ephys_first_pulse_idx = ephys_sync_onsets[0]
+
+        #Index from the first pulse onset until the end of the signal and return the aligned signals
+        self.session.bonsai_TTL_aligned = self.session.ttl.bonsai_TTL[self.session.bonsai_first_pulse_idx:]
+        self.session.imec_TTL_aligned   = self.session.ttl.imec_TTL[self.session.ephys_first_pulse_idx:]
+
+    def visulize_sync_output(self):
+        """A function to plot the digital signals of the bonsai machine and the imec machine
+        to ensure that after resampling and alignment they are identical.
+        """
+        # Print the length of the arrays
+        logger.info("Length of the Bonsai TTL signal is {}".format(len(self.session.ttl.bonsai_TTL)))
+        logger.info("Length of the Imec TTL signal is {}".format(len(self.session.ttl.imec_TTL)))
+        assert len(self.session.ttl.imec_TTL) > len(self.session.ttl.bonsai_TTL), "Imec should be longer than Bonsai"
+
+        # Align signals
+        # Set pulses onsets
+        bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
+        ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
+
+        # Get first index
+        self.bonsai_first_pulse_idx, self.ephys_first_pulse_idx = bonsai_sync_onsets[0], ephys_sync_onsets[0]
+
+        # Plotting logic
+        plt.plot(self.session.ttl.bonsai_TTL[self.bonsai_first_pulse_idx:500000])
+        plt.plot(self.session.ttl.imec_TTL[self.ephys_first_pulse_idx:500000])
+        plt.show()
+        
