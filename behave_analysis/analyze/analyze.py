@@ -245,28 +245,36 @@ class Analyze():
             self.ax.add_artist(lower_body_ellipse)
             self.ax.add_artist(body_ellipse)
 
-# TEST OUT GRID SCRIPT
-#New libs
-# from scipy.interpolate import interp1d
+# TEST OUT GRID SCRIPT - will require factor 
 
     def interp_position(self):
         """A function that takes in the fps of the camera, position data, and fs of signal and interpolates
         both x and y positions
+
+        #Need to interpolate speed as well
         """
 
         #Params
-
         fps = self.session.video.fps
-        position = self.avg_pos
-        bonsai_TTL = self.session.bonsai_TTL_aligned
-        imec_TTL = self.session.imec_TTL_aligned
         desired_fs = 30000
-        
+
+        # Data
+        speed = self.tracking_data['speed']
+        position = self.avg_pos
+        imec_TTL = self.session.imec_TTL_aligned
+
         # Interp
         self.interp_x = resampy.resample(position[:,0], fps, desired_fs)
         self.interp_y = resampy.resample(position[:,1], fps, desired_fs)
+        self.interp_speed = resampy.resample(speed, fps, desired_fs)
 
         # Assertions
-
         assert len(self.interp_x) == len(self.interp_y), "Interpolations should be the same length"
         assert len(self.interp_x) > len(imec_TTL) - (30000 * 5), "New interp should be within 5 seconds of imec signal atleast"
+    
+    def plot_rate_map(self):
+        bonsai_TTL = self.session.bonsai_TTL_aligned
+        imec_TTL = self.session.imec_TTL_aligned
+
+        # if velocity is above 5cm
+        # plot spikes
