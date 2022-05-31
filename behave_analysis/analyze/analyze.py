@@ -1,3 +1,5 @@
+# Custom libs
+from behave_analysis.utils.mat_to_python import convert_matlab_struct
 from behave_analysis.process.camera_trigger import get_num_frames_expected, get_Camera_trigger
 from behave_analysis.process.process import Process
 from behave_analysis.utils.open_tracking_data import open_tracking_data
@@ -8,12 +10,14 @@ from behave_analysis.analyze.trial_eligibility_funcs import trial_is_eligible
 from behave_analysis.utils.directory import Directory
 
 # OS libs
-
-from scipy.interpolate import SmoothBivariateSpline
 import matplotlib.pyplot as plt
 import matplotlib.patches as ptch
 import numpy as np
 import resampy
+from loguru import logger
+import pickle
+import os
+import time
 
 class Analyze():
     def __init__(self, session_IDs, settings, analysis_type):
@@ -79,6 +83,7 @@ class Analyze():
         position_data = self.tracking_data
         self.avg_pos = position_data['avg_loc'] # The average position of the animal across the session
         self.interp_position() # Interpolate posiiton data and extend to fs of 30khz
+        self.plot_rate_map()
         for trial in self.trials_to_plot:
             self.initialize_trajectory_plot() # plot an empty circle w/wo an obstacle
             self.plot_trajectory(trial)
@@ -245,14 +250,43 @@ class Analyze():
             self.ax.add_artist(lower_body_ellipse)
             self.ax.add_artist(body_ellipse)
 
-# TEST OUT GRID SCRIPT - will require factor 
+# TEST OUT GRID SCRIPT - will require refactor
+
+    def save_dictionary(self, dic_to_save):
+        """A function that saves the interpolated data into a dictionary for loading in the future as the files are big to
+        speed up coding
+        """
+        # Retrieve paths and set new path
+        path = self.session.file_path
+        save_file = r"\interpolated_data.pkl"
+        new_path = path + save_file
+
+        # Save dic in new path
+        file = open(new_path, "wb")
+        pickle.dump(dic_to_save, file)
+        file.close()
+
+        # Assertions
+        assert os.path.isfile(new_path) == True, "Pickle rick Dictionary doesn't exist"
 
     def interp_position(self):
         """A function that takes in the fps of the camera, position data, and fs of signal and interpolates
-        both x and y positions
+        both x and y positions and then saves it as a pickle file
 
-        #Need to interpolate speed as well
+        #Note!! if you want to re-do the interpolation you will need to delete the pickle file
         """
+
+        # Time interpolation
+        start_time = time.time()
+
+        # Retrieve paths and set new path
+        path = self.session.file_path
+        save_file = r"\interpolated_data.pkl"
+        self.interp_path = path + save_file
+
+        # See if interp dic already exsists and if so break
+        if os.path.isfile(self.interp_path) == True:
+            return
 
         #Params
         fps = self.session.video.fps
@@ -264,17 +298,46 @@ class Analyze():
         imec_TTL = self.session.imec_TTL_aligned
 
         # Interp
+        logger.info("Commencing interpolation, processing may hang. Should take 5-10 minutes")
         self.interp_x = resampy.resample(position[:,0], fps, desired_fs)
         self.interp_y = resampy.resample(position[:,1], fps, desired_fs)
         self.interp_speed = resampy.resample(speed, fps, desired_fs)
+        interp_dic = {"x": self.interp_x,
+                      "y": self.interp_y,
+                      "speed" : self.interp_speed}
+        logger.info("Interpolation took: {} minutes".format((time.time() - start_time) / 60))
+
+        # Test save func
+        self.save_dictionary(interp_dic)
 
         # Assertions
         assert len(self.interp_x) == len(self.interp_y), "Interpolations should be the same length"
-        assert len(self.interp_x) > len(imec_TTL) - (30000 * 5), "New interp should be within 5 seconds of imec signal atleast"
     
+    def get_efizz_data(self):
+        """A function that collects the efizz data and converts from matlab to python
+
+        Need to refactor the file location of the efizz data
+        """
+        file = r"D:\Electrophysiology_data\1677_ObstacleThenRemove_22MAY23_g0\1677_ObstacleThenRemove_22MAY23_g0_imec0\1677_ObstacleThenRemove_22MAY23_g0_t0.imec0.ap_res.mat"
+        data = convert_matlab_struct(file)
+        self.spike_times = data.dictionary.spikeTimes
+        self.cluster_ids = data.dictionary.spikeClusters
+        logger.info("Length of spike times: {}".format(len(self.spike_times)))
+        assert len(self.spike_times) == len(self.cluster_ids), "The length of spike times and cluster ids should match"
+        
     def plot_rate_map(self):
-        bonsai_TTL = self.session.bonsai_TTL_aligned
-        imec_TTL = self.session.imec_TTL_aligned
+
+        # Retrieve the data
+        self.get_efizz_data() #self.spike_times, self.cluster_ids
+        file = open(self.interp_path, "rb") 
+        interp_dic = pickle.load(file) # x, y, speed
+        print(len(interp_dic["x"]))
+        # print("len of x", len(interp_dic["x"]))
+        # bonsai_TTL = self.session.bonsai_TTL_aligned
+        # imec_TTL = self.session.imec_TTL_aligned
+
+        #Update user
+        logger.info("Data retrieved for rate map plotting")
 
         # if velocity is above 5cm
         # plot spikes

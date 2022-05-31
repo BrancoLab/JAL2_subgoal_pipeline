@@ -10,6 +10,8 @@ TTL Checks contained within this script:
 3. Are there any spikes in the TTL signals above expected voltage thresholds?
 4. Check if the signals have different pulse lenghts?
 
+There are additional checks living in process.py that could be refactored into this script.
+
 -----------------------------------------------
 
 Note - the onsets/offsets are before the resample and thus if you plot them next to resample signal they will be missaligned
@@ -94,12 +96,22 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
         temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # Compare the difference in pulse lengths
         logger.warning("Pulse lengths do not match between imec and efizz. The signals require modifcation before shifting")
         if (sum(temporal_difference) > 0):
-            logger.info("Bonsai pulses are longer than efizz pulses. Resample signal.")
+            logger.warning("Bonsai pulses are longer than efizz pulses. Resampling signal.")
             bonsai_ttl, choose_index = remove_idx_to_align_signals(bonsai_sync_onsets, bonsai_ttl, temporal_difference)
         else: 
             logger.error("Bonsai recording is shorter than the ephys recording, ending script as this goes against assumptions")
             return
 
+    # compute onset off setts after resample
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
+    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
+
+    imec_TTL, bonsai_ttl = remove_end_of_TTLs(imec_TTL, 
+                                              ephys_sync_offsets,
+                                              bonsai_ttl,
+                                              bonsai_sync_offsets)
+
+    # define the TTL object
     ttl_object = TTL_Sync(bonsai_ttl, 
                           imec_TTL, 
                           sampling_rate,
@@ -246,7 +258,7 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
     # If errors remove signals and update signals
     imec_TTL = np.delete(imec_TTL, errors)
     bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
-    logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(imec_TTL), len(bonsai_ttl)))
+    logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(errors), len(errors_bonsai)))
     
     # Log success
     logger.info("Bonsai and Imec TTL are of similar lengths and have passed the abberant signal verification ")
@@ -306,12 +318,14 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
 
     #Create an array for the indexs to remove
     choose_index = np.array([])
+
     #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
         #Take the number of samples needed to remove. Add one and don't select it. To ensure uniformity.
         choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse] + 1, bonsai_onsets[pulse + 1], temporal_diff[pulse] + 1, dtype='int')[:-1])
     choose_index = list(choose_index.astype(int))
     bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index - all at once
+
     #Tests
     assert len(choose_index) == sum(temporal_diff), "The number of indexes choosen should equal the amount of samples required for removal"
     assert (len(bonsai_signal) == len(copy_of_original_signal_for_test) - sum(temporal_diff)), "The new signal does not match the old - number of changes required"
@@ -322,3 +336,19 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     logger.info("Original signal length: {}, Num indexs to remove: {}, New signal length: {}".format(len(copy_of_original_signal_for_test), len(choose_index), len(bonsai_signal))) #continue to figure out off by one error
 
     return (bonsai_signal, choose_index)
+
+# Remove the flat line end at the end of the imec signal
+def remove_end_of_TTLs(imec_TTL, 
+                       ephys_sync_offsets,
+                       bonsai_TTL,
+                       bonsai_sync_offsets):
+    """Remove the end flat line of the imec signal
+
+    Args:
+        imec_TTL (_type_): _description_
+        ephys_sync_offsets (_type_): _description_
+    """
+    logger.info("Removing the end of TTLs signal, cutting of at last offset")
+    imec_TTL   = imec_TTL[:ephys_sync_offsets[-1]]
+    bonsai_TTL = bonsai_TTL[:bonsai_sync_offsets[-1]]
+    return imec_TTL, bonsai_TTL

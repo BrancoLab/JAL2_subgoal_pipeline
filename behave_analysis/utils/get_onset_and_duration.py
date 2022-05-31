@@ -1,12 +1,15 @@
 import numpy as np
 from typing import Tuple
 
+# Os Libary
+from loguru import logger
+
 def get_onset_and_duration(data_on: object, session: object, stim_type: str, min_frames_between_trials: int, data_type: str) -> Tuple[object, object, object]:
     
     data_on_idx = np.where(data_on)[0]
 
     if not data_on_idx.size:
-        print("No {} trials detected".format(stim_type))
+        logger.warning("No {} trials detected".format(stim_type))
         return [],[],[]
 
     idx_since_data_on     = np.append(np.inf, np.diff(data_on_idx)) 

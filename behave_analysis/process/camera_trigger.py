@@ -10,6 +10,7 @@ from glob import glob
 import dill as pickle
 import pandas as pd
 from loguru import logger
+import matplotlib.pyplot as plt
 
 @dataclass(frozen=True)
 class Camera_trigger:
@@ -25,7 +26,7 @@ def get_Camera_trigger(session: Session, indexs_to_remove, temporal_diff, down_s
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)] # four interleaved time series
-    logger.debug("Length of camera_trigger pre downsample: {}".format(len(camera_trigger_data)))
+    logger.info("Length of camera_trigger pre downsample: {}".format(len(camera_trigger_data)))
     if down_sample: 
         camera_trigger_data = remove_idx_as_per_bonsai_ttl_resample("video", camera_trigger_data, indexs_to_remove, temporal_diff)
     camera_trigger_num_samples = len(camera_trigger_data)

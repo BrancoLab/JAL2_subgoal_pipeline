@@ -15,13 +15,13 @@ from databank import databank
 
 
 def process():
-    print("\n------ PROCESSING DATA ------".format(settings_p)); print_settings(settings_p)
+    # print("\n------ PROCESSING DATA ------".format(settings_p)); print_settings(settings_p)
     session_IDs = collect_session_IDs(settings_p, databank)
     for session_ID in session_IDs:
         Process(session_ID).create_session(settings_p)
 
 def track():
-    print("\n------ TRACKING VIDEOS ------"); print_settings(settings_t)
+    # print("\n------ TRACKING VIDEOS ------"); print_settings(settings_t)
     session_IDs = collect_session_IDs(settings_t, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
@@ -29,7 +29,7 @@ def track():
         Track(settings_t).process_tracking_data  (session)
 
 def homings():
-    print("\n------ EXTRACTING HOMINGS ------"); print_settings(settings_h)
+    # print("\n------ EXTRACTING HOMINGS ------"); print_settings(settings_h)
     session_IDs = collect_session_IDs(settings_h, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
@@ -37,7 +37,7 @@ def homings():
         get_Threshold_crossings(settings_h, session)
 
 def visualize():
-    print("\n------ VISUALIZING DATA ------"); print_settings(settings_v)
+    # print("\n------ VISUALIZING DATA ------"); print_settings(settings_v)
     session_IDs = collect_session_IDs(settings_v, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
@@ -48,7 +48,7 @@ def visualize():
         if settings_v.explore_trial: Visualize(session, settings_v).trials(stim_type = 'audio')
 
 def analyze():
-    print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a); 
+    # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a); 
     session_IDs = collect_session_IDs_analysis(settings_a.analysis, databank)
     if settings_a.analysis.plot_escape:  Analyze(session_IDs, settings_a, 'escape trajectories'    ).trajectories()
     if settings_a.analysis.plot_laser:   Analyze(session_IDs, settings_a, 'laser trajectories'     ).trajectories()

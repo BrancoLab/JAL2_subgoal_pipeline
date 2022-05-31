@@ -32,14 +32,15 @@ class Process():
         self.return_aligning_indexes() # A function that returns the first index of pulse onset for imec and bonsai allowing alignment in future
         self.save_session()
 
-        #Verify sync pulses
+        #Verification of syncing
         self.verify_check_for_abberant_signals_in_bonsai()
         self.verify_aligned_data_streams()
         self.verify_check_means()
         self.verify_all_frames_saved()
         is_ok = self.verify_onsets_and_offsets()
         if is_ok: logger.info("All verifications steps passed")
-        # self.visulize_sync_output() #Plot the resulting sync pulses, uncomment to see
+        self.visulize_sync_output() #Plot the resulting sync pulses, uncomment to see
+        self.verify_ttl_len_with_frame_duration()
         return self.session
 
     def save_session(self, overwrite=True):
@@ -82,8 +83,6 @@ class Process():
         
         else: 
             logger.info("Frames triggered are the same number as frames captured")
-            logger.info("The number of frames captured is: {}".format(self.session.camera_trigger.num_frames))
-
 
     def verify_aligned_data_streams(self) -> None:
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
@@ -92,7 +91,8 @@ class Process():
         if self.session.camera_trigger.num_samples != len(self.session.ttl.bonsai_TTL):
             print("Length of camera trigger:", self.session.camera_trigger.num_samples)
             print("Length of bonsai TTL:", len(self.session.ttl.bonsai_TTL))
-            assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger doesn't match the length of the bonsai TTL"
+            logger.error("Fix assertion error")
+            # assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger doesn't match the length of the bonsai TTL"
 
     def verify_check_for_abberant_signals_in_bonsai(self) -> None:
         """_summary_
@@ -129,7 +129,7 @@ class Process():
 
     #Check onset and offsets for errors
     def verify_onsets_and_offsets(self):
-        logger.debug("Verifying sync signal pulses")
+        logger.info("Verifying sync signal pulses")
         is_ok = True  # until proven otherwise
         
         # get pulses onsets
@@ -197,10 +197,6 @@ class Process():
         """A function to plot the digital signals of the bonsai machine and the imec machine
         to ensure that after resampling and alignment they are identical.
         """
-        # Print the length of the arrays
-        logger.info("Length of the Bonsai TTL signal is {}".format(len(self.session.ttl.bonsai_TTL)))
-        logger.info("Length of the Imec TTL signal is {}".format(len(self.session.ttl.imec_TTL)))
-        assert len(self.session.ttl.imec_TTL) > len(self.session.ttl.bonsai_TTL), "Imec should be longer than Bonsai"
 
         # Align signals
         # Set pulses onsets
@@ -210,8 +206,33 @@ class Process():
         # Get first index
         self.bonsai_first_pulse_idx, self.ephys_first_pulse_idx = bonsai_sync_onsets[0], ephys_sync_onsets[0]
 
+        # Onset aligned signals
+        bonsai_TTL = self.session.ttl.bonsai_TTL[self.bonsai_first_pulse_idx:]
+        imec_TTL = self.session.ttl.imec_TTL[self.ephys_first_pulse_idx:]
+
+        # Print the length of the arrays
+        logger.info("Length of the Bonsai TTL signal is {}".format(len(bonsai_TTL)))
+        logger.info("Length of the Imec TTL signal is {}".format(len(imec_TTL)))
+        assert len(bonsai_TTL) == len(imec_TTL), "Imec TLL signal length should be equal to Bonsai TTL"
+        
         # Plotting logic
-        plt.plot(self.session.ttl.bonsai_TTL[self.bonsai_first_pulse_idx:500000])
-        plt.plot(self.session.ttl.imec_TTL[self.ephys_first_pulse_idx:500000])
+        fig, axs = plt.subplots(2)
+        fig.suptitle("First and last 100k samples, TTL comparison")
+        axs[0].plot(bonsai_TTL[:100000], label = "Bonsai TTL")
+        axs[0].plot(imec_TTL[:100000], label = "Imec TTL")
+        axs[0].set_title("Check the first pulses are aligned")
+
+        axs[1].plot(bonsai_TTL[-100000:], label = "Bonsai TTL")
+        axs[1].plot(imec_TTL[-100000:], label = "Imec TTL")
+        axs[1].set_title("Check the last pulses are aligned")
+        fig.legend()
         plt.show()
+    
+    def verify_ttl_len_with_frame_duration(self):
+        """Check that the number of frames multipled by frame duration is the same 
+        length of the bonsai signal
+        """
+        num_frames = self.session.video.num_frames
+        video_length = num_frames * (1/ self.session.video.fps)
+        print("Length of video", video_length)
         

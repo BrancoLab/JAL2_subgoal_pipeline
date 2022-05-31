@@ -61,7 +61,6 @@ class Track():
         """
         self.tracking_data = {}
         self.extract_data_from_dlc_file(session)
-        logger.error('Error after this')
         self.create_array_with_dlc_tracking_data(session)
         
     def remove_bad_tracking_data(self, session):
