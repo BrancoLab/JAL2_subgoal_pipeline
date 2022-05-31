@@ -198,17 +198,9 @@ class Process():
         to ensure that after resampling and alignment they are identical.
         """
 
-        # Align signals
-        # Set pulses onsets
-        bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
-        ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
-
-        # Get first index
-        self.bonsai_first_pulse_idx, self.ephys_first_pulse_idx = bonsai_sync_onsets[0], ephys_sync_onsets[0]
-
-        # Onset aligned signals
-        bonsai_TTL = self.session.ttl.bonsai_TTL[self.bonsai_first_pulse_idx:]
-        imec_TTL = self.session.ttl.imec_TTL[self.ephys_first_pulse_idx:]
+        # Retrieve algined signals
+        bonsai_TTL = self.session.bonsai_TTL_aligned
+        imec_TTL = self.session.imec_TTL_aligned
 
         # Print the length of the arrays
         logger.info("Length of the Bonsai TTL signal is {}".format(len(bonsai_TTL)))
@@ -230,9 +222,11 @@ class Process():
     
     def verify_ttl_len_with_frame_duration(self):
         """Check that the number of frames multipled by frame duration is the same 
-        length of the bonsai signal
+        length of the bonsai signal in seconds
         """
         num_frames = self.session.video.num_frames
         video_length = num_frames * (1/ self.session.video.fps)
-        print("Length of video", video_length)
+        logger.info("The length of the video is: {}s".format(video_length))
+        logger.info("The length of bonsai is: {}s". format(len(self.session.bonsai_TTL_aligned) / 30000))
+        assert video_length == len(self.session.bonsai_TTL_aligned) / 30000, "Video length and bonsai signal should match"
         
