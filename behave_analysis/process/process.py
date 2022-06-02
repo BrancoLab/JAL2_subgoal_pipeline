@@ -7,6 +7,7 @@ from behave_analysis.process.photoresistor import get_Photoresistor
 from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals, get_onset_offset, derivative
 from behave_analysis.utils.check_drop_frames import check_drop_frames
 from behave_analysis.utils.load_bin_or_np import load_or_open
+from behave_analysis.process.ephys import get_Ephys
 
 #Import OS libraries
 import os
@@ -28,8 +29,8 @@ class Process():
         self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
         self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
         self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
+        self.session.ephys          = get_Ephys(self.session)
         self.print_session_details(stage=2)
-        self.return_aligning_indexes() # A function that returns the first index of pulse onset for imec and bonsai allowing alignment in future
         self.save_session()
 
         #Verification of syncing
@@ -37,10 +38,10 @@ class Process():
         self.verify_aligned_data_streams()
         self.verify_check_means()
         self.verify_all_frames_saved()
-        is_ok = self.verify_onsets_and_offsets()
-        if is_ok: logger.info("All verifications steps passed")
+        self.verify_onsets_and_offsets()
         self.visulize_sync_output() #Plot the resulting sync pulses, uncomment to see
         self.verify_ttl_len_with_frame_duration()
+        logger.info("All verifications steps passed")
         return self.session
 
     def save_session(self, overwrite=True):
@@ -73,6 +74,7 @@ class Process():
 
     def verify_all_frames_saved(self):
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
+            logger.error("Missing frames check what happened")
             print("\n - Video contains {} frames, but {} frames were triggered! (for experiment: {}, mouse: {})---".format(self.session.video.num_frames, self.session.camera_trigger.num_frames, self.session.experiment, self.session.mouse))
             # check_drop_frames(self.session)
             self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames=True)[0]
@@ -130,7 +132,6 @@ class Process():
     #Check onset and offsets for errors
     def verify_onsets_and_offsets(self):
         logger.info("Verifying sync signal pulses")
-        is_ok = True  # until proven otherwise
         
         # get pulses onsets
         bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
@@ -138,17 +139,14 @@ class Process():
 
         # check if numbers make sense
         if len(bonsai_sync_onsets) != len(bonsai_sync_offsets):
-            is_ok = False
-            logger.warning(f"BONSAI - Unequal number of onsets/offsets ({len(bonsai_sync_offsets)}/{len(bonsai_sync_onsets)})")
+            logger.error(f"BONSAI - Unequal number of onsets/offsets ({len(bonsai_sync_offsets)}/{len(bonsai_sync_onsets)})")
     
         if len(ephys_sync_onsets) != len(ephys_sync_offsets):
-            is_ok = False
-            logger.warning(f"EPHYS - Unequal number of offsets/onsets ({len(ephys_sync_offsets)}/{len(ephys_sync_onsets)})")
+            logger.error(f"EPHYS - Unequal number of offsets/onsets ({len(ephys_sync_offsets)}/{len(ephys_sync_onsets)})")
 
         # check same results for bonsai and ephys
         if len(bonsai_sync_onsets) != len(ephys_sync_onsets):
             logger.error(f"Incosistent number of triggers! Bonsai {len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
-            is_ok = False
             logger.warning("When inspecting probe sync signal found different number of pulses for bonsai"
                            f"{len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
     
@@ -156,7 +154,6 @@ class Process():
             logger.info(f"Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
 
         if ephys_sync_onsets[0] <= bonsai_sync_onsets[0]:
-            is_ok = False
             logger.warning("The first pulse onset is the imec signal and not the bonsai signal. Check if intended.")
 
         #Check the interval between sync signals in bonsai
@@ -167,31 +164,13 @@ class Process():
 
         elif list(onsets_delta)[0] != self.session.ttl.sampling_rate:
             # check that it lasts as long as it should
-            is_ok = False
             logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.session.ttl.sampling_rate})")
 
         #Test differences
-        temporal_difference = np.diff(bonsai_sync_onsets) - np.diff(ephys_sync_onsets) # Compare the difference in pulse lengths
+        temporal_difference = np.diff(bonsai_sync_onsets) - np.diff(ephys_sync_onsets) # Comare delta onsets
+        off_set_difference  = np.diff(bonsai_sync_offsets) - np.diff(ephys_sync_offsets) # Compare delta offsets
         assert np.all(temporal_difference == 0), "Resample failed, there should be no difference in pulse length at this stage"
-
-        return (is_ok)
-
-    def return_aligning_indexes(self):
-        """A function that returns the first index of the first pulse. This index can
-        then be used to align the first pulse onset between the bonsai and IMEC TTL
-        """
-
-        # Set pulses onsets
-        bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
-        ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
-
-        # Get first index
-        self.session.bonsai_first_pulse_idx = bonsai_sync_onsets[0]
-        self.session.ephys_first_pulse_idx = ephys_sync_onsets[0]
-
-        #Index from the first pulse onset until the end of the signal and return the aligned signals
-        self.session.bonsai_TTL_aligned = self.session.ttl.bonsai_TTL[self.session.bonsai_first_pulse_idx:]
-        self.session.imec_TTL_aligned   = self.session.ttl.imec_TTL[self.session.ephys_first_pulse_idx:]
+        assert np.all(off_set_difference[:-2]) == 0, "Resample failed, there should be no difference in pulse length at this stage apart from last pulse"
 
     def visulize_sync_output(self):
         """A function to plot the digital signals of the bonsai machine and the imec machine
@@ -199,14 +178,13 @@ class Process():
         """
 
         # Retrieve algined signals
-        bonsai_TTL = self.session.bonsai_TTL_aligned
-        imec_TTL = self.session.imec_TTL_aligned
+        bonsai_TTL = self.session.ttl.bonsai_TTL
+        imec_TTL = self.session.ttl.imec_TTL
 
         # Print the length of the arrays
         logger.info("Length of the Bonsai TTL signal is {}".format(len(bonsai_TTL)))
         logger.info("Length of the Imec TTL signal is {}".format(len(imec_TTL)))
-        assert len(bonsai_TTL) == len(imec_TTL), "Imec TLL signal length should be equal to Bonsai TTL"
-        
+
         # Plotting logic
         fig, axs = plt.subplots(2)
         fig.suptitle("First and last 100k samples, TTL comparison")
@@ -214,11 +192,14 @@ class Process():
         axs[0].plot(imec_TTL[:100000], label = "Imec TTL")
         axs[0].set_title("Check the first pulses are aligned")
 
-        axs[1].plot(bonsai_TTL[-100000:], label = "Bonsai TTL")
-        axs[1].plot(imec_TTL[-100000:], label = "Imec TTL")
+        axs[1].plot(bonsai_TTL[(len(bonsai_TTL) - 100000):], label = "Bonsai TTL")
+        axs[1].plot(imec_TTL[(len(imec_TTL) - 100000):], label = "Imec TTL")
         axs[1].set_title("Check the last pulses are aligned")
         fig.legend()
         plt.show()
+
+        # Assertions
+        assert len(bonsai_TTL) == len(imec_TTL), "Imec TLL signal length should be equal to Bonsai TTL"
     
     def verify_ttl_len_with_frame_duration(self):
         """Check that the number of frames multipled by frame duration is the same 
@@ -227,6 +208,9 @@ class Process():
         num_frames = self.session.video.num_frames
         video_length = num_frames * (1/ self.session.video.fps)
         logger.info("The length of the video is: {}s".format(video_length))
-        logger.info("The length of bonsai is: {}s". format(len(self.session.bonsai_TTL_aligned) / 30000))
-        assert video_length == len(self.session.bonsai_TTL_aligned) / 30000, "Video length and bonsai signal should match"
+        logger.info("The length of bonsai TTL is: {}s". format(len(self.session.ttl.bonsai_TTL) / 30000))
+
+        # Differenece in len
+        diff = abs(video_length - len(self.session.ttl.bonsai_TTL) / 30000)
+        assert diff < 0.5, "Video length and bonsai signal should not differ by more than half a second"
         
