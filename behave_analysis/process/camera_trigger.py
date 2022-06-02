@@ -49,6 +49,7 @@ def get_Camera_trigger(session: Session, indexs_to_remove, temporal_diff, bonsai
 
 def get_num_frames_expected(session: Session, camera_trigger_data: object, drop_frames=False) -> int:
     frame_trigger_onsets = np.diff(camera_trigger_data)
+    # np is 0 indexes but frames are not so add 1 
     frame_trigger_onsets_idx = np.where(frame_trigger_onsets > 1)[0] + 1
     ets_idx = np.where(frame_trigger_onsets > 1)[0] + 1
     if drop_frames == True: 
