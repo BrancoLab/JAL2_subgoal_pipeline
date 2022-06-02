@@ -39,6 +39,7 @@ import dill as pickle
 import pandas as pd
 import random
 from loguru import logger
+import matplotlib.pyplot as plt
 
 #Store file name here now for testing - hard coded need to update
 imec_bin_file = efizz[0]
@@ -47,7 +48,8 @@ imec_bin_file = efizz[0]
 class TTL_Sync:
     # Storing relevant data to align big rig with efizz machine using the onset of TTL pulses
     bonsai_TTL: float # voltage recordings of ttl signal from bonsai machine
-    imec_TTL: float 
+    imec_TTL: float
+    inital_bonsai_len: int # What is the length of the bonsai TTL before cleaning
     sampling_rate: int # Should be 30khz for neuropixels
     bonsai_sync_onsets: int # array of ints, onset/offsets PRE RESAMPLING 
     bonsai_sync_offsets: int # array of ints, onset/offsets PRE RESAMPLING 
@@ -55,6 +57,7 @@ class TTL_Sync:
     ephys_sync_offset: int # array of ints, onset/offsets PRE RESAMPLING 
     temporal_difference: int # array of ints, differences in offsets and onsets
     choose_index: int # which indexs to delete, array of ints
+    bonsai_obj: object # signal at differnet stages
 
 #Return the above data class
 def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
@@ -70,8 +73,14 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
     #Set global sampling rate
     sampling_rate = 30000
 
+    # bonsai_obj
+    bonsai_obj = {}
+
     # Retrieve TTL data
     bonsai_ttl, imec_TTL = retrieve_TTL_signals(session)
+    logger.info("The length of the original bonsai TTL is: {} and the original imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
+    inital_bonsai_len = len(bonsai_ttl)
+    if len(bonsai_ttl) > len(imec_TTL): logger.error("Bonsai TTL is longer than imec TTL this can't be")
 
     #Check and correct for abberant signals
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
@@ -94,6 +103,9 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
         #Check that the interval pulses match between imec and bonsai
         #Difference in temporal scale
         temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # Compare the difference in pulse lengths
+        r_all_bonsai_pulses_longer = temporal_difference >= 0
+        is_it_true = r_all_bonsai_pulses_longer.all()
+        if not is_it_true: logger.error("Bonsai pulse onsets are not all greater than or equal to imec pulse onsets")
         logger.warning("Pulse lengths do not match between imec and efizz. The signals require modifcation before shifting")
         if (sum(temporal_difference) > 0):
             logger.warning("Bonsai pulses are longer than efizz pulses. Resampling signal.")
@@ -102,25 +114,39 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
             logger.error("Bonsai recording is shorter than the ephys recording, ending script as this goes against assumptions")
             return
 
-    # compute onset off setts after resample
+    # Align with the first onset and remove start of signal
+    bonsai_obj['post resample'] = bonsai_ttl
+    bonsai_ttl, imec_TTL = remove_start_of_signal(imec_TTL, 
+                                                  ephys_sync_onsets,
+                                                  bonsai_ttl,
+                                                  bonsai_sync_onsets)
+
+    logger.info("The length of the Imec signal from the first pulse until the end is: {}".format(len(imec_TTL)))
+
+    # compute onset off setts after resample and alignment
+    bonsai_obj['post start of signal cut'] = bonsai_ttl
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
     ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
 
+    # remove the flat end of the TTL signals
     imec_TTL, bonsai_ttl = remove_end_of_TTLs(imec_TTL, 
                                               ephys_sync_offsets,
                                               bonsai_ttl,
                                               bonsai_sync_offsets)
 
+
     # define the TTL object
     ttl_object = TTL_Sync(bonsai_ttl, 
-                          imec_TTL, 
+                          imec_TTL,
+                          inital_bonsai_len, 
                           sampling_rate,
                           bonsai_sync_onsets,
                           bonsai_sync_offsets,
                           ephys_sync_onsets,
                           ephys_sync_offsets,
                           temporal_difference,
-                          choose_index)
+                          choose_index,
+                          bonsai_obj)
     return (ttl_object)
 
 #--------------------------------------- Load and retrieve data functions -----------------------------------------------------------------------
@@ -333,7 +359,7 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
     # assert all(derivative(choose_index) > 1000), "A re_sample is less than 1000 samples apart. Not uniform "
 
     #Logs
-    logger.info("Original signal length: {}, Num indexs to remove: {}, New signal length: {}".format(len(copy_of_original_signal_for_test), len(choose_index), len(bonsai_signal))) #continue to figure out off by one error
+    logger.info("Original bonsai signal length: {}, Num indexs to remove: {}, New signal length: {}".format(len(copy_of_original_signal_for_test), len(choose_index), len(bonsai_signal))) #continue to figure out off by one error
 
     return (bonsai_signal, choose_index)
 
@@ -352,3 +378,19 @@ def remove_end_of_TTLs(imec_TTL,
     imec_TTL   = imec_TTL[:ephys_sync_offsets[-1]]
     bonsai_TTL = bonsai_TTL[:bonsai_sync_offsets[-1]]
     return imec_TTL, bonsai_TTL
+
+# remove the signal prior to the first onset
+def remove_start_of_signal(imec_TTL, 
+                           ephys_sync_onsets,
+                           bonsai_TTL,
+                           bonsai_sync_onsets):
+    
+    # Get first index
+    bonsai_first_pulse_idx = bonsai_sync_onsets[0]
+    ephys_first_pulse_idx  = ephys_sync_onsets[0]
+
+    #Index from the first pulse onset until the end of the signal and return the aligned signals
+    bonsai_TTL_aligned = bonsai_TTL[bonsai_first_pulse_idx:]
+    imec_TTL_aligned   = imec_TTL[ephys_first_pulse_idx:]
+
+    return bonsai_TTL_aligned, imec_TTL_aligned
