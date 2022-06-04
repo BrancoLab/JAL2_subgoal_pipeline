@@ -24,10 +24,10 @@ class Track():
         """
         print('\n\n---')
         dlc_already_run = bool(glob.glob(os.path.join(session.file_path, "*DeepCut*")))
-        if dlc_already_run: 
-            print("DeepLabCut tracking already saved for session:              {} - {}".format(session.number, session.name))
+        if dlc_already_run:
+            logger.info("DeepLabCut tracking already saved for session: {} - {}".format(session.number, session.name))
         else:
-            print("Running DeepLabCut tracking for session:                    {} - {}".format(session.number, session.name))
+            logger.info("Running DeepLabCut tracking for session: {} - {}".format(session.number, session.name))
             from deeplabcut.pose_estimation_tensorflow import analyze_videos
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
 
