@@ -22,6 +22,7 @@ class Ephys:
     cluster_ids: object
     spike_mask: object
     num_spikes: int
+    spike_dic: object
 
 def get_Ephys(session: Session):
 
