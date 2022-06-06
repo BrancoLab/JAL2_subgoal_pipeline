@@ -1,4 +1,10 @@
+"""
+Refactor: Where the efizz data comes from
+
+"""
+
 # Custom Libaries
+from itertools import count
 from behave_analysis.process.session import Session
 from behave_analysis.utils.mat_to_python import convert_matlab_struct
 
@@ -19,9 +25,20 @@ class Ephys:
 
 def get_Ephys(session: Session):
 
-    #Load spike times and cluster ids, and define total spike count
+    # Load spike times and cluster ids, and define total spike count
     spike_times, cluster_ids = load_ephys_data(ephys_file_path)
     num_spikes = len(spike_times)
+
+    # Align spikes times to pulse onset
+    offset = session.ttl.imec_delay
+    spike_times, indexes_removed = offset_spike_times(offset, spike_times)
+
+    # Update spike clude id index
+    cluster_ids = cluster_ids[indexes_removed:]
+    assert len(cluster_ids) == len(spike_times), "cluster ids should match spike len"
+
+    # create spike dic
+    spike_dic = create_spike_dic(cluster_ids, spike_times)
 
     # Create spike mask
     spike_mask = create_spike_mask(spike_times, session.ttl.imec_TTL)
@@ -29,7 +46,8 @@ def get_Ephys(session: Session):
     ephys = Ephys(spike_times,
                   cluster_ids,
                   spike_mask,
-                  num_spikes)
+                  num_spikes,
+                  spike_dic)
                 
     return ephys
 
@@ -70,3 +88,48 @@ def create_spike_mask(spike_times, imec_TTL):
         assert spike_mask[spike_times[-1]] == 1, "The last spike time should equal 1"
 
         return spike_mask
+
+def offset_spike_times(offset,
+                       spike_times) -> object:
+    """A function that removes the spikes occuring before the
+    first imec pulse onset and reduces all spikes after the first onset
+    by the difference between the start of the imec signal and the first imec pulse
+    onset to ensure the spike data is aligned with the analogue data.
+
+    Args:
+        offset (int): delta between imec start and first pulse onset
+        spike_times (obect): array of spike indexes
+
+    Returns:
+        spike_times: aligned spike times
+    """
+    initial_len = len(spike_times)
+    spike_times = spike_times - offset
+    spike_times = np.where(spike_times >= 0, spike_times, None)
+    spike_times = spike_times[spike_times != None]
+    resulting_len = len(spike_times)
+    indexes_removed = initial_len - resulting_len
+
+    return spike_times, indexes_removed
+
+def create_spike_dic(cluster_ids, spike_times):
+    """A function that creates a dictionary where the keys are spike clusters and the values are the indexes aligning to spike times
+
+    Args:
+        cluster_ids (object): Array of spike clusters
+        spike_times (object): Array of spike indexes
+
+    Returns:
+        Dictionary: keys are spike clusters and values are spike indexes assigned to that cluster
+    """
+    cluster_id_max = max(cluster_ids)
+    spike_dic = {}
+    for cluster in range(cluster_id_max + 1):
+        bool = cluster_ids == cluster # What indexes match this cluster, True or False
+        indexes = np.where(bool)[0] # extract the indexes
+        spike_dic[cluster] = list(np.take(spike_times, indexes)) # Assign those indexes and extract spike times to the dic
+    
+    # Assertions
+    flat_list = [x for xs in spike_dic.values() for x in xs]
+    assert len(flat_list) == len(spike_times), "The length of values of the spike dic should match the total spike times"
+    return spike_dic
