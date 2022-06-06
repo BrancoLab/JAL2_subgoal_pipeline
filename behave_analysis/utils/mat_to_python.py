@@ -9,11 +9,12 @@ import scipy
 import mat73
 from loguru import logger
 
+
 class convert_matlab_struct:
     def __init__(self, file_path_of_mat):
         logger.info("Converting your .mat into a Python Dictionary..")
         self.dictionary = self.convert_mat_file(file_path_of_mat)
-        
+
     def convert_mat_file(self, filename):
         '''
         this function should be called instead of direct spio.loadmat

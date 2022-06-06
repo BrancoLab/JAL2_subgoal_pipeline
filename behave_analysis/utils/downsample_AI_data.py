@@ -1,15 +1,15 @@
-#OS Libraries
+# OS Libraries
 import numpy as np
 from loguru import logger
 
-#Custom libs
+# Custom libs
 from behave_analysis.process.ttl_sync import derivative
 
-def remove_idx_as_per_bonsai_ttl_resample(name_of_signal, 
-                                          signal_to_downsample, 
-                                          indexs_to_remove, 
-                                          session):
 
+def remove_idx_as_per_bonsai_ttl_resample(name_of_signal,
+                                          signal_to_downsample,
+                                          indexs_to_remove,
+                                          session):
     """A function that takes in the indexes removed from the bonsai signal and removes the same from other
     AI data streams such as the camera trigger, the audio and the photoresistor.
 
@@ -31,21 +31,28 @@ def remove_idx_as_per_bonsai_ttl_resample(name_of_signal,
     assert len(signal_to_downsample) == session.ttl.inital_bonsai_len, "Length of analogue signals should match bonsai signal"
 
     # Delete the indexes as per the ones deletes from bonsai signal
-    down_sampled_signal = np.delete(signal_to_downsample, indexs_to_remove) # Delete that index - all at once
-    logger.info("{}: Signal downsampled to match bonsai TTL resample".format(name_of_signal))
+    # Delete that index - all at once
+    down_sampled_signal = np.delete(signal_to_downsample, indexs_to_remove)
+    logger.info(
+        "{}: Signal downsampled to match bonsai TTL resample".format(name_of_signal))
 
     # clean start
-    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(session.ttl.bonsai_obj['post resample'], 2.5)
-    cleaned_signal = remove_start_of_signal(down_sampled_signal, bonsai_sync_onsets)
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(
+        session.ttl.bonsai_obj['post resample'], 2.5)
+    cleaned_signal = remove_start_of_signal(
+        down_sampled_signal, bonsai_sync_onsets)
     assert len(cleaned_signal) == 108065693, "this should pass"
 
     # clean end
-    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(session.ttl.bonsai_obj['post start of signal cut'], 2.5)
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(
+        session.ttl.bonsai_obj['post start of signal cut'], 2.5)
     cleaned_signal = remove_end_of_signal(cleaned_signal, bonsai_sync_offsets)
 
-    #Tests
-    assert len(cleaned_signal) == len(session.ttl.bonsai_TTL), "The downsampled analogue data does not match the length of the bonsai signal"
+    # Tests
+    assert len(cleaned_signal) == len(
+        session.ttl.bonsai_TTL), "The downsampled analogue data does not match the length of the bonsai signal"
     return(cleaned_signal)
+
 
 def remove_start_of_signal(signal_to_clean, bonsai_sync_onsets):
     """A function that removes the signal before the first onset
@@ -66,6 +73,8 @@ def remove_start_of_signal(signal_to_clean, bonsai_sync_onsets):
     return signal_to_clean
 
 # Remove the flat line end at the end of the imec signal
+
+
 def remove_end_of_signal(signal_to_clean, bonsai_sync_offsets):
     """A function that removes the signal after the last offset
 
@@ -84,7 +93,9 @@ def remove_end_of_signal(signal_to_clean, bonsai_sync_offsets):
 
     return cleaned_signal
 
-#Get the onsets and offsets for bonsai / imec. Your choice!
+# Get the onsets and offsets for bonsai / imec. Your choice!
+
+
 def get_onset_offset(signal, threshold, clean=True):
     """ Get onset/offset times when a signal goes below>above and
         above>below a given threshold
@@ -99,21 +110,22 @@ def get_onset_offset(signal, threshold, clean=True):
             Starts: Indexes of pulse onsets
             Ends: Indexes of pulse offsets
     """
-    above = np.zeros_like(signal) # Creates an array of zeros of length signal
-    above[signal >= threshold] = 1 #If the signal is above voltage threshold, set to 1
-    der = derivative(above) #Create an array of differences 
-    starts = np.where(der > 0)[0] #Where does the signal switch from 0 to 1
-    ends = np.where(der < 0)[0] #Where does the signal switch from 1 to 0
+    above = np.zeros_like(signal)  # Creates an array of zeros of length signal
+    # If the signal is above voltage threshold, set to 1
+    above[signal >= threshold] = 1
+    der = derivative(above)  # Create an array of differences
+    starts = np.where(der > 0)[0]  # Where does the signal switch from 0 to 1
+    ends = np.where(der < 0)[0]  # Where does the signal switch from 1 to 0
 
-    #If the signal starts with a pulse add a zero to the start
+    # If the signal starts with a pulse add a zero to the start
     if above[0] > 0:
         starts = np.concatenate([[0], starts])
 
-    #If the signal ends at the top of the pulse add the length of the signal to the end
+    # If the signal ends at the top of the pulse add the length of the signal to the end
     if above[-1] > 0:
         ends = np.concatenate([ends, [len(signal)]])
 
-    #If clean is true
+    # If clean is true
     if clean:
         # ends before the first start are removed
         ends = np.array([e for e in ends if e > starts[0]])
@@ -122,7 +134,7 @@ def get_onset_offset(signal, threshold, clean=True):
         if np.any(ends):
             starts = np.array([s for s in starts if s < ends[-1]])
 
-    #If there aren't any starts or ends create empty arrays
+    # If there aren't any starts or ends create empty arrays
     if not np.any(starts):
         starts = np.array([0])
         logger.error("No onsets")
@@ -131,7 +143,9 @@ def get_onset_offset(signal, threshold, clean=True):
         logger.error("No offsets")
     return starts, ends
 
-    #Take the derivate so you can spot changes in state within a signal. Ie, pulse onset/offsets
+# Take the derivate so you can spot changes in state within a signal. Ie, pulse onset/offsets
+
+
 def derivative(X, axis=0, order=1):
     """"Takes the derivative of an array X along a given axis
 
@@ -140,5 +154,5 @@ def derivative(X, axis=0, order=1):
             axis: int. Axis along which the derivative is to be computed
             order: int. Derivative order
     """
-    #Prepend 0 so the index is realigned to prevent off by 1 error
+    # Prepend 0 so the index is realigned to prevent off by 1 error
     return np.diff(X, n=order, axis=axis)
