@@ -8,8 +8,10 @@ from behave_analysis.analyze.data_extraction_funcs import *
 from behave_analysis.analyze.stats_funcs import permutation_test, print_stat_test_results
 from behave_analysis.analyze.trial_eligibility_funcs import trial_is_eligible
 from behave_analysis.utils.directory import Directory
+from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
 
 # OS libs
+from matplotlib.backends.backend_pdf import PdfPages # For saving to a pdf
 import matplotlib.pyplot as plt
 import matplotlib.patches as ptch
 import numpy as np
@@ -83,10 +85,11 @@ class Analyze():
         position_data = self.tracking_data
         self.avg_pos = position_data['avg_loc'] # The average position of the animal across the session
         self.interp_position() # Interpolate posiiton data and extend to fs of 30khz
-        self.plot_rate_map()
+        # self.plot_rate_map()
         for trial in self.trials_to_plot:
             self.initialize_trajectory_plot() # plot an empty circle w/wo an obstacle
             self.plot_trajectory(trial)
+            self.overlay_spikes() #Use this function to plot spikes onto trajectory
             self.save_plot()
 
 # ----DATA EXTRACTION FUNCS---------------------------------------------
@@ -123,7 +126,10 @@ class Analyze():
 
     def get_start_and_end_frames(self):
         session_start = 0
-        camera_trigger_data = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)[1]
+        camera_trigger_data = get_Camera_trigger(self.session, 
+                                                 self.session.ttl.choose_index, 
+                                                 self.session.ttl.temporal_difference,
+                                                 self.session.ttl.bonsai_TTL)[1]
         session_end = get_num_frames_expected(self.session, camera_trigger_data)[0]
         trial = create_trial_dict(self, session_start, session_end)
         self.trials_to_plot.append(trial)
@@ -252,23 +258,7 @@ class Analyze():
 
 # TEST OUT GRID SCRIPT - will require refactor
 
-    def save_dictionary(self, dic_to_save):
-        """A function that saves the interpolated data into a dictionary for loading in the future as the files are big to
-        speed up coding
-        """
-        # Retrieve paths and set new path
-        path = self.session.file_path
-        save_file = r"\interpolated_data.pkl"
-        new_path = path + save_file
-
-        # Save dic in new path
-        file = open(new_path, "wb")
-        pickle.dump(dic_to_save, file)
-        file.close()
-
-        # Assertions
-        assert os.path.isfile(new_path) == True, "Pickle rick Dictionary doesn't exist"
-
+    # Interpolate the position data so it's the same length as the ephys 
     def interp_position(self):
         """A function that takes in the fps of the camera, position data, and fs of signal and interpolates
         both x and y positions and then saves it as a pickle file
@@ -295,7 +285,6 @@ class Analyze():
         # Data
         speed = self.tracking_data['speed']
         position = self.avg_pos
-        imec_TTL = self.session.imec_TTL_aligned
 
         # Interp
         logger.info("Commencing interpolation, processing may hang. Should take 5-10 minutes")
@@ -313,31 +302,112 @@ class Analyze():
         # Assertions
         assert len(self.interp_x) == len(self.interp_y), "Interpolations should be the same length"
     
-    def get_efizz_data(self):
-        """A function that collects the efizz data and converts from matlab to python
-
-        Need to refactor the file location of the efizz data
+    # Save the interpolated data to pickle rick dictionary
+    def save_dictionary(self, dic_to_save):
+        """A function that saves the interpolated data into a dictionary for loading in the future as the files are big to
+        speed up coding
         """
-        file = r"D:\Electrophysiology_data\1677_ObstacleThenRemove_22MAY23_g0\1677_ObstacleThenRemove_22MAY23_g0_imec0\1677_ObstacleThenRemove_22MAY23_g0_t0.imec0.ap_res.mat"
-        data = convert_matlab_struct(file)
-        self.spike_times = data.dictionary.spikeTimes
-        self.cluster_ids = data.dictionary.spikeClusters
-        logger.info("Length of spike times: {}".format(len(self.spike_times)))
-        assert len(self.spike_times) == len(self.cluster_ids), "The length of spike times and cluster ids should match"
-        
-    def plot_rate_map(self):
+        # Retrieve paths and set new path
+        path = self.session.file_path
+        save_file = r"\interpolated_data.pkl"
+        new_path = path + save_file
 
-        # Retrieve the data
-        self.get_efizz_data() #self.spike_times, self.cluster_ids
+        # Save dic in new path
+        file = open(new_path, "wb")
+        pickle.dump(dic_to_save, file)
+        file.close()
+
+        # Assertions
+        assert os.path.isfile(new_path) == True, "Pickle rick Dictionary doesn't exist"
+
+    # Get data ready to plot spikes overlain to trajectory
+    def process_overlay_spikes(self):
+        """A function that returns a whole lot of things to preprocess spikes matched to trajectory.
+
+        Returns:
+            _type_: _description_
+        """
+
+        # Retrieve the ephys data
+        spike_times = self.session.ephys.spike_times
+        cluster_ids = self.session.ephys.cluster_ids
+        spike_mask  = self.session.ephys.spike_mask
+
+        # len of bonsai
+        len_bon = len(self.session.ttl.bonsai_TTL)
+
+        #Retrieve the interpolated positional and speed data
         file = open(self.interp_path, "rb") 
         interp_dic = pickle.load(file) # x, y, speed
-        print(len(interp_dic["x"]))
-        # print("len of x", len(interp_dic["x"]))
-        # bonsai_TTL = self.session.bonsai_TTL_aligned
-        # imec_TTL = self.session.imec_TTL_aligned
 
-        #Update user
-        logger.info("Data retrieved for rate map plotting")
+        #cut off ends
+        x = interp_dic['x'][:len_bon]
+        y = interp_dic['y'][:len_bon]
+        speed = interp_dic['speed'][:len_bon]
+        spike_mask = spike_mask[:len_bon]
 
-        # if velocity is above 5cm
-        # plot spikes
+        # Assertion
+        assert len(x) == len(self.session.ttl.bonsai_TTL), "The interpolated x data should match the length of the bonsai signal"
+        assert len(y) == len(self.session.ttl.bonsai_TTL), "The interpolated y  data should match the length of the bonsai signal"
+        assert len(speed) == len(self.session.ttl.bonsai_TTL), "The interpolated speed data should match the length of the bonsai signal"
+        assert len(spike_mask) == len(self.session.ttl.bonsai_TTL), "The spike mask data should match the length of the bonsai signal"
+
+        # Filter data where speed is above 5 - Currently not used
+        boolidx_where_speed_is_above_5 = speed > 5 # What indexes does speed go over 5cm^2
+
+        # create bins
+        bins = np.arange(80, 1000, 2) # From 80 to 1000
+        X_bin_dex = np.digitize(x, bins) # take x position and ascribe a bin to it
+        Y_bin_dex = np.digitize(y, bins)  # take y position and ascribe a bin to it
+
+        return spike_times, cluster_ids, spike_mask, bins, X_bin_dex, Y_bin_dex, boolidx_where_speed_is_above_5, len_bon
+
+    # Plot spikes onto trajectory map per cluster when speed >5cm
+    def overlay_spikes(self):
+        """A funciton that overlays spikes onto a trajectory map
+        """
+
+        # Preprocess and retrieve relevant information to produce overlay plot
+        spike_times, cluster_ids, spike_mask, bins, X_bin_dex, Y_bin_dex, boolidx_where_speed_is_above_5, len_bon = self.process_overlay_spikes()
+        
+        # Generate plot
+        pp = PdfPages('Obstacle and then remove 22MAY23.pdf')
+
+        for cluster_id in range(1, 250): # Limiting creation as clusters rubbish after 250
+        # for cluster_id in self.session.ephys.spike_dic.keys():
+
+            logger.info(f"Plotting cluster ID: {cluster_id}")
+
+            # Extract annotation
+            cluster_type = self.session.ephys.annotations[cluster_id]
+            if not cluster_type: cluster_type = "Noise or missed"
+
+            # filter the spike mask by cluster ID
+            cluster_mask = np.asarray(self.session.ephys.spike_dic[cluster_id])
+
+            new_mask = np.zeros(len(self.session.ephys.spike_mask))
+            for spike in cluster_mask: 
+                new_mask[spike] = 1
+            new_mask = new_mask[:len_bon]
+
+            # remove spikes where mouse was not moving 5cm, by returning 0
+            new_mask = np.where(boolidx_where_speed_is_above_5, new_mask, 0)
+            
+            # when are the spikes
+            when_spikes = np.where(new_mask > 0)[0] # At which indexes in the spike mask are the spikes happening
+
+            # spikes and position
+            spike_and_X = np.take(X_bin_dex, when_spikes)
+            spike_and_Y = np.take(Y_bin_dex, when_spikes)
+
+            # bins with spikes
+            x_bins_with_spikes = np.take(bins, spike_and_X)
+            y_bins_with_spikes = np.take(bins, spike_and_Y)
+        
+            # plots
+            scatter = self.ax.scatter(x_bins_with_spikes, y_bins_with_spikes, c="red", s=20, alpha = 0.5)
+            self.ax.set_title(f"Cluster ID: {cluster_id} of type: {cluster_type}")
+            pp.savefig(self.fig)
+            scatter.set_visible(False) # Hide the last plot so each plot doesn't inherit prior points
+
+        pp.close()
