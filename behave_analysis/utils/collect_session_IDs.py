@@ -2,7 +2,10 @@
 import numpy as np
 import os
 
-def collect_session_IDs(settings: object, databank: dict, group_num: int=0, key: str='') -> np.ndarray:
+def collect_session_IDs(settings: object, 
+                        databank: dict, 
+                        group_num: int=0, 
+                        key: str='') -> np.ndarray:
     session_IDs = np.array(databank['session IDs'], dtype='object')
     if settings.by_experiment:
         if not key: key = 'experiments'

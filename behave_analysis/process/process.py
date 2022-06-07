@@ -25,10 +25,10 @@ class Process():
         self.load_registration_transform()
         self.print_session_details(stage=1)
         self.session.ttl            = get_TTL(self.session)
-        self.session.camera_trigger = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)[0]
-        self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
+        self.session.camera_trigger = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)[0]
+        self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)
         self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
-        self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference)
+        self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)
         self.session.ephys          = get_Ephys(self.session)
         self.print_session_details(stage=2)
         self.save_session()
@@ -49,7 +49,13 @@ class Process():
         with open(self.session.metadata_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
 
     def load_session(self) -> Session:
-        with open(self.session.metadata_file, "rb") as dill_file: session = pickle.load(dill_file)
+        try:
+            with open(self.session.metadata_file, "rb") as dill_file: session = pickle.load(dill_file)
+        except EOFError:
+            print(f"The file location is: {self.session.metadata_file}. Is this correct? Does a metadata file exsist here?")
+            print("Delete meta file")
+            return
+
         return session
 
     def load_registration_transform(self) -> object:

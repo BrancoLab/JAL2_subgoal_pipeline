@@ -85,11 +85,11 @@ class Analyze():
         position_data = self.tracking_data
         self.avg_pos = position_data['avg_loc'] # The average position of the animal across the session
         self.interp_position() # Interpolate posiiton data and extend to fs of 30khz
-        # self.plot_rate_map()
+        self.plot_rate_map()
         for trial in self.trials_to_plot:
             self.initialize_trajectory_plot() # plot an empty circle w/wo an obstacle
             self.plot_trajectory(trial)
-            self.overlay_spikes() #Use this function to plot spikes onto trajectory
+            # self.overlay_spikes() #Use this function to plot spikes onto trajectory
             self.save_plot()
 
 # ----DATA EXTRACTION FUNCS---------------------------------------------
@@ -380,7 +380,6 @@ class Analyze():
 
             # Extract annotation
             cluster_type = self.session.ephys.annotations[cluster_id]
-            if not cluster_type: cluster_type = "Noise or missed"
 
             # filter the spike mask by cluster ID
             cluster_mask = np.asarray(self.session.ephys.spike_dic[cluster_id])
@@ -396,11 +395,12 @@ class Analyze():
             # when are the spikes
             when_spikes = np.where(new_mask > 0)[0] # At which indexes in the spike mask are the spikes happening
 
-            # spikes and position
-            spike_and_X = np.take(X_bin_dex, when_spikes)
-            spike_and_Y = np.take(Y_bin_dex, when_spikes)
+            # spikes and position - What bin does the spike occur in?
+            spike_and_X = np.take(X_bin_dex, when_spikes) # Take the bin indexes when there is a spike
+            spike_and_Y = np.take(Y_bin_dex, when_spikes) # Take the bin indexes when there is a spike
 
-            # bins with spikes
+            # bins with spikes - If there is a spike in that bin select that bin
+            # For each position point
             x_bins_with_spikes = np.take(bins, spike_and_X)
             y_bins_with_spikes = np.take(bins, spike_and_Y)
         
@@ -411,3 +411,67 @@ class Analyze():
             scatter.set_visible(False) # Hide the last plot so each plot doesn't inherit prior points
 
         pp.close()
+
+    # Func to create a spike mask for a specific cluster
+    def create_cluster_specific_mask(self, cluster_id, len_bon):
+        """A function that returns a spike mask for a specific cluster
+
+        Args:
+            cluster_id (_type_): _description_
+            len_bon (_type_): _description_
+
+        Returns:
+            _type_: _description_
+        """
+
+        # filter the spike mask by cluster ID
+        cluster_mask = np.asarray(self.session.ephys.spike_dic[cluster_id])
+
+        # Create a new mask of 0's at the same lenght of the spike_mask
+        new_mask = np.zeros(len(self.session.ephys.spike_mask))
+        
+        # Add a 1 for each index with a spike
+        for spike in cluster_mask: 
+            new_mask[spike] = 1
+        
+        #Make sure the cluster mask is the same length as bonsai
+        new_mask = new_mask[:len_bon]
+
+        return new_mask
+
+    # Rate map code taken from Romain's rep
+    def plot_rate_map(self):
+
+        # Retrieve the ephys data
+        spike_times, cluster_ids, spike_mask, bins, X_bin_dex, Y_bin_dex, boolidx_where_speed_is_above_5, len_bon = self.process_overlay_spikes()
+
+        #Retrieve the interpolated positional and speed data
+        file = open(self.interp_path, "rb") 
+        interp_dic = pickle.load(file) # x, y, speed
+
+        #cut off ends
+        x = interp_dic['x'][:len_bon]
+        y = interp_dic['y'][:len_bon]
+        speed = interp_dic['speed'][:len_bon]
+        spike_mask = spike_mask[:len_bon]
+
+        for cluster_id in range(1):
+        # for cluster_id in range(1, 250):
+
+            cluster_id = 59
+            
+            # filter the spike mask by cluster ID
+            new_mask = self.create_cluster_specific_mask(self, cluster_id, len_bon)
+
+            # remove spikes where mouse was not moving 5cm, by returning 0
+            new_mask = np.where(boolidx_where_speed_is_above_5, new_mask, 0)
+
+            # preprocess data for romains code
+            var = np.vstack((x, y)).T # make the right shape
+            
+            rate_s, act_s, occ_s = rate_map(self, var = var, samples = new_mask)
+            # plt.imshow(rate_s)
+            plt.pcolormesh(rate_s)
+            plt.title(f"cluster id {cluster_id}")
+            plt.show()
+

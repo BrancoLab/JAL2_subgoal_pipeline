@@ -19,7 +19,12 @@ class Camera_trigger:
     frame_trigger_onsets_idx: object
     fps: int
 
-def get_Camera_trigger(session: Session, indexs_to_remove, temporal_diff, bonsai_TTL, down_sample = True, drop_frames=False) -> Camera_trigger:
+def get_Camera_trigger(session: Session, 
+                       indexs_to_remove, 
+                       temporal_diff, 
+                       bonsai_TTL, 
+                       down_sample = True, 
+                       drop_frames=False) -> Camera_trigger:
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)

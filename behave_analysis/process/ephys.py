@@ -4,6 +4,7 @@ Refactor: Where the efizz data comes from
 """
 
 # Custom Libaries
+from __future__ import annotations
 from itertools import count
 from behave_analysis.process.session import Session
 from behave_analysis.utils.mat_to_python import convert_matlab_struct
@@ -23,11 +24,12 @@ class Ephys:
     spike_mask: object
     num_spikes: int
     spike_dic: object
+    annotations: object
 
 def get_Ephys(session: Session):
 
     # Load spike times and cluster ids, and define total spike count
-    spike_times, cluster_ids = load_ephys_data(ephys_file_path)
+    spike_times, cluster_ids, annotations = load_ephys_data(ephys_file_path)
     num_spikes = len(spike_times)
 
     # Align spikes times to pulse onset
@@ -48,7 +50,8 @@ def get_Ephys(session: Session):
                   cluster_ids,
                   spike_mask,
                   num_spikes,
-                  spike_dic)
+                  spike_dic,
+                  annotations)
                 
     return ephys
 
@@ -64,9 +67,10 @@ def load_ephys_data(ephys_file_path):
     data = convert_matlab_struct(ephys_file_path)
     spike_times = data.dictionary.spikeTimes
     cluster_ids = data.dictionary.spikeClusters
+    annotations = data.dictionary.clusterNotes
     logger.info("Number of spike times: {}".format(len(spike_times)))
     assert len(spike_times) == len(cluster_ids), "The length of spike times and cluster ids should match"
-    return spike_times, cluster_ids
+    return spike_times, cluster_ids, annotations
 
 def create_spike_mask(spike_times, imec_TTL):
         """A function that first creates a spike mask where one or more spikes = 1 and no spikes = 0.

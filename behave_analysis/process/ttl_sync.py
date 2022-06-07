@@ -58,6 +58,7 @@ class TTL_Sync:
     temporal_difference: int # array of ints, differences in offsets and onsets
     choose_index: int # which indexs to delete, array of ints
     bonsai_obj: object # signal at differnet stages
+    imec_delay: int # the differenece between the start of the imec signal and the first onset
 
 #Return the above data class
 def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
@@ -88,6 +89,7 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
     #Get onset and offsets - PRE DOWNSAMPLE
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
     ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
+    imec_delay = ephys_sync_onsets[0]
 
     # Check pulse lengths
     check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
@@ -146,7 +148,8 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
                           ephys_sync_offsets,
                           temporal_difference,
                           choose_index,
-                          bonsai_obj)
+                          bonsai_obj,
+                          imec_delay)
     return (ttl_object)
 
 #--------------------------------------- Load and retrieve data functions -----------------------------------------------------------------------

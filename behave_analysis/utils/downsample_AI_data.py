@@ -26,31 +26,29 @@ def remove_idx_as_per_bonsai_ttl_resample(name_of_signal,
     return:
         Downsampled signal with the start and ends cutt off to match bonsai
     """
-
     # Length of analogue signals should match bonsai signal
     assert len(signal_to_downsample) == session.ttl.inital_bonsai_len, "Length of analogue signals should match bonsai signal"
 
     # Delete the indexes as per the ones deletes from bonsai signal
     # Delete that index - all at once
     down_sampled_signal = np.delete(signal_to_downsample, indexs_to_remove)
-    logger.info(
-        "{}: Signal downsampled to match bonsai TTL resample".format(name_of_signal))
+    logger.info("{}: Signal downsampled to match bonsai TTL resample".format(name_of_signal))
 
     # clean start
-    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(
-        session.ttl.bonsai_obj['post resample'], 2.5)
-    cleaned_signal = remove_start_of_signal(
-        down_sampled_signal, bonsai_sync_onsets)
-    assert len(cleaned_signal) == 108065693, "this should pass"
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(session.ttl.bonsai_obj['post resample'], 2.5)
+    cleaned_signal = remove_start_of_signal(down_sampled_signal, bonsai_sync_onsets)
 
     # clean end
-    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(
-        session.ttl.bonsai_obj['post start of signal cut'], 2.5)
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(session.ttl.bonsai_obj['post start of signal cut'], 2.5)
     cleaned_signal = remove_end_of_signal(cleaned_signal, bonsai_sync_offsets)
 
     # Tests
-    assert len(cleaned_signal) == len(
-        session.ttl.bonsai_TTL), "The downsampled analogue data does not match the length of the bonsai signal"
+    try:
+        assert len(cleaned_signal) == len(session.ttl.bonsai_TTL), "The downsampled analogue data does not match the length of the bonsai signal"
+    except:
+        print(len(cleaned_signal))
+        print(len(len(session.ttl.bonsai_TTL)))
+        print("Down sample failed")
     return(cleaned_signal)
 
 
