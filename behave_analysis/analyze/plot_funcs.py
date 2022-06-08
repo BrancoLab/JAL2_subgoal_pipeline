@@ -7,6 +7,8 @@ from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 import matplotlib.collections as plt_coll
 import numpy as np
+import bottleneck as bn
+from astropy.convolution import convolve
 
 def solid_line(self, trial: dict):
     color = get_plot_color(self, trial, plot_type='trajectory')
@@ -71,7 +73,7 @@ def rate_map(self,
     var: np.ndarray,
     samples: np.ndarray,
     *,
-    bins=20,
+    bins=30,
     fs: int = 30000,
     min_occ: float = 0,
     smooth_half_win: int = 0,
@@ -147,8 +149,10 @@ def rate_map(self,
     # sigma = 1
     # act_s = gaussian_filter(act, sigma=sigma)
     # occ_s = gaussian_filter(occ, sigma=sigma)
+    act_s = smooth_2d(act)
+    occ_s = smooth_2d(occ)
    
-    act_s, occ_s = act, occ
+    # act_s, occ_s = act, occ
 
     if method == "point_process":
         rate_s = act_s / occ_s
@@ -190,4 +194,61 @@ def float_to_int(array) -> np.array:
             "Array must only contain whole numbers."
         )
     return int_array
+
+def smooth_2d(data,
+              kernel_half_width=3,
+              kernel_type="gauss",
+              padtype="reflect",
+              preserve_nan_opt=True,):
+    """
+    function to smooth 2 dimensional data.
+    Parameters
+    ----------
+    - data: matrix with your 2D data
+    - kernel_half_width: half width of the smoothing kernel
+    - kernel_type: way to smooth the data ('gauss': gaussian, 'box': boxcar smoothing)
+    - padtype: the matrix will be padded in order to remove border artefact
+        so we will pad the matrix.
+        Available option:   - symmetric: reflect the vector on the edge 1 2 3 4 [3 2 1]
+                            - reflect: reflect the vector on the edge 1 2 3 4 [4 3 2]
+                            - wrap: circularly wrap opposing edges
+    - preserve_nan_opt = do we smooth NaN or put them back att the end (default: True)
+    Returns
+    -------
+    - data_c smoothed version of data
+    """
+
+    # Check Input
+    if kernel_half_width % 2 != 1:
+        # kernel size has to be odd
+        kernel_half_width += 1
+
+    acceptedPad = ["reflect", "symmetric", "wrap"]
+    assert padtype in acceptedPad, "Not Implemented pad type"
+
+    acceptedType = ["gauss", "box"]
+    assert kernel_type in acceptedType, "Not Implemented smoothing kernel type"
+
+    # pad the data
+    data_p = np.pad(data, ((kernel_half_width, kernel_half_width)), padtype)
+
+    # Initialize convolution kernel
+    kernel = np.zeros((kernel_half_width * 2 + 1, kernel_half_width * 2 + 1))
+
+    if kernel_type == "box":
+        kernel = np.ones((kernel_half_width * 2 + 1, kernel_half_width * 2 + 1))
+    elif kernel_type == "gauss":
+        kernel_1D = np.arange(0, kernel_half_width) - (kernel_half_width - 1.0) / 2.0
+        kernel_1D = np.exp(
+            -(kernel_1D ** 2) / (2 * kernel_half_width * kernel_half_width)
+        )
+        kernel = np.outer(kernel_1D, kernel_1D)
+
+    # Normalize kernel to one
+    kernel = kernel / bn.nansum(kernel)
+
+    # Convolve. Astropy seems to deal really well with nan values
+    data_c = convolve(data_p, kernel=kernel, preserve_nan=preserve_nan_opt)
+
+    return data_c[kernel_half_width:-kernel_half_width, kernel_half_width:-kernel_half_width]
     

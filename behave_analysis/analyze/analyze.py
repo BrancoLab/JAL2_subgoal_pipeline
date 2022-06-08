@@ -11,6 +11,10 @@ from behave_analysis.utils.directory import Directory
 from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
 
 # OS libs
+import mpl_toolkits.axisartist.floating_axes as floating_axes
+from ephysiopy.common.binning import RateMap # Trying robin's rate map function
+from matplotlib.transforms import Affine2D
+from ephysiopy.visualise.plotting import FigureMaker # Trying robin's rate map function
 from matplotlib.backends.backend_pdf import PdfPages # For saving to a pdf
 import matplotlib.pyplot as plt
 import matplotlib.patches as ptch
@@ -85,12 +89,13 @@ class Analyze():
         position_data = self.tracking_data
         self.avg_pos = position_data['avg_loc'] # The average position of the animal across the session
         self.interp_position() # Interpolate posiiton data and extend to fs of 30khz
-        self.plot_rate_map()
-        for trial in self.trials_to_plot:
-            self.initialize_trajectory_plot() # plot an empty circle w/wo an obstacle
-            self.plot_trajectory(trial)
-            # self.overlay_spikes() #Use this function to plot spikes onto trajectory
-            self.save_plot()
+        # self.robin_rate_map()
+        self.SAC()
+        # for trial in self.trials_to_plot:
+        #     self.initialize_trajectory_plot() # plot an empty circle w/wo an obstacle
+        #     self.plot_trajectory(trial)
+        #     # self.overlay_spikes() #Use this function to plot spikes onto trajectory
+        #     self.save_plot()
 
 # ----DATA EXTRACTION FUNCS---------------------------------------------
     def extract_data(self):
@@ -440,7 +445,53 @@ class Analyze():
         return new_mask
 
     # Rate map code taken from Romain's rep
-    def plot_rate_map(self):
+    # def plot_rate_map(self):
+
+    #     # Generate plot
+    #     pp = PdfPages('Rate Maps: Obstacle and then remove 22MAY23.pdf')
+
+    #     # Retrieve the ephys data
+    #     spike_times, cluster_ids, spike_mask, bins, X_bin_dex, Y_bin_dex, boolidx_where_speed_is_above_5, len_bon = self.process_overlay_spikes()
+
+    #     #Retrieve the interpolated positional and speed data
+    #     file = open(self.interp_path, "rb") 
+    #     interp_dic = pickle.load(file) # x, y, speed
+
+    #     #cut off ends
+    #     x = interp_dic['x'][:len_bon]
+    #     y = interp_dic['y'][:len_bon]
+    #     speed = interp_dic['speed'][:len_bon]
+    #     spike_mask = spike_mask[:len_bon]
+
+    #     # rate_map_class = RateMap()
+
+    #     # Loop through each cluster and plot a rate map
+    #     for cluster_id in range(1): #Use for manually generating one cluster
+    #     # for cluster_id in range(1, 250):
+
+    #         #Use for manually generating one cluster
+    #         cluster_id = 126
+            
+    #         # filter the spike mask by cluster ID
+    #         new_mask = self.create_cluster_specific_mask(cluster_id, len_bon)
+
+    #         # remove spikes where mouse was not moving 5cm, by returning 0
+    #         new_mask = np.where(boolidx_where_speed_is_above_5, new_mask, 0)
+
+    #         # preprocess data for romains code
+    #         var = np.vstack((x, y)).T # make the right shape
+
+    #         rate_s, act_s, occ_s = rate_map(self, var = var, samples = new_mask)
+    #         # plt.imshow(rate_s)
+    #         plt.pcolormesh(rate_s, cmap="jet")
+    #         plt.title(f"cluster id {cluster_id}")
+    #         plt.show()
+
+    # Rate map code taken from Robins's rep
+    def robin_rate_map(self):
+
+        # Generate plot
+        pp = PdfPages('Rate Maps Obstacle and then remove 22MAY23.pdf')
 
         # Retrieve the ephys data
         spike_times, cluster_ids, spike_mask, bins, X_bin_dex, Y_bin_dex, boolidx_where_speed_is_above_5, len_bon = self.process_overlay_spikes()
@@ -455,23 +506,187 @@ class Analyze():
         speed = interp_dic['speed'][:len_bon]
         spike_mask = spike_mask[:len_bon]
 
-        for cluster_id in range(1):
-        # for cluster_id in range(1, 250):
+        # preprocess data for Robins code
+        pos_data = np.vstack((x, y)) # make the right shape
 
-            cluster_id = 59
+        # Define classes
+        rate_map_class = RateMap(xy = pos_data,
+                                 ppm = 1000,
+                                 smooth_sz = 8,
+                                 cmsPerBin = 20)
+
+        # make_figs = FigureMaker()
+
+        your_ppm_value = 1000
+        your_cms_per_bin_value = 2
+
+        # Loop through each cluster and plot a rate map
+        # for cluster_id in range(4): #Use for manually generating one cluster
+        for cluster_id in range(1, 250):
+
+            # Print which cluster your on
+            logger.info(f"Plotting cluster ID: {cluster_id}")
+
+            # Extract annotation
+            cluster_type = self.session.ephys.annotations[cluster_id]
+
+            #Use for manually generating one cluster
+            # cluster_id = 126
             
             # filter the spike mask by cluster ID
-            new_mask = self.create_cluster_specific_mask(self, cluster_id, len_bon)
+            new_mask = self.create_cluster_specific_mask(cluster_id, len_bon)
 
             # remove spikes where mouse was not moving 5cm, by returning 0
             new_mask = np.where(boolidx_where_speed_is_above_5, new_mask, 0)
 
-            # preprocess data for romains code
-            var = np.vstack((x, y)).T # make the right shape
+            # compute rate map works 
+            rmap = rate_map_class.getMap(spkWeights = new_mask)
+            ratemap = np.ma.MaskedArray(rmap[0], np.isnan(rmap[0]), copy=True)
+            x, y = np.meshgrid(rmap[1][1][0:-1], rmap[1][0][0:-1])
+            vmax = np.nanmax(np.ravel(ratemap))
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            mesh = ax.pcolormesh(x, y, ratemap, cmap=plt.cm.get_cmap("jet"), edgecolors='face', vmax=vmax, shading='auto')
+            ax.set_aspect('equal')
+            ax.set_title(f"Cluster ID: {cluster_id} of type: {cluster_type}")
+            # plt.show()
+            pp.savefig(fig)
+            mesh.set_visible(False)
+        pp.close()
+
+    def show_SAC(self, A: np.array, 
+                 inDict: dict, 
+                 ax: plt.axes=None, 
+                 **kwargs) -> plt.axes:
+        """
+        Displays the result of performing a spatial autocorrelation (SAC)
+        on a grid cell.
+        Uses the dictionary containing measures of the grid cell SAC to
+        make a pretty picture
+        Parameters
+        ----------
+        A : array_like
+            The spatial autocorrelogram
+        inDict : dict
+            The dictionary calculated in getmeasures
+        ax : matplotlib.axes._subplots.AxesSubplot, optional
+            If given the plot will get drawn in these axes. Default None
+        Returns
+        -------
+        fig : matplotlib.Figure instance
+            The Figure on which the SAC is shown
+        See Also
+        --------
+        ephysiopy.common.binning.RateMap.autoCorr2D()
+        ephysiopy.common.ephys_generic.FieldCalcs.getMeaures()
+        """
+        if ax is None:
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+        Am = A.copy()
+        Am[~inDict['dist_to_centre']] = np.nan
+        Am = np.ma.masked_invalid(np.atleast_2d(Am))
+        x, y = np.meshgrid(np.arange(0, np.shape(A)[1]), np.arange(0, np.shape(A)[0]))
+        vmax = np.nanmax(np.ravel(A))
+        ax.pcolormesh(x, y, A, cmap=plt.cm.get_cmap("gray_r"), edgecolors='face', vmax=vmax, shading='auto')
+        import copy
+        cmap = copy.copy(plt.cm.get_cmap("jet"))
+        cmap.set_bad('w', 0)
+        ax.pcolormesh(x, y, Am, cmap=cmap, edgecolors='face', vmax=vmax, shading='auto')
+        # horizontal green line at 3 o'clock
+        _y = (np.shape(A)[0]/2, np.shape(A)[0]/2)
+        _x = (np.shape(A)[1]/2, np.shape(A)[0])
+        ax.plot(_x, _y, c='g')
+        mag = inDict['scale'] * 0.5
+        th = np.linspace(0, inDict['orientation'], 50)
+        from ephysiopy.common.utils import rect
+        [x, y] = rect(mag, th, deg=1)
+        # angle subtended by orientation
+        ax.plot( x + (inDict['dist_to_centre'].shape[1] / 2), (inDict['dist_to_centre'].shape[0] / 2) - y, 'r', **kwargs)
+        # plot lines from centre to peaks above middle
+        for p in inDict['closest_peak_coords']:
+            if p[0] <= inDict['dist_to_centre'].shape[0] / 2:
+                ax.plot(
+                    (inDict['dist_to_centre'].shape[1]/2, p[1]),
+                    (inDict['dist_to_centre'].shape[0] / 2, p[0]), 'k', **kwargs)
+        ax.invert_yaxis()
+        all_ax = ax.axes
+        all_ax.set_aspect('equal')
+        all_ax.set_xlim((0.5, inDict['dist_to_centre'].shape[1]-1.5))
+        all_ax.set_ylim((inDict['dist_to_centre'].shape[0]-.5, -.5))
+        
+        return ax
+
+
+    def SAC(self):
+
+        # Generate plot
+        pp = PdfPages('SAC.pdf')
+
+        # Retrieve the ephys data
+        spike_times, cluster_ids, spike_mask, bins, X_bin_dex, Y_bin_dex, boolidx_where_speed_is_above_5, len_bon = self.process_overlay_spikes()
+
+        #Retrieve the interpolated positional and speed data
+        file = open(self.interp_path, "rb") 
+        interp_dic = pickle.load(file) # x, y, speed
+
+        #cut off ends
+        x = interp_dic['x'][:len_bon]
+        y = interp_dic['y'][:len_bon]
+        speed = interp_dic['speed'][:len_bon]
+        spike_mask = spike_mask[:len_bon]
+
+        # preprocess data for Robins code
+        pos_data = np.vstack((x, y)) # make the right shape
+
+        # Define classes
+        rate_map_class = RateMap(xy = pos_data,
+                                 ppm = 1000,
+                                 smooth_sz = 8,
+                                 cmsPerBin = 20)
+
+        # Loop through each cluster and plot a rate map
+        for cluster_id in range(1): #Use for manually generating one cluster
+        # for cluster_id in range(1, 250):
+
+            # Print which cluster your on
+            logger.info(f"Plotting cluster ID: {cluster_id}")
+
+            # Extract annotation
+            cluster_type = self.session.ephys.annotations[cluster_id]
+
+            #Use for manually generating one cluster
+            cluster_id = 169
             
-            rate_s, act_s, occ_s = rate_map(self, var = var, samples = new_mask)
-            # plt.imshow(rate_s)
-            plt.pcolormesh(rate_s)
-            plt.title(f"cluster id {cluster_id}")
+            # filter the spike mask by cluster ID
+            new_mask = self.create_cluster_specific_mask(cluster_id, len_bon)
+
+            # remove spikes where mouse was not moving 5cm, by returning 0
+            new_mask = np.where(boolidx_where_speed_is_above_5, new_mask, 0)
+
+            # compute rate map works 
+            rmap, _ = rate_map_class.getMap(spkWeights = new_mask)
+            from ephysiopy.common import gridcell
+            S = gridcell.SAC()
+            nodwell = ~np.isfinite(rmap)
+            sac = S.autoCorr2D(rmap, nodwell)
+            measures = S.getMeasures(sac)
+
+            fig = plt.figure()
+            ax = fig.add_subplot(111)
+            ax = self.show_SAC(sac, measures, ax)
             plt.show()
+
+            # ratemap = np.ma.MaskedArray(rmap[0], np.isnan(rmap[0]), copy=True)
+            # x, y = np.meshgrid(rmap[1][1][0:-1], rmap[1][0][0:-1])
+            # vmax = np.nanmax(np.ravel(ratemap))
+            # fig = plt.figure()
+            # ax = fig.add_subplot(111)
+            # mesh = ax.pcolormesh(x, y, ratemap, cmap=plt.cm.get_cmap("jet"), edgecolors='face', vmax=vmax, shading='auto')
+            # ax.set_aspect('equal')
+            # ax.set_title(f"Cluster ID: {cluster_id} of type: {cluster_type}")
+            # # plt.show()
+            # pp.savefig(fig)
+            # mesh.set_visible(False)
+        # pp.close()
 
