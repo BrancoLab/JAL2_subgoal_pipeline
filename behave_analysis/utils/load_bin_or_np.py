@@ -19,7 +19,7 @@ def load_bin(filepath, nsigs=385, dtype=None, order=None):
     """
     filepath = Path(filepath)
     assert os.path.isfile(filepath), "Path is a folder, not a file"
-    logger.debug(f'Opening BIN file: "{filepath}" ({os.path.getsize(filepath)})')
+    logger.info(f'Opening BIN file: "{filepath}" ({os.path.getsize(filepath)})')
     dtype = dtype or np.float64
     order = order or "C"
     assert os.path.isfile(filepath), "Path is a folder, not a file"

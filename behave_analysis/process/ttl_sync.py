@@ -42,7 +42,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 
 #Store file name here now for testing - hard coded need to update
-imec_bin_file = efizz[0]
+imec_bin_file = efizz["bin"]
 
 @dataclass(frozen=False)
 class TTL_Sync:
@@ -94,19 +94,31 @@ def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
     # Check pulse lengths
     check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
 
+    # remove pulses that are too brief
+    pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
+    if pulse_len_errors:
+        logger.warning("Removing pulses with too short of a length")
+        bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse_len_errors)
+        bonsai_sync_onsets = np.delete(bonsai_sync_onsets, pulse_len_errors)
+
     #Now compare delta between onsets and offsets
     delta_ephys_onsets  = np.diff(ephys_sync_onsets)
     delta_bonsai_onsets = np.diff(bonsai_sync_onsets)
     delta_ephys_offsets = np.diff(ephys_sync_offsets)
     delta_bonsai_offsets = np.diff(bonsai_sync_offsets)
 
+    # Test that onsets len match
+    assert len(delta_ephys_onsets) == len(delta_bonsai_onsets), "length of onsets should match"
+
     #If down_sample is set to true and there exsists a delta between onsets of efiz and bonsai, resample bonsai signal
-    if down_sample and not ((delta_ephys_onsets==delta_bonsai_onsets).all() or (delta_ephys_offsets==delta_bonsai_offsets).all()):
+    if down_sample and not (np.array_equal(delta_ephys_onsets, delta_bonsai_onsets)):
         #Check that the interval pulses match between imec and bonsai
         #Difference in temporal scale
         temporal_difference = delta_bonsai_onsets - delta_ephys_onsets # Compare the difference in pulse lengths
         r_all_bonsai_pulses_longer = temporal_difference >= 0
         is_it_true = r_all_bonsai_pulses_longer.all()
+        counts_of_difference = {k: len(temporal_difference[temporal_difference == k]) for k in set(temporal_difference)}
+        logger.info(f"Is it true that bonsai pulses are always longer: {is_it_true}. The temporal difference is: {counts_of_difference}")
         if not is_it_true: logger.error("Bonsai pulse onsets are not all greater than or equal to imec pulse onsets")
         logger.warning("Pulse lengths do not match between imec and efizz. The signals require modifcation before shifting")
         if (sum(temporal_difference) > 0):
@@ -209,18 +221,20 @@ def get_onset_offset(signal, threshold, clean=True):
 
     #If the signal starts with a pulse add a zero to the start
     if above[0] > 0:
+        logger.warning("Adding to the signal")
         starts = np.concatenate([[0], starts])
 
     #If the signal ends at the top of the pulse add the length of the signal to the end
     if above[-1] > 0:
+        logger.warning("Adding to the signal")
         ends = np.concatenate([ends, [len(signal)]])
 
     #If clean is true
     if clean:
-        # ends before the first start are removed
+        # offsets before the first onsets are removed
         ends = np.array([e for e in ends if e > starts[0]])
 
-        # starts before the last end are removed
+        # onsets before the last offsets are removed
         if np.any(ends):
             starts = np.array([s for s in starts if s < ends[-1]])
 
@@ -274,10 +288,10 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
         return
 
     # check for aberrant signals in ephys
-    errors = np.where(imec_TTL > 75)[0]
-    if len(errors):
-        logger.warning(f"Found {len(errors)} samples with too high values in probe signal")
-    if len(errors) > 1000:
+    imec_errors = np.where(imec_TTL > 75)[0]
+    if len(imec_errors):
+        logger.warning(f"Found {len(imec_errors)} samples with too high values in probe signal")
+    if len(imec_errors) > 1000:
         return False, 0, 0, "too_many_errors_in_ephys_sync_signal"
 
     # check of abberaant signals in bonsai TTL
@@ -285,9 +299,10 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
     assert len(errors_bonsai) < threshold, "There are too many abberant signals in the bonsai TTL"
 
     # If errors remove signals and update signals
-    imec_TTL = np.delete(imec_TTL, errors)
-    bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
-    logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(errors), len(errors_bonsai)))
+    if errors_bonsai or imec_errors:
+        imec_TTL = np.delete(imec_TTL, imec_errors)
+        bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
+        logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(imec_errors), len(errors_bonsai)))
     
     # Log success
     logger.info("Bonsai and Imec TTL are of similar lengths and have passed the abberant signal verification ")
@@ -308,18 +323,26 @@ def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_ra
     logger.info("Checking if pulse lenghts are as expected")
 
     #Bonsai pulse length check if too long or short
-    bonsai_pulse_len_under_errors = np.where(np.diff(bonsai_sync_onsets) < (sampling_rate / 2))[0]
-    bonsai_pulse_len_over_errors = np.where(np.diff(bonsai_sync_onsets) > (sampling_rate * 1.5))[0]
-    if bonsai_pulse_len_under_errors or bonsai_pulse_len_over_errors:
-        logger.error("Bonsai pulse greater or less than expected 1hz duration")
-        return
+    bonsai_pulse_len_under_errors = np.where(np.diff(bonsai_sync_onsets) < (sampling_rate / 2))[0] # Is onset delta less than 15khz
+    bonsai_pulse_len_over_errors = np.where(np.diff(bonsai_sync_onsets) > (sampling_rate * 1.5))[0] # Is onset delta greater than 15khz
+
+    if bonsai_pulse_len_under_errors:
+        onsets_delta = np.diff(bonsai_sync_onsets)
+        counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
+        logger.warning(f"Bonsai pulse less than 1hz duration: {counts}")
+
+    if bonsai_pulse_len_over_errors:
+        logger.warning("Bonsai pulse greater than 1hz duration")
 
     #Imec pulse length check if too long or short
-    imec_pulse_len_under_errors = np.where(np.diff(ephys_sync_onsets) < (sampling_rate / 2))[0]
-    imec_pulse_len_over_errors  = np.where(np.diff(ephys_sync_onsets) > (sampling_rate * 1.5))[0]
-    if imec_pulse_len_under_errors or imec_pulse_len_over_errors:
-        logger.error("Imec pulse greater or less than expected 1hz duration")
-        return
+    imec_pulse_len_under_errors = np.where(np.diff(ephys_sync_onsets) < (sampling_rate / 2))[0] # Is onset delta less than 15khz
+    imec_pulse_len_over_errors  = np.where(np.diff(ephys_sync_onsets) > (sampling_rate * 1.5))[0] # Is onset delta greater than 15khz
+
+    if imec_pulse_len_under_errors:
+        logger.error("Imec pulse less than expected 1hz duration")
+
+    if imec_pulse_len_over_errors:
+        logger.warning("Bonsai pulse greater than 1hz duration")
 
 #----------------------------------------------- Clean signals -------------------------------------------------------------------------------------------
 
@@ -350,10 +373,18 @@ def remove_idx_to_align_signals(bonsai_onsets, bonsai_signal, temporal_diff):
 
     #For each pulse, remove n samples uniformly 
     for pulse in range(len(bonsai_onsets) - 1):
+        count_of_larger_bonsai_pulses = 0
+        if temporal_diff[pulse] < 0:
+            count_of_larger_bonsai_pulses += 1
+            logger.warning("Skipping pulse resample as bonsai pulse is longer than imec")
+            continue
         #Take the number of samples needed to remove. Add one and don't select it. To ensure uniformity.
         choose_index = np.append(choose_index, np.linspace(bonsai_onsets[pulse] + 1, bonsai_onsets[pulse + 1], temporal_diff[pulse] + 1, dtype='int')[:-1])
     choose_index = list(choose_index.astype(int))
     bonsai_signal = np.delete(bonsai_signal, choose_index) # delete that index - all at once
+
+    #Log
+    logger.warning(f"There were {count_of_larger_bonsai_pulses} bonsai pulses longer than the imec pulses")
 
     #Tests
     assert len(choose_index) == sum(temporal_diff), "The number of indexes choosen should equal the amount of samples required for removal"

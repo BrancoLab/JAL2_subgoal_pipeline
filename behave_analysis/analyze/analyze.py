@@ -358,7 +358,7 @@ class Analyze():
         assert len(spike_mask) == len(self.session.ttl.bonsai_TTL), "The spike mask data should match the length of the bonsai signal"
 
         # Filter data where speed is above 5 - Currently not used
-        boolidx_where_speed_is_above_5 = speed > 5 # What indexes does speed go over 5cm^2
+        boolidx_where_speed_is_above_5 = speed > 2.5 # What indexes does speed go over 5cm^2
 
         # create bins
         bins = np.arange(80, 1000, 2) # From 80 to 1000
@@ -513,7 +513,7 @@ class Analyze():
         rate_map_class = RateMap(xy = pos_data,
                                  ppm = 1000,
                                  smooth_sz = 8,
-                                 cmsPerBin = 20)
+                                 cmsPerBin = 25)
 
         # make_figs = FigureMaker()
 
@@ -521,17 +521,17 @@ class Analyze():
         your_cms_per_bin_value = 2
 
         # Loop through each cluster and plot a rate map
-        # for cluster_id in range(4): #Use for manually generating one cluster
-        for cluster_id in range(1, 250):
+        for cluster_id in range(1): #Use for manually generating one cluster
+        # for cluster_id in range(1, 250):
 
-            # Print which cluster your on
-            logger.info(f"Plotting cluster ID: {cluster_id}")
+            #Use for manually generating one cluster
+            cluster_id = 134
 
             # Extract annotation
             cluster_type = self.session.ephys.annotations[cluster_id]
 
-            #Use for manually generating one cluster
-            # cluster_id = 126
+             # Print which cluster your on
+            logger.info(f"Plotting cluster ID: {cluster_id}")
             
             # filter the spike mask by cluster ID
             new_mask = self.create_cluster_specific_mask(cluster_id, len_bon)
@@ -549,10 +549,10 @@ class Analyze():
             mesh = ax.pcolormesh(x, y, ratemap, cmap=plt.cm.get_cmap("jet"), edgecolors='face', vmax=vmax, shading='auto')
             ax.set_aspect('equal')
             ax.set_title(f"Cluster ID: {cluster_id} of type: {cluster_type}")
-            # plt.show()
-            pp.savefig(fig)
-            mesh.set_visible(False)
-        pp.close()
+            plt.show()
+        #     pp.savefig(fig)
+        #     mesh.set_visible(False)
+        # pp.close()
 
     def show_SAC(self, A: np.array, 
                  inDict: dict, 
@@ -603,6 +603,7 @@ class Analyze():
         [x, y] = rect(mag, th, deg=1)
         # angle subtended by orientation
         ax.plot( x + (inDict['dist_to_centre'].shape[1] / 2), (inDict['dist_to_centre'].shape[0] / 2) - y, 'r', **kwargs)
+        
         # plot lines from centre to peaks above middle
         for p in inDict['closest_peak_coords']:
             if p[0] <= inDict['dist_to_centre'].shape[0] / 2:
@@ -642,21 +643,23 @@ class Analyze():
         # Define classes
         rate_map_class = RateMap(xy = pos_data,
                                  ppm = 1000,
-                                 smooth_sz = 8,
-                                 cmsPerBin = 20)
+                                 smooth_sz = 10,
+                                 cmsPerBin = 25)
+        # setattr(rate_map_class, "_smoothingType", "boxcar")
+        
 
         # Loop through each cluster and plot a rate map
         for cluster_id in range(1): #Use for manually generating one cluster
         # for cluster_id in range(1, 250):
 
-            # Print which cluster your on
-            logger.info(f"Plotting cluster ID: {cluster_id}")
-
             # Extract annotation
             cluster_type = self.session.ephys.annotations[cluster_id]
 
             #Use for manually generating one cluster
-            cluster_id = 169
+            cluster_id = 134
+
+            # Print which cluster your on
+            logger.info(f"Plotting cluster ID: {cluster_id}")
             
             # filter the spike mask by cluster ID
             new_mask = self.create_cluster_specific_mask(cluster_id, len_bon)
@@ -672,9 +675,18 @@ class Analyze():
             sac = S.autoCorr2D(rmap, nodwell)
             measures = S.getMeasures(sac)
 
+            # Print out th keys of the measures
+            print(measures.keys())
+
+            print(measures["gridscore"])
+
+            #Return grid score
+            grid_score = measures["gridscore"]
+
             fig = plt.figure()
             ax = fig.add_subplot(111)
             ax = self.show_SAC(sac, measures, ax)
+            ax.set_title(f"Cluster ID: {cluster_id}, grid score: {grid_score}, cluster type: {cluster_type}")
             plt.show()
 
             # ratemap = np.ma.MaskedArray(rmap[0], np.isnan(rmap[0]), copy=True)

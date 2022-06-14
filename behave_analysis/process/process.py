@@ -159,8 +159,8 @@ class Process():
         else:
             logger.info(f"Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
 
-        if ephys_sync_onsets[0] <= bonsai_sync_onsets[0]:
-            logger.warning("The first pulse onset is the imec signal and not the bonsai signal. Check if intended.")
+        if ephys_sync_onsets[0] >= bonsai_sync_onsets[0]:
+            logger.error("The first pulse onset is the bonsai signal and not the bonsai signal. Error.")
 
         #Check the interval between sync signals in bonsai
         onsets_delta = np.diff(bonsai_sync_onsets)

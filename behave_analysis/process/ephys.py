@@ -8,6 +8,7 @@ from __future__ import annotations
 from itertools import count
 from behave_analysis.process.session import Session
 from behave_analysis.utils.mat_to_python import convert_matlab_struct
+from databank import efizz
 
 # OS Libaries
 from dataclasses import dataclass
@@ -15,7 +16,7 @@ from loguru import logger
 import numpy as np 
 
 #Data
-ephys_file_path = r"D:\Electrophysiology_data\1677_ObstacleThenRemove_22MAY23_g0\1677_ObstacleThenRemove_22MAY23_g0_imec0\1677_ObstacleThenRemove_22MAY23_g0_t0.imec0.ap_res.mat"
+ephys_file_path = efizz["res"]
 
 @dataclass(frozen=True)
 class Ephys:
