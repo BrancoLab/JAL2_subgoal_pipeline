@@ -4,7 +4,7 @@ from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.photoresistor import get_Photoresistor
-from behave_analysis.process.ttl_sync import get_TTL, remove_idx_to_align_signals, get_onset_offset, derivative
+from behave_analysis.process.ttl_sync import get_TTL, remove_bonsai_idx_to_align_signals, get_onset_offset, derivative
 from behave_analysis.utils.check_drop_frames import check_drop_frames
 from behave_analysis.utils.load_bin_or_np import load_or_open
 from behave_analysis.process.ephys import get_Ephys
@@ -142,6 +142,10 @@ class Process():
         # get pulses onsets
         bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
         ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
+
+        plt.plot(self.session.ttl.bonsai_TTL)
+        plt.plot(self.session.ttl.imec_TTL)
+        plt.show()
 
         # check if numbers make sense
         if len(bonsai_sync_onsets) != len(bonsai_sync_offsets):
