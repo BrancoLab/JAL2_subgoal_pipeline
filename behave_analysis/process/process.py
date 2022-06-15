@@ -140,13 +140,15 @@ class Process():
         logger.info("Verifying sync signal pulses")
         
         # get pulses onsets
-        bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
-        ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
+        # bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
+        # ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
 
-        plt.plot(self.session.ttl.bonsai_TTL)
-        plt.plot(self.session.ttl.imec_TTL)
-        plt.show()
-
+        # Get onset and offsets
+        bonsai_sync_onsets  = self.session.ttl.bonsai_sync_onsets
+        bonsai_sync_offsets = self.session.ttl.bonsai_sync_offsets
+        ephys_sync_onsets   = self.session.ttl.ephys_sync_onsets
+        ephys_sync_offsets  = self.session.ttl.ephys_sync_offset
+        
         # check if numbers make sense
         if len(bonsai_sync_onsets) != len(bonsai_sync_offsets):
             logger.error(f"BONSAI - Unequal number of onsets/offsets ({len(bonsai_sync_offsets)}/{len(bonsai_sync_onsets)})")
@@ -157,14 +159,11 @@ class Process():
         # check same results for bonsai and ephys
         if len(bonsai_sync_onsets) != len(ephys_sync_onsets):
             logger.error(f"Incosistent number of triggers! Bonsai {len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
-            logger.warning("When inspecting probe sync signal found different number of pulses for bonsai"
-                           f"{len(bonsai_sync_onsets)} and SpikeGLX {len(ephys_sync_onsets)}")
+            logger.warning("When inspecting probe sync signal found different number of pulses for bonsai: "
+                           f"{len(bonsai_sync_onsets)} and SpikeGLX: {len(ephys_sync_onsets)}")
     
         else:
             logger.info(f"Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
-
-        if ephys_sync_onsets[0] >= bonsai_sync_onsets[0]:
-            logger.error("The first pulse onset is the bonsai signal and not the bonsai signal. Error.")
 
         #Check the interval between sync signals in bonsai
         onsets_delta = np.diff(bonsai_sync_onsets)
