@@ -17,23 +17,35 @@ def mother_plot(self):
     to the Analyze class and carries with it all the required attributes to plot
     some grid cells.
     
+    This function saves to a pdf for each cluster:
+    + Rate map
+    + SAC
+    
+    To do:
+    + spike overlay to trajectory
+    + head direction
+    
     Return: 
-    + 
+    + pdf
+    
+    Notes:
+    self instance is class Analyze from analyze.py
     """
     
-    pdf_obj = PdfPages('Test mother plot.pdf') # Location of pdf
-    process_spike_dic = process_overlay_spikes(self)
+    pdf_obj = PdfPages('NoShelterThenShelter_22MAY31.pdf') # Location of pdf, change name
+    process_spike_dic = process_overlay_spikes(self) #
     file = open(self.interp_path, "rb")  # Load interpolated data
     interp_dic = pickle.load(file) # x, y, speed
     pos_data = np.vstack((process_spike_dic["x"],
-                          process_spike_dic["y"])) # make the right shape
+                          process_spike_dic["y"])) # make the right shape for plotting
+
+    # Good clusters taken from spike sorting, multi unit and unsure - could refactor somehow
+    good_clusters = [218, 230, 231, 232, 241, 242, 247, 259, 260, 263, 264, 272, 275, 276, 282, 286, 287, 291, 292, 298, 300, 301, 307, 312, 314, 315, 316, 320, 327, 340, 343, 352, 354, 357, 360, 371, 372, 381, 382, 387, 389, 396, 398, 405, 406, 413, 416, 418, 420, 422, 429, 437, 439, 440, 441, 442, 443, 445, 447, 455, 461, 463, 469, 475, 496, 497, 505, 531, 551, 560, 569, 581, 591, 378, 400, 411, 419, 557, 210, 215, 216, 226, 277, 289, 290, 302, 313, 320, 332, 333, 334, 335, 344, 346, 347, 351, 353, 356, 361, 367, 368, 374, 375, 382, 388, 397, 436, 480, 517, 523, 540, 564, 566]
     
-    list = [218, 230, 231, 232, 241, 242, 247, 259, 260, 263, 264, 272, 275, 276, 282, 286, 287, 291, 292, 298, 300, 301, 307, 312, 314, 315, 316, 320, 327, 340, 343, 352, 354, 357, 360, 371, 372, 381, 382, 387, 389, 396, 398, 405, 406, 413, 416, 418, 420, 422, 429, 437, 439, 440, 441, 442, 443, 445, 447, 455, 461, 463, 469, 475, 496, 497, 505, 531, 551, 560, 569, 581, 591]
-    
-    fig = plt.figure()
-    for cluster_id in list[:2]:
+    for cluster_id in good_clusters:
+        cluster_id -= 1 # Remove one index as matlab starts a 1 and python starts at 0
+        fig = plt.figure()
         create_rate_map(self,
-                        pdf_obj, 
                         process_spike_dic, 
                         cluster_id,
                         fig,
@@ -43,8 +55,7 @@ def mother_plot(self):
                    cluster_id,
                    pos_data,
                    fig,
-                   process_spike_dic,
-                   pdf_obj)
+                   process_spike_dic)
         pdf_obj.savefig(fig)
     
     pdf_obj.close()
@@ -52,21 +63,24 @@ def mother_plot(self):
 # ---------------------------------- Individual plot functions ------------------
 
 def create_rate_map(self,
-                    pdf_object, 
                     process_spike_dic, 
                     cluster_id,
                     fig,
                     pos_data):
     
-    # Don't plot empty cells as it causes errors down the line
-    if not pos_data.size or not process_spike_dic["spike_times"].size:
-        return
+    """This function uses functionality from the Barry lab to produce rate maps
 
-    # Define classes
+    Returns:
+        obj: A rate map added to the pdf obj in mother plot
+    """
+    
+    if not pos_data.size or not process_spike_dic["spike_times"].size:
+        return # Don't plot empty cells as it causes errors down the line
+
     rate_map_class = RateMap(xy = pos_data,
                              ppm = 1000,
                              smooth_sz = 5,
-                             cmsPerBin = 30)
+                             cmsPerBin = 30) # Hyper parameters for changing the rate map
 
     cluster_type = self.session.ephys.annotations[cluster_id] # Retrieve annotation for that specific cluster
     new_mask = self.create_cluster_specific_mask(cluster_id, 
@@ -83,13 +97,10 @@ def create_rate_map(self,
     vmax = np.nanmax(np.ravel(ratemap))
     
     logger.info(f"Plotting cluster ID: {cluster_id}")
-    # fig = plt.figure()
     ax = fig.add_subplot(221)
-    # test = fig.add_subplot(222)
     mesh = ax.pcolormesh(x, y, ratemap, cmap=plt.cm.get_cmap("jet"), edgecolors='face', vmax=vmax, shading='auto')
     ax.set_aspect('equal')
-    ax.set_title(f"Cluster ID: {cluster_id} of type: {cluster_type}")
-    # pdf_object.savefig(fig)
+    ax.set_title(f"Cluster ID: {cluster_id}\ntype: {cluster_type}")
     
     return fig
 
@@ -97,12 +108,11 @@ def create_sac(self,
                cluster_id,
                pos_data,
                fig,
-               process_spike_dic,
-               pdf_object):
+               process_spike_dic):
     """Generates a SAC for a given cluster and returns a fig to mother plot
 
-    Args:
-        cluster_id (_type_): _description_
+    Returns:
+        obj: A SAC added to the pdf obj in mother plot
     """
 
     # Don't plot empty cells as it causes errors down the line
@@ -113,7 +123,7 @@ def create_sac(self,
     rate_map_class = RateMap(xy = pos_data,
                              ppm = 1000,
                              smooth_sz = 5,
-                             cmsPerBin = 30)
+                             cmsPerBin = 30) # also hyper parameters for SAC change if changed rate map
     
     # Extract annotation
     cluster_type = self.session.ephys.annotations[cluster_id]
@@ -142,14 +152,15 @@ def create_sac(self,
     grid_score = measures["gridscore"] 
     ax = fig.add_subplot(222)
     ax = show_SAC(sac, measures, ax) # Plot SAC
-    ax.set_title(f"Cluster ID: {cluster_id}, grid score: {grid_score}, cluster type: {cluster_type}")
-    # pdf_object.savefig(fig)
+    ax.set_title(f"Cluster ID: {cluster_id}\n grid score: {grid_score}\n cluster type: {cluster_type}")
     
 def show_SAC(A: np.array, 
              inDict: dict, 
              ax: plt.axes=None, 
              **kwargs) -> plt.axes:
     """
+    Code from barry lab
+    
     Displays the result of performing a spatial autocorrelation (SAC)
     on a grid cell.
     Uses the dictionary containing measures of the grid cell SAC to
@@ -238,7 +249,7 @@ def process_overlay_spikes(self):
     speed = interp_dic['speed'][:len_bon]
     spike_mask = spike_mask[:len_bon]
 
-    # Assertion
+    # Assertions
     assert len(x) == len(self.session.ttl.bonsai_TTL), "The interpolated x data should match the length of the bonsai signal"
     assert len(y) == len(self.session.ttl.bonsai_TTL), "The interpolated y  data should match the length of the bonsai signal"
     assert len(speed) == len(self.session.ttl.bonsai_TTL), "The interpolated speed data should match the length of the bonsai signal"
@@ -257,10 +268,10 @@ def process_overlay_spikes(self):
                         "cluster_ids": cluster_ids,
                         "spike_mask": spike_mask,
                         "bins": bins,
-                        "X_bin_dex": X_bin_dex,
-                        "Y_bin_dex": Y_bin_dex,
-                        "speed_idx": bool_idx_speed_threshold,
-                        "len_bon": len_bon,
+                        "X_bin_dex": X_bin_dex, # take x position and ascribe a bin to it
+                        "Y_bin_dex": Y_bin_dex, # take y position and ascribe a bin to it
+                        "speed_idx": bool_idx_speed_threshold, # the spike idxs that have met the threshold
+                        "len_bon": len_bon, # the length of bonsai signal
                         "x": x,
                         "y": y,
                         "speed": speed
