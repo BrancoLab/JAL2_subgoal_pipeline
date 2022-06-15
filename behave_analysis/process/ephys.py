@@ -13,7 +13,8 @@ from databank import efizz
 # OS Libaries
 from dataclasses import dataclass
 from loguru import logger
-import numpy as np 
+import numpy as np
+import pandas as pd
 
 #Data
 ephys_file_path = efizz["res"]
@@ -40,13 +41,21 @@ def get_Ephys(session: Session):
     # Update spike clude id index
     cluster_ids = cluster_ids[indexes_removed:]
     assert len(cluster_ids) == len(spike_times), "cluster ids should match spike len"
+    
+    # spike data not resampled as can't make fast function so commenting out, meaning data slightly off
+    
+    if session.ttl.idxs_2_remov_from_imec_sig:
+        # Resample spike data to remove indexes that might of by chance removed from resample alignment
+        cluster_ids, spike_times = resample_spike_data(cluster_ids,
+                                                    spike_times,
+                                                    session.ttl.idxs_2_remov_from_imec_sig)
 
     # create spike dic
     spike_dic = create_spike_dic(cluster_ids, spike_times)
 
     # Create spike mask
     spike_mask = create_spike_mask(spike_times, session.ttl.imec_TTL)
-
+    
     ephys = Ephys(spike_times,
                   cluster_ids,
                   spike_mask,
@@ -89,11 +98,46 @@ def create_spike_mask(spike_times, imec_TTL):
         for spike in spike_times: 
             spike_mask[spike] = 1
         
+        # spike_mask = np.put(spike_mask, spike_times, 1)
+        
         # Assertions and loggs
         assert spike_mask[spike_times[0]] == 1, "The first spike time should equal 1"
         assert spike_mask[spike_times[-1]] == 1, "The last spike time should equal 1"
 
         return spike_mask
+    
+def resample_spike_data(cluster_ids,
+                        spike_times,
+                        indexs_removed_from_imec):
+    """A function that removes indexes from the spike data that were removed
+    from the Imec TTL signal to ensure Imec and bonsai are aligned.
+
+    Args:
+        cluster_ids (_type_): _description_
+        spike_times (_type_): _description_
+
+    Returns:
+        _type_: _description_
+        
+    Refactor:
+    - Very slow. Factorise cluster id if possible but spike time calc also slow
+    - not used as so slow meaning spike data not resampled and slightly misaligned
+    """
+    
+    logger.warning("Resampling spike data as Imec signal required it")
+
+    spike_times_data_frame = pd.DataFrame(spike_times, columns = ["spike_times"])
+    output = spike_times_data_frame.spike_times.isin(indexs_removed_from_imec)
+    idx = np.asarray(output[output].index) # Retrieve index and convert to array
+    
+    # Use those idxs to remove from both cluster id and spike times
+    spike_times = np.delete(spike_times, idx)
+    cluster_ids = np.delete(cluster_ids, idx)
+    
+    # Assertions to check length
+    assert len(cluster_ids) == len(spike_times), "The Lengths of these two should match"
+    
+    return cluster_ids, spike_times
 
 def offset_spike_times(offset,
                        spike_times) -> object:
@@ -119,7 +163,8 @@ def offset_spike_times(offset,
     return spike_times, indexes_removed
 
 def create_spike_dic(cluster_ids, spike_times):
-    """A function that creates a dictionary where the keys are spike clusters and the values are the indexes aligning to spike times
+    """A function that creates a dictionary where the keys are spike clusters and 
+       the values are the indexes aligning to spike times
 
     Args:
         cluster_ids (object): Array of spike clusters
