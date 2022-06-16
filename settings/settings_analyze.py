@@ -21,7 +21,8 @@ color_by = 'session', # What should the trajectory color be?
 # 'speed'   'time'    'speed+RT'            || for trajectories
 # Note default caused a bug need to fix
     
-save_folder = Path('data')
+save_folder = Path('data'),
+efiz_file_path = "D:/Electrophysiology_data/1677_NoShelterThenShelter_22MAY31_g0/1677_NoShelterThenShelter_22MAY31_g0_imec0/"
 
 )
 
