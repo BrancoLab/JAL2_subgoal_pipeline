@@ -121,3 +121,4 @@ class Settings_analyze_global:
     save_folder: str=None
     color_by: str=''
     x_jitter: bool=True
+    efiz_file_path: str=""
