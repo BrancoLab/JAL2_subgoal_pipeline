@@ -42,7 +42,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 
 #Store file name here now for testing - hard coded need to update
-imec_bin_file = efizz["bin"]
+imec_bin_file = efizz["1677_NoShelterShelter_22MAY31"]["bin"]
 
 @dataclass(frozen=False)
 class TTL_Sync:

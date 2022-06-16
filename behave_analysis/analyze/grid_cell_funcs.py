@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 from ephysiopy.common import gridcell
 
 # Plotting parameters
-file_name = 'NoShelterThenShelter_22MAY31_s4b15_hdir.pdf'
+file_name = 'NoShelterThenShelter_22MAY31_s4b15_hdirandspikes.pdf'
 ppm = 1000
 smooth_sz = 4
 cmsPerBin = 15
@@ -48,7 +48,7 @@ def mother_plot(self):
     
     for cluster_id in good_clusters[:3]:
         cluster_id -= 1 # Remove one index as matlab starts a 1 and python starts at 0
-        fig = plt.figure()
+        fig = plt.figure(figsize=(20,20))
         
         logger.info(f"Plotting cluster ID: {cluster_id}")
         
@@ -70,6 +70,10 @@ def mother_plot(self):
                    process_spike_dic,
                    fig)
         
+        create_spike_plot(self, 
+                          cluster_id,
+                          fig,
+                          process_spike_dic)
         
         pdf_obj.savefig(fig)
     
@@ -98,9 +102,7 @@ def create_rate_map(self,
                              cmsPerBin = cmsPerBin) # Hyper parameters for changing the rate map
 
     cluster_type = self.session.ephys.annotations[cluster_id] # Retrieve annotation for that specific cluster
-    new_mask = self.create_cluster_specific_mask(cluster_id, 
-                                                 process_spike_dic["len_bon"]
-                                                 ) # filter the spike mask by cluster ID
+    new_mask = create_cluster_specific_mask(self, cluster_id, process_spike_dic["len_bon"]) # filter the spike mask by cluster ID
     new_mask = np.where(process_spike_dic["speed_idx"], 
                         new_mask, 
                         0
@@ -115,6 +117,7 @@ def create_rate_map(self,
     mesh = ax.pcolormesh(x, y, ratemap, cmap=plt.cm.get_cmap("jet"), edgecolors='face', vmax=vmax, shading='auto')
     ax.set_aspect('equal')
     ax.set_title(f"Cluster ID: {cluster_id}\ntype: {cluster_type}")
+    ax.axis("off")
         
     return fig
 
@@ -143,8 +146,7 @@ def create_sac(self,
     cluster_type = self.session.ephys.annotations[cluster_id]
 
     # filter the spike mask by cluster ID
-    new_mask = self.create_cluster_specific_mask(cluster_id, 
-                                                 process_spike_dic["len_bon"])
+    new_mask = create_cluster_specific_mask(self, cluster_id, process_spike_dic["len_bon"])
     new_mask = np.where(process_spike_dic["speed_idx"], 
                         new_mask, 
                         0
@@ -162,8 +164,41 @@ def create_sac(self,
         
     grid_score = measures["gridscore"] 
     ax = fig.add_subplot(222)
-    ax = show_SAC(sac, measures, ax) # Plot SAC
+    ax = show_SAC(sac, measures, ax) # Plot SAC 
     ax.set_title(f"Cluster ID: {cluster_id}\n grid score: {grid_score}\n cluster type: {cluster_type}")
+    ax.axis("off")
+
+def create_spike_plot(self, 
+                      cluster_id,
+                      fig,
+                      process_spike_dic):
+    """A funciton that overlays spikes onto a trajectory map
+    """
+
+    cluster_type = self.session.ephys.annotations[cluster_id]
+    new_mask = create_cluster_specific_mask(self, cluster_id, process_spike_dic["len_bon"])
+    new_mask = np.where(process_spike_dic["speed_idx"], new_mask, 0) # remove spikes where mouse was not moving 5cm, by returning 0
+
+    # when are the spikes
+    when_spikes = np.where(new_mask > 0)[0] # At which indexes in the spike mask are the spikes happening
+
+    # spikes and position - What bin does the spike occur in?
+    spike_and_X = np.take(process_spike_dic["X_bin_dex"], when_spikes) # Take the bin indexes when there is a spike
+    spike_and_Y = np.take(process_spike_dic["Y_bin_dex"], when_spikes) # Take the bin indexes when there is a spike
+
+    # bins with spikes - If there is a spike in that bin select that bin
+    # For each position point
+    x_bins_with_spikes = np.take(process_spike_dic["bins"], spike_and_X)
+    y_bins_with_spikes = np.take(process_spike_dic["bins"], spike_and_Y)
+
+    ax = fig.add_subplot(224)
+    ax.scatter(x_bins_with_spikes, y_bins_with_spikes, c="red", s=20, alpha = 0.5)
+    ax.plot(process_spike_dic["x"], process_spike_dic["y"], c= "black", alpha = 0.3) # add trajectory
+    ax.axis("off")
+    # ax.plot(self.tracking_data['avg_loc'])
+    # plt.show()
+    # pp.savefig(self.fig)
+    # scatter.set_visible(False) # Hide the last plot so each plot doesn't inherit prior points
 
 def create_hdr(self,
                pos_data,
@@ -181,28 +216,21 @@ def create_hdr(self,
     
     # Set types
     cluster_type = self.session.ephys.annotations[cluster_id] # Retrieve annotation for that specific cluster
-    new_mask = self.create_cluster_specific_mask(cluster_id, process_spike_dic["len_bon"]) # filter the spike mask by cluster ID
+    new_mask = create_cluster_specific_mask(self, cluster_id, process_spike_dic["len_bon"]) # filter the spike mask by cluster ID
     new_mask = np.where(process_spike_dic["speed_idx"], new_mask, 0) # remove spikes where mouse was not moving 5cm, by returning 0
     
     rmap = rate_map_class.getMap(spkWeights = new_mask, varType = "dir")
     
-    # if ax is None:
-    # fig = plt.figure()
+
     ax = fig.add_subplot(223, projection='polar')
-        
-    # need to deal with the case where the axis is supplied but
-    # is not polar. deal with polar first
-    
     theta = np.deg2rad(rmap[1][0])
     ax.clear()
     r = rmap[0]
     r = np.insert(r, -1, r[0])
-    
     ax.plot(theta, r)
     ax.fill(theta, r, alpha=0.5)
     ax.set_aspect('equal')
-    # else:
-    #     pass
+
 
     # See if we should add the mean resultant vector (mrv)
     # from ephysiopy.common.statscalcs import mean_resultant_vector
@@ -210,8 +238,7 @@ def create_hdr(self,
     # r, th = mean_resultant_vector(np.deg2rad(angles))
     # ax.plot([th, th], [0, r*np.max(rmap[0])], 'r')
     # if 'polar' in ax.name:
-    #     ax.set_thetagrids([0, 90, 180, 270])
-    # plt.show()
+    ax.set_thetagrids([0, 90, 180, 270])
     return ax
 # ---------------------------------- Lower level preprocessing functions
 
@@ -340,3 +367,29 @@ def show_SAC(A: np.array,
     all_ax.set_ylim((inDict['dist_to_centre'].shape[0]-.5, -.5))
     
     return ax
+
+def create_cluster_specific_mask(self, cluster_id, len_bon):
+    """A function that returns a spike mask for a specific cluster
+
+    Args:
+        cluster_id (_type_): _description_
+        len_bon (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+    # filter the spike mask by cluster ID
+    cluster_mask = np.asarray(self.session.ephys.spike_dic[cluster_id])
+
+    # Create a new mask of 0's at the same lenght of the spike_mask
+    new_mask = np.zeros(len(self.session.ephys.spike_mask))
+    
+    # Add a 1 for each index with a spike
+    for spike in cluster_mask: 
+        new_mask[spike] = 1
+    
+    #Make sure the cluster mask is the same length as bonsai
+    new_mask = new_mask[:len_bon]
+
+    return new_mask

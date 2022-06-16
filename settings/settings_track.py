@@ -11,8 +11,9 @@ settings_track = Settings_track(
     by_experiment=False,
     experiments = ['no laser'],
     by_session=True,
-    sessions=[0], 
+    sessions=[1], 
     all_sessions=False,
     dlc_settings_file='D:\\DLC\\NPX_7-Laurence-2022-05-20\\config.yaml', #Change if using a different DLC model
     inverse_fisheye_correction_file = '.\\sample_data\\inverse_fisheye_maps.npy' # remove setting if n/a
+    
 )

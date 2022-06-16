@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 #Data
-ephys_file_path = efizz["res"]
+ephys_file_path = efizz["1677_NoShelterShelter_22MAY31"]["res"]
 
 @dataclass(frozen=True)
 class Ephys:
