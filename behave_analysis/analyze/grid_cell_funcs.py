@@ -10,6 +10,12 @@ from loguru import logger
 import matplotlib.pyplot as plt
 from ephysiopy.common import gridcell
 
+# Plotting parameters
+file_name = 'NoShelterThenShelter_22MAY31_s4b15_hdir.pdf'
+ppm = 1000
+smooth_sz = 4
+cmsPerBin = 15
+
 # ---------------------------------- High level plot function ------------------
 
 def mother_plot(self):
@@ -32,19 +38,20 @@ def mother_plot(self):
     self instance is class Analyze from analyze.py
     """
     
-    pdf_obj = PdfPages('NoShelterThenShelter_22MAY31.pdf') # Location of pdf, change name
-    process_spike_dic = process_overlay_spikes(self) #
-    file = open(self.interp_path, "rb")  # Load interpolated data
-    interp_dic = pickle.load(file) # x, y, speed
+    pdf_obj = PdfPages(file_name) # Location of pdf, change name
+    process_spike_dic = process_data_for_analysis(self) #
     pos_data = np.vstack((process_spike_dic["x"],
                           process_spike_dic["y"])) # make the right shape for plotting
 
     # Good clusters taken from spike sorting, multi unit and unsure - could refactor somehow
     good_clusters = [218, 230, 231, 232, 241, 242, 247, 259, 260, 263, 264, 272, 275, 276, 282, 286, 287, 291, 292, 298, 300, 301, 307, 312, 314, 315, 316, 320, 327, 340, 343, 352, 354, 357, 360, 371, 372, 381, 382, 387, 389, 396, 398, 405, 406, 413, 416, 418, 420, 422, 429, 437, 439, 440, 441, 442, 443, 445, 447, 455, 461, 463, 469, 475, 496, 497, 505, 531, 551, 560, 569, 581, 591, 378, 400, 411, 419, 557, 210, 215, 216, 226, 277, 289, 290, 302, 313, 320, 332, 333, 334, 335, 344, 346, 347, 351, 353, 356, 361, 367, 368, 374, 375, 382, 388, 397, 436, 480, 517, 523, 540, 564, 566]
     
-    for cluster_id in good_clusters:
+    for cluster_id in good_clusters[:3]:
         cluster_id -= 1 # Remove one index as matlab starts a 1 and python starts at 0
         fig = plt.figure()
+        
+        logger.info(f"Plotting cluster ID: {cluster_id}")
+        
         create_rate_map(self,
                         process_spike_dic, 
                         cluster_id,
@@ -56,6 +63,14 @@ def mother_plot(self):
                    pos_data,
                    fig,
                    process_spike_dic)
+        
+        create_hdr(self,
+                   pos_data,
+                   cluster_id,
+                   process_spike_dic,
+                   fig)
+        
+        
         pdf_obj.savefig(fig)
     
     pdf_obj.close()
@@ -67,7 +82,7 @@ def create_rate_map(self,
                     cluster_id,
                     fig,
                     pos_data):
-    
+        
     """This function uses functionality from the Barry lab to produce rate maps
 
     Returns:
@@ -78,9 +93,9 @@ def create_rate_map(self,
         return # Don't plot empty cells as it causes errors down the line
 
     rate_map_class = RateMap(xy = pos_data,
-                             ppm = 1000,
-                             smooth_sz = 5,
-                             cmsPerBin = 30) # Hyper parameters for changing the rate map
+                             ppm = ppm,
+                             smooth_sz = smooth_sz,
+                             cmsPerBin = cmsPerBin) # Hyper parameters for changing the rate map
 
     cluster_type = self.session.ephys.annotations[cluster_id] # Retrieve annotation for that specific cluster
     new_mask = self.create_cluster_specific_mask(cluster_id, 
@@ -96,12 +111,11 @@ def create_rate_map(self,
     x, y = np.meshgrid(rmap[1][1][0:-1], rmap[1][0][0:-1])
     vmax = np.nanmax(np.ravel(ratemap))
     
-    logger.info(f"Plotting cluster ID: {cluster_id}")
     ax = fig.add_subplot(221)
     mesh = ax.pcolormesh(x, y, ratemap, cmap=plt.cm.get_cmap("jet"), edgecolors='face', vmax=vmax, shading='auto')
     ax.set_aspect('equal')
     ax.set_title(f"Cluster ID: {cluster_id}\ntype: {cluster_type}")
-    
+        
     return fig
 
 def create_sac(self, 
@@ -121,16 +135,13 @@ def create_sac(self,
 
     # Define classes
     rate_map_class = RateMap(xy = pos_data,
-                             ppm = 1000,
-                             smooth_sz = 5,
-                             cmsPerBin = 30) # also hyper parameters for SAC change if changed rate map
+                             ppm = ppm,
+                             smooth_sz = smooth_sz,
+                             cmsPerBin = cmsPerBin) # also hyper parameters for SAC change if changed rate map
     
     # Extract annotation
     cluster_type = self.session.ephys.annotations[cluster_id]
 
-    # Print which cluster your on
-    logger.info(f"Plotting cluster ID: {cluster_id}")
-    
     # filter the spike mask by cluster ID
     new_mask = self.create_cluster_specific_mask(cluster_id, 
                                                  process_spike_dic["len_bon"])
@@ -153,7 +164,116 @@ def create_sac(self,
     ax = fig.add_subplot(222)
     ax = show_SAC(sac, measures, ax) # Plot SAC
     ax.set_title(f"Cluster ID: {cluster_id}\n grid score: {grid_score}\n cluster type: {cluster_type}")
+
+def create_hdr(self,
+               pos_data,
+               cluster_id,
+               process_spike_dic,
+               fig):
     
+    rate_map_class =    RateMap(xy = pos_data, 
+                                hdir = process_spike_dic["hdir"], 
+                                speed = process_spike_dic["speed"], 
+                                ppm = ppm,
+                                xyInCms = True,
+                                smooth_sz = smooth_sz, 
+                                cmsPerBin = cmsPerBin)
+    
+    # Set types
+    cluster_type = self.session.ephys.annotations[cluster_id] # Retrieve annotation for that specific cluster
+    new_mask = self.create_cluster_specific_mask(cluster_id, process_spike_dic["len_bon"]) # filter the spike mask by cluster ID
+    new_mask = np.where(process_spike_dic["speed_idx"], new_mask, 0) # remove spikes where mouse was not moving 5cm, by returning 0
+    
+    rmap = rate_map_class.getMap(spkWeights = new_mask, varType = "dir")
+    
+    # if ax is None:
+    # fig = plt.figure()
+    ax = fig.add_subplot(223, projection='polar')
+        
+    # need to deal with the case where the axis is supplied but
+    # is not polar. deal with polar first
+    
+    theta = np.deg2rad(rmap[1][0])
+    ax.clear()
+    r = rmap[0]
+    r = np.insert(r, -1, r[0])
+    
+    ax.plot(theta, r)
+    ax.fill(theta, r, alpha=0.5)
+    ax.set_aspect('equal')
+    # else:
+    #     pass
+
+    # See if we should add the mean resultant vector (mrv)
+    # from ephysiopy.common.statscalcs import mean_resultant_vector
+    # angles = self.dir[new_mask]
+    # r, th = mean_resultant_vector(np.deg2rad(angles))
+    # ax.plot([th, th], [0, r*np.max(rmap[0])], 'r')
+    # if 'polar' in ax.name:
+    #     ax.set_thetagrids([0, 90, 180, 270])
+    # plt.show()
+    return ax
+# ---------------------------------- Lower level preprocessing functions
+
+def process_data_for_analysis(self):
+    
+    """A function that returns a whole lot of things to preprocess spikes matched to trajectory.
+
+    Returns:
+        _type_: _description_
+    """
+
+    # Retrieve the ephys data
+    spike_times = self.session.ephys.spike_times
+    cluster_ids = self.session.ephys.cluster_ids
+    spike_mask  = self.session.ephys.spike_mask
+
+    # len of bonsai
+    len_bon = len(self.session.ttl.bonsai_TTL)
+
+    #Retrieve the interpolated positional and speed data
+    file = open(self.interp_path, "rb") 
+    interp_dic = pickle.load(file) # x, y, speed
+
+    #cut off ends
+    x          = interp_dic['x'][:len_bon]
+    y          = interp_dic['y'][:len_bon]
+    speed      = interp_dic['speed'][:len_bon]
+    spike_mask = spike_mask[:len_bon]
+    hdir       = interp_dic['hdir'][:len_bon]
+
+    # Assertions
+    assert len(x) == len(self.session.ttl.bonsai_TTL), "The interpolated x data should match the length of the bonsai signal"
+    assert len(y) == len(self.session.ttl.bonsai_TTL), "The interpolated y  data should match the length of the bonsai signal"
+    assert len(speed) == len(self.session.ttl.bonsai_TTL), "The interpolated speed data should match the length of the bonsai signal"
+    assert len(spike_mask) == len(self.session.ttl.bonsai_TTL), "The spike mask data should match the length of the bonsai signal"
+    assert len(hdir) == len(self.session.ttl.bonsai_TTL), "The hdir data should match the length of the bonsai signal"
+
+    # Filter data where speed is above 5 - Currently not used
+    bool_idx_speed_threshold = speed > 5 # What indexes does speed go over 5cm^2
+
+    # create bins
+    bins = np.arange(80, 1000, 2) # From 80 to 1000 based on the coordinates of the camera, will have to change if camera moves
+    X_bin_dex = np.digitize(x, bins) # take x position and ascribe a bin to it
+    Y_bin_dex = np.digitize(y, bins)  # take y position and ascribe a bin to it
+    
+    # process spike_dic
+    process_spike_dic = {"spike_times": spike_times,
+                        "cluster_ids": cluster_ids,
+                        "spike_mask": spike_mask,
+                        "bins": bins,
+                        "X_bin_dex": X_bin_dex, # take x position and ascribe a bin to it
+                        "Y_bin_dex": Y_bin_dex, # take y position and ascribe a bin to it
+                        "speed_idx": bool_idx_speed_threshold, # the spike idxs that have met the threshold
+                        "len_bon": len_bon, # the length of bonsai signal
+                        "x": x,
+                        "y": y,
+                        "speed": speed,
+                        "hdir": hdir
+                        }
+
+    return process_spike_dic
+
 def show_SAC(A: np.array, 
              inDict: dict, 
              ax: plt.axes=None, 
@@ -220,62 +340,3 @@ def show_SAC(A: np.array,
     all_ax.set_ylim((inDict['dist_to_centre'].shape[0]-.5, -.5))
     
     return ax
-
-# ---------------------------------- Lower level preprocessing functions
-
-def process_overlay_spikes(self):
-    
-    """A function that returns a whole lot of things to preprocess spikes matched to trajectory.
-
-    Returns:
-        _type_: _description_
-    """
-
-    # Retrieve the ephys data
-    spike_times = self.session.ephys.spike_times
-    cluster_ids = self.session.ephys.cluster_ids
-    spike_mask  = self.session.ephys.spike_mask
-
-    # len of bonsai
-    len_bon = len(self.session.ttl.bonsai_TTL)
-
-    #Retrieve the interpolated positional and speed data
-    file = open(self.interp_path, "rb") 
-    interp_dic = pickle.load(file) # x, y, speed
-
-    #cut off ends
-    x = interp_dic['x'][:len_bon]
-    y = interp_dic['y'][:len_bon]
-    speed = interp_dic['speed'][:len_bon]
-    spike_mask = spike_mask[:len_bon]
-
-    # Assertions
-    assert len(x) == len(self.session.ttl.bonsai_TTL), "The interpolated x data should match the length of the bonsai signal"
-    assert len(y) == len(self.session.ttl.bonsai_TTL), "The interpolated y  data should match the length of the bonsai signal"
-    assert len(speed) == len(self.session.ttl.bonsai_TTL), "The interpolated speed data should match the length of the bonsai signal"
-    assert len(spike_mask) == len(self.session.ttl.bonsai_TTL), "The spike mask data should match the length of the bonsai signal"
-
-    # Filter data where speed is above 5 - Currently not used
-    bool_idx_speed_threshold = speed > 2.5 # What indexes does speed go over 5cm^2
-
-    # create bins
-    bins = np.arange(80, 1000, 2) # From 80 to 1000 based on the coordinates of the camera, will have to change if camera moves
-    X_bin_dex = np.digitize(x, bins) # take x position and ascribe a bin to it
-    Y_bin_dex = np.digitize(y, bins)  # take y position and ascribe a bin to it
-    
-    # process spike_dic
-    process_spike_dic = {"spike_times": spike_times,
-                        "cluster_ids": cluster_ids,
-                        "spike_mask": spike_mask,
-                        "bins": bins,
-                        "X_bin_dex": X_bin_dex, # take x position and ascribe a bin to it
-                        "Y_bin_dex": Y_bin_dex, # take y position and ascribe a bin to it
-                        "speed_idx": bool_idx_speed_threshold, # the spike idxs that have met the threshold
-                        "len_bon": len_bon, # the length of bonsai signal
-                        "x": x,
-                        "y": y,
-                        "speed": speed
-                        }
-
-    return process_spike_dic
-        
