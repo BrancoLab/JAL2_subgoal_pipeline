@@ -14,12 +14,12 @@ class Camera_trigger:
     fps: int
 
 def get_Camera_trigger(session: Session, drop_frames=False) -> Camera_trigger:
-    AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
+    AI_file = glob(os.path.join(session.file_path, "*analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
-    camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)] # four interleaved time series
+    camera_trigger_data = AI_data[np.arange(0, len(AI_data), 3)] # four interleaved time series
     camera_trigger_num_samples = len(camera_trigger_data)
     if drop_frames == False: num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames)
     if drop_frames == True: num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames)
@@ -40,7 +40,7 @@ def get_fps(session: Session, num_frames_expected: int, duration_of_video: int) 
     return fps
 
 def find_drop_frames(session: Session, frame_trigger_onsets_idx, for_video_reader=False):
-    frames_csv_path = glob(os.path.join(session.file_path, "frames*"))[-1]
+    frames_csv_path = glob(os.path.join(session.file_path, "*video_metadata*"))[-1]
     frames_csv = pd.read_csv(frames_csv_path, names=['frame number', 'zero', 'timestamp'])
     difference_between_frames = np.diff(frames_csv['timestamp'])
     min_difference = np.min(difference_between_frames)
