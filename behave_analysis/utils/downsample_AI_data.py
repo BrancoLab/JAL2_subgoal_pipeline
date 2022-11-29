@@ -143,7 +143,6 @@ def get_onset_offset(signal, threshold, clean=True):
 
 # Take the derivate so you can spot changes in state within a signal. Ie, pulse onset/offsets
 
-
 def derivative(X, axis=0, order=1):
     """"Takes the derivative of an array X along a given axis
 

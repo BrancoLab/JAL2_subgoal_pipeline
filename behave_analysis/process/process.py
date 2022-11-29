@@ -28,26 +28,34 @@ class Process():
     def create_session(self, video_settings):        
         self.load_registration_transform()
         self.print_session_details(stage=1)
-        self.session.ttl            = get_TTL(self.session)
-        self.session.camera_trigger = get_Camera_trigger(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)[0]
-        self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)
+        
+        print("hello")
+        
+        if settings_p.efizz:
+            self.session.ttl = get_TTL(self.session)
+            
+        # Normally would be equal to self.session.ttl.choose_index
+        # Downsampling required if there is efiz
+        self.session.camera_trigger = get_Camera_trigger(self.session, down_sample = False)[0]
+        self.session.audio          = get_Audio(self.session, down_sample = False)
         self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
-        self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)
+        self.session.photo_resistor = get_Photoresistor(self.session, down_sample = False)
         
         if settings_p.efizz:
             self.session.ephys = get_Ephys(self.session)
             
         self.print_session_details(stage=2)
         self.save_session()
-
-        #Verification of syncing
-        self.verify_check_for_abberant_signals_in_bonsai()
-        self.verify_aligned_data_streams()
-        self.verify_check_means()
+        
+        if settings_p.efizz:
+            self.verify_check_for_abberant_signals_in_bonsai()
+            self.verify_aligned_data_streams()
+            self.verify_check_means()
+            self.verify_onsets_and_offsets()
+            self.visulize_sync_output() #Plot the resulting sync pulses, uncomment to see
+            self.verify_ttl_len_with_frame_duration()
+            
         self.verify_all_frames_saved()
-        self.verify_onsets_and_offsets()
-        self.visulize_sync_output() #Plot the resulting sync pulses, uncomment to see
-        self.verify_ttl_len_with_frame_duration()
         logger.info("All verifications steps passed")
         return self.session
 

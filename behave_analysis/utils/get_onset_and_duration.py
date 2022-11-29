@@ -4,7 +4,7 @@ from typing import Tuple
 # Os Libary
 from loguru import logger
 
-def get_onset_and_duration(data_on: object, session: object, stim_type: str, min_frames_between_trials: int, data_type: str) -> Tuple[object, object, object]:
+def get_onset_and_duration(data_on: object, session: object, stim_type: str, min_frames_between_trials: int, data_type: str):
     
     data_on_idx = np.where(data_on)[0]
 

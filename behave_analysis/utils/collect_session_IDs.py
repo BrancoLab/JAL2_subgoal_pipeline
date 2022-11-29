@@ -28,9 +28,11 @@ def collect_session_IDs(settings: object,
 
     return session_IDs
 
-def collect_session_IDs_analysis(settings: object, databank: dict) -> np.ndarray:
+def collect_session_IDs_analysis(settings: object, databank: dict):
+    
     if not settings.compare:
         session_IDs = collect_session_IDs(settings, databank)
+        
     if settings.compare:
         assert int(settings.by_experiment + settings.by_session)==1,"Must select exactly one factor to compare between"
         session_IDs = np.empty((0,6))
@@ -39,4 +41,5 @@ def collect_session_IDs_analysis(settings: object, databank: dict) -> np.ndarray
             if settings.__dict__[key] is None: continue
             session_IDs_group_i = collect_session_IDs(settings, databank, group_num, key) 
             session_IDs = np.concatenate((session_IDs, session_IDs_group_i))
+            
     return session_IDs

@@ -8,8 +8,14 @@ from behave_analysis.analyze.data_extraction_funcs import *
 from behave_analysis.analyze.stats_funcs import permutation_test, print_stat_test_results
 from behave_analysis.analyze.trial_eligibility_funcs import trial_is_eligible
 from behave_analysis.utils.directory import Directory
-from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
 from behave_analysis.analyze.grid_cell_funcs import mother_plot
+
+#Custom libs
+from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
+
+# Additional libraries if running with efizz
+if settings_p.efizz:
+    from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
 
 # OS libs
 import mpl_toolkits.axisartist.floating_axes as floating_axes

@@ -1,7 +1,13 @@
 #Custom libs
+from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
+
+# Additional libraries if running with efizz
+if settings_p.efizz:
+    from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
+
+#Custom libs
 from behave_analysis.process.session import Session
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
-from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
 
 #OS Libs
 import os
@@ -17,13 +23,14 @@ class Audio:
     onset_frames: object
     stimulus_durations: object
 
-def get_Audio(session: Session, indexs_to_remove, temporal_diff, bonsai_TTL, down_sample = True) -> Audio:
+def get_Audio(session: Session, indexs_to_remove = None, down_sample = True):
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)
     else: 
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)        
     audio_data = AI_data[np.arange(1, len(AI_data), 4)] # four interleaved time series
+    
     if down_sample: 
         audio_data = remove_idx_as_per_bonsai_ttl_resample("audio", 
                                                             audio_data, 

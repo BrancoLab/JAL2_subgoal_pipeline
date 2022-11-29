@@ -1,5 +1,10 @@
 #Custom libs
-from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
+from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
+
+# Additional libraries if running with efizz
+if settings_p.efizz:
+    from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
+
 from behave_analysis.process.session import Session
 
 # Os libs
@@ -20,11 +25,14 @@ class Camera_trigger:
     fps: int
 
 def get_Camera_trigger(session: Session, 
-                       indexs_to_remove, 
-                       temporal_diff, 
-                       bonsai_TTL, 
+                       indexs_to_remove = None, 
                        down_sample = True, 
-                       drop_frames=False) -> Camera_trigger:
+                       drop_frames=False):
+    
+    """
+    indexs_to_remove = self.session.ttl.choose_index from process when efizz is ran
+    """
+    
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)

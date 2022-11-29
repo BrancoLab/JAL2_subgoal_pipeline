@@ -9,6 +9,7 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "redirectOutput": true,
+            "justMyCode": false,
         }
     ]
 }

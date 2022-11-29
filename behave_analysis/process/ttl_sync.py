@@ -28,7 +28,7 @@ Todo:
 #Custom libaries
 from behave_analysis.process.session import Session
 from behave_analysis.utils.load_bin_or_np import load_or_open
-from databank import efizz
+# from databank import efizz
 
 #OS libaries
 import os
