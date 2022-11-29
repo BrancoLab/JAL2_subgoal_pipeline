@@ -1,13 +1,17 @@
 #Import custom libaries
+from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
 from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.photoresistor import get_Photoresistor
-from behave_analysis.process.ttl_sync import get_TTL, remove_bonsai_idx_to_align_signals, get_onset_offset, derivative
 from behave_analysis.utils.check_drop_frames import check_drop_frames
-from behave_analysis.utils.load_bin_or_np import load_or_open
-from behave_analysis.process.ephys import get_Ephys
+
+# Additional libraries if running with efizz
+if settings_p.efizz:
+    from behave_analysis.process.ephys import get_Ephys
+    from behave_analysis.process.ttl_sync import get_TTL, remove_bonsai_idx_to_align_signals, get_onset_offset, derivative
+    from behave_analysis.utils.load_bin_or_np import load_or_open
 
 #Import OS libraries
 import os
@@ -20,8 +24,8 @@ from loguru import logger
 class Process():
     def __init__(self, session_ID):
         self.session = get_Session(session_ID)
-
-    def create_session(self, video_settings) -> Session:        
+        
+    def create_session(self, video_settings):        
         self.load_registration_transform()
         self.print_session_details(stage=1)
         self.session.ttl            = get_TTL(self.session)
@@ -29,7 +33,10 @@ class Process():
         self.session.audio          = get_Audio(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)
         self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
         self.session.photo_resistor = get_Photoresistor(self.session, self.session.ttl.choose_index, self.session.ttl.temporal_difference, self.session.ttl.bonsai_TTL)
-        self.session.ephys          = get_Ephys(self.session)
+        
+        if settings_p.efizz:
+            self.session.ephys = get_Ephys(self.session)
+            
         self.print_session_details(stage=2)
         self.save_session()
 
@@ -48,7 +55,7 @@ class Process():
         assert not os.path.isfile(self.session.metadata_file) or overwrite, "Permission to save not granted"
         with open(self.session.metadata_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
 
-    def load_session(self) -> Session:
+    def load_session(self):
         try:
             with open(self.session.metadata_file, "rb") as dill_file: session = pickle.load(dill_file)
         except EOFError:
@@ -58,7 +65,7 @@ class Process():
 
         return session
 
-    def load_registration_transform(self) -> object:
+    def load_registration_transform(self):
         if os.path.isfile(self.session.metadata_file) and isinstance(self.load_session().video.registration_transform, np.ndarray):
             self.loaded_registration_transform = self.load_session().video.registration_transform
         else: self.loaded_registration_transform = None
@@ -92,7 +99,7 @@ class Process():
         else: 
             logger.info("Frames triggered are the same number as frames captured")
 
-    def verify_aligned_data_streams(self) -> None:
+    def verify_aligned_data_streams(self):
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
             print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input: {}\n".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples))
             assert self.session.camera_trigger.num_samples == self.session.audio.num_samples, "Sample lens don't match"
@@ -102,7 +109,7 @@ class Process():
             logger.error("Fix assertion error")
             # assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger doesn't match the length of the bonsai TTL"
 
-    def verify_check_for_abberant_signals_in_bonsai(self) -> None:
+    def verify_check_for_abberant_signals_in_bonsai(self):
         """_summary_
         Check for abberant signals via two means:
         1) Check that the signal values aren't lieing outside the logical confines - conduct for both big rig and efizz ttl signal
@@ -124,7 +131,7 @@ class Process():
                 logger.warning("Fede says this is too many errors. Signal unfit for use, terminating program.")
             return
 
-    def verify_check_means(self) -> None:
+    def verify_check_means(self):
         """Check that the means of the bonsai TTL and the imec TTL are not
         too far away from expected mean.
         """

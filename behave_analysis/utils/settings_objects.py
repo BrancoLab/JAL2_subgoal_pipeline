@@ -16,6 +16,7 @@ class Settings_process:
     by_session: bool=False
     sessions: list=None
     all_sessions: bool=False
+    efizz: bool=False
 
 @dataclass(frozen=True)
 class Settings_track:

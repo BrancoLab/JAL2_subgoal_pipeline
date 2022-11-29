@@ -20,7 +20,7 @@ class Session:
     homing: object = None
     threshold_crossing: object = None
 
-def get_Session(session_ID: list) -> Session:
+def get_Session(session_ID: list):
     global_session_number = session_ID[0]
     local_session_number = session_ID[1]
     experiment = session_ID[2]
