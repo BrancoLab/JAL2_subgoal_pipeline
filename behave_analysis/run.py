@@ -13,12 +13,17 @@ from behave_analysis.utils.print_settings import print_settings, print_settings_
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
 from databank import databank
 
-
 def process():
-    # print("\n------ PROCESSING DATA ------".format(settings_p)); print_settings(settings_p)
+    print("\n------ PROCESSING DATA ------".format(settings_p))
+    print_settings(settings_p)
     session_IDs = collect_session_IDs(settings_p, databank)
+    
+    # Check sessions are uploaded correctly
+    assert session_IDs == True, "Session list should not be empty"
+    
     for session_ID in session_IDs:
         Process(session_ID).create_session(settings_p)
+ 
 
 def track():
     # print("\n------ TRACKING VIDEOS ------"); print_settings(settings_t)
