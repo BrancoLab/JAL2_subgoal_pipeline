@@ -62,7 +62,7 @@ class TTL_Sync:
     idxs_2_remov_from_imec_sig: object # the indexes removed from the imec signal
     
 #Return the above data class
-def get_TTL(session: Session, down_sample = True) -> TTL_Sync:
+def get_TTL(session: Session, down_sample = True):
     """Returns the TTL_sync dataclass. 
 
     Args:
