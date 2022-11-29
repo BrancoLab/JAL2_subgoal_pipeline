@@ -5,8 +5,10 @@ import os
 def collect_session_IDs(settings: object, 
                         databank: dict, 
                         group_num: int=0, 
-                        key: str='') -> np.ndarray:
+                        key: str=''):
+    
     session_IDs = np.array(databank['session IDs'], dtype='object')
+    
     if settings.by_experiment:
         if not key: key = 'experiments'
         factor_idx = 2
