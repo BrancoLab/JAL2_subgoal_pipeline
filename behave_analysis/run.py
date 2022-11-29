@@ -14,8 +14,7 @@ from behave_analysis.utils.collect_session_IDs import collect_session_IDs, colle
 from databank import databank
 
 def process():
-    print("\n------ PROCESSING DATA ------".format(settings_p))
-    print_settings(settings_p)
+    # print("\n------ PROCESSING DATA ------".format(settings_p))
     session_IDs = collect_session_IDs(settings_p, databank)
         
     # Check sessions are uploaded correctly
