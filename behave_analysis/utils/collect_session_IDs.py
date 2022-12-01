@@ -1,20 +1,36 @@
 #OS Libaries
+"""Need to figure out what by session and by experiment do"""
+
 import numpy as np
 import os
 
 def collect_session_IDs(settings: object, 
                         databank: dict, 
-                        group_num: int=0, 
-                        key: str=''):
+                        group_num: int = 0, 
+                        key: str = ''):
+    
+    """Ingest data from the databank and send to the get_Session function to create a session object
+    
+    Args:
+        databank (dic): The information from the databank
+        settings (object): metadata for the pipeline, not specific to a session
+
+    Returns:
+        np.ndarray: An array of elements containing sessions
+    """
     
     session_IDs = np.array(databank['session IDs'], dtype='object')
-    
+        
     if settings.by_experiment:
-        if not key: key = 'experiments'
+        if not key: 
+            key = 'experiments'
         factor_idx = 2
+        
     if settings.by_session:
-        if not key: key = 'sessions'
+        if not key: 
+            key = 'sessions'
         factor_idx = 0
+        
     if not settings.all_sessions:
         assert isinstance(settings.__dict__[key], list), "Group must be listed in list format; make sure compare=True for cross-group comparisons" 
         group_idx = np.sum([factor==session_IDs[:,factor_idx] for factor in settings.__dict__[key]],0).astype(bool)
@@ -25,7 +41,7 @@ def collect_session_IDs(settings: object,
     
     # add the group name to the list of details
     session_IDs = np.array([np.append(session_ID, group_num) for session_ID in session_IDs])
-
+    
     return session_IDs
 
 def collect_session_IDs_analysis(settings: object, databank: dict):

@@ -29,8 +29,6 @@ class Process():
         self.load_registration_transform()
         self.print_session_details(stage=1)
         
-        print("hello")
-        
         if settings_p.efizz:
             self.session.ttl = get_TTL(self.session)
             

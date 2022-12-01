@@ -1,4 +1,7 @@
-"""Import a dataclass object from settings object for the settings process and define it"""
+"""Import a dataclass object from settings object for the settings process and define it.
+
+Questions:
+- What does by experiment vs by session do?"""
 
 #Custom libaries
 from behave_analysis.utils.settings_objects import Settings_process
@@ -14,11 +17,11 @@ settings_process = Settings_process(
     fisheye_correction_file = os.path.join("sample_data", "fisheye_maps.npy"), # remove setting if n/a
     size = (1024,1024), # (width, height) how big to make the renderings, in pixels
     pixels_per_cm = 10, # for the arena drawn in register.generate_rendered_arena, report here the ratio between size of arena in pixels and actual size in cm
-    by_experiment=False,
+    by_experiment = False,
     experiments = ['block pre edge vectors'],
-    by_session=True,
-    sessions=[0], # This session points to the dank bank index
-    all_sessions=False,
+    by_session = True,
+    sessions = [0], # This session points to the dank bank index
+    all_sessions = False,
     efizz = False # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
 
 )
