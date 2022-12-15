@@ -26,7 +26,7 @@ class Camera_trigger:
 
 def get_Camera_trigger(session: Session, 
                        indexs_to_remove = None, 
-                       down_sample = True, 
+                       down_sample = False, 
                        drop_frames=False):
     
     """
