@@ -1,16 +1,18 @@
-# from glob import glob
-# import pandas as pd
+'''A meta file that contains all the information about the data paths and the session IDs.'''
 
-
-#######
-
+#----Path to the folder where the data is stored-----
 databank = {}
 databank['path'] = r"D:\Behaviour"
-databank['session IDs'] = [
-#----Name of experiment-----prev session------Folder with data------
-[0,0, 'NoShelterShelter', False, '1677_NoShelterShelter_22MAY31']
 
-]
+"""
+Arugments:
++ Name of experiment - type: string, e.g. 'ObstacleThenRemove'
++ Previous session - type: bool, e.g. False
++ Folder with data - type: string, e.g. '9692_obstacle_22dec09'
+"""
+
+databank['session IDs'] = [[0,0, 'obstacle', False, '9692_obstacle_22dec09']]
+
 
 # efizz = {"1677_NoShelterShelter_22MAY31": 
 #             {
