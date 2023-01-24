@@ -9,6 +9,8 @@ Arugments:
 + Name of experiment - type: string, e.g. 'ObstacleThenRemove'
 + Previous session - type: bool, e.g. False
 + Folder with data - type: string, e.g. '9692_obstacle_22dec09'
+
+test
 """
 
 databank['session IDs'] = [[0,0, 'obstacle', False, '9692_obstacle_22dec09']]
