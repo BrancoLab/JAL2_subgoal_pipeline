@@ -6,12 +6,9 @@ from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.photoresistor import get_Photoresistor
 from behave_analysis.utils.check_drop_frames import check_drop_frames
-
-# Additional libraries if running with efizz
-if settings_p.efizz:
-    from behave_analysis.process.ephys import get_Ephys
-    from behave_analysis.process.ttl_sync import get_TTL, remove_bonsai_idx_to_align_signals, get_onset_offset, derivative
-    from behave_analysis.utils.load_bin_or_np import load_or_open
+from behave_analysis.process.ephys import get_Ephys
+from behave_analysis.process.ttl_sync import get_TTL, remove_bonsai_idx_to_align_signals, get_onset_offset, derivative
+from behave_analysis.utils.load_bin_or_np import load_or_open
 
 #Import OS libraries
 import os
@@ -25,19 +22,36 @@ class Process():
     def __init__(self, session_ID):
         self.session = get_Session(session_ID)
         
-    def create_session(self, video_settings):        
+    def create_session(self, video_settings):
+        """A function that creates the session
+        
+        Refactor potential: Remove downsampling from get functions into seperate function
+        """        
         self.load_registration_transform()
         self.print_session_details(stage=1)
         
+        indexs = None # Required if no efizz
         if settings_p.efizz:
             self.session.ttl = get_TTL(self.session)
-            
-        # Normally would be equal to self.session.ttl.choose_index
-        # Downsampling required if there is efiz
-        self.session.camera_trigger = get_Camera_trigger(self.session, down_sample = False)[0]
-        self.session.audio          = get_Audio(self.session, down_sample = False)
-        self.session.video          = get_Video(self.session, video_settings, self.loaded_registration_transform)
-        self.session.photo_resistor = get_Photoresistor(self.session, down_sample = False)
+            indexs = self.session.ttl.choose_index
+        
+        # Extract relevant hardware signals from the session
+        self.session.camera_trigger = get_Camera_trigger(self.session, 
+                                                         indexs_to_remove = indexs, 
+                                                         down_sample = settings_p.efizz)[0]
+        
+        self.session.audio = get_Audio(self.session, 
+                                       indexs_to_remove = indexs, 
+                                       down_sample = settings_p.efizz)
+        
+        self.session.video = get_Video(self.session, 
+                                       video_settings, 
+                                       self.loaded_registration_transform)
+        
+        self.session.photo_resistor = get_Photoresistor(self.session, 
+                                                        indexs_to_remove = indexs, 
+                                                        down_sample = settings_p.efizz)
+        
         
         if settings_p.efizz:
             pass
@@ -45,7 +59,6 @@ class Process():
             
         self.print_session_details(stage=2)
         self.save_session()
-        
         self.quality_check_new_sessions()
             
         return self.session
@@ -107,15 +120,20 @@ class Process():
     #Functions for data verification / cleaning -------------------------------------------------------------------------------
 
     def verify_all_frames_saved(self):
+        """A function that checks if all the triggered frames were saved in the video file. This may 
+        not be the case if the machine is running slower than expected.
+        """
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
-            logger.error("Missing frames check what happened")
-            print("\n - Video contains {} frames, but {} frames were triggered! (for experiment: {}, mouse: {})---".format(self.session.video.num_frames, self.session.camera_trigger.num_frames, self.session.experiment, self.session.mouse))
-            # check_drop_frames(self.session)
+            logger.warning(f"There are missing frames. I.E: The number of triggers ({self.session.camera_trigger.num_frames}) does not match the number of frames ({self.session.video.num_frames}). Thus there is a delta of ({self.session.camera_trigger.num_frames - self.session.video.num_frames}) frames.")
+            logger.info("Check whether there are more triggers or more frames")
+            
+            # Initialise drop frammed protocol
             self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames=True)[0]
             if self.session.camera_trigger.num_frames == self.session.video.num_frames:
-                print(" - Video realigned! Video contains {} frames, and {} frames were triggered (for experiment: {}, mouse: {})---".format(self.session.video.num_frames, self.session.camera_trigger.num_frames, self.session.experiment, self.session.mouse))
+                logger.info(f"Video realigned! Video contains {self.session.video.num_frames} frames, and {self.session.camera_trigger.num_frames} frames were triggered")
             else:
-                print(" - Aligning failed")
+                logger.error("Aligning video failed, Exciting Error. Figure it out.")
+                return None
         
         else: 
             logger.info("Frames triggered are the same number as frames captured")
