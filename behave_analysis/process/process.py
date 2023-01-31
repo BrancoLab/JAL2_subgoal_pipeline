@@ -1,5 +1,5 @@
 #Import custom libaries
-from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
+from settings.settings_process import settings_process as settings_p
 from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
@@ -40,22 +40,35 @@ class Process():
         self.session.photo_resistor = get_Photoresistor(self.session, down_sample = False)
         
         if settings_p.efizz:
-            self.session.ephys = get_Ephys(self.session)
+            pass
+            # self.session.ephys = get_Ephys(self.session)
             
         self.print_session_details(stage=2)
         self.save_session()
+        
+        self.quality_check_new_sessions()
+            
+        return self.session
+    
+    def quality_check_new_sessions(self) -> None:
+        """A function that runs veritifcation checks on a new session that has been recorded but not processed.
+        Checks include:
+        + Video frame counts are as expected
+        + The bonsai machine matches with spike GLX if doing efizz"""
+        
+        self.verify_all_frames_saved()
         
         if settings_p.efizz:
             self.verify_check_for_abberant_signals_in_bonsai()
             self.verify_aligned_data_streams()
             self.verify_check_means()
             self.verify_onsets_and_offsets()
-            self.visulize_sync_output() #Plot the resulting sync pulses, uncomment to see
+            self.visulize_sync_output()
             self.verify_ttl_len_with_frame_duration()
-            
-        self.verify_all_frames_saved()
+        
         logger.info("All verifications steps passed")
-        return self.session
+        
+        return None 
 
     def save_session(self, overwrite=True):
         assert not os.path.isfile(self.session.metadata_file) or overwrite, "Permission to save not granted"
@@ -72,9 +85,11 @@ class Process():
         return session
 
     def load_registration_transform(self):
+        """A function that loads the registration transform if it exists, otherwise it sets it to None"""
         if os.path.isfile(self.session.metadata_file) and isinstance(self.load_session().video.registration_transform, np.ndarray):
             self.loaded_registration_transform = self.load_session().video.registration_transform
-        else: self.loaded_registration_transform = None
+        else: 
+            self.loaded_registration_transform = None
 
     def print_session_details(self,stage: int):
         if stage==1:
