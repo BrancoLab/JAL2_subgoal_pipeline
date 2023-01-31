@@ -139,9 +139,14 @@ class Process():
             logger.info("Frames triggered are the same number as frames captured")
 
     def verify_aligned_data_streams(self):
+        """A function that checks if the data streams are aligned. This is done by checking if the length of signals in the audio and camera trigger streams are the same.
+        And also checking if length of the camera trigger and bonsai TTL streams are the same.
+        """
+        
         if self.session.camera_trigger.num_samples != self.session.audio.num_samples:
-            print("\n - Data streams have mismatched numbers of samples---\n  Camera trigger: {}\n  Audio input: {}\n".format(self.session.camera_trigger.num_samples, self.session.audio.num_samples))
-            assert self.session.camera_trigger.num_samples == self.session.audio.num_samples, "Sample lens don't match"
+            logger.error(f"The number of samples in the audio {self.session.audio.num_samples} and camera trigger {self.session.camera_trigger.num_samples} streams do not match after alignment")
+            assert self.session.camera_trigger.num_samples == self.session.audio.num_samples, "The length of camera trigger doesn't match the length of the audio, processing has failed, kill script"
+        
         if self.session.camera_trigger.num_samples != len(self.session.ttl.bonsai_TTL):
             print("Length of camera trigger:", self.session.camera_trigger.num_samples)
             print("Length of bonsai TTL:", len(self.session.ttl.bonsai_TTL))
