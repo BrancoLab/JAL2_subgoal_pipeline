@@ -21,7 +21,8 @@ class Process():
         self.session = get_Session(session_ID)
         
     def create_session(self, video_settings):
-        """A function that creates the session
+        """A function that creates the session, and saves the metadata file. It also runs the quality checks on the session.
+        Resamples and aligns signals etc. Need to refactor as a lot is happening.
         
         Refactor potential: Remove downsampling from get functions into seperate function
         """        
@@ -66,8 +67,7 @@ class Process():
         + Video frame counts are as expected
         + The bonsai machine matches with spike GLX if doing efizz"""
         
-        # self.verify_all_frames_saved() Commented out due to issue with one more frame than trigger - Need to recheck
-        # Ensure that this check is reintroduced when the issue is resolved, unsure on data quality without it 
+        self.verify_all_frames_saved()
         
         if settings_p.efizz:
             self.verify_check_for_abberant_signals_in_bonsai()
@@ -122,21 +122,10 @@ class Process():
         not be the case if the machine is running slower than expected. Also due to camera settings, lag etc 
         there may be more video frames than triggered frames. This function checks for both of these cases.
         """
-        
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
-            logger.warning(f"The number of triggers ({self.session.camera_trigger.num_frames}) does not match the number of video frames ({self.session.video.num_frames})")
-            
-            self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames=True)[0]
-            
-            if self.session.camera_trigger.num_frames == self.session.video.num_frames:
-                logger.info(f"Video realigned! Video contains {self.session.video.num_frames} frames, and {self.session.camera_trigger.num_frames} frames were triggered")
-            else:
-                logger.error("Aligning video failed, Exciting Error. Figure it out.")
-                assert self.session.camera_trigger.num_frames == self.session.video.num_frames, "The number of camera triggers does not match the number of frames, processing has failed"
+            logger.error(f"The number of camera triggers ({self.session.camera_trigger.num_frames}) does not match the number of video frames ({self.session.video.num_frames})")
+            assert self.session.camera_trigger.num_frames == self.session.video.num_frames, "The number of triggers does not match the number of video frames, processing has failed, kill script"
         
-        else: 
-            logger.info("Frames triggered are the same number as frames captured")
-
     def verify_aligned_data_streams(self):
         """A function that checks if the data streams are aligned. This is done by checking if the length of signals in the audio and camera trigger streams are the same.
         And also checking if length of the camera trigger and bonsai TTL streams are the same.
