@@ -42,7 +42,7 @@ def remove_idx_as_per_bonsai_ttl_resample(name_of_signal,
     # Tests
     try:
         assert len(cleaned_signal) == len(session.ttl.bonsai_TTL), "The downsampled analogue data does not match the length of the bonsai signal"
-        logger.info(f"{name_of_signal}: Signal downsampled to match bonsai TTL resample")
+        logger.info(f"{name_of_signal}: Signal downsampled to match bonsai TTL resample. Was {len(signal_to_downsample)} and now {len(cleaned_signal)} ")
     except:
         print(len(cleaned_signal))
         print(len(len(session.ttl.bonsai_TTL)))

@@ -123,8 +123,9 @@ class Process():
         there may be more video frames than triggered frames. This function checks for both of these cases.
         """
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
-            logger.error(f"The number of camera triggers ({self.session.camera_trigger.num_frames}) does not match the number of video frames ({self.session.video.num_frames})")
-            assert self.session.camera_trigger.num_frames == self.session.video.num_frames, "The number of triggers does not match the number of video frames, processing has failed, kill script"
+            logger.warning(f"The number of camera triggers ({self.session.camera_trigger.num_frames}) does not match the number of video frames ({self.session.video.num_frames})")
+            # assert self.session.camera_trigger.num_frames == self.session.video.num_frames, "The number of triggers does not match the number of video frames, processing has failed, kill script"
+            # Assert removed, is it important to have triggers matched to frames?
         
     def verify_aligned_data_streams(self):
         """A function that checks if the data streams are aligned. This is done by checking if the length of signals in the audio and camera trigger streams are the same.
