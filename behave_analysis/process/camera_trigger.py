@@ -113,20 +113,18 @@ def find_drop_frames(session: Session, frame_trigger_onsets_idx, for_video_reade
     num_frames_dropped = np.round(dropped_frame_diff / min_difference - 1).astype(int)
     index_dropped_frame = np.where(difference_between_frames > min_difference * 2)[0] + 1
     
+    if for_video_reader == True:
+        return num_frames_dropped, index_dropped_frame
+    
     if len(num_frames_dropped) == 0:
         logger.info("No frames dropped in the video recording")
     
     elif len(num_frames_dropped) > 0:
-        logger.warning(f"{len(num_frames_dropped)} frames dropped in the video recording")
+        logger.warning(f"{len(num_frames_dropped)} frames dropped in the video recording - Realigning video...")
     
-    if for_video_reader == True:
-        return num_frames_dropped, index_dropped_frame
-    
-    [print(f" - {int(n)} frames dropped after frame {index_dropped_frame[idx]}\n - Realigning video... ") for idx,n in enumerate(num_frames_dropped)]
-        
-    for idx, drop_frame in enumerate(index_dropped_frame):
-        for i in range(0, num_frames_dropped[idx]):
-            frame_trigger_onsets_idx = np.delete(frame_trigger_onsets_idx, drop_frame)
-        index_dropped_frame = index_dropped_frame - num_frames_dropped[idx]
-        
+        for idx, drop_frame in enumerate(index_dropped_frame):
+            for i in range(0, num_frames_dropped[idx]):
+                frame_trigger_onsets_idx = np.delete(frame_trigger_onsets_idx, drop_frame)
+            index_dropped_frame = index_dropped_frame - num_frames_dropped[idx]
+            
     return frame_trigger_onsets_idx
