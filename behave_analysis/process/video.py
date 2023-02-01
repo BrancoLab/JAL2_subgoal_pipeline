@@ -30,7 +30,6 @@ def get_Video(session: Session, settings: object, registration_transform: object
     video_file = glob(os.path.join(session.file_path, "cam*avi"))[-1] # take the last file if there are multiple
     video_object = cv2.VideoCapture(video_file)
     num_frames = int(video_object.get(cv2.CAP_PROP_FRAME_COUNT))
-    logger.info("Number of frames is: {}".format(num_frames))
     fps = int(video_object.get(cv2.CAP_PROP_FPS))
     height = int(video_object.get(cv2.CAP_PROP_FRAME_HEIGHT))
     width = int(video_object.get(cv2.CAP_PROP_FRAME_WIDTH))

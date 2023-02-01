@@ -123,7 +123,7 @@ def find_drop_frames(session: Session, frame_trigger_onsets_idx, for_video_reade
         return num_frames_dropped, index_dropped_frame
     
     [print(f" - {int(n)} frames dropped after frame {index_dropped_frame[idx]}\n - Realigning video... ") for idx,n in enumerate(num_frames_dropped)]
-    
+        
     for idx, drop_frame in enumerate(index_dropped_frame):
         for i in range(0, num_frames_dropped[idx]):
             frame_trigger_onsets_idx = np.delete(frame_trigger_onsets_idx, drop_frame)
