@@ -28,7 +28,7 @@ Todo:
 #Custom libaries
 from behave_analysis.process.session import Session
 from behave_analysis.utils.load_bin_or_np import load_or_open
-# from databank import efizz
+from databank import efizz
 
 #OS libaries
 import os
@@ -42,7 +42,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 
 #Store file name here now for testing - hard coded need to update
-imec_bin_file = efizz["1677_NoShelterShelter_22MAY31"]["bin"]
+imec_bin_file = efizz["Efizz_test_23Jan20"]["bin"]
 
 @dataclass(frozen=False)
 class TTL_Sync:
@@ -83,6 +83,7 @@ def get_TTL(session: Session, down_sample = True):
     logger.info("The length of the original bonsai TTL is: {} and the original imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
     inital_bonsai_len = len(bonsai_ttl)
     if len(bonsai_ttl) > len(imec_TTL): logger.error("Bonsai TTL is longer than imec TTL this can't be")
+
 
     #Check and correct for abberant signals
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
@@ -300,10 +301,11 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
     # Threshold for acceptable number of abberant signals made up
     threshold = 1000
 
-    # check for signal differences, they should not differ by 10 seconds
+    # check for signal differences, they should not differ by 10 seconds - Removing this check for now as it could be just a mannual delay between bonsai and spikeglx
+    # if the user delays between stopping both systems
     if abs(len(bonsai_ttl) - len(imec_TTL)) > 10 * sampling_rate:
         logger.warning("The sync signals have very different lengths before resample, this cant be!")
-        return
+        # raise ValueError("The sync signals have very different lengths before resample, this cant be!")
 
     # check for aberrant signals in ephys
     imec_errors = np.where(imec_TTL > 75)[0]

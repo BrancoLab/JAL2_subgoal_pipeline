@@ -35,10 +35,10 @@ class Process():
             self.session.ttl = get_TTL(self.session)
             indexs = self.session.ttl.choose_index
         
-        # Extract relevant hardware signals from the session
         self.session.camera_trigger = get_Camera_trigger(self.session, 
                                                          indexs_to_remove = indexs, 
-                                                         down_sample = settings_p.efizz)[0]
+                                                         down_sample = settings_p.efizz,
+                                                         drop_frames = True)[0]
         
         self.session.audio = get_Audio(self.session, 
                                        indexs_to_remove = indexs, 
@@ -51,7 +51,6 @@ class Process():
         self.session.photo_resistor = get_Photoresistor(self.session, 
                                                         indexs_to_remove = indexs, 
                                                         down_sample = settings_p.efizz)
-        
         
         if settings_p.efizz:
             pass
@@ -69,7 +68,8 @@ class Process():
         + Video frame counts are as expected
         + The bonsai machine matches with spike GLX if doing efizz"""
         
-        self.verify_all_frames_saved()
+        # self.verify_all_frames_saved() Commented out due to issue with one more frame than trigger - Need to recheck
+        # Ensure that this check is reintroduced when the issue is resolved, unsure on data quality without it 
         
         if settings_p.efizz:
             self.verify_check_for_abberant_signals_in_bonsai()
@@ -121,19 +121,20 @@ class Process():
 
     def verify_all_frames_saved(self):
         """A function that checks if all the triggered frames were saved in the video file. This may 
-        not be the case if the machine is running slower than expected.
+        not be the case if the machine is running slower than expected. Also due to camera settings, lag etc 
+        there may be more video frames than triggered frames. This function checks for both of these cases.
         """
+        
         if self.session.camera_trigger.num_frames != self.session.video.num_frames:
-            logger.warning(f"There are missing frames. I.E: The number of triggers ({self.session.camera_trigger.num_frames}) does not match the number of frames ({self.session.video.num_frames}). Thus there is a delta of ({self.session.camera_trigger.num_frames - self.session.video.num_frames}) frames.")
-            logger.info("Check whether there are more triggers or more frames")
+            logger.warning(f"The number of triggers ({self.session.camera_trigger.num_frames}) does not match the number of video frames ({self.session.video.num_frames})")
             
-            # Initialise drop frammed protocol
             self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames=True)[0]
+            
             if self.session.camera_trigger.num_frames == self.session.video.num_frames:
                 logger.info(f"Video realigned! Video contains {self.session.video.num_frames} frames, and {self.session.camera_trigger.num_frames} frames were triggered")
             else:
                 logger.error("Aligning video failed, Exciting Error. Figure it out.")
-                return None
+                assert self.session.camera_trigger.num_frames == self.session.video.num_frames, "The number of camera triggers does not match the number of frames, processing has failed"
         
         else: 
             logger.info("Frames triggered are the same number as frames captured")

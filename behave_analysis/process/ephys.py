@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 
 #Data
-ephys_file_path = efizz["1677_NoShelterShelter_22MAY31"]["res"]
+ephys_file_path = efizz["Efizz_test_23Jan20"]["res"]
 
 @dataclass(frozen=True)
 class Ephys:
@@ -74,6 +74,7 @@ def load_ephys_data(ephys_file_path):
     - spike times: object
     - cluster ids: object 
     """
+
     data = convert_matlab_struct(ephys_file_path)
     spike_times = data.dictionary.spikeTimes
     cluster_ids = data.dictionary.spikeClusters

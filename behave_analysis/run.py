@@ -14,7 +14,12 @@ from behave_analysis.utils.collect_session_IDs import collect_session_IDs, colle
 from databank import databank
 
 def process():
-    # print("\n------ PROCESSING DATA ------".format(settings_p))
+    """A function that collects sessions from the databank, puts the sessions through a processing
+    pipeline and then saves the sessions to a metadata file. This metadata file is then loaded and used
+    by subsequent track, homing, visualize and analyze functions.
+    
+    Returns: Nothing, data is saved to a metadata file."""
+    
     session_IDs = collect_session_IDs(settings_p, databank)
         
     # Check sessions are uploaded correctly

@@ -12,7 +12,7 @@ import os
 settings_process = Settings_process(
 
     create_new_registration = True,
-    skip_registration = False,
+    skip_registration = True,
     registration = 'homography', # 'affine' 'partial affine' or 'homography' (use the least complex needed)
     fisheye_correction_file = os.path.join("sample_data", "fisheye_maps.npy"), # remove setting if n/a
     size = (1024,1024), # (width, height) how big to make the renderings, in pixels
@@ -22,6 +22,6 @@ settings_process = Settings_process(
     by_session = True,
     sessions = [0], # This session points to the dank bank index
     all_sessions = False,
-    efizz = False # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
+    efizz = True # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
 
 )
