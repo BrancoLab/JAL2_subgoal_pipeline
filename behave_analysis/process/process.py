@@ -1,6 +1,6 @@
 #Import custom libaries
 from settings.settings_process import settings_process as settings_p
-from behave_analysis.process.session import Session, get_Session
+from behave_analysis.process.session import get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
@@ -13,7 +13,6 @@ from behave_analysis.process.verify import Verifications
 import os
 import numpy as np
 import dill as pickle
-import cv2
 import matplotlib.pyplot as plt
 from loguru import logger
 
