@@ -27,7 +27,7 @@ class Process():
         Refactor potential: Remove downsampling from get functions into seperate function
         """        
         self.load_registration_transform()
-        # self.print_session_details(stage=1)
+        self.print_session_details(stage=1)
         
         indexs = None # Required if no efizz
         if settings_p.efizz:
@@ -55,7 +55,7 @@ class Process():
             pass
             # self.session.ephys = get_Ephys(self.session)
             
-        # self.print_session_details(stage=2)
+        self.print_session_details(stage=2)
         self.save_session()
         self.quality_check_new_sessions()
             
