@@ -5,10 +5,8 @@ from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.photoresistor import get_Photoresistor
-from behave_analysis.utils.check_drop_frames import check_drop_frames
 from behave_analysis.process.ephys import get_Ephys
-from behave_analysis.process.ttl_sync import get_TTL, remove_bonsai_idx_to_align_signals, get_onset_offset, derivative
-from behave_analysis.utils.load_bin_or_np import load_or_open
+from behave_analysis.process.ttl_sync import get_TTL
 
 #Import OS libraries
 import os
@@ -191,10 +189,6 @@ class Process():
     def verify_onsets_and_offsets(self):
         logger.info("Verifying sync signal pulses")
         
-        # get pulses onsets
-        # bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(self.session.ttl.bonsai_TTL, 2.5)
-        # ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(self.session.ttl.imec_TTL, 45)
-
         # Get onset and offsets
         bonsai_sync_onsets  = self.session.ttl.bonsai_sync_onsets
         bonsai_sync_offsets = self.session.ttl.bonsai_sync_offsets
