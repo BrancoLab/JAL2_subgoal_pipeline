@@ -1,6 +1,9 @@
 """As a result of work with efizz data, many verifications are needed to ensure effective data processing. 
 This file contains all the verifications needed to ensure the data is processed correctly. And that we are confident in
-our ability to begin analysis."""
+our ability to begin analysis.
+
+There is one function, verify_all_frames_saved, that it not specific to efizz data. Though this script still seems
+a good place to put it."""
 
 # OS Libaries
 from loguru import logger
