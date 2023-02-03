@@ -24,6 +24,18 @@ class Audio:
     stimulus_durations: object
 
 def get_Audio(session: Session, indexs_to_remove = None, down_sample = True):
+    """AI data is a 4 channel interleaved signal. The audio signal is the second channel.
+    AI stands for analog input. The audio signal is an offshot of the signal sent to the speaker and 
+    equals a voltage recording. 
+
+    Args:
+        session (Session): _description_
+        indexs_to_remove (_type_, optional): _description_. Defaults to None.
+        down_sample (bool, optional): _description_. Defaults to True.
+
+    Returns:
+        _type_: _description_
+    """
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
         AI_data = np.fromfile(AI_file)
@@ -38,6 +50,11 @@ def get_Audio(session: Session, indexs_to_remove = None, down_sample = True):
                                                             session)
     audio_num_samples = len(audio_data)
     audio_on = abs(audio_data)>3
-    audio_onset_frames, stimulus_durations, _ = get_onset_and_duration(audio_on, session, stim_type='audio', min_frames_between_trials=session.daq_sampling_rate * 30, data_type='samples')
+    audio_onset_frames, stimulus_durations, _ = get_onset_and_duration(audio_on, 
+                                                                       session, 
+                                                                       stim_type='audio', 
+                                                                       min_frames_between_trials = session.daq_sampling_rate * 30, 
+                                                                       data_type='samples')
+    
     audio = Audio(audio_num_samples, audio_onset_frames, stimulus_durations)
     return audio

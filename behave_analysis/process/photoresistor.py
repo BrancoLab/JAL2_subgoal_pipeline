@@ -24,6 +24,10 @@ class photoresistor_trigger:
     stimulus_durations: object
 
 def get_Photoresistor(session: Session, indexs_to_remove = None, down_sample = True) -> photoresistor_trigger:
+    """AI data is a 4 channel interleaved signal. The photoresistor voltage is the third signal.
+    AI stands for analog input. This is the voltage recording of the photoresistor. 
+    """
+    
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
             AI_data = np.fromfile(AI_file)

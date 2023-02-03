@@ -29,8 +29,9 @@ def get_Camera_trigger(session: Session,
                        down_sample = False, 
                        drop_frames = False):
     """
-    There are four signals in AI file. The camera trigger signal is one of them. 
-    Extract the camera trigger signal. 
+    AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
+    AI stands for analog input. However, I believe as this is a pulse, it is digital.
+    A pulse generated from the NI box one part goes to the camera and another back to the NI box. 
     """
     
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
