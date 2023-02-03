@@ -164,6 +164,6 @@ class Verifications():
         
         slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
         logger.info(f"The R squared value of the linear regression is: {r_value**2}")
-        assert r_value**2 > 0.99, "The R squared value of the linear regression is too low"
+        assert r_value**2 > 0.9999 , "The R squared value of the linear regression is too low"
         
         
