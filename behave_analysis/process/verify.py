@@ -117,7 +117,7 @@ class Verifications():
         # Differenece in len
         diff = abs(video_length - len(self.Process.session.ttl.bonsai_TTL) / 30000)
         if diff > 0.5:
-            logger.error("Video length and bonsai signal differ by more than half a second")
+            logger.error("Video length and bonsai signal differ by more than half a second. But maybe this is ok because of padding and the bonsai signal is not triggers?")
         
     def visulize_sync_output(self):
         """A function to plot the digital signals of the bonsai machine and the imec machine
