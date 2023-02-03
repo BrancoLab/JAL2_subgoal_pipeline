@@ -13,7 +13,6 @@ from behave_analysis.process.verify import Verifications
 import os
 import numpy as np
 import dill as pickle
-import matplotlib.pyplot as plt
 from loguru import logger
 
 class Process():
@@ -25,11 +24,12 @@ class Process():
         Resamples and aligns signals etc. Need to refactor as a lot is happening.
         
         Refactor potential: Remove downsampling from get functions into seperate function
-        """        
+        """
+        
         self.load_registration_transform()
         self.print_session_details(stage=1)
         
-        indexs = None # Required if no efizz
+        indexs = None # Prevents error if not efizz
         if settings_p.efizz:
             self.session.ttl = get_TTL(self.session)
             indexs = self.session.ttl.choose_index
@@ -76,16 +76,28 @@ class Process():
             Verifications(self).verify_onsets_and_offsets()
             Verifications(self).verify_ttl_len_with_frame_duration()
             Verifications(self).visulize_sync_output() # Comment out to prevent sync plot from showing, just a sanity check
+            Verifications(self).verify_clock_drift() 
         
         logger.info("All verifications steps passed")
         
         return None 
 
     def save_session(self, overwrite=True):
+        """A function that saves the processes session to a metadata file
+
+        Args:
+            overwrite (bool, optional): _description_. Defaults to True.
+        """
         assert not os.path.isfile(self.session.metadata_file) or overwrite, "Permission to save not granted"
         with open(self.session.metadata_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
 
     def load_session(self):
+        """Load a previously exsisting file. If the file does not exsist and the settings process
+        is set to skip process. Then an error may occur.
+
+        Returns:
+            _type_: _description_
+        """
         try:
             with open(self.session.metadata_file, "rb") as dill_file: session = pickle.load(dill_file)
         except EOFError:
