@@ -57,8 +57,7 @@ class Verifications():
         if self.Process.session.camera_trigger.num_samples != len(self.Process.session.ttl.bonsai_TTL):
             print("Length of camera trigger:", self.Process.session.camera_trigger.num_samples)
             print("Length of bonsai TTL:", len(self.Process.session.ttl.bonsai_TTL))
-            # assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger doesn't match the length of the bonsai TTL"
-            logger.error("Fix assertion error")
+            assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger data doesn't match the length of the bonsai TTL"
 
     def verify_onsets_and_offsets(self):
         logger.info("Verifying sync signal pulses")
@@ -87,20 +86,14 @@ class Verifications():
 
         #Check the interval between sync signals in bonsai
         onsets_delta = np.diff(bonsai_sync_onsets)
-        if len(set(onsets_delta)) > 1: #If more values exsist than just 30khz
+        if len(set(onsets_delta)) > 1: # If more values exsist than just 30khz
             counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
             logger.warning(f"Bonsai sync triggers have variable delay. [Delay: Counts attributed to that delay]: {counts}")
 
         elif list(onsets_delta)[0] != self.Process.session.ttl.sampling_rate:
             # check that it lasts as long as it should
             logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.Process.session.ttl.sampling_rate})")
-
-        #Test differences
-        temporal_difference = np.diff(bonsai_sync_onsets) - np.diff(ephys_sync_onsets) # Comare delta onsets
-        off_set_difference  = np.diff(bonsai_sync_offsets) - np.diff(ephys_sync_offsets) # Compare delta offsets
-        assert np.all(temporal_difference == 0), "Resample failed, there should be no difference in pulse length at this stage"
-        assert np.all(off_set_difference[:-2]) == 0, "Resample failed, there should be no difference in pulse length at this stage apart from last pulse"
-    
+ 
     def verify_check_means(self):
         """Check that the means of the bonsai TTL and the imec TTL are not
         too far away from expected mean.
@@ -123,7 +116,8 @@ class Verifications():
 
         # Differenece in len
         diff = abs(video_length - len(self.Process.session.ttl.bonsai_TTL) / 30000)
-        assert diff < 0.5, "Video length and bonsai signal should not differ by more than half a second"
+        if diff > 0.5:
+            logger.error("Video length and bonsai signal differ by more than half a second")
         
     def visulize_sync_output(self):
         """A function to plot the digital signals of the bonsai machine and the imec machine

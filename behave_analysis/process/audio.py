@@ -1,15 +1,8 @@
-#Custom libs
-from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
-
-# Additional libraries if running with efizz
-if settings_p.efizz:
-    from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
-
-#Custom libs
+# Custom libs
 from behave_analysis.process.session import Session
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 
-#OS Libs
+# OS Libs
 import os
 import numpy as np
 from dataclasses import dataclass
@@ -23,7 +16,7 @@ class Audio:
     onset_frames: object
     stimulus_durations: object
 
-def get_Audio(session: Session, indexs_to_remove = None, down_sample = True):
+def get_Audio(session: Session):
     """AI data is a 4 channel interleaved signal. The audio signal is the second channel.
     AI stands for analog input. The audio signal is an offshot of the signal sent to the speaker and 
     equals a voltage recording. 
@@ -43,11 +36,6 @@ def get_Audio(session: Session, indexs_to_remove = None, down_sample = True):
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)        
     audio_data = AI_data[np.arange(1, len(AI_data), 4)] # four interleaved time series
     
-    if down_sample: 
-        audio_data = remove_idx_as_per_bonsai_ttl_resample("audio", 
-                                                            audio_data, 
-                                                            indexs_to_remove, 
-                                                            session)
     audio_num_samples = len(audio_data)
     audio_on = abs(audio_data)>3
     audio_onset_frames, stimulus_durations, _ = get_onset_and_duration(audio_on, 

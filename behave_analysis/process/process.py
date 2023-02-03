@@ -29,27 +29,19 @@ class Process():
         self.load_registration_transform()
         self.print_session_details(stage=1)
         
-        indexs = None # Prevents error if not efizz
         if settings_p.efizz:
             self.session.ttl = get_TTL(self.session)
-            indexs = self.session.ttl.choose_index
         
         self.session.camera_trigger = get_Camera_trigger(self.session, 
-                                                         indexs_to_remove = indexs, 
-                                                         down_sample = settings_p.efizz,
                                                          drop_frames = True)[0]
         
-        self.session.audio = get_Audio(self.session, 
-                                       indexs_to_remove = indexs, 
-                                       down_sample = settings_p.efizz)
+        self.session.audio = get_Audio(self.session)
         
         self.session.video = get_Video(self.session, 
                                        video_settings, 
                                        self.loaded_registration_transform)
         
-        self.session.photo_resistor = get_Photoresistor(self.session, 
-                                                        indexs_to_remove = indexs, 
-                                                        down_sample = settings_p.efizz)
+        self.session.photo_resistor = get_Photoresistor(self.session)
         
         if settings_p.efizz:
             pass
@@ -75,7 +67,7 @@ class Process():
             Verifications(self).verify_check_means()
             Verifications(self).verify_onsets_and_offsets()
             Verifications(self).verify_ttl_len_with_frame_duration()
-            Verifications(self).visulize_sync_output() # Comment out to prevent sync plot from showing, just a sanity check
+            # Verifications(self).visulize_sync_output() # Comment out to prevent sync plot from showing, just a sanity check
             Verifications(self).verify_clock_drift() 
         
         logger.info("All verifications steps passed")

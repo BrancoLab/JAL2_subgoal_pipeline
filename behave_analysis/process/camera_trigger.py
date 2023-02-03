@@ -1,10 +1,4 @@
 #Custom libs
-from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
-
-# Additional libraries if running with efizz
-if settings_p.efizz:
-    from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
-
 from behave_analysis.process.session import Session
 
 # Os libs
@@ -25,8 +19,6 @@ class Camera_trigger:
     fps: int
 
 def get_Camera_trigger(session: Session, 
-                       indexs_to_remove = None, 
-                       down_sample = False, 
                        drop_frames = False):
     """
     AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
@@ -41,14 +33,6 @@ def get_Camera_trigger(session: Session,
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)] # four interleaved time series
     logger.info("Length of camera_trigger pre downsample: {}".format(len(camera_trigger_data)))
-
-    # remove the same indexes removed from the bonsai TTL to align the signals
-    if down_sample:
-        logger.info("Downsampling camera trigger data")
-        camera_trigger_data = remove_idx_as_per_bonsai_ttl_resample("Camera_trigger", 
-                                                                    camera_trigger_data, 
-                                                                    indexs_to_remove, 
-                                                                    session)
 
     camera_trigger_num_samples = len(camera_trigger_data)
 

@@ -1,12 +1,15 @@
+# Custom libaries
 from behave_analysis.process.session import Session
 from behave_analysis.track.register import Register
+
+# OS Libraries
 from dataclasses import dataclass
 from glob import glob
 import numpy as np
 import cv2
 import os
-from loguru import logger
 
+# Refactor this to be in the dataclass file and import it
 @dataclass(frozen=True)
 class Video:
     num_frames: int
@@ -26,7 +29,10 @@ class Video:
     x_offset: int=128 # if the video frame is cropped, how far from the top left edge is it
     y_offset: int=0   # (this is for the fisheye correction step)
 
-def get_Video(session: Session, settings: object, registration_transform: object=None) -> Video:
+def get_Video(session: Session, 
+              settings: object, 
+              registration_transform: object=None) -> Video:
+    
     video_file = glob(os.path.join(session.file_path, "cam*avi"))[-1] # take the last file if there are multiple
     video_object = cv2.VideoCapture(video_file)
     num_frames = int(video_object.get(cv2.CAP_PROP_FRAME_COUNT))
