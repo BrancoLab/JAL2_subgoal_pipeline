@@ -163,7 +163,7 @@ def get_TTL(session: Session, down_sample = True):
     # remove pulses that are too brief
     pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
     if pulse_len_errors:
-        logger.warning(f"Removing pulses with too short of a length: {pulse_len_errors}")
+        logger.error(f"Removing pulses with too short of a length: {pulse_len_errors}")
         bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse_len_errors)
         bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, pulse_len_errors)
     
