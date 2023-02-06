@@ -10,7 +10,6 @@ from loguru import logger
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
-import sys
 
 class Verifications():
     def __init__(self, Process):
