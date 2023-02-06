@@ -1,4 +1,4 @@
-#Custom libs
+# Custom libs
 from behave_analysis.process.session import Session
 from behave_analysis.utils.AI_dataClass_objects import Camera_trigger
 
@@ -10,13 +10,10 @@ import dill as pickle
 import pandas as pd
 from loguru import logger
 
-def get_Camera_trigger(session: Session, 
-                       drop_frames = False):
-    """
-    AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
+def get_Camera_trigger(session: Session, drop_frames = False):
+    """ AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
     AI stands for analog input. However, I believe as this is a pulse, it is digital.
-    A pulse generated from the NI box one part goes to the camera and another back to the NI box. 
-    """
+    A pulse generated from the NI box one part goes to the camera and another back to the NI box."""
     
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 
@@ -26,22 +23,13 @@ def get_Camera_trigger(session: Session,
     camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)] # four interleaved time series
 
     camera_trigger_num_samples = len(camera_trigger_data)
-    num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, 
-                                                                                               camera_trigger_data, 
-                                                                                               drop_frames = drop_frames)
-
+    num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames = drop_frames)
     fps = get_fps(session, num_frames_expected, duration_of_video)
-    
-    camera_trigger = Camera_trigger(camera_trigger_num_samples, 
-                                    num_frames_expected, 
-                                    frame_trigger_onsets_idx, 
-                                    fps)
+    camera_trigger = Camera_trigger(camera_trigger_num_samples, num_frames_expected, frame_trigger_onsets_idx, fps)
     
     return camera_trigger, camera_trigger_data
 
-def get_num_frames_expected(session: Session, 
-                            camera_trigger_data: object, 
-                            drop_frames=False) -> int:
+def get_num_frames_expected(session: Session, camera_trigger_data: object, drop_frames=False) -> int:
     """Find the onset of the frame triggers. And count the onset of pulses as expected number of frames in the camera.
 
     Args:

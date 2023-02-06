@@ -1,24 +1,17 @@
 #Custom libs
 from behave_analysis.process.session import Session
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
+from behave_analysis.utils.AI_dataClass_objects import photoresistor_trigger
 
 # Os libs
 import os
 import numpy as np
-from dataclasses import dataclass
 from glob import glob
 import dill as pickle
 
-@dataclass(frozen=True)
-class photoresistor_trigger:
-    num_samples: int
-    onset_frames: object
-    stimulus_durations: object
-
 def get_Photoresistor(session: Session) -> photoresistor_trigger:
     """AI data is a 4 channel interleaved signal. The photoresistor voltage is the third signal.
-    AI stands for analog input. This is the voltage recording of the photoresistor. 
-    """
+    AI stands for analog input. This is the voltage recording of the photoresistor. """
     
     AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
     if '.bin' in AI_file: 

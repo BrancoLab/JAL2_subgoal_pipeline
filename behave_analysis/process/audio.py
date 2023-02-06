@@ -1,22 +1,15 @@
 # Custom libs
 from behave_analysis.process.session import Session
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
+from behave_analysis.utils.AI_dataClass_objects import Audio
 
 # OS Libs
 import os
 import numpy as np
-from dataclasses import dataclass
-from typing import Tuple
 from glob import glob
 import dill as pickle
 
-@dataclass(frozen=True)
-class Audio:
-    num_samples: int
-    onset_frames: object
-    stimulus_durations: object
-
-def get_Audio(session: Session):
+def get_Audio(session: Session) -> Audio:
     """AI data is a 4 channel interleaved signal. The audio signal is the second channel.
     AI stands for analog input. The audio signal is an offshot of the signal sent to the speaker and 
     equals a voltage recording. 
