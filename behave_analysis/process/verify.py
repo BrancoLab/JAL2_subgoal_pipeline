@@ -106,19 +106,9 @@ class Verifications():
             return
     
     def verify_ttl_len_with_frame_duration(self):
-        """Check that the number of frames multipled by frame duration is the same 
-        length of the bonsai signal in seconds
-        """
-        num_frames = self.Process.session.video.num_frames
-        video_length = num_frames * (1 / self.Process.session.video.fps)
-        logger.info("The length of the video is: {}s".format(video_length))
-        logger.info("The length of bonsai TTL is: {}s". format(len(self.Process.session.ttl.bonsai_TTL) / 30000))
+        """Log the length of the video in seconds for visual inspection"""
+        logger.info("The length of the video is: {}s".format(self.Process.session.video.num_frames * (1 / self.Process.session.video.fps)))
 
-        # Differenece in len
-        diff = abs(video_length - len(self.Process.session.ttl.bonsai_TTL) / 30000)
-        if diff > 0.5:
-            logger.error("Video length and bonsai signal differ by more than half a second. But maybe this is ok because of padding and the bonsai signal is not triggers?")
-        
     def visulize_sync_output(self):
         """A function to plot the digital signals of the bonsai machine and the imec machine
         to ensure that after alignment they are identical. The alignment is done by

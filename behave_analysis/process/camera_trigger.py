@@ -1,22 +1,14 @@
 #Custom libs
 from behave_analysis.process.session import Session
+from behave_analysis.utils.AI_dataClass_objects import Camera_trigger
 
 # Os libs
 import os
 import numpy as np
-from dataclasses import dataclass
 from glob import glob
 import dill as pickle
 import pandas as pd
 from loguru import logger
-import matplotlib.pyplot as plt
-
-@dataclass(frozen=True)
-class Camera_trigger:
-    num_samples: int
-    num_frames: int
-    frame_trigger_onsets_idx: object
-    fps: int
 
 def get_Camera_trigger(session: Session, 
                        drop_frames = False):
@@ -32,18 +24,19 @@ def get_Camera_trigger(session: Session,
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)] # four interleaved time series
-    logger.info("Length of camera_trigger pre downsample: {}".format(len(camera_trigger_data)))
 
     camera_trigger_num_samples = len(camera_trigger_data)
-
-    # What is the code? To me it seems the same output regardless of the drop_frames flag. Think I can remove 55-57
-    if drop_frames == False: 
-        num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames)
-    if drop_frames == True: 
-        num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames)
+    num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, 
+                                                                                               camera_trigger_data, 
+                                                                                               drop_frames = drop_frames)
 
     fps = get_fps(session, num_frames_expected, duration_of_video)
-    camera_trigger = Camera_trigger(camera_trigger_num_samples, num_frames_expected, frame_trigger_onsets_idx, fps)
+    
+    camera_trigger = Camera_trigger(camera_trigger_num_samples, 
+                                    num_frames_expected, 
+                                    frame_trigger_onsets_idx, 
+                                    fps)
+    
     return camera_trigger, camera_trigger_data
 
 def get_num_frames_expected(session: Session, 

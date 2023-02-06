@@ -16,3 +16,10 @@ class TTL_Sync:
     bonsai_sync_offsets: int # array of ints, onset/offsets PRE RESAMPLING 
     ephys_sync_onsets: int # array of ints, onset/offsets PRE RESAMPLING 
     ephys_sync_offset: int # array of ints, onset/offsets PRE RESAMPLING
+    
+@dataclass(frozen=True)
+class Camera_trigger:
+    num_samples: int
+    num_frames: int
+    frame_trigger_onsets_idx: object
+    fps: int
