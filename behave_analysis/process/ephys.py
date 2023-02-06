@@ -1,23 +1,16 @@
-"""
-Refactor: Where the efizz data comes from
-
-"""
+"""A module that requires refactoring as the syncing process and the spike sorting platform have changed"""
 
 # Custom Libaries
 from __future__ import annotations
-from itertools import count
 from behave_analysis.process.session import Session
 from behave_analysis.utils.mat_to_python import convert_matlab_struct
-from databank import efizz
+from settings.settings_process import settings_process as settings_p
 
 # OS Libaries
 from dataclasses import dataclass
 from loguru import logger
 import numpy as np
 import pandas as pd
-
-#Data
-ephys_file_path = efizz["Efizz_test_23Jan19"]["res"]
 
 @dataclass(frozen=True)
 class Ephys:
@@ -31,7 +24,7 @@ class Ephys:
 def get_Ephys(session: Session):
 
     # Load spike times and cluster ids, and define total spike count
-    spike_times, cluster_ids, annotations = load_ephys_data(ephys_file_path)
+    spike_times, cluster_ids, annotations = load_ephys_data(settings_p.efizzDataPath)
     num_spikes = len(spike_times)
 
     # Align spikes times to pulse onset
@@ -42,14 +35,6 @@ def get_Ephys(session: Session):
     cluster_ids = cluster_ids[indexes_removed:]
     assert len(cluster_ids) == len(spike_times), "cluster ids should match spike len"
     
-    # spike data not resampled as can't make fast function so commenting out, meaning data slightly off
-    
-    if session.ttl.idxs_2_remov_from_imec_sig:
-        # Resample spike data to remove indexes that might of by chance removed from resample alignment
-        cluster_ids, spike_times = resample_spike_data(cluster_ids,
-                                                    spike_times,
-                                                    session.ttl.idxs_2_remov_from_imec_sig)
-
     # create spike dic
     spike_dic = create_spike_dic(cluster_ids, spike_times)
 
@@ -107,39 +92,6 @@ def create_spike_mask(spike_times, imec_TTL):
 
         return spike_mask
     
-def resample_spike_data(cluster_ids,
-                        spike_times,
-                        indexs_removed_from_imec):
-    """A function that removes indexes from the spike data that were removed
-    from the Imec TTL signal to ensure Imec and bonsai are aligned.
-
-    Args:
-        cluster_ids (_type_): _description_
-        spike_times (_type_): _description_
-
-    Returns:
-        _type_: _description_
-        
-    Refactor:
-    - Very slow. Factorise cluster id if possible but spike time calc also slow
-    - not used as so slow meaning spike data not resampled and slightly misaligned
-    """
-    
-    logger.warning("Resampling spike data as Imec signal required it")
-
-    spike_times_data_frame = pd.DataFrame(spike_times, columns = ["spike_times"])
-    output = spike_times_data_frame.spike_times.isin(indexs_removed_from_imec)
-    idx = np.asarray(output[output].index) # Retrieve index and convert to array
-    
-    # Use those idxs to remove from both cluster id and spike times
-    spike_times = np.delete(spike_times, idx)
-    cluster_ids = np.delete(cluster_ids, idx)
-    
-    # Assertions to check length
-    assert len(cluster_ids) == len(spike_times), "The Lengths of these two should match"
-    
-    return cluster_ids, spike_times
-
 def offset_spike_times(offset,
                        spike_times) -> object:
     """A function that removes the spikes occuring before the

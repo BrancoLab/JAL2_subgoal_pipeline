@@ -1,6 +1,8 @@
 """The following script contains several dataclasses that outline the fields of several AI data classes 
 used within the pipeline. Each data class outlines the structure or blueprint of the settings object. 
-As such each class below is just a shell"""
+As such each class below is just a shell.
+
+It also contains a dataclass for the TTL sync object, which is used to align the big rig with the efizz machine"""
 
 from dataclasses import dataclass
 
