@@ -70,7 +70,7 @@ class Process():
             Verifications(self).visulize_sync_output() # Comment out to prevent sync plot from showing, just a sanity check
             Verifications(self).verify_clock_drift() 
         
-        logger.info("All verifications steps passed")
+        logger.success("All verifications steps passed")
         
         return None 
 

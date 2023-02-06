@@ -24,6 +24,6 @@ settings_process = Settings_process(
     sessions = [1], # This session points to the data bank index
     all_sessions = False,
     efizz = True, # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
-    efizzDataPath = efizz["Efizz_test_23Jan19"]["res"], # Set to None if no Efizz data
+    efizzDataPath = efizz["Efizz_test_23Jan19"], # Set to None if no Efizz data
 
 )

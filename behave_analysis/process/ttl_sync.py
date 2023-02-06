@@ -30,6 +30,7 @@ from behave_analysis.process.session import Session
 from behave_analysis.utils.load_bin_or_np import load_or_open
 from databank import efizz
 from behave_analysis.utils.AI_dataClass_objects import TTL_Sync
+from settings.settings_process import settings_process as settings_p
 
 #OS libaries
 import os
@@ -37,10 +38,7 @@ import numpy as np
 from glob import glob
 import dill as pickle
 from loguru import logger
-import matplotlib.pyplot as plt
 
-#Store file name here now for testing - hard coded need to update
-imec_bin_file = efizz["Efizz_test_23Jan19"]["bin"]
 
 #Return the above data class
 def get_TTL(session: Session):
@@ -67,7 +65,6 @@ def get_TTL(session: Session):
     #Get onset and offsets
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
     ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
-    imec_delay = ephys_sync_onsets[0]
 
     # Check to see that imec pulse onset is first 
     # ??What does this do?
@@ -118,7 +115,7 @@ def retrieve_TTL_signals(session: Session):
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     bonsai_ttl = AI_data[np.arange(3, len(AI_data), 4)] #From the 4 index until the end select every 4th sample
-    imec_TTL = get_TTL_from_imec(imec_bin_file)
+    imec_TTL = get_TTL_from_imec(settings_p.efizzDataPath["bin"])
     return bonsai_ttl, imec_TTL
 
 #Load imec bin file
@@ -241,7 +238,7 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
         logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(imec_errors), len(errors_bonsai)))
     
     # Log success
-    logger.info("Bonsai and Imec TTL are of similar lengths and have passed the abberant signal verification ")
+    logger.success("Bonsai and Imec TTL are of similar lengths and have passed the abberant signal verification ")
 
     return imec_TTL, bonsai_ttl
 
