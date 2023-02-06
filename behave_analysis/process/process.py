@@ -67,7 +67,7 @@ class Process():
             Verifications(self).verify_check_means()
             Verifications(self).verify_onsets_and_offsets()
             Verifications(self).verify_ttl_len_with_frame_duration()
-            # Verifications(self).visulize_sync_output() # Comment out to prevent sync plot from showing, just a sanity check
+            Verifications(self).visulize_sync_output() # Comment out to prevent sync plot from showing, just a sanity check
             Verifications(self).verify_clock_drift() 
         
         logger.info("All verifications steps passed")
