@@ -121,40 +121,51 @@ class Verifications():
         
     def visulize_sync_output(self):
         """A function to plot the digital signals of the bonsai machine and the imec machine
-        to ensure that after resampling and alignment they are identical.
+        to ensure that after alignment they are identical. The alignment is done by
+        regressing the imec signal on the bonsai signal and then shifting the imec signal.
+        The intercept is removed because the true origin is close to zero. Adding the intercept
+        breaks the regression. ALthough confusing the intercept was not learnt to be zero.
         """
-
-        # Retrieve algined signals
-        bonsai_TTL = self.Process.session.ttl.bonsai_TTL
-        imec_TTL = self.Process.session.ttl.imec_TTL
-
-        # Print the length of the arrays
-        logger.info("Length of the Bonsai TTL signal is {}".format(len(bonsai_TTL)))
-        logger.info("Length of the Imec TTL signal is {}".format(len(imec_TTL)))
-
-        # Plotting logic
-        fig, axs = plt.subplots(2)
-        fig.suptitle("First and last 100k samples, TTL comparison")
-        axs[0].plot(bonsai_TTL[:100000], label = "Bonsai TTL")
-        axs[0].plot(imec_TTL[:100000], label = "Imec TTL")
-        axs[0].set_title("Check the first pulses are aligned")
-
-        axs[1].plot(bonsai_TTL[(len(bonsai_TTL) - 100000):], label = "Bonsai TTL")
-        axs[1].plot(imec_TTL[(len(imec_TTL) - 100000):], label = "Imec TTL")
-        axs[1].set_title("Check the last pulses are aligned")
-        fig.legend()
+        
+        # Trucate Signals to the first pulse onset 
+        bonsaiSignal = self.Process.session.ttl.bonsai_TTL[self.Process.session.ttl.bonsai_sync_onsets[0]:]
+        imecSignal   = self.Process.session.ttl.imec_TTL[self.Process.session.ttl.ephys_sync_onsets[0]:]
+        
+        # Convert to Time
+        bonsaiTime = np.arange(0, len(bonsaiSignal)) / self.Process.session.ttl.sampling_rate
+        imecTime = np.arange(0, len(imecSignal)) / self.Process.session.ttl.sampling_rate
+        
+        # Align signals
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets / self.Process.session.ttl.sampling_rate, 
+                                                                             self.Process.session.ttl.bonsai_sync_onsets / self.Process.session.ttl.sampling_rate)
+        regression = lambda x: slope * x
+        
+        # Plot starting, middle and end samples to check alignment
+        fig, axs = plt.subplots(3)
+        fig.suptitle('Efizz syncing checks')
+        axs[0].set_title("Start of sync")
+        axs[0].plot(regression(imecTime)[:500000], imecSignal[:500000], color='blue', label = 'Imec')
+        axs[0].plot(bonsaiTime[:500000], bonsaiSignal[:500000], color='red', label = 'Bonsai')
+        
+        middlePulse = int(np.median(self.Process.session.ttl.bonsai_sync_onsets))
+        axs[1].set_title("Middle of sync")
+        axs[1].plot(regression(imecTime)[middlePulse : middlePulse + 500000], imecSignal[middlePulse : middlePulse + 500000], color='blue', label = 'Imec')
+        axs[1].plot(bonsaiTime[middlePulse : middlePulse + 500000], bonsaiSignal[middlePulse : middlePulse + 500000], color='red', label = 'Bonsai')
+        
+        LastPulses = self.Process.session.ttl.bonsai_sync_onsets[-10]
+        axs[2].set_title("End of sync")
+        axs[2].plot(regression(imecTime)[LastPulses : LastPulses + 500000], imecSignal[LastPulses : LastPulses + 500000], color='blue', label = 'Imec')
+        axs[2].plot(bonsaiTime[LastPulses : LastPulses + 500000], bonsaiSignal[LastPulses : LastPulses + 500000], color='red', label = 'Bonsai')
+        
         plt.show()
-
-        # Assertions
-        assert len(bonsai_TTL) == len(imec_TTL), "Imec TLL signal length should be equal to Bonsai TTL"
         
     def verify_clock_drift(self):
         """Check that the clock drift is linear and not too large given that it is deterministic that
         the clocks between the two machines are not perfectly synced (imec and bonsai). Assuming that the bonsai
         clock is faster and thus we project from the spike machine to the bonsai machine. 
         """
-        y = self.Process.session.ttl.bonsai_sync_onsets
-        x = self.Process.session.ttl.ephys_sync_onsets
+        y = self.Process.session.ttl.bonsai_sync_onsets / self.Process.session.ttl.sampling_rate
+        x = self.Process.session.ttl.ephys_sync_onsets / self.Process.session.ttl.sampling_rate
         
         slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
         logger.info(f"The R squared value of the linear regression is: {r_value**2}")
