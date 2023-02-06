@@ -108,15 +108,14 @@ class Process():
 
     def print_session_details(self,stage: int):
         if stage==1:
-            print('\n\n---')
+            logger.info("Commencing processing of sessions")
             for key in self.session.__dict__.keys():
                 if key in ['name','number','mouse','previous_sessions']:
-                    print(" {}: {}".format(key, self.session.__dict__[key]))
+                    logger.info(" {}: {}".format(key, self.session.__dict__[key]))
         if stage==2:
-            print('')
             for key in self.session.__dict__.keys():
                 if key in ['camera_trigger', 'laser','audio','video']:
-                    print(" {} metadata saved".format(key))
-            print(" registration transform: {}".format(isinstance(self.session.video.registration_transform, np.ndarray)))
+                    logger.info(" {} metadata saved".format(key))
+            logger.info(" registration transform: {}".format(isinstance(self.session.video.registration_transform, np.ndarray)))
 
         
