@@ -29,33 +29,19 @@ Todo:
 from behave_analysis.process.session import Session
 from behave_analysis.utils.load_bin_or_np import load_or_open
 from databank import efizz
+from behave_analysis.utils.AI_dataClass_objects import TTL_Sync
 
 #OS libaries
 import os
 import numpy as np
-from dataclasses import dataclass
 from glob import glob
 import dill as pickle
-import pandas as pd
-import random
 from loguru import logger
 import matplotlib.pyplot as plt
 
 #Store file name here now for testing - hard coded need to update
 imec_bin_file = efizz["Efizz_test_23Jan19"]["bin"]
 
-# Refactor to have TTL_sync in data class 
-@dataclass(frozen=False)
-class TTL_Sync:
-    # Storing relevant data to align big rig with efizz machine using the onset of TTL pulses
-    bonsai_TTL: float # voltage recordings of ttl signal from bonsai machine
-    imec_TTL: float
-    sampling_rate: int # Should be 30khz for neuropixels
-    bonsai_sync_onsets: int # array of ints, onset/offsets PRE RESAMPLING 
-    bonsai_sync_offsets: int # array of ints, onset/offsets PRE RESAMPLING 
-    ephys_sync_onsets: int # array of ints, onset/offsets PRE RESAMPLING 
-    ephys_sync_offset: int # array of ints, onset/offsets PRE RESAMPLING 
-    
 #Return the above data class
 def get_TTL(session: Session):
     """Returns the TTL_sync dataclass. 
