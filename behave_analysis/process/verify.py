@@ -121,7 +121,7 @@ class Verifications():
         bonsaiSignal = self.Process.session.ttl.bonsai_TTL[self.Process.session.ttl.bonsai_sync_onsets[0]:]
         imecSignal   = self.Process.session.ttl.imec_TTL[self.Process.session.ttl.ephys_sync_onsets[0]:]
         
-        # Convert to Time
+        # Create time vectors
         bonsaiTime = np.arange(0, len(bonsaiSignal)) / self.Process.session.ttl.sampling_rate
         imecTime = np.arange(0, len(imecSignal)) / self.Process.session.ttl.sampling_rate
         
