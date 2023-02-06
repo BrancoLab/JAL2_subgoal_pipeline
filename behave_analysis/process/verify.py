@@ -60,7 +60,6 @@ class Verifications():
             assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger data doesn't match the length of the bonsai TTL"
 
     def verify_onsets_and_offsets(self):
-        logger.info("Verifying sync signal pulses")
         
         # Get onset and offsets
         bonsai_sync_onsets  = self.Process.session.ttl.bonsai_sync_onsets
@@ -82,7 +81,7 @@ class Verifications():
                            f"{len(bonsai_sync_onsets)} and SpikeGLX: {len(ephys_sync_onsets)}")
     
         else:
-            logger.info(f"Both bonsai and spikeGLX have {len(ephys_sync_onsets)} sync pulses")
+            logger.info(f"Both bonsai and spikeGLX have equal number of {len(ephys_sync_onsets)} sync pulses")
 
         #Check the interval between sync signals in bonsai
         onsets_delta = np.diff(bonsai_sync_onsets)
@@ -99,10 +98,10 @@ class Verifications():
         too far away from expected mean.
         """
         if abs(np.mean(self.Process.session.ttl.bonsai_TTL) - 2.5) > 1:
-            logger.warning("Bonsai signal mean very far from expected average, cant be!")
+            logger.error("Bonsai signal mean very far from expected average, cant be!")
             return
         if abs(np.mean(self.Process.session.ttl.imec_TTL) - 38.0) > 10:
-            logger.warning("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.Process.session.ttl.imec_TTL)))
+            logger.error("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.Process.session.ttl.imec_TTL)))
             return
     
     def verify_ttl_len_with_frame_duration(self):
