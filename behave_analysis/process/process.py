@@ -17,16 +17,13 @@ from loguru import logger
 
 class Process():
     """A class that holds the processing part of the data pipeline. It is the first part of the pipeline that should be run.
-    This stage also includes verifications of data quality."""
+    This stage also includes verifications of data"""
     def __init__(self, session_ID):
         self.session = get_Session(session_ID)
         
     def create_session(self, video_settings) -> Session:
         """A function that creates the session, and saves the metadata file. It also runs the quality checks on the session.
-        Resamples and aligns signals etc. Need to refactor as a lot is happening.
-        
-        Refactor potential: Remove downsampling from get functions into seperate function
-        """
+        Resamples and aligns signals etc. Need to refactor as a lot is happening."""
         
         self.load_registration_transform()
         self.print_session_details(stage=1)
@@ -34,15 +31,9 @@ class Process():
         if settings_p.efizz:
             self.session.ttl = get_TTL(self.session)
         
-        self.session.camera_trigger = get_Camera_trigger(self.session, 
-                                                         drop_frames = True)[0]
-        
+        self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
         self.session.audio = get_Audio(self.session)
-        
-        self.session.video = get_Video(self.session, 
-                                       video_settings, 
-                                       self.loaded_registration_transform)
-        
+        self.session.video = get_Video(self.session, video_settings, self.loaded_registration_transform)
         self.session.photo_resistor = get_Photoresistor(self.session)
         
         if settings_p.efizz:
@@ -57,7 +48,6 @@ class Process():
     
     def quality_check_new_sessions(self) -> None:
         """A function that runs veritifcation checks on a new session that has been recorded but not processed"""
-
         Verifications(self).verify_all_frames_saved()
         
         if settings_p.efizz:
@@ -68,35 +58,25 @@ class Process():
             Verifications(self).verify_ttl_len_with_frame_duration()
             Verifications(self).visulize_sync_output()
             Verifications(self).verify_clock_drift() 
-        
+            
         logger.success("All verifications steps passed")
-        
-        None
+        return None
 
     def save_session(self, overwrite=True) -> None:
-        """A function that saves the processes session to a metadata file
-
-        Args:
-            overwrite (bool, optional): _description_. Defaults to True.
-        """
+        """A function that saves the processes session to a metadata file"""
         assert not os.path.isfile(self.session.metadata_file) or overwrite, "Permission to save not granted"
         with open(self.session.metadata_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
         return None
 
     def load_session(self) -> Session:
         """Load a previously exsisting file. If the file does not exsist and the settings process
-        is set to skip process. Then an error may occur.
-
-        Returns:
-            _type_: _description_
-        """
+        is set to skip process. Then an error may occur"""
         try:
             with open(self.session.metadata_file, "rb") as dill_file: session = pickle.load(dill_file)
         except EOFError:
             print(f"The file location is: {self.session.metadata_file}. Is this correct? Does a metadata file exsist here?")
             print("Delete meta file")
             return
-
         return session
 
     def load_registration_transform(self) -> None:
@@ -105,7 +85,6 @@ class Process():
             self.loaded_registration_transform = self.load_session().video.registration_transform
         else: 
             self.loaded_registration_transform = None
-        
         return None
 
     def print_session_details(self,stage: int) -> None:
@@ -119,7 +98,4 @@ class Process():
                 if key in ['camera_trigger', 'laser','audio','video']:
                     logger.info(" {} metadata saved".format(key))
             logger.info(" registration transform: {}".format(isinstance(self.session.video.registration_transform, np.ndarray)))
-        
         return None
-
-        
