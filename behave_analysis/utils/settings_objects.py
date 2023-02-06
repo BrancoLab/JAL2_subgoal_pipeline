@@ -1,4 +1,5 @@
-"""The following script contains several dataclasses that outline the fields of several classes used within the pipeline but contain no data themselves.
+"""The following script contains several dataclasses that outline the fields of several settings data classes 
+used within the pipeline. Each data class outlines the structure or blueprint of the settings object. 
 As such each class below is just a shell"""
 
 from dataclasses import dataclass
