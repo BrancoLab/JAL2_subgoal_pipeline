@@ -10,6 +10,7 @@ from loguru import logger
 import numpy as np
 import matplotlib.pyplot as plt
 import scipy
+import sys
 
 class Verifications():
     def __init__(self, Process):
@@ -81,7 +82,7 @@ class Verifications():
                            f"{len(bonsai_sync_onsets)} and SpikeGLX: {len(ephys_sync_onsets)}")
     
         else:
-            logger.info(f"Both bonsai and spikeGLX have equal number of {len(ephys_sync_onsets)} sync pulses")
+            logger.success(f"Both bonsai and spikeGLX have equal number of {len(ephys_sync_onsets)} sync pulses")
 
         #Check the interval between sync signals in bonsai
         onsets_delta = np.diff(bonsai_sync_onsets)
