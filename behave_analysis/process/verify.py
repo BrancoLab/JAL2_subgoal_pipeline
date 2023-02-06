@@ -154,11 +154,6 @@ class Verifications():
         the clocks between the two machines are not perfectly synced (imec and bonsai). Assuming that the bonsai
         clock is faster and thus we project from the spike machine to the bonsai machine. 
         """
-        y = self.Process.session.ttl.bonsai_sync_onsets / self.Process.session.ttl.sampling_rate
-        x = self.Process.session.ttl.ephys_sync_onsets / self.Process.session.ttl.sampling_rate
-        
-        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(x, y)
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets, self.Process.session.ttl.bonsai_sync_onsets)
         logger.info(f"The R squared value of the linear regression is: {r_value**2}")
         assert r_value**2 > 0.9999 , "The R squared value of the linear regression is too low"
-        
-        
