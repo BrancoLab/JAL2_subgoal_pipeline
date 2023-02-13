@@ -16,16 +16,19 @@ class Track():
         self.settings = settings
 
     def run_deeplabcut_tracking(self, session):
-        """Check if DLC has been run on a video before if not run it.
-        This should not require updating.
+        """Check if DLC has been run on a video before, if not run DLC. If a DLC
+        file already exists don't run DLC again. It requires the DLC settings file
+        to contain reset in its name which may not be the case for all DLC models
+        and versions.
 
         Args:
             session (object): A data class containing relevant information for tracking contained within settings_track.py
         """
-        print('\n\n---')
-        dlc_already_run = bool(glob.glob(os.path.join(session.file_path, "*DeepCut*")))
+        dlc_already_run = bool(glob.glob(os.path.join(session.file_path, "*resnet*"))) # Does a file exist with this token in the name?
+        
         if dlc_already_run:
             logger.info("DeepLabCut tracking already saved for session: {} - {}".format(session.number, session.name))
+            
         else:
             logger.info("Running DeepLabCut tracking for session: {} - {}".format(session.number, session.name))
             from deeplabcut.pose_estimation_tensorflow import analyze_videos
