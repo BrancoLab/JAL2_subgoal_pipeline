@@ -16,9 +16,9 @@ class Track():
         self.settings = settings
 
     def run_deeplabcut_tracking(self, session):
-        """Check if DLC has been run on a video before, if not run DLC. If a DLC
+        """Check if DLC has been run on a video before, if not run analyze videos. If a DLC
         file already exists don't run DLC again. It requires the DLC settings file
-        to contain reset in its name which may not be the case for all DLC models
+        to contain resnet in its name which may not be the case for all DLC models
         and versions.
 
         Args:
@@ -35,18 +35,23 @@ class Track():
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
 
     def process_tracking_data(self, session):
-        """Some futher processing shouldn't require changing.
+        """Check if the tracking data has been processed before, if not run this function.
+        There is a flag in the settings_track option to skip or redo the processing step if needed.
+        If set to False (not False = True) it will skip processing if it has already been done. 
 
         Args:
             session (_type_): _description_
         """
         already_filtered_and_registered = os.path.isfile(session.video.tracking_data_file)
+        
         if already_filtered_and_registered and not self.settings.redo_processing_step: 
-            print("Tracking data already filtered and registered for session:  {} - {}".format(session.number, session.name))
+            logger.info(f"Tracking data already filtered and registered for session: {session.number} - {session.name}")
+            
         elif isinstance(session.video.registration_transform, type(None)):
-            print("Registration not found; tracking not processed for session: {} - {}".format(session.number, session.name))
+            logger.info(f"Registration not found; tracking not processed for session: {session.number} - {session.name}")
+            
         else:
-            print("Processing tracking data for session:                       {} - {}".format(session.number, session.name))
+            logger.info(f"Processing tracking data for session: {session.number} - {session.name}")
             self.create_dlc_tracking_array(session)
             self.remove_bad_tracking_data(session)
             self.correct_and_register(session)
