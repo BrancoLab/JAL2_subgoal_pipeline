@@ -155,5 +155,5 @@ class Verifications():
         0.9999 was recommended by the NeuroGears team.
         """
         slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets, self.Process.session.ttl.bonsai_sync_onsets)
-        assert r_value**2 > 0.9999 , "The R squared value of the linear regression is too low"
+        assert r_value**2 > 0.9999, "The R squared value of the linear regression is too low"
         logger.success(f"The R squared value of the linear regression for clock drift check has passed the tests and is: {r_value**2}")
