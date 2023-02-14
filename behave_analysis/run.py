@@ -13,6 +13,9 @@ from behave_analysis.utils.print_settings import print_settings, print_settings_
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
 from databank import databank
 
+# OS Libaries
+from loguru import logger
+
 def process():
     """A function that collects sessions from the databank, puts the sessions through a processing
     pipeline and then saves the sessions to a metadata file. This metadata file is then loaded and used
@@ -29,12 +32,14 @@ def process():
         Process(session_ID).create_session(settings_p)
  
 def track():
-    # print("\n------ TRACKING VIDEOS ------"); print_settings(settings_t)
+    """A function that collects sessions from the databank, puts the sessions through a tracking
+    in Deep lab cut."""
+    logger.info("Tracking started")
     session_IDs = collect_session_IDs(settings_t, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
-        Track(settings_t).run_deeplabcut_tracking(session)
-        Track(settings_t).process_tracking_data  (session)
+        Track(settings_t, session)
+    logger.success("Tracking complete")
 
 def homings():
     # print("\n------ EXTRACTING HOMINGS ------"); print_settings(settings_h)

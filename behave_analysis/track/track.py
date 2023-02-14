@@ -1,46 +1,37 @@
+# Custom Libaries
+from behave_analysis.track.dlcHelp import DLC
+
 # OS Libaries
 from loguru import logger
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 import os
-import glob
-import yaml
 import pandas as pd
 import numpy as np
 import scipy.ndimage
 import dill as pickle
 import cv2
 
-class Track():
-    def __init__(self, settings):
+class Track(DLC):
+    """A tracking class that checks if DLC has been run yet on the session upon 
+    initialization. If not, it runs DLC. Then it processes the tracking data by computing 
+    the required metrics.
+
+    Args:
+        DLC (object): A class to handle DLC related data and functions.
+    """
+    def __init__(self, settings, session):
         self.settings = settings
-
-    def run_deeplabcut_tracking(self, session):
-        """Check if DLC has been run on a video before, if not run analyze videos. If a DLC
-        file already exists don't run DLC again. It requires the DLC settings file
-        to contain resnet in its name which may not be the case for all DLC models
-        and versions.
-
-        Args:
-            session (object): A data class containing relevant information for tracking contained within settings_track.py
-        """
-        dlc_already_run = bool(glob.glob(os.path.join(session.file_path, "*resnet*"))) # Does a file exist with this token in the name?
-        
-        if dlc_already_run:
-            logger.info("DeepLabCut tracking already saved for session: {} - {}".format(session.number, session.name))
-            
-        else:
-            logger.info("Running DeepLabCut tracking for session: {} - {}".format(session.number, session.name))
-            from deeplabcut.pose_estimation_tensorflow import analyze_videos
-            analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
-
+        self.run_deeplabcut_tracking(session)
+        self.process_tracking_data(session)
+    
     def process_tracking_data(self, session):
         """Check if the tracking data has been processed before, if not run this function.
         There is a flag in the settings_track option to skip or redo the processing step if needed.
         If set to False (not False = True) it will skip processing if it has already been done. 
 
         Args:
-            session (_type_): _description_
+            session (object): session dataclass
         """
         already_filtered_and_registered = os.path.isfile(session.video.tracking_data_file)
         
@@ -60,17 +51,7 @@ class Track():
             self.save_tracking(session)
 
 # -----HIGH-LEVEL FUNCS-------------------------------------------------------------
-    def create_dlc_tracking_array(self, session):
-        """Create and fill an array of tracking data from DLC.
-        Shouldn't need changing.
 
-        Args:
-            session (object): session dataclass
-        """
-        self.tracking_data = {}
-        self.extract_data_from_dlc_file(session)
-        self.create_array_with_dlc_tracking_data(session)
-        
     def remove_bad_tracking_data(self, session):
         self.correct_out_of_frame_tracking(session)
         self.replace_low_confidence_points_with_nan()
@@ -90,28 +71,6 @@ class Track():
         self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
 
 # -----LOW-LEVEL FUNCS--------------------------------------------------------------
-    def extract_data_from_dlc_file(self, session):
-        """Ingests a H5 file outputted from DLC analysis, body parts, and
-        model name. Changing the string in dlc network name maybe necessary if using different model
-        type.
-
-        Args:
-            session (obejct): Session settings object data class
-        """
-        dlc_tracking_file = glob.glob(os.path.join(session.file_path, "*.h5"))[0] #Selects the .h5 file in video dir
-        self.dlc_output = pd.read_hdf(dlc_tracking_file) #Converts .h5 to pandas
-        print(self.dlc_output)
-        with open(self.settings.dlc_settings_file) as file: dlc_settings = yaml.safe_load(file)
-        self.tracking_data['bodyparts'] = dlc_settings['bodyparts']
-        self.dlc_network_name = dlc_tracking_file[dlc_tracking_file.find('DLC_resnet'):-3] #This line breaks if different model names are used
-        if not self.dlc_network_name: logger.error("No DLC name found, has a different model been used?")
-
-    def create_array_with_dlc_tracking_data(self, session):
-        self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data['bodyparts']), 3))
-        for i, body_part in enumerate(self.tracking_data['bodyparts']):
-            for j, axis in enumerate(['x', 'y']):
-                self.tracking_data_array[:, i, j] = self.dlc_output[self.dlc_network_name][body_part][axis].values
-            self.tracking_data_array[:, i, 2] = self.dlc_output[self.dlc_network_name][body_part]['likelihood'].values
 
     def correct_out_of_frame_tracking(self, session):
         self.tracking_data_array[self.tracking_data_array<0] = 0
