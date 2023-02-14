@@ -147,18 +147,5 @@ class Track(DLC):
         smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
         self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
        
-    def plot_tracking(self):
-        if self.settings.display_tracking_output:
-            for axis in [0,1]:
-                plt.figure()
-                plt.title('Example of 10,000 time-points of tracking data - axis {}'.format(axis))
-                for bodypart in self.tracking_data['bodyparts']:
-                    plt.plot(self.tracking_data[bodypart][10000:20000, axis])
-                plt.legend(self.tracking_data['bodyparts'])
-            plt.figure(figsize=(12,6))
-            plt.title('Histogram of confidence in tracking data')
-            plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
-            plt.show()
 
-    def save_tracking(self, session):
-        with open(session.video.tracking_data_file, "wb") as dill_file: pickle.dump(self.tracking_data, dill_file)
+

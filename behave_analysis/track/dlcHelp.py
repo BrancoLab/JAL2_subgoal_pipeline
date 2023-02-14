@@ -4,6 +4,8 @@ import os
 from loguru import logger
 import yaml
 import numpy as np
+import dill as pickle
+import matplotlib.pyplot as plt
 
 class DLC:
     """A class to handle the DLC tracking data. This class is used to extract the tracking data from the DLC outputted .h5 file 
@@ -90,3 +92,20 @@ class DLC:
         self.create_array_with_dlc_tracking_data(session)
         
         return None
+    
+    def save_tracking(self, session):
+        with open(session.video.tracking_data_file, "wb") as dill_file: 
+            pickle.dump(self.tracking_data, dill_file)
+    
+    def plot_tracking(self):
+        if self.settings.display_tracking_output:
+            for axis in [0,1]:
+                plt.figure()
+                plt.title('Example of 10,000 time-points of tracking data - axis {}'.format(axis))
+                for bodypart in self.tracking_data['bodyparts']:
+                    plt.plot(self.tracking_data[bodypart][10000:20000, axis])
+                plt.legend(self.tracking_data['bodyparts'])
+            plt.figure(figsize=(12,6))
+            plt.title('Histogram of confidence in tracking data')
+            plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
+            plt.show()
