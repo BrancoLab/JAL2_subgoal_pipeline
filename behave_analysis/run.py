@@ -20,20 +20,19 @@ def process():
     """A function that collects sessions from the databank, puts the sessions through a processing
     pipeline and then saves the sessions to a metadata file. This metadata file is then loaded and used
     by subsequent track, homing, visualize and analyze functions.
-    
     Returns: Nothing, data is saved to a metadata file."""
     
+    logger.info("Processing started")
     session_IDs = collect_session_IDs(settings_p, databank)
-        
-    # Check sessions are uploaded correctly
     assert list(session_IDs), "Session list should not be empty"
-    
     for session_ID in session_IDs:
         Process(session_ID).create_session(settings_p)
+    logger.success("Processing complete")
  
 def track():
     """A function that collects sessions from the databank, puts the sessions through a tracking
     in Deep lab cut."""
+    
     logger.info("Tracking started")
     session_IDs = collect_session_IDs(settings_t, databank)
     for session_ID in session_IDs:
@@ -50,7 +49,7 @@ def homings():
         get_Threshold_crossings(settings_h, session)
 
 def visualize():
-    # print("\n------ VISUALIZING DATA ------"); print_settings(settings_v)
+    logger.info("Visulisation started")
     session_IDs = collect_session_IDs(settings_v, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
@@ -59,6 +58,7 @@ def visualize():
         if settings_v.homing_trials: Visualize(session, settings_v).trials(stim_type = 'homing')
         if settings_v.t_xing_trials: Visualize(session, settings_v).trials(stim_type = 'threshold_crossing')
         if settings_v.explore_trial: Visualize(session, settings_v).trials(stim_type = 'audio')
+    logger.success("Visulisation complete")
 
 def analyze():
     # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a); 
