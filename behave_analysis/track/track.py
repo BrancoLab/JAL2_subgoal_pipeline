@@ -9,7 +9,6 @@ import os
 import pandas as pd
 import numpy as np
 import scipy.ndimage
-import dill as pickle
 import cv2
 
 class Track(DLC):
