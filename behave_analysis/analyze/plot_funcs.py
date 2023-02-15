@@ -1,7 +1,14 @@
+# custome libaries
 from behave_analysis.utils.color_funcs import get_colormap, generate_list_of_colors, get_color_based_on_target_score
+
+# Os Libraries
+from scipy import ndimage
+from scipy.ndimage import gaussian_filter
 import matplotlib.pyplot as plt
 import matplotlib.collections as plt_coll
 import numpy as np
+import bottleneck as bn
+from astropy.convolution import convolve
 
 def solid_line(self, trial: dict):
     color = get_plot_color(self, trial, plot_type='trajectory')
@@ -61,4 +68,187 @@ def format_axis(self):
     self.ax.margins(0, 0)
     self.ax.xaxis.set_major_locator(plt.NullLocator())
     self.ax.yaxis.set_major_locator(plt.NullLocator())
+
+def rate_map(self,
+    var: np.ndarray,
+    samples: np.ndarray,
+    *,
+    bins=30,
+    fs: int = 30000,
+    min_occ: float = 0,
+    smooth_half_win: int = 0,
+    smooth_axis: int = 0,
+    smooth_pad_type: str = "reflect",
+    method: str = "continuous",
+    preserve_nan_opt: bool = True,):
+    """
+    rate_map [summary]
+    Parameters
+    ----------
+    var : np.ndarray
+        for multidimensional data this function expect the input to be var[n_samples, n_dim]
+    samples : np.ndarray
+        can be either a continuous variable of size nsamples or indexes
+    bins : int, optional
+        [description], by default 10
+    fs : int
+        sampling rate
+    smooth_half_win : np.ndarray
+        half window size (in samples) of the smoothing kernel
+    smooth_axis : int
+        axis along which to apply the smoothing
+    smooth_pad_type : str
+        type of padding before the smoothing. ex: reflect, circular,...
+    method : str, optional
+        "point_process" or "continuous", by default "point_process"
+    preserve_nan_opt : bool
+        specify if nan value should be preserved in the output
+    Returns
+    -------
+    rate : np.ndarray
+        [description]
+    act : np.ndarray
+        [description]
+    occ : np.ndarray
+        [description]
+    Raises
+    ------
+    ValueError
+        in case of error in provided method
+    """
+    # check inputs
+    var = np.asarray(var)
+    samples = np.asarray(samples)
+
+    if not method in ["point_process", "continuous"]:
+        raise ValueError("Method should be either continuous or point_process")
+    if method == "point_process" and samples.dtype.kind != "i":
+        samples = float_to_int(samples)
+
+    # first take care of the bins
+    if isinstance(bins, (list, np.ndarray)):
+        bins = [bins]
+    elif isinstance(bins, tuple):
+        bins = [*bins]
+
+    # calculate occupancy
+    occ, _ = np.histogramdd(var, bins)
+
+    # affect no occupancy to nan. This avoid zero division later
+    # and is necessary to take into account non explored areas
+    no_occ = occ <= min_occ
+    occ[no_occ] = np.nan
+
+    if method == "continuous":
+        act, _ = np.histogramdd(var, bins, weights=samples)
+        act /= occ
+    elif method == "point_process":
+        occ = occ / fs  # convert in Hz
+        act, _ = np.histogramdd(var[samples], bins)
+
+    # sigma = 1
+    # act_s = gaussian_filter(act, sigma=sigma)
+    # occ_s = gaussian_filter(occ, sigma=sigma)
+    act_s = smooth_2d(act)
+    occ_s = smooth_2d(occ)
+   
+    # act_s, occ_s = act, occ
+
+    if method == "point_process":
+        rate_s = act_s / occ_s
+    elif method == "continuous":
+        rate_s = act_s
+
+    return rate_s, act_s, occ_s
+
+def float_to_int(array) -> np.array:
+    """
+    float_to_int
+    Cast float to int but check value are then equal
+    Parameters
+    ----------
+    array : [type]
+        input array
+    Returns
+    -------
+    array:
+        output array converted to int
+    Raises
+    ------
+    TypeError
+        [description]
+    Reference
+    ---------
+    https://stackoverflow.com/questions/36505879/convert-float64-to-int64-using-safe
+    """
+    if not isinstance(array, np.ndarray):
+        array = np.array(array)
+
+    if array.dtype.kind == "i":
+        return array
+
+    int_array = array.astype(int, casting="unsafe", copy=True)
+    if not np.equal(array, int_array).all():
+        raise TypeError(
+            "Cannot safely convert float array to int dtype. "
+            "Array must only contain whole numbers."
+        )
+    return int_array
+
+def smooth_2d(data,
+              kernel_half_width=3,
+              kernel_type="gauss",
+              padtype="reflect",
+              preserve_nan_opt=True,):
+    """
+    function to smooth 2 dimensional data.
+    Parameters
+    ----------
+    - data: matrix with your 2D data
+    - kernel_half_width: half width of the smoothing kernel
+    - kernel_type: way to smooth the data ('gauss': gaussian, 'box': boxcar smoothing)
+    - padtype: the matrix will be padded in order to remove border artefact
+        so we will pad the matrix.
+        Available option:   - symmetric: reflect the vector on the edge 1 2 3 4 [3 2 1]
+                            - reflect: reflect the vector on the edge 1 2 3 4 [4 3 2]
+                            - wrap: circularly wrap opposing edges
+    - preserve_nan_opt = do we smooth NaN or put them back att the end (default: True)
+    Returns
+    -------
+    - data_c smoothed version of data
+    """
+
+    # Check Input
+    if kernel_half_width % 2 != 1:
+        # kernel size has to be odd
+        kernel_half_width += 1
+
+    acceptedPad = ["reflect", "symmetric", "wrap"]
+    assert padtype in acceptedPad, "Not Implemented pad type"
+
+    acceptedType = ["gauss", "box"]
+    assert kernel_type in acceptedType, "Not Implemented smoothing kernel type"
+
+    # pad the data
+    data_p = np.pad(data, ((kernel_half_width, kernel_half_width)), padtype)
+
+    # Initialize convolution kernel
+    kernel = np.zeros((kernel_half_width * 2 + 1, kernel_half_width * 2 + 1))
+
+    if kernel_type == "box":
+        kernel = np.ones((kernel_half_width * 2 + 1, kernel_half_width * 2 + 1))
+    elif kernel_type == "gauss":
+        kernel_1D = np.arange(0, kernel_half_width) - (kernel_half_width - 1.0) / 2.0
+        kernel_1D = np.exp(
+            -(kernel_1D ** 2) / (2 * kernel_half_width * kernel_half_width)
+        )
+        kernel = np.outer(kernel_1D, kernel_1D)
+
+    # Normalize kernel to one
+    kernel = kernel / bn.nansum(kernel)
+
+    # Convolve. Astropy seems to deal really well with nan values
+    data_c = convolve(data_p, kernel=kernel, preserve_nan=preserve_nan_opt)
+
+    return data_c[kernel_half_width:-kernel_half_width, kernel_half_width:-kernel_half_width]
     

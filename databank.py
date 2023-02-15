@@ -1,32 +1,32 @@
+'''A meta file that contains all the information about the data paths and the session IDs.'''
+
+###########################################################################################################################
+
+#----Path to the folder where the data is stored-----
 databank = {}
-# databank['path'] = ".\\sample_data\\"                          # sample data
-# databank['path'] = "D:\\Dropbox (UCL)\\DAQ\\upstairs_rig\\"      # full dataset
-databank['path'] = r"C:\Users\JoannaA\Dropbox (UCL)\DAQ\upstairs_rig"      # full dataset
+databank['path'] = r"D:\efizz" # Where your behavioural data is stored
 
-databank['session IDs'] = [
-#----Name of experiment-----prev session------Folder with data------
-[0,0,      'food dish',                 False,       "1054_food dish_22JAN18"],
-[1,1,      'food dish',                 True,        "1056_food dish_22JAN20"],
+############################################################################################################################
 
-[2,0,      'foraging',                  False,       "1055_foraging_22JAN18"],
+"""
+Arugments:
++ Name of experiment - type: string, e.g. 'ObstacleThenRemove'
++ Previous session - type: bool, e.g. False
++ Folder with data - type: string, e.g. '9692_obstacle_22dec09'
+"""
 
-[3,0,      'bedding',                   False,       "1056_bedding_22JAN18"],
-[4,1,      'bedding',                   True,        "1055_bedding_22JAN20"],
+databank['session IDs'] = [[0,0, 'efizz test', False, 'YT6240_23jan20'],
+                           [1,0, 'No wall, wall', False, 'YT6240_23jan19']]
 
-[5,0,      'food dish center',          True,        "1054_food dish center_22JAN20"],
+#############################################################################################################################
 
-[6,0,      'biscuit chunks',            True,        "1055_bizkit_22FEB01"],
+"""
+Arugments:
++ Name of experiment - type: string, e.g. 'ObstacleThenRemove'
++ bin file location - type: string, e.g. r"D:\efizz\1677_NoShelterThenShelter_22MAY31_g0\1677_NoShelterThenShelter_22MAY31_g0_imec0\1677_NoShelterThenShelter_22MAY31_g0_t0.imec0.ap.bin" """
 
-[7,0,      'biscuit dust',              True,        "1054_less bizkit_22FEB01"],
-
-[8,0,      'bedding and dish',          True,        "1056_bedding and dish_22FEB01"],
-
-[9,0,      'biscuit dust and walls',    True,        "1113_less bizkit and walls_22FEB02"],
-
-[10,0,     'bedding and walls',         True,        "1114_bedding and walls_22FEB02"],
-
-[11,0,     'food dish and walls',       True,        "1115_food dish and walls_22FEB02"],
-
-[12, 0,    'efizz test',                True,        "2104_Ephsy_test"]
-
-]
+efizz = {"Efizz_test_23Jan20": {"bin": r"D:\efizz\YT6240_23jan20\230120_g0\230120_g0_imec0\230120_g0_t0.imec0.ap.bin",
+                                "res": 0},
+         "Efizz_test_23Jan19": {"bin": r"D:\efizz\YT6240_23jan19\230119_g0\230119_g0_imec0\230119_g0_t0.imec0.ap.bin",
+                                "res": 0}
+        }

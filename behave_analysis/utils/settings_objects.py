@@ -1,3 +1,7 @@
+"""The following script contains several dataclasses that outline the fields of several settings data classes 
+used within the pipeline. Each data class outlines the structure or blueprint of the settings object. 
+As such each class below is just a shell"""
+
 from dataclasses import dataclass
 
 @dataclass(frozen=True)
@@ -13,6 +17,8 @@ class Settings_process:
     by_session: bool=False
     sessions: list=None
     all_sessions: bool=False
+    efizz: bool=False
+    efizzDataPath: str=None
 
 @dataclass(frozen=True)
 class Settings_track:
@@ -118,3 +124,4 @@ class Settings_analyze_global:
     save_folder: str=None
     color_by: str=''
     x_jitter: bool=True
+    efiz_file_path: str=""

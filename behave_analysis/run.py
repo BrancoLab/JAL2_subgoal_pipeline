@@ -13,23 +13,35 @@ from behave_analysis.utils.print_settings import print_settings, print_settings_
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
 from databank import databank
 
+# OS Libaries
+from loguru import logger
 
 def process():
-    print("\n------ PROCESSING DATA ------".format(settings_p)); print_settings(settings_p)
+    """A function that collects sessions from the databank, puts the sessions through a processing
+    pipeline and then saves the sessions to a metadata file. This metadata file is then loaded and used
+    by subsequent track, homing, visualize and analyze functions.
+    Returns: Nothing, data is saved to a metadata file."""
+    
+    logger.info("Processing started")
     session_IDs = collect_session_IDs(settings_p, databank)
+    assert list(session_IDs), "Session list should not be empty"
     for session_ID in session_IDs:
         Process(session_ID).create_session(settings_p)
-
+    logger.success("Processing complete")
+ 
 def track():
-    print("\n------ TRACKING VIDEOS ------"); print_settings(settings_t)
+    """A function that collects sessions from the databank, puts the sessions through a tracking
+    in Deep lab cut."""
+    
+    logger.info("Tracking started")
     session_IDs = collect_session_IDs(settings_t, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
-        Track(settings_t).run_deeplabcut_tracking(session)
-        Track(settings_t).process_tracking_data  (session)
+        Track(settings_t, session)
+    logger.success("Tracking complete")
 
 def homings():
-    print("\n------ EXTRACTING HOMINGS ------"); print_settings(settings_h)
+    # print("\n------ EXTRACTING HOMINGS ------"); print_settings(settings_h)
     session_IDs = collect_session_IDs(settings_h, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
@@ -37,7 +49,7 @@ def homings():
         get_Threshold_crossings(settings_h, session)
 
 def visualize():
-    print("\n------ VISUALIZING DATA ------"); print_settings(settings_v)
+    logger.info("Visulisation started")
     session_IDs = collect_session_IDs(settings_v, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
@@ -46,9 +58,10 @@ def visualize():
         if settings_v.homing_trials: Visualize(session, settings_v).trials(stim_type = 'homing')
         if settings_v.t_xing_trials: Visualize(session, settings_v).trials(stim_type = 'threshold_crossing')
         if settings_v.explore_trial: Visualize(session, settings_v).trials(stim_type = 'audio')
+    logger.success("Visulisation complete")
 
 def analyze():
-    print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a); 
+    # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a); 
     session_IDs = collect_session_IDs_analysis(settings_a.analysis, databank)
     if settings_a.analysis.plot_escape:  Analyze(session_IDs, settings_a, 'escape trajectories'    ).trajectories()
     if settings_a.analysis.plot_laser:   Analyze(session_IDs, settings_a, 'laser trajectories'     ).trajectories()

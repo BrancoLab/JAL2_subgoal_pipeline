@@ -1,36 +1,47 @@
+# Custom Libaries
+from behave_analysis.track.dlcHelp import DLC
+
+# OS Libaries
+from loguru import logger
 import matplotlib.pyplot as plt
 from scipy.ndimage import gaussian_filter1d
 import os
-import glob
-import yaml
 import pandas as pd
 import numpy as np
 import scipy.ndimage
-import dill as pickle
 import cv2
 
-class Track():
-    def __init__(self, settings):
+class Track(DLC):
+    """A tracking class that checks if DLC has been run yet on the session upon 
+    initialization. If not, it runs DLC. Then it processes the tracking data by computing 
+    the required metrics.
+
+    Args:
+        DLC (object): A class to handle DLC related data and functions.
+    """
+    def __init__(self, settings, session):
         self.settings = settings
-
-    def run_deeplabcut_tracking(self, session):
-        print('\n\n---')
-        dlc_already_run = bool(glob.glob(os.path.join(session.file_path, "*DeepCut*")))
-        if dlc_already_run: 
-            print("DeepLabCut tracking already saved for session:              {} - {}".format(session.number, session.name))
-        else:
-            print("Running DeepLabCut tracking for session:                    {} - {}".format(session.number, session.name))
-            from deeplabcut.pose_estimation_tensorflow import analyze_videos
-            analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
-
+        self.run_deeplabcut_tracking(session)
+        self.process_tracking_data(session)
+    
     def process_tracking_data(self, session):
+        """Check if the tracking data has been processed before, if not run this function.
+        There is a flag in the settings_track option to skip or redo the processing step if needed.
+        If set to False (not False = True) it will skip processing if it has already been done. 
+
+        Args:
+            session (object): session dataclass
+        """
         already_filtered_and_registered = os.path.isfile(session.video.tracking_data_file)
+        
         if already_filtered_and_registered and not self.settings.redo_processing_step: 
-            print("Tracking data already filtered and registered for session:  {} - {}".format(session.number, session.name))
+            logger.info(f"Tracking data already filtered and registered for session: {session.number} - {session.name}")
+            
         elif isinstance(session.video.registration_transform, type(None)):
-            print("Registration not found; tracking not processed for session: {} - {}".format(session.number, session.name))
+            logger.info(f"Registration not found; tracking not processed for session: {session.number} - {session.name}")
+            
         else:
-            print("Processing tracking data for session:                       {} - {}".format(session.number, session.name))
+            logger.info(f"Processing tracking data for session: {session.number} - {session.name}")
             self.create_dlc_tracking_array(session)
             self.remove_bad_tracking_data(session)
             self.correct_and_register(session)
@@ -39,11 +50,7 @@ class Track():
             self.save_tracking(session)
 
 # -----HIGH-LEVEL FUNCS-------------------------------------------------------------
-    def create_dlc_tracking_array(self, session):
-        self.tracking_data = {}
-        self.extract_data_from_dlc_file(session)
-        self.create_array_with_dlc_tracking_data(session)
-        
+
     def remove_bad_tracking_data(self, session):
         self.correct_out_of_frame_tracking(session)
         self.replace_low_confidence_points_with_nan()
@@ -63,19 +70,6 @@ class Track():
         self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
 
 # -----LOW-LEVEL FUNCS--------------------------------------------------------------
-    def extract_data_from_dlc_file(self, session):
-        dlc_tracking_file = glob.glob(os.path.join(session.file_path, "*.h5"))[0]
-        self.dlc_output = pd.read_hdf(dlc_tracking_file)
-        with open(self.settings.dlc_settings_file) as file: dlc_settings = yaml.safe_load(file)
-        self.tracking_data['bodyparts'] = dlc_settings['bodyparts']
-        self.dlc_network_name = dlc_tracking_file[dlc_tracking_file.find('DeepCut_resnet'):-3]
-
-    def create_array_with_dlc_tracking_data(self, session):
-        self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data['bodyparts']), 3))
-        for i, body_part in enumerate(self.tracking_data['bodyparts']):
-            for j, axis in enumerate(['x', 'y']):
-                self.tracking_data_array[:, i, j] = self.dlc_output[self.dlc_network_name][body_part][axis].values
-            self.tracking_data_array[:, i, 2] = self.dlc_output[self.dlc_network_name][body_part]['likelihood'].values
 
     def correct_out_of_frame_tracking(self, session):
         self.tracking_data_array[self.tracking_data_array<0] = 0
@@ -123,11 +117,10 @@ class Track():
     def compute_avg_bodypart_locations(self):
         #! This region mapping must be redone if different body parts are used during DeepLabCut tracking
         for region_mapping in [   ['avg_loc',        self.tracking_data['bodyparts']], 
-                                  ['snout_loc',      ['nose', 'L eye', 'R eye']],
-                                  ['neck_loc',       ['L ear', 'neck', 'R ear']],
-                                  ['upper_body_loc', ['L shoulder', 'upper back', 'R shoulder']],
-                                  ['lower_body_loc', ['L hind limb', 'Lower back', 'R hind limb', 'derriere']],
-                                  ['head_loc',       ['snout_loc', 'neck_loc']],
+                                  ['neck_loc',       ['left_ear', 'upper_back', 'right_ear']],
+                                  ['upper_body_loc', ['left_shoulder', 'upper_back', 'right_shoulder']],
+                                  ['lower_body_loc', ['left_hind_limb', 'lower_back', 'right_hind_limb', 'tail_base']],
+                                  ['head_loc',       ['left_ear', 'right_ear']],
                                   ['body_loc',       ['upper_body_loc', 'lower_body_loc']]  ]:
             body_region_name = region_mapping[0]
             list_of_constituent_bodyparts = region_mapping[1]
@@ -135,7 +128,7 @@ class Track():
 
     def compute_angles(self):
         for direction_to_compute, front_bodypart, back_bodypart in zip(['body_dir','neck_dir', 'head_dir'],
-                                                                       ['upper_body_loc', 'head_loc', 'snout_loc'],
+                                                                       ['upper_body_loc', 'head_loc'],
                                                                        ['lower_body_loc', 'upper_body_loc', 'neck_loc']):
             self.tracking_data[direction_to_compute] = np.angle((self.tracking_data[front_bodypart][:, 0] - self.tracking_data[back_bodypart][:, 0]) + \
                                                                (-self.tracking_data[front_bodypart][:, 1] + self.tracking_data[back_bodypart][:, 1]) * 1j, deg=True)
@@ -153,18 +146,5 @@ class Track():
         smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
         self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
        
-    def plot_tracking(self):
-        if self.settings.display_tracking_output:
-            for axis in [0,1]:
-                plt.figure()
-                plt.title('Example of 10,000 time-points of tracking data - axis {}'.format(axis))
-                for bodypart in self.tracking_data['bodyparts']:
-                    plt.plot(self.tracking_data[bodypart][10000:20000, axis])
-                plt.legend(self.tracking_data['bodyparts'])
-            plt.figure(figsize=(12,6))
-            plt.title('Histogram of confidence in tracking data')
-            plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
-            plt.show()
 
-    def save_tracking(self, session):
-        with open(session.video.tracking_data_file, "wb") as dill_file: pickle.dump(self.tracking_data, dill_file)
+

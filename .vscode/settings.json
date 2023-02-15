@@ -1,7 +1,6 @@
 {
     "python.pythonPath": "c:\\Users\\SWC\\Anaconda3\\envs\\behave\\python.exe",
     "python.testing.pytestArgs": [
-        "-s",
         "tests"
     ],
     "python.testing.unittestEnabled": false,

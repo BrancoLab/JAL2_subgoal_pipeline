@@ -136,4 +136,4 @@ dependencies:
     - xlwt
     - zipp
     
-prefix: c:\Users\SWC\anaconda3\envs\opto
+prefix: c:\Users\SWC\anaconda3\envs\subgoal
