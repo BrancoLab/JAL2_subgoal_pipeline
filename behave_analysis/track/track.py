@@ -72,13 +72,22 @@ class Track(DLC):
 # -----LOW-LEVEL FUNCS--------------------------------------------------------------
 
     def correct_out_of_frame_tracking(self, session):
-        self.tracking_data_array[self.tracking_data_array<0] = 0
-        self.tracking_data_array[:,:,0][self.tracking_data_array[:, :, 0]>(session.video.width-1)]  = session.video.width -1
-        self.tracking_data_array[:,:,1][self.tracking_data_array[:, :, 1]>(session.video.height-1)] = session.video.height-1
+        self.tracking_data_array[self.tracking_data_array < 0] = 0
+        self.tracking_data_array[:,:,0][self.tracking_data_array[:, :, 0] > (session.video.width-1)]  = session.video.width - 1
+        self.tracking_data_array[:,:,1][self.tracking_data_array[:, :, 1] > (session.video.height-1)] = session.video.height - 1
 
-    def replace_low_confidence_points_with_nan(self):
+    def replace_low_confidence_points_with_nan(self) -> None:
+        """If the confidence score for a point is below the threshold set in the settings_track file, 
+        then replace the likelihood with a nan. Log to the user how many points were replaced."""
+        
         low_confidence_points = self.tracking_data_array[:, :, 2] < self.settings.min_confidence_in_tracking
-        self.tracking_data_array[low_confidence_points, :2] = np.nan 
+        self.tracking_data_array[low_confidence_points, :2] = np.nan
+        
+        numOflowConfidencePoints = np.count_nonzero(low_confidence_points)
+        numOfTotalPoints = low_confidence_points.shape[0] * low_confidence_points.shape[1]
+        perct = numOflowConfidencePoints / numOfTotalPoints
+        logger.warning(f"Replaced {numOflowConfidencePoints} out of {numOfTotalPoints} points ({perct:.2f}) with nan due not being above the confidence threshold of {self.settings.min_confidence_in_tracking}")
+        
         
     def interpolate_nan_values(self):
         for i, _ in enumerate(self.tracking_data['bodyparts']):
