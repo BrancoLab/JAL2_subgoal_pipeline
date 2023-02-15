@@ -11,8 +11,11 @@ import scipy.ndimage
 class DLC:
     """A class to handle the DLC tracking data. This class is used to extract the tracking data 
     from the DLC outputted .h5 file and save it to a dictionary. The class also creates a 3D array 
-    of tracking data from DLC of length number of frames. Not exactly sure what is going on here, 
-    need to look into it more."""
+    of tracking data from DLC of length number of frames. The main functions are then to
+    process poor tracking data.
+    
+    Main refactor to consider is to use a kalman filter for positional tracking but 
+    will focus on other things as this seems like large task"""
     
     def run_deeplabcut_tracking(self, session):
         """Check if DLC has been run on a video before, if not run analyze videos. If a DLC
