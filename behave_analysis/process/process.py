@@ -50,6 +50,7 @@ class Process():
         return session
 
     def load_registration_transform(self) -> object:
+        # what does this do? i don't know...
         if os.path.isfile(self.session.metadata_file) and isinstance(self.load_session().video.registration_transform, np.ndarray):
             self.loaded_registration_transform = self.load_session().video.registration_transform
         else: self.loaded_registration_transform = None
