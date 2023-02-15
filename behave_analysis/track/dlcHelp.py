@@ -8,9 +8,10 @@ import dill as pickle
 import matplotlib.pyplot as plt
 
 class DLC:
-    """A class to handle the DLC tracking data. This class is used to extract the tracking data from the DLC outputted .h5 file 
-    and save it to a dictionary. The class also creates a 3D array of tracking data from DLC of length number of frames. 
-    Not exactly sure what is going on here, need to look into it more."""
+    """A class to handle the DLC tracking data. This class is used to extract the tracking data 
+    from the DLC outputted .h5 file and save it to a dictionary. The class also creates a 3D array 
+    of tracking data from DLC of length number of frames. Not exactly sure what is going on here, 
+    need to look into it more."""
     
     def run_deeplabcut_tracking(self, session):
         """Check if DLC has been run on a video before, if not run analyze videos. If a DLC
@@ -60,25 +61,17 @@ class DLC:
         return None
     
     def create_array_with_dlc_tracking_data(self, session) -> None:
-        """A function that creates a 3D array of tracking data from DLC of length
-        number of frames. Not exactly sure what is going on here, need to look into it
-        more. 
-
-        Args:
-            session (_type_): _description_
-
-        Returns:
-            _type_: _description_
+        """A function that creates an array of shape (number of frames, number of body parts, 3)
+        where the 3 is for x, y, and likelihood. A potential refactor would be to covert into a dictionary
+        where there are more clear defined keys e.g. Leave for now.
         """
-        self.tracking_data_array = np.zeros((session.video.num_frames, 
-                                             len(self.tracking_data['bodyparts']), 
-                                             3))
+        self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data['bodyparts']), 3))
         
         for i, body_part in enumerate(self.tracking_data['bodyparts']):
             for j, axis in enumerate(['x', 'y']):
                 self.tracking_data_array[:, i, j] = self.dlc_output[self.dlc_network_name][body_part][axis].values
             self.tracking_data_array[:, i, 2] = self.dlc_output[self.dlc_network_name][body_part]['likelihood'].values
-        
+            
         return None
     
     def create_dlc_tracking_array(self, session) -> None:
