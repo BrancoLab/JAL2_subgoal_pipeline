@@ -6,6 +6,7 @@ import yaml
 import numpy as np
 import dill as pickle
 import matplotlib.pyplot as plt
+import scipy.ndimage
 
 class DLC:
     """A class to handle the DLC tracking data. This class is used to extract the tracking data 
@@ -102,3 +103,46 @@ class DLC:
             plt.title('Histogram of confidence in tracking data')
             plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
             plt.show()
+            
+    def remove_bad_tracking_data(self, session):
+        self.correct_out_of_frame_tracking(session)
+        self.replace_low_confidence_points_with_nan()
+        self.interpolate_nan_values()
+        self.apply_median_filter(filter_length = 7)
+        self.replace_points_far_from_median_bodypart_with_nan()
+        self.interpolate_nan_values()      
+            
+    def correct_out_of_frame_tracking(self, session):
+        self.tracking_data_array[self.tracking_data_array < 0] = 0
+        self.tracking_data_array[:,:,0][self.tracking_data_array[:, :, 0] > (session.video.width-1)]  = session.video.width - 1
+        self.tracking_data_array[:,:,1][self.tracking_data_array[:, :, 1] > (session.video.height-1)] = session.video.height - 1
+        
+    def replace_low_confidence_points_with_nan(self) -> None:
+        """If the confidence score for a point is below the threshold set in the settings_track file, 
+        then replace the likelihood with a nan. Log to the user how many points were replaced."""
+        
+        low_confidence_points = self.tracking_data_array[:, :, 2] < self.settings.min_confidence_in_tracking
+        self.tracking_data_array[low_confidence_points, :2] = np.nan
+        
+        numOflowConfidencePoints = np.count_nonzero(low_confidence_points)
+        numOfTotalPoints = low_confidence_points.shape[0] * low_confidence_points.shape[1]
+        perct = numOflowConfidencePoints / numOfTotalPoints
+        logger.warning(f"Replaced {numOflowConfidencePoints} out of {numOfTotalPoints} points ({perct:.2f}) with nan due not being above the confidence threshold of {self.settings.min_confidence_in_tracking}")
+    
+    def interpolate_nan_values(self):
+        """Use numpy to interpolate the nan values in the tracking data. From last confident point to next confident point, intepolate all nans between"""
+        
+        for i, _ in enumerate(self.tracking_data['bodyparts']):
+            self.tracking_data_array[:, i, :2] = np.array(pd.DataFrame(self.tracking_data_array[:, i, :2]).interpolate().fillna(method='bfill').fillna(method='ffill'))
+    
+    def apply_median_filter(self, filter_length=7):
+        """Apply a median filter to the tracking data to remove outliers. A median filter is a non-linear filter that is commonly used to remove noise from an image or a signal. 
+        The filter works by replacing each element in the signal with the median value of its neighboring pixels or elements."""
+        
+        self.tracking_data_array[:, :, :2] = scipy.ndimage.median_filter(self.tracking_data_array[:, :, :2], size=(filter_length, 1, 1), mode='nearest')
+    
+    def replace_points_far_from_median_bodypart_with_nan(self):
+        median_position_across_bodyparts = np.nanmedian(self.tracking_data_array[:, :, :2], axis=1) 
+        distance_from_median_position = ((self.tracking_data_array[:, :, 0] - median_position_across_bodyparts[:, 0:1])**2 + \
+                                         (self.tracking_data_array[:, :, 1] - median_position_across_bodyparts[:, 1:2])**2)**.5
+        self.tracking_data_array[distance_from_median_position > self.settings.max_deviation_from_rest_of_points, :2] = np.nan
