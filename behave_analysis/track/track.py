@@ -7,9 +7,11 @@ from scipy.ndimage import gaussian_filter1d
 import os
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 
 class Track(DLC):
-    """A tracking class that checks if DLC has been run yet on the session upon 
+    """
+    A tracking class that checks if DLC has been run yet on the session upon 
     initialization. If not, it runs DLC. Then it processes the tracking data by removing
     any bad tracking data, correcting for fisheye distortion, and computing metrics
     for the tracking.
@@ -45,9 +47,10 @@ class Track(DLC):
             self.correct_and_register(session)
             self.apply_kalman(session)
             self.compute_metrics(session)
-            self.plot_tracking()
+            self.compute_average_body_part_with_kalman()
             self.save_tracking(session)
-
+            self.plot_tracking()
+            
 # -----REGISTERING CAMERA FUNCS--------------------------------------------------------------
 
     def correct_and_register(self, session):
@@ -94,7 +97,14 @@ class Track(DLC):
             body_region_name = region_mapping[0]
             list_of_constituent_bodyparts = region_mapping[1]
             self.tracking_data[body_region_name] = np.mean(np.array([self.tracking_data[bodypart] for bodypart in list_of_constituent_bodyparts]), axis=0)
-
+            
+    def compute_average_body_part_with_kalman(self):
+        x_values = {body_part: values['x'] for body_part, values in self.lds_tracking_data.items()}
+        mean_x_values = np.mean(list(x_values.values()), axis=0)
+        
+        y_values = {body_part: values['y'] for body_part, values in self.lds_tracking_data.items()}
+        mean_y_values = np.mean(list(y_values.values()), axis=0)
+        
     def compute_angles(self):
         for direction_to_compute, front_bodypart, back_bodypart in zip(['body_dir','neck_dir', 'head_dir'],
                                                                        ['upper_body_loc', 'head_loc'],
@@ -115,5 +125,20 @@ class Track(DLC):
         smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
         self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
        
+# -----METRIC PLOTTING FUNCS--------------------------------------------------------------
 
-
+    def plot_tracking(self):
+        if self.settings.display_tracking_output:
+            for axis in [0,1]:
+                plt.figure()
+                plt.title('Example of 10,000 time-points of tracking data - axis {}'.format(axis))
+                for bodypart in self.tracking_data['bodyparts']:
+                    plt.plot(self.tracking_data[bodypart][10000:20000, axis])
+                plt.legend(self.tracking_data['bodyparts'])
+            plt.figure(figsize=(12,6))
+            plt.title('Histogram of confidence in tracking data')
+            plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
+            plt.show()
+    
+    def plots_kalMan(self):
+        Oldtracking_x_coordinates = [point[0] for point in self.tracking_data['avg_loc']] 
