@@ -8,6 +8,9 @@ import dill as pickle
 import matplotlib.pyplot as plt
 import scipy.ndimage
 
+# Custom
+from behave_analysis.track.kalmanFilter import kalmann
+
 class DLC:
     """A class to handle the DLC tracking data. This class is used to extract the tracking data 
     from the DLC outputted .h5 file and save it to a dictionary. The class also creates a 3D array 
@@ -109,11 +112,11 @@ class DLC:
             
     def remove_bad_tracking_data(self, session):
         self.correct_out_of_frame_tracking(session)
-        self.replace_low_confidence_points_with_nan()
-        self.interpolate_nan_values()
-        self.apply_median_filter(filter_length = 7)
+        # self.replace_low_confidence_points_with_nan() - Removing this as it is not needed with the kalman filter
+        # self.interpolate_nan_values() # Remove this as it is not needed with the kalman filter
+        # self.apply_median_filter(filter_length = 7) # Old smoothing function replaced with kalman filter
         self.replace_points_far_from_median_bodypart_with_nan()
-        self.interpolate_nan_values()      
+        # self.interpolate_nan_values() - Note needed with kalman filter     
             
     def correct_out_of_frame_tracking(self, session):
         self.tracking_data_array[self.tracking_data_array < 0] = 0
@@ -149,3 +152,45 @@ class DLC:
         distance_from_median_position = ((self.tracking_data_array[:, :, 0] - median_position_across_bodyparts[:, 0:1])**2 + \
                                          (self.tracking_data_array[:, :, 1] - median_position_across_bodyparts[:, 1:2])**2)**.5
         self.tracking_data_array[distance_from_median_position > self.settings.max_deviation_from_rest_of_points, :2] = np.nan
+    
+    def apply_kalman(self, session):
+        """
+           The kalman filter is a recursive algorithm that estimates the state of a system using a sequence of measurements.
+           This function requires the tracking data to be in the form of a numpy array with the following dimensions:
+            + (2, frames)
+           The algorithm works on a single body part and thus needs to be called in a recursive manner. 
+        """
+        savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
+        try:
+            with open(savePath, 'rb') as f:
+                my_dict = pickle.load(f)
+                logger.info("Loaded previous pickled kalman tracking data, mmmm pickles.")
+            
+        except FileNotFoundError:
+            logger.info("No pickled kalman tracking data found. Creating new kalman tracking data.")
+            
+            ldsResults = {}
+            
+            for i, bodypart in enumerate(self.tracking_data['bodyparts']):
+                x, y = np.transpose(self.tracking_data_array[:, i, 0]), np.transpose(self.tracking_data_array[:, i, 1])
+                xy = np.vstack((x, y))
+                results = kalmann(xy)
+                ldsResults[bodypart] = {"x": results["x"], 
+                                        "y": results["y"], 
+                                        "likelihood": self.tracking_data_array[:, i, 2],
+                                        "xVelocity": results["xVelocity"],
+                                        "yVelocity": results["yVelocity"],
+                                        "xAccel": results["xAccel"],
+                                        "yAccel": results["yAccel"],
+                                        }
+                 
+                self.lds_tracking_data = ldsResults
+                self.save_kalman(self.lds_tracking_data, session)
+        
+    def save_kalman(self, dictionary, session):
+        """
+           Save the kalman tracking dictionary to a pickle file contained within the session folder. 
+        """
+        savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
+        with open(savePath, "wb") as dill_file: 
+            pickle.dump(dictionary, dill_file)

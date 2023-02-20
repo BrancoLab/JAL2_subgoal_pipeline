@@ -26,6 +26,6 @@ settings_visualize = Settings_visualize(
     by_experiment=False,
     experiments = ['no laser'],
     by_session=True,
-    sessions=[0],
+    sessions = [1],
     all_sessions=False
 )

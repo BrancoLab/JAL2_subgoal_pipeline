@@ -5,7 +5,6 @@ from behave_analysis.track.dlcHelp import DLC
 from loguru import logger
 from scipy.ndimage import gaussian_filter1d
 import os
-import pandas as pd
 import numpy as np
 import cv2
 
@@ -42,8 +41,9 @@ class Track(DLC):
         else:
             logger.info(f"Processing tracking data for session: {session.number} - {session.name}")
             self.create_dlc_tracking_array(session)
-            self.remove_bad_tracking_data(session)
+            self.remove_bad_tracking_data(session) # Removed a lot of functions due to kalman filtering
             self.correct_and_register(session)
+            self.apply_kalman(session)
             self.compute_metrics(session)
             self.plot_tracking()
             self.save_tracking(session)
