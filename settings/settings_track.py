@@ -6,7 +6,7 @@ from behave_analysis.utils.settings_objects import Settings_track
 settings_track = Settings_track(
 
     redo_processing_step = True, # This flag does not control DLC
-    min_confidence_in_tracking = 0.5,
+    min_confidence_in_tracking = 0.8, # Abitraly set, can be changed. The higher the better but will break if too high
     max_deviation_from_rest_of_points = 100, # in pixels
     display_tracking_output = True, # show a plot of tracking data from DLC
     by_experiment = False,
