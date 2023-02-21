@@ -14,6 +14,7 @@ import dill as pickle
 class Visualize():
     """
     A class that visualizes the tracking data of a session. Can be used to ensure that the tracking is working.
+    The tracking data is loaded from prior pipeline step into a self.tracking_data
     """
     def __init__(self, session: object, settings: object):
         self.session = session
@@ -86,8 +87,8 @@ class Visualize():
         if self.settings.display_tracking:
             self.display_avg_location_on_frame()
             # self.display_speed_on_frame() # commenting out because it's not working
-            # self.display_heading_dir_on_frame()
-            # self.display_colored_dot_for_each_bodypart_on_frame()
+            self.display_heading_dir_on_frame(i)
+            self.display_colored_dot_for_each_bodypart_on_frame()
 
     def display_and_save_frames(self):
         cv2.imshow('{} stimulus effect'.format(self.stim_type), self.actual_frame)
@@ -102,14 +103,24 @@ class Visualize():
         speed_text_color = get_color_based_on_speed(speed=self.speed, object_to_color='text', stim_status=None, stim_type=self.stim_type)
         cv2.putText(self.actual_frame, '{} cm/s'.format(np.round(self.speed)), (self.actual_frame.shape[1]-200, 45), 0, 1, speed_text_color, thickness=2)
 
-    def display_heading_dir_on_frame(self):
-        heading_dir_x =  int(30*np.cos(np.deg2rad(self.body_dir)))
-        heading_dir_y = -int(30*np.sin(np.deg2rad(self.body_dir)))
+    def display_heading_dir_on_frame(self, i):
+        """
+        Doesn't work yet
+        """
+        heading_dir_x =  int(30*np.cos(np.deg2rad(self.tracking_data['body_dir'][i])))
+        heading_dir_y = -int(30*np.sin(np.deg2rad(self.tracking_data['body_dir'][i])))
+        
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
 
     def display_colored_dot_for_each_bodypart_on_frame(self):
-        for j, (bodypart, color) in enumerate(zip(self.tracking_data_body_parts['bodyparts'], get_colormap())):
-            bodypart_loc = (int(self.tracking_data[bodypart][self.frame_num, 0]), int(self.tracking_data[bodypart][self.frame_num, 1]))
+        """
+        A function that loads the individual bodypart tracking data from the kalman filter and plots it on the frame.
+        """
+        file = os.path.join(self.session.file_path, "kalman_tracking_data.pickle")
+        with open(file, "rb") as dill_file: kalman = pickle.load(dill_file)
+                
+        for j, (bodypart, color) in enumerate(zip(kalman, get_colormap())):
+            bodypart_loc = (int(kalman[bodypart]["x"][self.frame_num]), int(kalman[bodypart]["y"][self.frame_num]))
             cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
             cv2.putText(self.actual_frame, bodypart, (self.actual_frame.shape[0] - 85, self.actual_frame.shape[1] - 280 + j * 20), 0, .4, color, thickness=1)
 

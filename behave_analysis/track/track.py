@@ -171,6 +171,7 @@ class Track(DLC):
         self.compute_avg_region_location(regionsOI)
         self.compute_new_angles()
         self.compute_new_average_speed()
+        self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
         # self.compute_speed(session)
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
         
