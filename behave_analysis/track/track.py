@@ -2,21 +2,27 @@
 
 # Custom Libaries
 from behave_analysis.track.dlcHelp import DLC
+from behave_analysis.track.kalmanFilter import kalmann
 
 # OS Libaries
 from loguru import logger
-from scipy.ndimage import gaussian_filter1d
 import os
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import dill as pickle
 
 class Track(DLC):
     """
     A tracking class that checks if DLC has been run yet on the session upon 
     initialization. If not, it runs DLC. Then it processes the tracking data by removing
     any bad tracking data, correcting for fisheye distortion, and computing metrics
-    for the tracking.
+    for the tracking. The prior before metric computation step is to apply a kalman filter to the tracking data. And 
+    then this is saved into a dictionary.
+    
+    For each body part tracked by DLC, the keys will be: 
+    + dict_keys(['x', 'y', 'likelihood', 'xVelocity', 'yVelocity', 'xAccel', 'yAccel'])
+    + Such that it is a dictionary of dictionaries.
 
     Args:
         DLC (object): A class to handle DLC related data and functions.
@@ -34,15 +40,24 @@ class Track(DLC):
         Args:
             session (object): session dataclass
         """
-        already_filtered_and_registered = os.path.isfile(session.video.tracking_data_file)
         
-        if already_filtered_and_registered and not self.settings.redo_processing_step: 
+        # Check if processing has been done before
+        self.processingExists = os.path.isfile(os.path.join(session.file_path, "fully_processed_tracking_data.pickle"))
+
+        # If processing has been done before and you don't want to redo it then log it
+        if self.processingExists and not self.settings.redo_processing_step: 
             logger.info(f"Tracking data already filtered and registered for session: {session.number} - {session.name}")
-            
+        
+        # If not regristration details have been found then log it and kill session
         elif isinstance(session.video.registration_transform, type(None)):
-            logger.info(f"Registration details not found; and subsequently the tracking can't be processed for session: {session.number} - {session.name}")
+            logger.error(f"Registration details not found; and subsequently the tracking can't be processed for session: {session.number} - {session.name}")
+            assert session.video.registration_transform, "This should exist"
             
+        # If processing has not been done before or you want to redo it then run it
         else:
+            if self.settings.redo_processing_step:
+                logger.info("You have choosen to redo processing step")
+                
             logger.info(f"Processing tracking data for session: {session.number} - {session.name}")
             
             # Processing tracking data
@@ -56,9 +71,9 @@ class Track(DLC):
             
             # Metric computation
             self.compute_metrics(session)
-            self.compute_average_body_part_with_kalman()
+            self.save_tracking_data(session)
+            # self.compute_average_body_part_with_kalman()
             # self.plot_tracking()
-            # print(self.tracking_data.keys())
             
 # -----REGISTERING CAMERA FUNCS--------------------------------------------------------------
 
@@ -94,13 +109,64 @@ class Track(DLC):
           
             self.registered_tracking_data_before_kalman[bodypart][self.registered_tracking_data_before_kalman[bodypart]<0] = 0
         
+        
+# -----KALMAN FILTER FUNCS--------------------------------------------------------------
+
+    def apply_kalman(self, session) -> None:
+        """
+           The kalman filter is a recursive algorithm that estimates the state of a system using a sequence of measurements.
+           This function requires the tracking data to be in the form of a numpy array with the following dimensions:
+            + (2, frames)
+           The algorithm works on a single body part and thus needs to be called in a recursive manner. Though the function
+           first checks to see if there is a pickled version of the kalman tracking data. If there is, then it loads that.
+           
+           # The check for a pickled version of the kalman should be removed as the flag for whether to reprocess or not
+           is contained within the tracking class. This check is redundant and could lead to incorrect tracking. Leaving in for
+           now to speed up developement and then will remove. 
+        """
+        if os.path.isfile(os.path.join(session.file_path, "kalman_tracking_data.pickle")):
+            logger.warning("Kalman tracking exists but you've chosen to redo processing")
+        
+        logger.info("Creating new kalman tracking data.")
+        
+        ldsResults = {}
+        
+        for i, bodypart in enumerate(self.tracking_data_body_parts['bodyparts']):
+            print(bodypart)
+            x = self.registered_tracking_data_before_kalman[bodypart][:, 0]
+            y = self.registered_tracking_data_before_kalman[bodypart][:, 1]
+            xy = np.vstack((x, y))
+            
+            results = kalmann(xy)
+            ldsResults[bodypart] = {"x": results["x"], 
+                                    "y": results["y"], 
+                                    "likelihood": self.tracking_data_array[:, i, 2],
+                                    "xVelocity": results["xVelocity"],
+                                    "yVelocity": results["yVelocity"],
+                                    "xAccel": results["xAccel"],
+                                    "yAccel": results["yAccel"],
+                                    }
+            
+        self.lds_tracking_data = ldsResults
+        self.save_kalman(self.lds_tracking_data, session)
+        return None
+        
+    def save_kalman(self, dictionary, session) -> None:
+        """
+           Save the kalman tracking dictionary to a pickle file contained within the session folder.
+           
+           TODO: This function should save all the tracking data not just the kalman data 
+        """
+        savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
+        with open(savePath, "wb") as dill_file: 
+            pickle.dump(dictionary, dill_file)
+
 # -----METRIC COMPUTATION FUNCS--------------------------------------------------------------
 
     def compute_metrics(self, session):
         regionsOI = self.map_regions_of_interest()
         self.compute_avg_region_location(regionsOI)
         self.compute_new_angles()
-        print(self.region_tracking_data)
         # self.compute_speed(session)
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
         
@@ -129,7 +195,9 @@ class Track(DLC):
         for region in regionsOI.keys():
             x = np.mean([self.lds_tracking_data[bodypart]['x'] for bodypart in regionsOI[region]], axis=0)
             y = np.mean([self.lds_tracking_data[bodypart]['y'] for bodypart in regionsOI[region]], axis=0)
-            self.region_tracking_data[region] = [[x, y] for x, y in zip(x, y)]        
+            self.region_tracking_data[region] = np.array([[x, y] for x, y in zip(x, y)])
+        
+        logger.info("Body points averaged and their positions have been averaged and mapped to regions of interest.")       
     
     def compute_new_angles(self):
         """
@@ -139,24 +207,16 @@ class Track(DLC):
         """
         
         # Add vectors to the region tracking dictionary
-        self.region_tracking_data['body_dir'] = np.angles((self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]) \
+        self.region_tracking_data['body_dir'] = np.angle((self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]) \
                                                           + (-self.region_tracking_data['upper_body_loc'][:, 1] + self.region_tracking_data['lower_body_loc'][:, 1]) * 1j, 
                                                           deg=True)
         
-        self.region_tracking_data['Hdir'] = np.angles((self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['neck_loc'][:, 0]) \
-                                                          + (-self.region_tracking_data['head_loc'][:, 1] + self.region_tracking_data['neck_loc'][:, 1]) * 1j, 
-                                                          deg=True)       
-    
-    def compute_angles(self):
-    
-        for direction_to_compute, front_bodypart, back_bodypart in zip(['body_dir','neck_dir', 'head_dir'],
-                                                                       ['upper_body_loc', 'head_loc'],
-                                                                       ['lower_body_loc', 'upper_body_loc', 'neck_loc']):
-            
-            self.tracking_data[direction_to_compute] = np.angle((self.tracking_data[front_bodypart][:, 0] - self.tracking_data[back_bodypart][:, 0]) + \
-                                                               (-self.tracking_data[front_bodypart][:, 1] + self.tracking_data[back_bodypart][:, 1]) * 1j, 
-                                                               deg=True)
-
+        self.region_tracking_data['hdir'] = np.angle((self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['neck_loc'][:, 0]) \
+                                                     + (-self.region_tracking_data['head_loc'][:, 1] + self.region_tracking_data['neck_loc'][:, 1]) * 1j, 
+                                                     deg=True)
+        
+        logger.info("Head direction and body direction computed")
+        
     # def compute_speed(self, session, reference_location: tuple = None, reference_name: str=''):
     #     if not reference_location:
     #         speed_x_and_y_pixel_per_frame = np.diff(self.tracking_data['avg_loc'], axis=0) 
@@ -169,7 +229,17 @@ class Track(DLC):
     #     speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
     #     smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
     #     self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
-       
+
+# --------UTILITY FUNCS---------------------------------------------------------------------
+
+    def save_tracking_data(self, session) -> None:
+        """
+        A function to save the tracking data pickled.
+        """
+        savePath = os.path.join(session.file_path, "fully_processed_tracking_data.pickle")
+        with open(savePath, "wb") as dill_file: 
+            pickle.dump(self.region_tracking_data, dill_file)
+
 # -----METRIC PLOTTING FUNCS--------------------------------------------------------------
 
     def plot_tracking(self):

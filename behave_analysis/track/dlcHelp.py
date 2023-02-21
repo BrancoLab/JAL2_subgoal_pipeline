@@ -5,22 +5,13 @@ import os
 from loguru import logger
 import yaml
 import numpy as np
-import dill as pickle
-
-# Custom
-from behave_analysis.track.kalmanFilter import kalmann
 
 class DLC:
     """
     A class to handle the DLC tracking data. This class is used to extract the tracking data 
     from the DLC outputted .h5 file and save it to a dictionary. The class also creates a 3D array 
     of tracking data from DLC of length number of frames. The main functions are then to
-    process poor tracking data. The final step is to apply a kalman filter to the tracking data. And 
-    then this is saved into a dictionary.
-    
-    For each body part tracked by DLC, the keys will be: 
-    + dict_keys(['x', 'y', 'likelihood', 'xVelocity', 'yVelocity', 'xAccel', 'yAccel'])
-    + Such that it is a dictionary of dictionaries.
+    process and log poor tracking data. 
     """
     
     def run_deeplabcut_tracking(self, session) -> None:
@@ -128,64 +119,4 @@ class DLC:
         perct = numOflowConfidencePoints / numOfTotalPoints
         
         logger.warning(f"Found {numOflowConfidencePoints} out of {numOfTotalPoints} points ({perct:.2f}) below the confidence threshold of {self.settings.min_confidence_in_tracking}")
-        assert perct < 0.35, r"More than 50% of the points are below the confidence threshold. This is too high. Please check your tracking data."
-    
-    def apply_kalman(self, session) -> None:
-        """
-           The kalman filter is a recursive algorithm that estimates the state of a system using a sequence of measurements.
-           This function requires the tracking data to be in the form of a numpy array with the following dimensions:
-            + (2, frames)
-           The algorithm works on a single body part and thus needs to be called in a recursive manner. Though the function
-           first checks to see if there is a pickled version of the kalman tracking data. If there is, then it loads that.
-           
-           # The check for a pickled version of the kalman should be removed as the flag for whether to reprocess or not
-           is contained within the tracking class. This check is redundant and could lead to incorrect tracking. Leaving in for
-           now to speed up developement and then will remove. 
-        """
-        savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
-        try:
-            with open(savePath, 'rb') as f:
-                my_dict = pickle.load(f)
-                self.lds_tracking_data = my_dict
-                logger.info("Loaded previous pickled kalman tracking data, mmmm pickles.")
-                return None
-            
-        except FileNotFoundError:
-            logger.info("No pickled kalman tracking data found. Creating new kalman tracking data.")
-            
-            ldsResults = {}
-            
-            for i, bodypart in enumerate(self.tracking_data_body_parts['bodyparts']):
-                x = self.registered_tracking_data_before_kalman[bodypart][:, 0]
-                y = self.registered_tracking_data_before_kalman[bodypart][:, 1]
-                xy = np.vstack((x, y))
-                
-                results = kalmann(xy)
-                ldsResults[bodypart] = {"x": results["x"], 
-                                        "y": results["y"], 
-                                        "likelihood": self.tracking_data_array[:, i, 2],
-                                        "xVelocity": results["xVelocity"],
-                                        "yVelocity": results["yVelocity"],
-                                        "xAccel": results["xAccel"],
-                                        "yAccel": results["yAccel"],
-                                        }
-                 
-                self.lds_tracking_data = ldsResults
-                self.save_kalman(self.lds_tracking_data, session)
-                return None
-        
-    def save_kalman(self, dictionary, session) -> None:
-        """
-           Save the kalman tracking dictionary to a pickle file contained within the session folder.
-           
-           TODO: This function should save all the tracking data not just the kalman data 
-        """
-        savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
-        with open(savePath, "wb") as dill_file: 
-            pickle.dump(dictionary, dill_file)
-            
-    def save_tracking_data(self) -> None:
-        """
-        A function to save the tracking data pickled
-        """
-        print("Saving tracking data")
+        assert perct < 0.35, r"This is too high. Please check your tracking data."

@@ -21,7 +21,6 @@ class Video:
     registration_type: str
     registration_size: tuple
     pixels_per_cm: int
-    #tracking_data_file: str # the path to store the tracking data file created in the tracking pipeline step - Moving to tracking step
     
     #! replace these values with your own parameters
     shelter_location: tuple=(512, 921) # CHANGE IF NEEDED (x, y) coordinates of the shelter
@@ -45,8 +44,6 @@ def get_Video(session: Session, settings: object, registration_transform: object
     registration_size = settings.size
     registration_type = settings.registration
     pixels_per_cm = settings.pixels_per_cm
-    
-    # tracking_data_file = os.path.join(session.file_path, "tracking")
     
     video = Video(num_frames, 
                   video_file, 
