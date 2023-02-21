@@ -1,16 +1,20 @@
+# Custom classes
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
+
+# OS libaries
 import cv2
 import numpy as np
 import os
 import dill as pickle
 
-
-
 class Visualize():
+    """
+    A class that visualizes the tracking data of a session. Can be used to ensure that the tracking is working.
+    """
     def __init__(self, session: object, settings: object):
         self.session = session
         self.settings = settings
@@ -27,7 +31,7 @@ class Visualize():
                 self.correct_and_register_frame()
                 self.get_current_position_and_speed() 
                 self.display_stimulus(i)
-                self.display_trail(i)
+                # self.display_trail(i)
                 self.display_tracking(i)
                 self.display_and_save_frames()
                 key = cv2.waitKey(self.delay_between_frames)
@@ -48,11 +52,8 @@ class Visualize():
     
     def get_current_position_and_speed(self):
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
-            self.body_dir = self.tracking_data['body_dir'][self.frame_num]
-            self.speed = self.tracking_data['speed'][self.frame_num]
-            # self.avg_loc = (int(self.tracking_data['avg_loc'][self.frame_num, 0]), int(self.tracking_data['avg_loc'][self.frame_num, 1]))
-            # print(self.avg_loc)
-            
+            self.body_dir = self.tracking_data['avg_loc'][self.frame_num]
+            self.speed = self.tracking_data['avg_Velocity'][self.frame_num]
             
             savePath = os.path.join("D:\efizz\YT6240_23jan19\kalman_tracking_data.pickle")
         
@@ -84,9 +85,9 @@ class Visualize():
     def display_tracking(self, i):
         if self.settings.display_tracking:
             self.display_avg_location_on_frame()
-            self.display_speed_on_frame()
-            self.display_heading_dir_on_frame()
-            self.display_colored_dot_for_each_bodypart_on_frame()
+            # self.display_speed_on_frame() # commenting out because it's not working
+            # self.display_heading_dir_on_frame()
+            # self.display_colored_dot_for_each_bodypart_on_frame()
 
     def display_and_save_frames(self):
         cv2.imshow('{} stimulus effect'.format(self.stim_type), self.actual_frame)
@@ -107,7 +108,7 @@ class Visualize():
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
 
     def display_colored_dot_for_each_bodypart_on_frame(self):
-        for j, (bodypart, color) in enumerate(zip(self.tracking_data['bodyparts'], get_colormap())):
+        for j, (bodypart, color) in enumerate(zip(self.tracking_data_body_parts['bodyparts'], get_colormap())):
             bodypart_loc = (int(self.tracking_data[bodypart][self.frame_num, 0]), int(self.tracking_data[bodypart][self.frame_num, 1]))
             cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
             cv2.putText(self.actual_frame, bodypart, (self.actual_frame.shape[0] - 85, self.actual_frame.shape[1] - 280 + j * 20), 0, .4, color, thickness=1)
@@ -144,7 +145,12 @@ class Visualize():
         self.stim_status = generate_stim_status_array(self.onset_frames, self.stimulus_durations, self.seconds_before, self.seconds_after, self.fps)  
         #self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 
-        trial_video_path = Directory(self.settings.save_folder, experiment=self.session.experiment, stim_type=self.stim_type, tracking_video=self.settings.display_tracking, media_type='video').file_name(self.session.mouse, trial_num, minutes_into_session)
+        trial_video_path = Directory(self.settings.save_folder, 
+                                     experiment=self.session.experiment, 
+                                     stim_type=self.stim_type, 
+                                     tracking_video=self.settings.display_tracking, 
+                                     media_type='video').file_name(self.session.mouse, trial_num, minutes_into_session)
+        
         self.trial_video = cv2.VideoWriter(trial_video_path, cv2.VideoWriter_fourcc(*"mp4v"), self.session.video.fps, (self.session.video.width, self.session.video.height), self.settings.display_tracking or self.settings.display_trail)
 
     def release_video_objects(self):

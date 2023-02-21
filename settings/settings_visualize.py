@@ -6,8 +6,8 @@ from pathlib import Path
 
 settings_visualize = Settings_visualize(
 
-    laser_trials=False,
-    escape_trials=True,
+    laser_trials= False,
+    escape_trials= True,
     homing_trials = False,
     t_xing_trials = False,
     display_trail=True,

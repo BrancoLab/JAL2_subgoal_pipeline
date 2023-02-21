@@ -171,7 +171,6 @@ class Track(DLC):
         self.compute_avg_region_location(regionsOI)
         self.compute_new_angles()
         self.compute_new_average_speed()
-        print(self.region_tracking_data['avg_Velocity'])
         # self.compute_speed(session)
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
         
