@@ -94,7 +94,7 @@ class Track(DLC):
     def register_tracking_data(self, session):
         """
             Register the tracking data to the video. This is done by applying the registration transform. NOTE, that in this
-            function the tracking data now takes the form of self.tracking_data. 
+            function the tracking data now takes the form of registered_tracking_data_before_kalman. 
         """
         
         self.registered_tracking_data_before_kalman = {}
@@ -108,8 +108,7 @@ class Track(DLC):
                 self.registered_tracking_data_before_kalman[bodypart] = cv2.perspectiveTransform(np.array([self.fisheye_corrected_tracking_data_array[:, i, 0:2].astype(np.float32)]), registration_transform)[0]
           
             self.registered_tracking_data_before_kalman[bodypart][self.registered_tracking_data_before_kalman[bodypart]<0] = 0
-        
-        
+              
 # -----KALMAN FILTER FUNCS--------------------------------------------------------------
 
     def apply_kalman(self, session) -> None:
@@ -117,15 +116,20 @@ class Track(DLC):
            The kalman filter is a recursive algorithm that estimates the state of a system using a sequence of measurements.
            This function requires the tracking data to be in the form of a numpy array with the following dimensions:
             + (2, frames)
-           The algorithm works on a single body part and thus needs to be called in a recursive manner. Though the function
-           first checks to see if there is a pickled version of the kalman tracking data. If there is, then it loads that.
-           
-           # The check for a pickled version of the kalman should be removed as the flag for whether to reprocess or not
-           is contained within the tracking class. This check is redundant and could lead to incorrect tracking. Leaving in for
-           now to speed up developement and then will remove. 
+           The algorithm works on a single body part and thus needs to be called in a recursive manner.
         """
         if os.path.isfile(os.path.join(session.file_path, "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
+            
+            # Load the kalman tracking data to speed up development but NOTE remove this code
+            
+            path = os.path.join(session.file_path, "kalman_tracking_data.pickle")
+            with open(path, 'rb') as f:
+                # deserialize the data and load it into a Python object
+                self.lds_tracking_data = pickle.load(f)
+            
+            return None
+            
         
         logger.info("Creating new kalman tracking data.")
         
@@ -153,9 +157,7 @@ class Track(DLC):
         
     def save_kalman(self, dictionary, session) -> None:
         """
-           Save the kalman tracking dictionary to a pickle file contained within the session folder.
-           
-           TODO: This function should save all the tracking data not just the kalman data 
+        Save the kalman tracking dictionary to a pickle file contained within the session folder. 
         """
         savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
@@ -164,9 +166,12 @@ class Track(DLC):
 # -----METRIC COMPUTATION FUNCS--------------------------------------------------------------
 
     def compute_metrics(self, session):
+        # Leaving in session as you in this reference location speed computation
         regionsOI = self.map_regions_of_interest()
         self.compute_avg_region_location(regionsOI)
         self.compute_new_angles()
+        self.compute_new_average_speed()
+        print(self.region_tracking_data['avg_Velocity'])
         # self.compute_speed(session)
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
         
@@ -216,19 +221,31 @@ class Track(DLC):
                                                      deg=True)
         
         logger.info("Head direction and body direction computed")
-        
-    # def compute_speed(self, session, reference_location: tuple = None, reference_name: str=''):
-    #     if not reference_location:
-    #         speed_x_and_y_pixel_per_frame = np.diff(self.tracking_data['avg_loc'], axis=0) 
-    #         speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0]**2 + speed_x_and_y_pixel_per_frame[:, 1]**2)**.5
-    #     else:
-    #         distance_from_reference_location = ((self.tracking_data['avg_loc'][:,0] - reference_location[0])**2 + \
-    #                                             (self.tracking_data['avg_loc'][:,1] - reference_location[1])**2)**.5
-    #         self.tracking_data['distance' + reference_name] = distance_from_reference_location
-    #         speed_pixel_per_frame = -np.diff(distance_from_reference_location)
-    #     speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
-    #     smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
-    #     self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
+    
+    def compute_new_average_speed(self):
+        """
+        Calculate the velocity of the mouse. The velocity is the average of the x and y velocities of the body parts.
+        It can be negative. How so? In reference to what?
+        """
+        avgX = np.mean([self.lds_tracking_data[bodypart]['xVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
+        avgY = np.mean([self.lds_tracking_data[bodypart]['yVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
+        self.region_tracking_data['avg_Velocity'] = np.array([[x, y] for x, y in zip(avgX, avgY)])
+    
+    # There seems to be a second component to the old function for the speed calculatuion that is not being used. Leaving as don't understand what it is doing yet.
+    # What is the refernece component? 
+    
+    def compute_speed(self, session, reference_location: tuple = None, reference_name: str=''):
+        if not reference_location:
+            speed_x_and_y_pixel_per_frame = np.diff(self.tracking_data['avg_loc'], axis=0) 
+            speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0]**2 + speed_x_and_y_pixel_per_frame[:, 1]**2)**.5
+        else:
+            distance_from_reference_location = ((self.tracking_data['avg_loc'][:,0] - reference_location[0])**2 + \
+                                                (self.tracking_data['avg_loc'][:,1] - reference_location[1])**2)**.5
+            self.tracking_data['distance' + reference_name] = distance_from_reference_location
+            speed_pixel_per_frame = -np.diff(distance_from_reference_location)
+        speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
+        smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
+        self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
 
 # --------UTILITY FUNCS---------------------------------------------------------------------
 
