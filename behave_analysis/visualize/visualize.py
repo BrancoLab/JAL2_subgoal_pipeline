@@ -5,6 +5,10 @@ from behave_analysis.utils.generate_stim_status_array import generate_stim_statu
 from behave_analysis.utils.directory import Directory
 import cv2
 import numpy as np
+import os
+import dill as pickle
+
+
 
 class Visualize():
     def __init__(self, session: object, settings: object):
@@ -46,8 +50,24 @@ class Visualize():
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
             self.body_dir = self.tracking_data['body_dir'][self.frame_num]
             self.speed = self.tracking_data['speed'][self.frame_num]
-            self.avg_loc = (int(self.tracking_data['avg_loc'][self.frame_num, 0]), int(self.tracking_data['avg_loc'][self.frame_num, 1]))
-
+            # self.avg_loc = (int(self.tracking_data['avg_loc'][self.frame_num, 0]), int(self.tracking_data['avg_loc'][self.frame_num, 1]))
+            # print(self.avg_loc)
+            
+            
+            savePath = os.path.join("D:\efizz\YT6240_23jan19\kalman_tracking_data.pickle")
+        
+            with open(savePath, 'rb') as f:
+                my_dict = pickle.load(f)
+                self.lds_tracking_data = my_dict
+                
+                x_values = {body_part: values['x'] for body_part, values in self.lds_tracking_data.items()}
+                mean_x_values = np.mean(list(x_values.values()), axis=0)
+                
+                y_values = {body_part: values['y'] for body_part, values in self.lds_tracking_data.items()}
+                mean_y_values = np.mean(list(y_values.values()), axis=0)
+                
+                self.avg_loc = (int(mean_x_values[self.frame_num]), int(mean_y_values[self.frame_num]))
+            
     def display_stimulus(self, i: int) -> None:
         if self.settings.display_stimulus and self.stim_status[i]==0 and (self.stim_type=='audio' or \
                                             (self.stim_type=='laser' and self.settings.display_tracking)):

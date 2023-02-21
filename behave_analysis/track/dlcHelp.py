@@ -15,10 +15,15 @@ class DLC:
     A class to handle the DLC tracking data. This class is used to extract the tracking data 
     from the DLC outputted .h5 file and save it to a dictionary. The class also creates a 3D array 
     of tracking data from DLC of length number of frames. The main functions are then to
-    process poor tracking data. The final step is to apply a kalman filter to the tracking data.
+    process poor tracking data. The final step is to apply a kalman filter to the tracking data. And 
+    then this is saved into a dictionary.
+    
+    For each body part tracked by DLC, the keys will be: 
+    + dict_keys(['x', 'y', 'likelihood', 'xVelocity', 'yVelocity', 'xAccel', 'yAccel'])
+    + Such that it is a dictionary of dictionaries.
     """
     
-    def run_deeplabcut_tracking(self, session):
+    def run_deeplabcut_tracking(self, session) -> None:
         """Check if DLC has been run on a video before, if not run analyze videos. If a DLC
         file already exists don't run DLC again. It requires the DLC settings file
         to contain resnet in its name which may not be the case for all DLC models
@@ -38,19 +43,17 @@ class DLC:
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
     
     def create_dlc_tracking_array(self, session) -> None:
-        """Create and fill an array of tracking data from DLC.
-
-        Args:
-            session (object): session dataclass
         """
-        self.tracking_data = {}
+        Create and fill an array of tracking data from DLC.
+        """
         self.extract_data_from_dlc_file(session)
         self.create_array_with_dlc_tracking_data(session)
         
         return None
     
     def extract_data_from_dlc_file(self, session) -> None:
-        """Ingests a H5 file outputted from DLC analysis, body parts, and
+        """
+        Ingests a H5 file outputted from DLC analysis, body parts, and
         model name. Changing the string in dlc network name maybe necessary if using different model
         type. 
         
@@ -68,9 +71,11 @@ class DLC:
         with open(self.settings.dlc_settings_file) as file: 
             dlc_settings = yaml.safe_load(file)
         
-        # Extract body parts and model name
-        self.tracking_data['bodyparts'] = dlc_settings['bodyparts']
-        logger.info(f"The bodyparts tracked by DLC are: {self.tracking_data['bodyparts']}")
+        self.tracking_data_body_parts = {} # init dictionary
+        self.tracking_data_body_parts['bodyparts'] = dlc_settings['bodyparts']
+        
+        logger.info(f"The bodyparts tracked by DLC are: {self.tracking_data_body_parts['bodyparts']}")
+        
         self.dlc_network_name = dlc_tracking_file[dlc_tracking_file.find('DLC_resnet'):-3] # This line breaks if different model names are used
         assert self.dlc_network_name, "No DLC name found, has a different model been used?"
         logger.info(f"The DLC network name is: {self.dlc_network_name}")
@@ -82,33 +87,30 @@ class DLC:
         where the 3 is for x, y, and likelihood. A potential refactor would be to covert into a dictionary
         where there are more clear defined keys e.g. Leave for now.
         """
-        self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data['bodyparts']), 3))
+        self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data_body_parts['bodyparts']), 3))
         
-        for i, body_part in enumerate(self.tracking_data['bodyparts']):
+        for i, body_part in enumerate(self.tracking_data_body_parts['bodyparts']):
             for j, axis in enumerate(['x', 'y']):
                 self.tracking_data_array[:, i, j] = self.dlc_output[self.dlc_network_name][body_part][axis].values
             self.tracking_data_array[:, i, 2] = self.dlc_output[self.dlc_network_name][body_part]['likelihood'].values
             
         return None
     
-    def save_tracking(self, session):
-        with open(session.video.tracking_data_file, "wb") as dill_file: 
-            pickle.dump(self.tracking_data, dill_file)
-      
-    def remove_bad_tracking_data(self, session):
+    def remove_bad_tracking_data(self, session) -> None:
         """
-        A function to remove poor tracking data
+        A function to remove poor tracking data out of an expected frame window, or to far away
+        from the body.
         """
         self.correct_out_of_frame_tracking(session)
         self.replace_points_far_from_median_bodypart_with_nan()
         self.log_low_confidence_points()
             
-    def correct_out_of_frame_tracking(self, session):
+    def correct_out_of_frame_tracking(self, session) -> None:
         self.tracking_data_array[self.tracking_data_array < 0] = 0
         self.tracking_data_array[:,:,0][self.tracking_data_array[:, :, 0] > (session.video.width-1)]  = session.video.width - 1
         self.tracking_data_array[:,:,1][self.tracking_data_array[:, :, 1] > (session.video.height-1)] = session.video.height - 1
         
-    def replace_points_far_from_median_bodypart_with_nan(self):
+    def replace_points_far_from_median_bodypart_with_nan(self) -> None:
         median_position_across_bodyparts = np.nanmedian(self.tracking_data_array[:, :, :2], axis=1) 
         distance_from_median_position = ((self.tracking_data_array[:, :, 0] - median_position_across_bodyparts[:, 0:1])**2 + \
                                          (self.tracking_data_array[:, :, 1] - median_position_across_bodyparts[:, 1:2])**2)**.5
@@ -126,15 +128,19 @@ class DLC:
         perct = numOflowConfidencePoints / numOfTotalPoints
         
         logger.warning(f"Found {numOflowConfidencePoints} out of {numOfTotalPoints} points ({perct:.2f}) below the confidence threshold of {self.settings.min_confidence_in_tracking}")
-        assert perct < 0.5, "More than 50% of the points are below the confidence threshold. This is too high. Please check your tracking data."
+        assert perct < 0.35, r"More than 50% of the points are below the confidence threshold. This is too high. Please check your tracking data."
     
-    def apply_kalman(self, session):
+    def apply_kalman(self, session) -> None:
         """
            The kalman filter is a recursive algorithm that estimates the state of a system using a sequence of measurements.
            This function requires the tracking data to be in the form of a numpy array with the following dimensions:
             + (2, frames)
            The algorithm works on a single body part and thus needs to be called in a recursive manner. Though the function
            first checks to see if there is a pickled version of the kalman tracking data. If there is, then it loads that.
+           
+           # The check for a pickled version of the kalman should be removed as the flag for whether to reprocess or not
+           is contained within the tracking class. This check is redundant and could lead to incorrect tracking. Leaving in for
+           now to speed up developement and then will remove. 
         """
         savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
         try:
@@ -142,15 +148,16 @@ class DLC:
                 my_dict = pickle.load(f)
                 self.lds_tracking_data = my_dict
                 logger.info("Loaded previous pickled kalman tracking data, mmmm pickles.")
+                return None
             
         except FileNotFoundError:
             logger.info("No pickled kalman tracking data found. Creating new kalman tracking data.")
             
             ldsResults = {}
             
-            for i, bodypart in enumerate(self.tracking_data['bodyparts']):
-                x = self.tracking_data[bodypart][:, 0]
-                y = self.tracking_data[bodypart][:, 1]
+            for i, bodypart in enumerate(self.tracking_data_body_parts['bodyparts']):
+                x = self.registered_tracking_data_before_kalman[bodypart][:, 0]
+                y = self.registered_tracking_data_before_kalman[bodypart][:, 1]
                 xy = np.vstack((x, y))
                 
                 results = kalmann(xy)
@@ -165,11 +172,20 @@ class DLC:
                  
                 self.lds_tracking_data = ldsResults
                 self.save_kalman(self.lds_tracking_data, session)
+                return None
         
-    def save_kalman(self, dictionary, session):
+    def save_kalman(self, dictionary, session) -> None:
         """
-           Save the kalman tracking dictionary to a pickle file contained within the session folder. 
+           Save the kalman tracking dictionary to a pickle file contained within the session folder.
+           
+           TODO: This function should save all the tracking data not just the kalman data 
         """
         savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
             pickle.dump(dictionary, dill_file)
+            
+    def save_tracking_data(self) -> None:
+        """
+        A function to save the tracking data pickled
+        """
+        print("Saving tracking data")
