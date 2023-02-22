@@ -34,6 +34,7 @@ class Settings_track:
     by_session: bool=False
     sessions: list=None
     all_sessions: bool=False
+    tracking_file_location: str=None
 
 @dataclass(frozen=True)
 class Settings_homings:

@@ -33,7 +33,7 @@ def track():
     """A function that collects sessions from the databank, puts the sessions through a tracking
     in Deep lab cut."""
     
-    logger.info("Tracking started")
+    logger.info("The tracking pipeline has started")
     session_IDs = collect_session_IDs(settings_t, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()

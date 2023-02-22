@@ -1,18 +1,20 @@
+# OS libraries
 import glob
 import pandas as pd
 import os
 from loguru import logger
 import yaml
 import numpy as np
-import dill as pickle
-import matplotlib.pyplot as plt
 
 class DLC:
-    """A class to handle the DLC tracking data. This class is used to extract the tracking data from the DLC outputted .h5 file 
-    and save it to a dictionary. The class also creates a 3D array of tracking data from DLC of length number of frames. 
-    Not exactly sure what is going on here, need to look into it more."""
+    """
+    A class to handle the DLC tracking data. This class is used to extract the tracking data 
+    from the DLC outputted .h5 file and save it to a dictionary. The class also creates a 3D array 
+    of tracking data from DLC of length number of frames. The main functions are then to
+    process and log poor tracking data. 
+    """
     
-    def run_deeplabcut_tracking(self, session):
+    def run_deeplabcut_tracking(self, session) -> None:
         """Check if DLC has been run on a video before, if not run analyze videos. If a DLC
         file already exists don't run DLC again. It requires the DLC settings file
         to contain resnet in its name which may not be the case for all DLC models
@@ -31,8 +33,18 @@ class DLC:
             from deeplabcut.pose_estimation_tensorflow import analyze_videos
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
     
+    def create_dlc_tracking_array(self, session) -> None:
+        """
+        Create and fill an array of tracking data from DLC.
+        """
+        self.extract_data_from_dlc_file(session)
+        self.create_array_with_dlc_tracking_data(session)
+        
+        return None
+    
     def extract_data_from_dlc_file(self, session) -> None:
-        """Ingests a H5 file outputted from DLC analysis, body parts, and
+        """
+        Ingests a H5 file outputted from DLC analysis, body parts, and
         model name. Changing the string in dlc network name maybe necessary if using different model
         type. 
         
@@ -50,9 +62,11 @@ class DLC:
         with open(self.settings.dlc_settings_file) as file: 
             dlc_settings = yaml.safe_load(file)
         
-        # Extract body parts and model name
-        self.tracking_data['bodyparts'] = dlc_settings['bodyparts']
-        logger.info(f"The bodyparts tracked by DLC are: {self.tracking_data['bodyparts']}")
+        self.tracking_data_body_parts = {} # init dictionary
+        self.tracking_data_body_parts['bodyparts'] = dlc_settings['bodyparts']
+        
+        logger.info(f"The bodyparts tracked by DLC are: {self.tracking_data_body_parts['bodyparts']}")
+        
         self.dlc_network_name = dlc_tracking_file[dlc_tracking_file.find('DLC_resnet'):-3] # This line breaks if different model names are used
         assert self.dlc_network_name, "No DLC name found, has a different model been used?"
         logger.info(f"The DLC network name is: {self.dlc_network_name}")
@@ -60,52 +74,49 @@ class DLC:
         return None
     
     def create_array_with_dlc_tracking_data(self, session) -> None:
-        """A function that creates a 3D array of tracking data from DLC of length
-        number of frames. Not exactly sure what is going on here, need to look into it
-        more. 
-
-        Args:
-            session (_type_): _description_
-
-        Returns:
-            _type_: _description_
+        """A function that creates an array of shape (number of frames, number of body parts, 3)
+        where the 3 is for x, y, and likelihood. A potential refactor would be to covert into a dictionary
+        where there are more clear defined keys e.g. Leave for now.
         """
-        self.tracking_data_array = np.zeros((session.video.num_frames, 
-                                             len(self.tracking_data['bodyparts']), 
-                                             3))
+        self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data_body_parts['bodyparts']), 3))
         
-        for i, body_part in enumerate(self.tracking_data['bodyparts']):
+        for i, body_part in enumerate(self.tracking_data_body_parts['bodyparts']):
             for j, axis in enumerate(['x', 'y']):
                 self.tracking_data_array[:, i, j] = self.dlc_output[self.dlc_network_name][body_part][axis].values
             self.tracking_data_array[:, i, 2] = self.dlc_output[self.dlc_network_name][body_part]['likelihood'].values
-        
+            
         return None
     
-    def create_dlc_tracking_array(self, session) -> None:
-        """Create and fill an array of tracking data from DLC.
-
-        Args:
-            session (object): session dataclass
+    def remove_bad_tracking_data(self, session) -> None:
         """
-        self.tracking_data = {}
-        self.extract_data_from_dlc_file(session)
-        self.create_array_with_dlc_tracking_data(session)
+        A function to remove poor tracking data out of an expected frame window, or to far away
+        from the body.
+        """
+        self.correct_out_of_frame_tracking(session)
+        self.replace_points_far_from_median_bodypart_with_nan()
+        self.log_low_confidence_points()
+            
+    def correct_out_of_frame_tracking(self, session) -> None:
+        self.tracking_data_array[self.tracking_data_array < 0] = 0
+        self.tracking_data_array[:,:,0][self.tracking_data_array[:, :, 0] > (session.video.width-1)]  = session.video.width - 1
+        self.tracking_data_array[:,:,1][self.tracking_data_array[:, :, 1] > (session.video.height-1)] = session.video.height - 1
         
-        return None
-    
-    def save_tracking(self, session):
-        with open(session.video.tracking_data_file, "wb") as dill_file: 
-            pickle.dump(self.tracking_data, dill_file)
-    
-    def plot_tracking(self):
-        if self.settings.display_tracking_output:
-            for axis in [0,1]:
-                plt.figure()
-                plt.title('Example of 10,000 time-points of tracking data - axis {}'.format(axis))
-                for bodypart in self.tracking_data['bodyparts']:
-                    plt.plot(self.tracking_data[bodypart][10000:20000, axis])
-                plt.legend(self.tracking_data['bodyparts'])
-            plt.figure(figsize=(12,6))
-            plt.title('Histogram of confidence in tracking data')
-            plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
-            plt.show()
+    def replace_points_far_from_median_bodypart_with_nan(self) -> None:
+        median_position_across_bodyparts = np.nanmedian(self.tracking_data_array[:, :, :2], axis=1) 
+        distance_from_median_position = ((self.tracking_data_array[:, :, 0] - median_position_across_bodyparts[:, 0:1])**2 + \
+                                         (self.tracking_data_array[:, :, 1] - median_position_across_bodyparts[:, 1:2])**2)**.5
+        self.tracking_data_array[distance_from_median_position > self.settings.max_deviation_from_rest_of_points, :2] = np.nan
+        
+    def log_low_confidence_points(self) -> None:
+        """
+        Log how many points in DLC are considered low confidence relative to an abitrary
+        value set in the settings
+        """
+        
+        low_confidence_points = self.tracking_data_array[:, :, 2] < self.settings.min_confidence_in_tracking        
+        numOflowConfidencePoints = np.count_nonzero(low_confidence_points)
+        numOfTotalPoints = low_confidence_points.shape[0] * low_confidence_points.shape[1]
+        perct = numOflowConfidencePoints / numOfTotalPoints
+        
+        logger.warning(f"Found {numOflowConfidencePoints} out of {numOfTotalPoints} points ({perct:.2f}) below the confidence threshold of {self.settings.min_confidence_in_tracking}")
+        assert perct < 0.35, r"This is too high. Please check your tracking data, retrain DLC."

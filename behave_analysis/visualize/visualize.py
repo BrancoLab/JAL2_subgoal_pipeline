@@ -1,19 +1,37 @@
+# TODO - Slow down the video to make it easier to debug
+# TODO - Think speed is not working, wrong units as can't be 100cm/s
+
+# Custom classes
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
+
+# OS libaries
 import cv2
 import numpy as np
+import os
+import dill as pickle
 
 class Visualize():
+    """
+    A class that visualizes the tracking data of a session. Can be used to ensure that the tracking is working.
+    The tracking data is loaded from prior pipeline step into a self.tracking_data
+    """
     def __init__(self, session: object, settings: object):
         self.session = session
         self.settings = settings
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000/self.session.video.fps*(not self.settings.rapid)+self.settings.rapid)
+        
+        # Load kalman tracking data
+        file = os.path.join(self.session.file_path, "kalman_tracking_data.pickle")
+        with open(file, "rb") as dill_file: 
+            self.kalman = pickle.load(dill_file)
+        
         open_tracking_data(self)
-
+        
     def trials(self, stim_type):
         print("\nPress 'q' to quit and 'n' to move to the next video")
         for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.session.__dict__[stim_type].onset_frames, self.session.__dict__[stim_type].stimulus_durations)):
@@ -42,17 +60,24 @@ class Visualize():
         self.actual_frame = correct_and_register_frame(self.actual_frame[:, :, 0], self.session.video, self.fisheye_correction_map)
         if self.settings.display_tracking or self.settings.display_trail: self.actual_frame = cv2.cvtColor(self.actual_frame, cv2.COLOR_GRAY2RGB)
     
-    def get_current_position_and_speed(self):
+    def get_current_position_and_speed(self) -> None:
+        """
+        A function that gets the body direction, speed, and average location of the animal. Under the condition that
+        the tracking data is being displayed, or the trail is displayed, or the stimulus is displayed.
+        """
+        
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
             self.body_dir = self.tracking_data['body_dir'][self.frame_num]
-            self.speed = self.tracking_data['speed'][self.frame_num]
-            self.avg_loc = (int(self.tracking_data['avg_loc'][self.frame_num, 0]), int(self.tracking_data['avg_loc'][self.frame_num, 1]))
-
+            self.speed = self.tracking_data['avg_Velocity'][self.frame_num]
+            self.avg_loc = (int(self.tracking_data['avg_loc'][self.frame_num][0]), int(self.tracking_data['avg_loc'][self.frame_num][1]))
+            self.hdir = self.tracking_data['hdir'][self.frame_num]
+            
     def display_stimulus(self, i: int) -> None:
-        if self.settings.display_stimulus and self.stim_status[i]==0 and (self.stim_type=='audio' or \
-                                            (self.stim_type=='laser' and self.settings.display_tracking)):
-            if self.stim_type == 'laser': exclamation_color = (255, 200, 0)
-            else: exclamation_color = (100,200,255)
+        if self.settings.display_stimulus and self.stim_status[i]==0 and (self.stim_type=='audio' or (self.stim_type=='laser' and self.settings.display_tracking)):
+            if self.stim_type == 'laser': 
+                exclamation_color = (255, 200, 0)
+            else: 
+                exclamation_color = (100,200,255)
             cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, exclamation_color, thickness=6)
             cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, (0,0,0), thickness=4)
 
@@ -67,6 +92,7 @@ class Visualize():
             self.display_speed_on_frame()
             self.display_heading_dir_on_frame()
             self.display_colored_dot_for_each_bodypart_on_frame()
+            # self.display_colored_dot_for_regions_on_frame() # If you want to plot the regions of the body instead of the individual body parts
 
     def display_and_save_frames(self):
         cv2.imshow('{} stimulus effect'.format(self.stim_type), self.actual_frame)
@@ -82,12 +108,42 @@ class Visualize():
         cv2.putText(self.actual_frame, '{} cm/s'.format(np.round(self.speed)), (self.actual_frame.shape[1]-200, 45), 0, 1, speed_text_color, thickness=2)
 
     def display_heading_dir_on_frame(self):
-        heading_dir_x =  int(30*np.cos(np.deg2rad(self.body_dir)))
-        heading_dir_y = -int(30*np.sin(np.deg2rad(self.body_dir)))
+        """
+        This code computes the x vector component and y vector component of an angle derived from two points on the animal.
+        Currently the two points are looking at the upper and lower body and we will want to update this to have one for body
+        direction and one for head direction. Or maybe just head direction. 
+        """
+        
+        magnitudeOfVector = 30 # This is the length of the arrow that will be plotted on the frame
+        self.body_dir = -self.body_dir # Without this it doesn't work
+        heading_dir_x =  int(magnitudeOfVector*np.cos(self.body_dir)) # Convert the andle from radians to an x component
+        heading_dir_y =  -int(magnitudeOfVector*np.sin(self.body_dir)) # Convert the andle from radians to an y component
+        
+        # Plot the heading direction on the frame centered at the animal's average location
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
-
-    def display_colored_dot_for_each_bodypart_on_frame(self):
-        for j, (bodypart, color) in enumerate(zip(self.tracking_data['bodyparts'], get_colormap())):
+        
+        # Plot the body direction interger on the frame (for debugging)
+        cv2.putText(self.actual_frame, f"{int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        
+    def display_colored_dot_for_each_bodypart_on_frame(self) -> None:
+        """
+        A function that uses the individual bodypart tracking data from the kalman filter and plots it on the frame.
+        """
+        for j, (bodypart, color) in enumerate(zip(self.kalman, get_colormap())):
+            bodypart_loc = (int(self.kalman[bodypart]["x"][self.frame_num]), int(self.kalman[bodypart]["y"][self.frame_num]))
+            cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
+            cv2.putText(self.actual_frame, bodypart, (self.actual_frame.shape[0] - 85, self.actual_frame.shape[1] - 280 + j * 20), 0, .4, color, thickness=1)
+    
+    def display_colored_dot_for_regions_on_frame(self):
+        """
+        A function that loads the aggregated bodyparts from the tracking data from the kalman filter and plots it on the frame. Currently 
+        not used but leaving in for debugging purposes. NOTE you will need to change the test variable to include all the aggregated regions
+        if interested in using this function. Remember that the kalman filter data and the tracking data have different formats.
+        """
+               
+        test = ["head_loc", "upper_body_loc"]
+                        
+        for j, (bodypart, color) in enumerate(zip(test, get_colormap())):
             bodypart_loc = (int(self.tracking_data[bodypart][self.frame_num, 0]), int(self.tracking_data[bodypart][self.frame_num, 1]))
             cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
             cv2.putText(self.actual_frame, bodypart, (self.actual_frame.shape[0] - 85, self.actual_frame.shape[1] - 280 + j * 20), 0, .4, color, thickness=1)
@@ -97,9 +153,10 @@ class Visualize():
             if j: cv2.line(self.actual_frame, line, self.trail[j-1], line_color, thickness=line_thickness, lineType=16)
             
     def get_new_trail_segment(self, i):             
-        time_to_get_new_trail_segment=self.num_frames_past_stim % 10 and \
-                                    ((self.stim_type in ['audio','homing','threshold_crossing'] and self.stim_status[i]==0) or \
-                                     (self.stim_type=='laser' and self.stim_status[i] > -1 and self.stim_status[i] < 3))
+        time_to_get_new_trail_segment = self.num_frames_past_stim % 10 \
+                                        and ((self.stim_type in ['audio','homing','threshold_crossing'] and self.stim_status[i]==0) \
+                                        or  (self.stim_type == 'laser' and self.stim_status[i] > -1 and self.stim_status[i] < 3))
+                                        
         if time_to_get_new_trail_segment:
             trail_color = get_color_based_on_speed(speed=self.speed, object_to_color='trail', stim_status=self.stim_status[i], stim_type=self.stim_type)
             self.trail_colors.append(trail_color)
@@ -124,7 +181,12 @@ class Visualize():
         self.stim_status = generate_stim_status_array(self.onset_frames, self.stimulus_durations, self.seconds_before, self.seconds_after, self.fps)  
         #self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 
-        trial_video_path = Directory(self.settings.save_folder, experiment=self.session.experiment, stim_type=self.stim_type, tracking_video=self.settings.display_tracking, media_type='video').file_name(self.session.mouse, trial_num, minutes_into_session)
+        trial_video_path = Directory(self.settings.save_folder, 
+                                     experiment=self.session.experiment, 
+                                     stim_type=self.stim_type, 
+                                     tracking_video=self.settings.display_tracking, 
+                                     media_type='video').file_name(self.session.mouse, trial_num, minutes_into_session)
+        
         self.trial_video = cv2.VideoWriter(trial_video_path, cv2.VideoWriter_fourcc(*"mp4v"), self.session.video.fps, (self.session.video.width, self.session.video.height), self.settings.display_tracking or self.settings.display_trail)
 
     def release_video_objects(self):
