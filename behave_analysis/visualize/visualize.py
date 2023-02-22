@@ -62,8 +62,8 @@ class Visualize():
     
     def get_current_position_and_speed(self) -> None:
         """
-            A function that gets the body direction, speed, and average location of the animal. Under the condition that
-            the tracking data is being displayed, or the trail is displayed, or the stimulus is displayed.
+        A function that gets the body direction, speed, and average location of the animal. Under the condition that
+        the tracking data is being displayed, or the trail is displayed, or the stimulus is displayed.
         """
         
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
@@ -73,10 +73,11 @@ class Visualize():
             self.hdir = self.tracking_data['hdir'][self.frame_num]
             
     def display_stimulus(self, i: int) -> None:
-        if self.settings.display_stimulus and self.stim_status[i]==0 and (self.stim_type=='audio' or \
-                                            (self.stim_type=='laser' and self.settings.display_tracking)):
-            if self.stim_type == 'laser': exclamation_color = (255, 200, 0)
-            else: exclamation_color = (100,200,255)
+        if self.settings.display_stimulus and self.stim_status[i]==0 and (self.stim_type=='audio' or (self.stim_type=='laser' and self.settings.display_tracking)):
+            if self.stim_type == 'laser': 
+                exclamation_color = (255, 200, 0)
+            else: 
+                exclamation_color = (100,200,255)
             cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, exclamation_color, thickness=6)
             cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, (0,0,0), thickness=4)
 
@@ -135,7 +136,9 @@ class Visualize():
     
     def display_colored_dot_for_regions_on_frame(self):
         """
-        A function that loads the aggregated bodyparts from the tracking data from the kalman filter and plots it on the frame.
+        A function that loads the aggregated bodyparts from the tracking data from the kalman filter and plots it on the frame. Currently 
+        not used but leaving in for debugging purposes. NOTE you will need to change the test variable to include all the aggregated regions
+        if interested in using this function. Remember that the kalman filter data and the tracking data have different formats.
         """
                
         test = ["head_loc", "upper_body_loc"]
