@@ -1,3 +1,5 @@
+# TODO - Slow down the video to make it easier to debug
+
 # Custom classes
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
@@ -88,8 +90,8 @@ class Visualize():
             self.display_avg_location_on_frame()
             # self.display_speed_on_frame() # commenting out because it's not working
             self.display_heading_dir_on_frame()
-            # self.display_colored_dot_for_each_bodypart_on_frame()
-            self.display_colored_dot_for_regions_on_frame()
+            self.display_colored_dot_for_each_bodypart_on_frame()
+            # self.display_colored_dot_for_regions_on_frame()
 
     def display_and_save_frames(self):
         cv2.imshow('{} stimulus effect'.format(self.stim_type), self.actual_frame)
@@ -122,21 +124,18 @@ class Visualize():
         # Plot the body direction interger on the frame (for debugging)
         cv2.putText(self.actual_frame, f"Body_D: {int(np.rad2deg(self.body_dir))}", (750, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
-    def display_colored_dot_for_each_bodypart_on_frame(self):
+    def display_colored_dot_for_each_bodypart_on_frame(self) -> None:
         """
-        A function that loads the individual bodypart tracking data from the kalman filter and plots it on the frame.
+        A function that uses the individual bodypart tracking data from the kalman filter and plots it on the frame.
         """
-        file = os.path.join(self.session.file_path, "kalman_tracking_data.pickle")
-        with open(file, "rb") as dill_file: kalman = pickle.load(dill_file)
-        
-        for j, (bodypart, color) in enumerate(zip(kalman, get_colormap())):
-            bodypart_loc = (int(self.tracking_data[bodypart]["x"][self.frame_num]), int(self.tracking_data[bodypart]["y"][self.frame_num]))
+        for j, (bodypart, color) in enumerate(zip(self.kalman, get_colormap())):
+            bodypart_loc = (int(self.kalman[bodypart]["x"][self.frame_num]), int(self.kalman[bodypart]["y"][self.frame_num]))
             cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
             cv2.putText(self.actual_frame, bodypart, (self.actual_frame.shape[0] - 85, self.actual_frame.shape[1] - 280 + j * 20), 0, .4, color, thickness=1)
     
     def display_colored_dot_for_regions_on_frame(self):
         """
-        A function that loads the individual bodypart tracking data from the kalman filter and plots it on the frame.
+        A function that loads the aggregated bodyparts from the tracking data from the kalman filter and plots it on the frame.
         """
                
         test = ["head_loc", "upper_body_loc"]
