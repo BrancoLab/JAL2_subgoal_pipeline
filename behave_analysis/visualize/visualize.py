@@ -104,7 +104,16 @@ class Visualize():
         cv2.circle(self.actual_frame, self.avg_loc, 3, (220,220,220), -1)
 
     def display_speed_on_frame(self):
-        speed_text_color = get_color_based_on_speed(speed=self.speed, object_to_color='text', stim_status=None, stim_type=self.stim_type)
+        """
+        Print the speed of the animal on the displayed video.
+        """
+        # Set the color of the text based on the speed of the animal
+        speed_text_color = get_color_based_on_speed(speed = self.speed, 
+                                                    object_to_color = 'text', 
+                                                    stim_status = None,
+                                                    stim_type = self.stim_type)
+        
+        # Print the speed on the frame
         cv2.putText(self.actual_frame, '{} cm/s'.format(np.round(self.speed)), (self.actual_frame.shape[1]-200, 45), 0, 1, speed_text_color, thickness=2)
 
     def display_heading_dir_on_frame(self):

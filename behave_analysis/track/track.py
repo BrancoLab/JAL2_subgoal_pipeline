@@ -221,16 +221,31 @@ class Track(DLC):
         Calculate the velocity of the mouse. The velocity is the average of the x and y velocities of the body parts.
         Then do |V| = sqrt(Vx^2 + Vy^2) to compute the magnitude of the velocity.
         """
-        avgX = np.mean([self.lds_tracking_data[bodypart]['xVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
-        avgY = np.mean([self.lds_tracking_data[bodypart]['yVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
-        data = np.array([[x, y] for x, y in zip(avgX, avgY)])
-        pixelSpeed = np.sqrt(data[:, 0]**2 + data[:, 1]**2)
         
-        # I think this produces pixesls speed pixels per frame.
-        # not smoothing  because of kalman
-        self.region_tracking_data['avg_Velocity'] = pixelSpeed
+        """Here is my attempt of using the direct kalman filter output. However, this is not working well."""
+        
+        # avgX = np.mean([self.lds_tracking_data[bodypart]['xVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
+        # avgY = np.mean([self.lds_tracking_data[bodypart]['yVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
+        # data = np.array([[x, y] for x, y in zip(avgX, avgY)])
+        # pixelSpeed = np.sqrt(data[:, 0]**2 + data[:, 1]**2)
+        
+        # # I think this produces pixesls speed pixels per frame.
+        # # not smoothing  because of kalman
+        # print()
+        # self.region_tracking_data['avg_Velocity'] = (pixelSpeed / session.video.pixels_per_cm)
+        # is this in seconds though?
         # self.region_tracking_data['avg_Velocity'] = pixelSpeed * session.video.fps / session.video.pixels_per_cm
-    
+        
+        """Philips old working code"""
+        # Here is the speed of the mouse using the average of the body parts, but not the direct kalman filter output
+        # THis is philips old logic but works well
+        # Still uses kalman filter positioning
+        from scipy.ndimage import gaussian_filter1d
+        speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data['avg_loc'], axis=0) 
+        speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0]**2 + speed_x_and_y_pixel_per_frame[:, 1]**2)**.5
+        speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
+        self.region_tracking_data['avg_Velocity'] = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
+        
     # There seems to be a second component to the old function for the speed calculatuion that is not being used. Leaving as don't understand what it is doing yet.
     # What is the refernece component? 
     
