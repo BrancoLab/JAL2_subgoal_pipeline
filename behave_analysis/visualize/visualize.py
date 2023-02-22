@@ -106,25 +106,21 @@ class Visualize():
 
     def display_heading_dir_on_frame(self):
         """
-        Doesn't work yet
-        
-        This code computes the x vector component and y vector component of an tangent line bewteen two points as an angle
+        This code computes the x vector component and y vector component of an angle derived from two points on the animal.
+        Currently the two points are looking at the upper and lower body and we will want to update this to have one for body
+        direction and one for head direction. Or maybe just head direction. 
         """
         
-        self.body_dir = -self.body_dir
-        heading_dir_x =  int(30*np.cos(self.body_dir))
-        heading_dir_y =  -int(30*np.sin(self.body_dir))
+        magnitudeOfVector = 30 # This is the length of the arrow that will be plotted on the frame
+        self.body_dir = -self.body_dir # Without this it doesn't work
+        heading_dir_x =  int(magnitudeOfVector*np.cos(self.body_dir)) # Convert the andle from radians to an x component
+        heading_dir_y =  -int(magnitudeOfVector*np.sin(self.body_dir)) # Convert the andle from radians to an y component
         
-        # self.hdir = -self.hdir
-        # heading_dir_x =  int(30*np.cos(self.hdir))
-        # heading_dir_y =  -int(30*np.sin(self.hdir))
-        
-        # heading_dir_y = 10
+        # Plot the heading direction on the frame centered at the animal's average location
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
         
-        # Plot ugly green text
-        # cv2.putText(self.actual_frame, f"{np.rad2deg(self.hdir)}", (500, 500), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+        # Plot the body direction interger on the frame (for debugging)
+        cv2.putText(self.actual_frame, f"Body_D: {int(np.rad2deg(self.body_dir))}", (750, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     def display_colored_dot_for_each_bodypart_on_frame(self):
         """
