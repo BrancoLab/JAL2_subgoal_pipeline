@@ -136,7 +136,6 @@ class Track(DLC):
         ldsResults = {}
         
         for i, bodypart in enumerate(self.tracking_data_body_parts['bodyparts']):
-            print(bodypart)
             x = self.registered_tracking_data_before_kalman[bodypart][:, 0]
             y = self.registered_tracking_data_before_kalman[bodypart][:, 1]
             xy = np.vstack((x, y))
@@ -211,16 +210,42 @@ class Track(DLC):
         NOTE: Removed neck_dir but might need to add it back in.
         """
         
-        # Add vectors to the region tracking dictionary
-        self.region_tracking_data['body_dir'] = np.angle((self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]) \
-                                                          + (-self.region_tracking_data['upper_body_loc'][:, 1] + self.region_tracking_data['lower_body_loc'][:, 1]) * 1j, 
-                                                          deg=True)
+        # print(self.region_tracking_data['head_loc'].shape)
         
-        self.region_tracking_data['hdir'] = np.angle((self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['neck_loc'][:, 0]) \
-                                                     + (-self.region_tracking_data['head_loc'][:, 1] + self.region_tracking_data['neck_loc'][:, 1]) * 1j, 
-                                                     deg=True)
+        # print(self.region_tracking_data['head_loc'][:100])
+        
+        hedDelta_x = self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]
+        hedDelta_y = self.region_tracking_data['head_loc'][:, 1] - self.region_tracking_data['upper_body_loc'][:, 1]
+        self.region_tracking_data['hdir'] = np.arctan2(hedDelta_y, hedDelta_x) # Radians
+        
+        bodDelta_x = self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]
+        bodDelta_y = self.region_tracking_data['upper_body_loc'][:, 1] - self.region_tracking_data['lower_body_loc'][:, 1]
+        self.region_tracking_data['body_dir'] = np.arctan2(bodDelta_y, bodDelta_x) # Radians
+        
+       
+        
+        
+        
+        # bodangles = np.arccos(boddelta_x/np.sqrt(np.power(boddelta_x,2)+np.power(boddelta_y,2)))
+        
+        # self.region_tracking_data['hdir'] = np.rad2deg(bodangles)
+        # opp = boddelta_y/np.sqrt(np.power(boddelta_x,2)+np.power(boddelta_y,2))
+        # self.region_tracking_data['hdir'][opp<0] = (2*np.pi) - self.region_tracking_data['hdir'][opp<0]
+        
+        # print(self.region_tracking_data['hdir'][:100
+        #                                         ])
+        
+        # self.region_tracking_data['body_dir'] = np.angle((self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]) \
+        #                                                   + (-self.region_tracking_data['upper_body_loc'][:, 1] + self.region_tracking_data['lower_body_loc'][:, 1]) * 1j, 
+        #                                                   deg=True)
+        
+        # self.region_tracking_data['hdir'] = np.angle((self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]) \
+        #                                              + (-self.region_tracking_data['head_loc'][:, 1] + self.region_tracking_data['upper_body_loc'][:, 1]) * 1j, 
+        #                                              deg=True)
         
         logger.info("Head direction and body direction computed")
+        
+    
     
     def compute_new_average_speed(self):
         """
@@ -256,6 +281,8 @@ class Track(DLC):
         savePath = os.path.join(session.file_path, "fully_processed_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
             pickle.dump(self.region_tracking_data, dill_file)
+        
+        logger.info("Tracking data saved to {}".format(savePath))
 
 # -----METRIC PLOTTING FUNCS--------------------------------------------------------------
 

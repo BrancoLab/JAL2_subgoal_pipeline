@@ -21,7 +21,14 @@ class Visualize():
         self.settings = settings
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000/self.session.video.fps*(not self.settings.rapid)+self.settings.rapid)
+        
+        # Load kalman tracking data
+        file = os.path.join(self.session.file_path, "kalman_tracking_data.pickle")
+        with open(file, "rb") as dill_file: 
+            self.kalman = pickle.load(dill_file)
+        
         open_tracking_data(self)
+        
 
     def trials(self, stim_type):
         print("\nPress 'q' to quit and 'n' to move to the next video")
@@ -51,24 +58,17 @@ class Visualize():
         self.actual_frame = correct_and_register_frame(self.actual_frame[:, :, 0], self.session.video, self.fisheye_correction_map)
         if self.settings.display_tracking or self.settings.display_trail: self.actual_frame = cv2.cvtColor(self.actual_frame, cv2.COLOR_GRAY2RGB)
     
-    def get_current_position_and_speed(self):
-        if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
-            self.body_dir = self.tracking_data['avg_loc'][self.frame_num]
-            self.speed = self.tracking_data['avg_Velocity'][self.frame_num]
-            
-            savePath = os.path.join("D:\efizz\YT6240_23jan19\kalman_tracking_data.pickle")
+    def get_current_position_and_speed(self) -> None:
+        """
+            A function that gets the body direction, speed, and average location of the animal. Under the condition that
+            the tracking data is being displayed, or the trail is displayed, or the stimulus is displayed.
+        """
         
-            with open(savePath, 'rb') as f:
-                my_dict = pickle.load(f)
-                self.lds_tracking_data = my_dict
-                
-                x_values = {body_part: values['x'] for body_part, values in self.lds_tracking_data.items()}
-                mean_x_values = np.mean(list(x_values.values()), axis=0)
-                
-                y_values = {body_part: values['y'] for body_part, values in self.lds_tracking_data.items()}
-                mean_y_values = np.mean(list(y_values.values()), axis=0)
-                
-                self.avg_loc = (int(mean_x_values[self.frame_num]), int(mean_y_values[self.frame_num]))
+        if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
+            self.body_dir = self.tracking_data['body_dir'][self.frame_num]
+            self.speed = self.tracking_data['avg_Velocity'][self.frame_num]
+            self.avg_loc = (int(self.tracking_data['avg_loc'][self.frame_num][0]), int(self.tracking_data['avg_loc'][self.frame_num][1]))
+            self.hdir = self.tracking_data['hdir'][self.frame_num]
             
     def display_stimulus(self, i: int) -> None:
         if self.settings.display_stimulus and self.stim_status[i]==0 and (self.stim_type=='audio' or \
@@ -87,8 +87,9 @@ class Visualize():
         if self.settings.display_tracking:
             self.display_avg_location_on_frame()
             # self.display_speed_on_frame() # commenting out because it's not working
-            self.display_heading_dir_on_frame(i)
-            self.display_colored_dot_for_each_bodypart_on_frame()
+            self.display_heading_dir_on_frame()
+            # self.display_colored_dot_for_each_bodypart_on_frame()
+            self.display_colored_dot_for_regions_on_frame()
 
     def display_and_save_frames(self):
         cv2.imshow('{} stimulus effect'.format(self.stim_type), self.actual_frame)
@@ -103,14 +104,27 @@ class Visualize():
         speed_text_color = get_color_based_on_speed(speed=self.speed, object_to_color='text', stim_status=None, stim_type=self.stim_type)
         cv2.putText(self.actual_frame, '{} cm/s'.format(np.round(self.speed)), (self.actual_frame.shape[1]-200, 45), 0, 1, speed_text_color, thickness=2)
 
-    def display_heading_dir_on_frame(self, i):
+    def display_heading_dir_on_frame(self):
         """
         Doesn't work yet
-        """
-        heading_dir_x =  int(30*np.cos(np.deg2rad(self.tracking_data['body_dir'][i])))
-        heading_dir_y = -int(30*np.sin(np.deg2rad(self.tracking_data['body_dir'][i])))
         
+        This code computes the x vector component and y vector component of an tangent line bewteen two points as an angle
+        """
+        
+        self.body_dir = -self.body_dir
+        heading_dir_x =  int(30*np.cos(self.body_dir))
+        heading_dir_y =  -int(30*np.sin(self.body_dir))
+        
+        # self.hdir = -self.hdir
+        # heading_dir_x =  int(30*np.cos(self.hdir))
+        # heading_dir_y =  -int(30*np.sin(self.hdir))
+        
+        # heading_dir_y = 10
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
+        
+        # Plot ugly green text
+        # cv2.putText(self.actual_frame, f"{np.rad2deg(self.hdir)}", (500, 500), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
 
     def display_colored_dot_for_each_bodypart_on_frame(self):
         """
@@ -118,9 +132,21 @@ class Visualize():
         """
         file = os.path.join(self.session.file_path, "kalman_tracking_data.pickle")
         with open(file, "rb") as dill_file: kalman = pickle.load(dill_file)
-                
+        
         for j, (bodypart, color) in enumerate(zip(kalman, get_colormap())):
-            bodypart_loc = (int(kalman[bodypart]["x"][self.frame_num]), int(kalman[bodypart]["y"][self.frame_num]))
+            bodypart_loc = (int(self.tracking_data[bodypart]["x"][self.frame_num]), int(self.tracking_data[bodypart]["y"][self.frame_num]))
+            cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
+            cv2.putText(self.actual_frame, bodypart, (self.actual_frame.shape[0] - 85, self.actual_frame.shape[1] - 280 + j * 20), 0, .4, color, thickness=1)
+    
+    def display_colored_dot_for_regions_on_frame(self):
+        """
+        A function that loads the individual bodypart tracking data from the kalman filter and plots it on the frame.
+        """
+               
+        test = ["head_loc", "upper_body_loc"]
+                        
+        for j, (bodypart, color) in enumerate(zip(test, get_colormap())):
+            bodypart_loc = (int(self.tracking_data[bodypart][self.frame_num, 0]), int(self.tracking_data[bodypart][self.frame_num, 1]))
             cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
             cv2.putText(self.actual_frame, bodypart, (self.actual_frame.shape[0] - 85, self.actual_frame.shape[1] - 280 + j * 20), 0, .4, color, thickness=1)
 
