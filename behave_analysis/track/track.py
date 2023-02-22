@@ -72,7 +72,6 @@ class Track(DLC):
             # Metric computation
             self.compute_metrics(session)
             self.save_tracking_data(session)
-            # self.compute_average_body_part_with_kalman()
             # self.plot_tracking()
             
 # -----REGISTERING CAMERA FUNCS--------------------------------------------------------------
@@ -169,9 +168,8 @@ class Track(DLC):
         regionsOI = self.map_regions_of_interest()
         self.compute_avg_region_location(regionsOI)
         self.compute_new_angles()
-        self.compute_new_average_speed()
+        self.compute_new_average_speed(session)
         self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
-        # self.compute_speed(session)
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
         
     def map_regions_of_interest(self) -> dict:
@@ -203,16 +201,10 @@ class Track(DLC):
         
         logger.info("Body points averaged and their positions have been averaged and mapped to regions of interest.")       
     
-    def compute_new_angles(self):
+    def compute_new_angles(self) -> None:
         """
-        A function to compute the angles of the body parts.
-        
-        NOTE: Removed neck_dir but might need to add it back in.
+        A function to compute the angles of the body parts. E.g head direction & body direction
         """
-        
-        # print(self.region_tracking_data['head_loc'].shape)
-        
-        # print(self.region_tracking_data['head_loc'][:100])
         
         hedDelta_x = self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]
         hedDelta_y = self.region_tracking_data['head_loc'][:, 1] - self.region_tracking_data['upper_body_loc'][:, 1]
@@ -221,40 +213,23 @@ class Track(DLC):
         bodDelta_x = self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]
         bodDelta_y = self.region_tracking_data['upper_body_loc'][:, 1] - self.region_tracking_data['lower_body_loc'][:, 1]
         self.region_tracking_data['body_dir'] = np.arctan2(bodDelta_y, bodDelta_x) # Radians
-        
-       
-        
-        
-        
-        # bodangles = np.arccos(boddelta_x/np.sqrt(np.power(boddelta_x,2)+np.power(boddelta_y,2)))
-        
-        # self.region_tracking_data['hdir'] = np.rad2deg(bodangles)
-        # opp = boddelta_y/np.sqrt(np.power(boddelta_x,2)+np.power(boddelta_y,2))
-        # self.region_tracking_data['hdir'][opp<0] = (2*np.pi) - self.region_tracking_data['hdir'][opp<0]
-        
-        # print(self.region_tracking_data['hdir'][:100
-        #                                         ])
-        
-        # self.region_tracking_data['body_dir'] = np.angle((self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]) \
-        #                                                   + (-self.region_tracking_data['upper_body_loc'][:, 1] + self.region_tracking_data['lower_body_loc'][:, 1]) * 1j, 
-        #                                                   deg=True)
-        
-        # self.region_tracking_data['hdir'] = np.angle((self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]) \
-        #                                              + (-self.region_tracking_data['head_loc'][:, 1] + self.region_tracking_data['upper_body_loc'][:, 1]) * 1j, 
-        #                                              deg=True)
-        
+    
         logger.info("Head direction and body direction computed")
         
-    
-    
-    def compute_new_average_speed(self):
+    def compute_new_average_speed(self, session):
         """
         Calculate the velocity of the mouse. The velocity is the average of the x and y velocities of the body parts.
-        It can be negative. How so? In reference to what?
+        Then do |V| = sqrt(Vx^2 + Vy^2) to compute the magnitude of the velocity.
         """
         avgX = np.mean([self.lds_tracking_data[bodypart]['xVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
         avgY = np.mean([self.lds_tracking_data[bodypart]['yVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
-        self.region_tracking_data['avg_Velocity'] = np.array([[x, y] for x, y in zip(avgX, avgY)])
+        data = np.array([[x, y] for x, y in zip(avgX, avgY)])
+        pixelSpeed = np.sqrt(data[:, 0]**2 + data[:, 1]**2)
+        
+        # I think this produces pixesls speed pixels per frame.
+        # not smoothing  because of kalman
+        self.region_tracking_data['avg_Velocity'] = pixelSpeed
+        # self.region_tracking_data['avg_Velocity'] = pixelSpeed * session.video.fps / session.video.pixels_per_cm
     
     # There seems to be a second component to the old function for the speed calculatuion that is not being used. Leaving as don't understand what it is doing yet.
     # What is the refernece component? 

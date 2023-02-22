@@ -1,4 +1,5 @@
 # TODO - Slow down the video to make it easier to debug
+# TODO - Think speed is not working, wrong units as can't be 100cm/s
 
 # Custom classes
 from behave_analysis.utils.open_tracking_data import open_tracking_data
@@ -31,7 +32,6 @@ class Visualize():
         
         open_tracking_data(self)
         
-
     def trials(self, stim_type):
         print("\nPress 'q' to quit and 'n' to move to the next video")
         for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.session.__dict__[stim_type].onset_frames, self.session.__dict__[stim_type].stimulus_durations)):
@@ -41,7 +41,7 @@ class Visualize():
                 self.correct_and_register_frame()
                 self.get_current_position_and_speed() 
                 self.display_stimulus(i)
-                # self.display_trail(i)
+                self.display_trail(i)
                 self.display_tracking(i)
                 self.display_and_save_frames()
                 key = cv2.waitKey(self.delay_between_frames)
@@ -89,10 +89,10 @@ class Visualize():
     def display_tracking(self, i):
         if self.settings.display_tracking:
             self.display_avg_location_on_frame()
-            # self.display_speed_on_frame() # commenting out because it's not working
+            self.display_speed_on_frame()
             self.display_heading_dir_on_frame()
             self.display_colored_dot_for_each_bodypart_on_frame()
-            # self.display_colored_dot_for_regions_on_frame()
+            # self.display_colored_dot_for_regions_on_frame() # If you want to plot the regions of the body instead of the individual body parts
 
     def display_and_save_frames(self):
         cv2.imshow('{} stimulus effect'.format(self.stim_type), self.actual_frame)
@@ -123,8 +123,8 @@ class Visualize():
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
         
         # Plot the body direction interger on the frame (for debugging)
-        cv2.putText(self.actual_frame, f"Body_D: {int(np.rad2deg(self.body_dir))}", (750, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+        cv2.putText(self.actual_frame, f"{int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        
     def display_colored_dot_for_each_bodypart_on_frame(self) -> None:
         """
         A function that uses the individual bodypart tracking data from the kalman filter and plots it on the frame.
@@ -153,9 +153,10 @@ class Visualize():
             if j: cv2.line(self.actual_frame, line, self.trail[j-1], line_color, thickness=line_thickness, lineType=16)
             
     def get_new_trail_segment(self, i):             
-        time_to_get_new_trail_segment=self.num_frames_past_stim % 10 and \
-                                    ((self.stim_type in ['audio','homing','threshold_crossing'] and self.stim_status[i]==0) or \
-                                     (self.stim_type=='laser' and self.stim_status[i] > -1 and self.stim_status[i] < 3))
+        time_to_get_new_trail_segment = self.num_frames_past_stim % 10 \
+                                        and ((self.stim_type in ['audio','homing','threshold_crossing'] and self.stim_status[i]==0) \
+                                        or  (self.stim_type == 'laser' and self.stim_status[i] > -1 and self.stim_status[i] < 3))
+                                        
         if time_to_get_new_trail_segment:
             trail_color = get_color_based_on_speed(speed=self.speed, object_to_color='trail', stim_status=self.stim_status[i], stim_type=self.stim_type)
             self.trail_colors.append(trail_color)
