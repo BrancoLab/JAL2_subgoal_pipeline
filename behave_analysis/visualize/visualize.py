@@ -68,6 +68,11 @@ class Visualize():
         
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
             self.body_dir = self.tracking_data['body_dir'][self.frame_num]
+            self.bod_shelt_dir = self.tracking_data['bod_shelt_dir'][self.frame_num]
+            if np.any(self.tracking_data['bod_barrier_dir']):
+                self.bod_barr_dir = self.tracking_data['bod_barrier_dir'][self.frame_num,:]
+            else:
+                self.bod_barr_dir = []
             self.speed = self.tracking_data['avg_Velocity'][self.frame_num]
             self.avg_loc = (int(self.tracking_data['avg_loc'][self.frame_num][0]), int(self.tracking_data['avg_loc'][self.frame_num][1]))
             self.hdir = self.tracking_data['hdir'][self.frame_num]
@@ -91,6 +96,7 @@ class Visualize():
             self.display_avg_location_on_frame()
             self.display_speed_on_frame()
             self.display_heading_dir_on_frame()
+            self.display_goal_dir_on_frame()
             self.display_colored_dot_for_each_bodypart_on_frame()
             # self.display_colored_dot_for_regions_on_frame() # If you want to plot the regions of the body instead of the individual body parts
 
@@ -113,18 +119,40 @@ class Visualize():
         Currently the two points are looking at the upper and lower body and we will want to update this to have one for body
         direction and one for head direction. Or maybe just head direction. 
         """
-        
         magnitudeOfVector = 30 # This is the length of the arrow that will be plotted on the frame
         self.body_dir = -self.body_dir # Without this it doesn't work
-        heading_dir_x =  int(magnitudeOfVector*np.cos(self.body_dir)) # Convert the andle from radians to an x component
-        heading_dir_y =  -int(magnitudeOfVector*np.sin(self.body_dir)) # Convert the andle from radians to an y component
+        heading_dir_x =  int(magnitudeOfVector*np.cos(self.body_dir)) # Convert the angle from radians to an x component
+        heading_dir_y =  -int(magnitudeOfVector*np.sin(self.body_dir)) # Convert the angle from radians to an y component
         
         # Plot the heading direction on the frame centered at the animal's average location
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
         
         # Plot the body direction interger on the frame (for debugging)
         cv2.putText(self.actual_frame, f"{int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    
+    def display_goal_dir_on_frame(self):
+        """
+        This code shows you the angle between the mouse and its goals (shelter and barrier). 
+        """
+        magnitudeOfVector = 30 # This is the length of the arrow that will be plotted on the frame
         
+        # plot a blue arrow in direction of shelter
+        heading_dir_x =  int(magnitudeOfVector*np.cos(self.bod_shelt_dir)) # Convert the angle from radians to an x component
+        heading_dir_y =  -int(magnitudeOfVector*np.sin(self.bod_shelt_dir)) # Convert the angle from radians to an y component
+        # Plot the heading direction on the frame centered at the animal's average location
+        cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,0,0), 1, 16)
+        # Plot the body direction interger on the frame (for debugging)     
+        cv2.putText(self.actual_frame, f"{int(np.rad2deg(self.bod_shelt_dir))}deg", (self.actual_frame.shape[1]-200, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
+        # plot a green and red arrow in direction to two barrier edges (no arrows if no barrier)
+        if np.any(self.bod_barr_dir):
+            cmap = [[0,255,0],[0,0,255]]
+            for i in np.arange(2): # assuming two edges in barrier
+                heading_dir_x =  int(magnitudeOfVector*np.cos(self.bod_barr_dir[i])) # Convert the angle from radians to an x component
+                heading_dir_y =  -int(magnitudeOfVector*np.sin(self.bod_barr_dir[i])) # Convert the angle from radians to an y component
+                # Plot the heading direction on the frame centered at the animal's average location
+                cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), cmap[i], 1, 16)
+
     def display_colored_dot_for_each_bodypart_on_frame(self) -> None:
         """
         A function that uses the individual bodypart tracking data from the kalman filter and plots it on the frame.

@@ -3,12 +3,14 @@
 # Custom Libaries
 from behave_analysis.track.dlcHelp import DLC
 from behave_analysis.track.kalmanFilter import kalmann
+from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
 
 # OS Libaries
 from loguru import logger
-import os
+import os, sys
 import numpy as np
 import cv2
+import argparse
 import matplotlib.pyplot as plt
 import dill as pickle
 
@@ -168,6 +170,9 @@ class Track(DLC):
         regionsOI = self.map_regions_of_interest()
         self.compute_avg_region_location(regionsOI)
         self.compute_new_angles()
+        self.load_arena(session)
+        self.compute_angle_shelter()
+        self.compute_angle_barrier()
         self.compute_new_average_speed(session)
         self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
@@ -215,7 +220,85 @@ class Track(DLC):
         self.region_tracking_data['body_dir'] = np.arctan2(bodDelta_y, bodDelta_x) # Radians
     
         logger.info("Head direction and body direction computed")
+
+    def load_arena(self,session):
+        """
+        A little function for loading the first frame of the movie to point to shelter and barrier location"""
+        fisheye_correction_map = load_fisheye_correction_map(session.video)
+        source_video = cv2.VideoCapture(session.video.video_file)
+        _, self.arena = source_video.read()
+        self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map)
+
+    def compute_angle_shelter(self):
+        """
+        A function to compute the angle between the heading of the mouse and the shelter.
+        It will ask you to define the shelter position"""
         
+        # ask user where the shelter is
+        print("Where is the shelter? Click first the top left, then the bottom right corner of the shelter")
+        cv2.namedWindow('where is shelter')
+        self.clicked_points = []
+        cv2.setMouseCallback('where is shelter', self.click_click_targets)
+        while True:
+            cv2.imshow('where is shelter', self.arena)
+            if len(self.clicked_points) == 2: break # once both points are clicked
+            key = cv2.waitKey(10)
+            if key == ord('q'): print('quit.'); sys.exit()
+        cv2.destroyAllWindows()
+        
+        self.shelter_clicked_points = self.clicked_points
+
+        # calculate body to shelter angle
+        xdist = self.region_tracking_data['avg_loc'][:, 0]-int(np.mean([self.shelter_clicked_points[0][0],self.shelter_clicked_points[1][0]]))
+        ydist = self.region_tracking_data['avg_loc'][:, 1]-int(np.mean([self.shelter_clicked_points[1][0],self.shelter_clicked_points[1][1]]))
+        self.region_tracking_data['bod_shelt_dir'] = -(np.arctan2(ydist, xdist)+np.pi) # Radians
+
+        # head shelter angle (from pi to -pi)
+        self.region_tracking_data['hdir_shelt'] = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_shelt_dir'])
+        self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = -1 * (self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi))
+
+        logger.info("Shelter angle computed")
+
+    def compute_angle_barrier(self):
+        """
+        A function to compute the angle between the heading of the mouse and the barrier edges.
+        It will ask you to define the barrier edge position"""
+
+        self.region_tracking_data['bod_barrier_dir'] = np.empty((np.shape(self.region_tracking_data['avg_loc'])))
+        self.region_tracking_data['hdir_barrier'] = np.empty((np.shape(self.region_tracking_data['avg_loc'])))
+        # ask user if there was a barrier
+        user_input = input('Was there a barrier? y/n: ')
+        if user_input == 'y':
+            print("Where is the barrier? Click first the left, then the right edge of the barrier")
+            cv2.namedWindow('where is barrier')
+            self.clicked_points = []
+            cv2.setMouseCallback('where is barrier', self.click_click_targets)
+            while True:
+                cv2.imshow('where is barrier', self.arena)
+                if len(self.clicked_points) == 2: break # once both points are clicked
+                key = cv2.waitKey(10)
+                if key == ord('q'): print('quit.'); sys.exit()
+            cv2.destroyAllWindows()
+                
+            self.barrier_clicked_points = self.clicked_points
+            for i in np.arange(2): # calculate body to barrier angle for each edge of barrier
+                xdist = self.region_tracking_data['avg_loc'][:, 0]-self.barrier_clicked_points[i][0]
+                ydist = self.region_tracking_data['avg_loc'][:, 1]-self.barrier_clicked_points[i][1]
+                self.region_tracking_data['bod_barrier_dir'][:,i] = -(np.arctan2(ydist, xdist)+np.pi) # Radians
+                # head barrier angle (from pi to -pi)
+                hdir = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_barrier_dir'][:,i])
+                hdir[hdir > np.pi] =  -1 * (hdir[hdir > np.pi] - (2*np.pi))
+                self.region_tracking_data['hdir_barrier'][:,i] = hdir
+
+        else:
+            self.region_tracking_data['bod_barrier_dir'] = []
+        logger.info("Subgoal angles computed")
+    
+    def click_click_targets(self, event,x,y, flags, params):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.arena = cv2.circle(self.arena, (x, y), 3, 255, -1)
+            self.clicked_points.append([x,y])
+
     def compute_new_average_speed(self, session):
         """
         Calculate the velocity of the mouse. The velocity is the average of the x and y velocities of the body parts.
