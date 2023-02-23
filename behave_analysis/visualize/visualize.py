@@ -1,5 +1,4 @@
-# TODO - Slow down the video to make it easier to debug
-# TODO - Think speed is not working, wrong units as can't be 100cm/s
+# TODO - Add effiz alignment to stimulus as there should be a spike here for validation purposes
 
 # Custom classes
 from behave_analysis.utils.open_tracking_data import open_tracking_data
@@ -32,10 +31,17 @@ class Visualize():
         
         open_tracking_data(self)
         
-    def trials(self, stim_type):
+    def trials(self, stim_type) -> None:
+        """
+        A function that loops through all of the trials of a given type, and then loops through frame by frame.
+        """
+        
         print("\nPress 'q' to quit and 'n' to move to the next video")
+                
         for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.session.__dict__[stim_type].onset_frames, self.session.__dict__[stim_type].stimulus_durations)):
-            self.set_up_videos(stim_type, trial_num, onset_frames, stimulus_durations)            
+            self.set_up_videos(stim_type, trial_num, onset_frames, stimulus_durations)
+            
+            # Loop through the frames in this trial
             for i in self.frames_in_this_trial:
                 self.read_frame(onset_frames)
                 self.correct_and_register_frame()
@@ -45,8 +51,13 @@ class Visualize():
                 self.display_tracking(i)
                 self.display_and_save_frames()
                 key = cv2.waitKey(self.delay_between_frames)
-                if key == ord('q') or key==ord('n'): break
-            if key == ord('q'): break
+                
+                if key == ord('q') or key == ord('n'): 
+                    break
+                
+            if key == ord('q'): 
+                break
+            
         self.release_video_objects()
 
 # -----FIRST-LEVEL FUNCTIONS---------------------------------------------------------------------------------------
@@ -58,7 +69,8 @@ class Visualize():
 
     def correct_and_register_frame(self):
         self.actual_frame = correct_and_register_frame(self.actual_frame[:, :, 0], self.session.video, self.fisheye_correction_map)
-        if self.settings.display_tracking or self.settings.display_trail: self.actual_frame = cv2.cvtColor(self.actual_frame, cv2.COLOR_GRAY2RGB)
+        if self.settings.display_tracking or self.settings.display_trail: 
+            self.actual_frame = cv2.cvtColor(self.actual_frame, cv2.COLOR_GRAY2RGB)
     
     def get_current_position_and_speed(self) -> None:
         """
@@ -110,7 +122,16 @@ class Visualize():
         cv2.circle(self.actual_frame, self.avg_loc, 3, (220,220,220), -1)
 
     def display_speed_on_frame(self):
-        speed_text_color = get_color_based_on_speed(speed=self.speed, object_to_color='text', stim_status=None, stim_type=self.stim_type)
+        """
+        Print the speed of the animal on the displayed video.
+        """
+        # Set the color of the text based on the speed of the animal
+        speed_text_color = get_color_based_on_speed(speed = self.speed, 
+                                                    object_to_color = 'text', 
+                                                    stim_status = None,
+                                                    stim_type = self.stim_type)
+        
+        # Print the speed on the frame
         cv2.putText(self.actual_frame, '{} cm/s'.format(np.round(self.speed)), (self.actual_frame.shape[1]-200, 45), 0, 1, speed_text_color, thickness=2)
 
     def display_heading_dir_on_frame(self):
@@ -193,18 +214,25 @@ class Visualize():
      
 # ----SETUP FUNCTIONS-----------------------------------------------------------------------------------------------
     def set_up_videos(self, stim_type: str, trial_num: int, onset_frames: object, stimulus_durations: object):
+        """
+        A function that does a lot of shit
+        """
+        self.source_video         = cv2.VideoCapture(self.session.video.video_file) # Read the video file into a cv2 video object
+        self.fps                  = self.session.video.fps
+
         self.stimulus_durations   = stimulus_durations
         self.stim_type            = stim_type
+        
         self.onset_frames         = onset_frames
-        self.fps                  = self.session.video.fps
         self.seconds_before       = self.settings.__dict__['seconds_before_' + self.stim_type]
         self.seconds_after        = self.settings.__dict__['seconds_after_' + self.stim_type]
-        self.source_video         = cv2.VideoCapture(self.session.video.video_file)
         self.frames_in_this_trial = range((onset_frames[-1]-onset_frames[0])+int((self.seconds_before+stimulus_durations[-1]+self.seconds_after)*self.session.video.fps))
         minutes_into_session      = np.round(onset_frames[0]/self.fps/60)
+        
         self.trail                = []
         self.trail_colors         = []
-        self.trail_thicknesses    = []    
+        self.trail_thicknesses    = []
+            
         self.source_video.set(cv2.CAP_PROP_POS_FRAMES, onset_frames[0]-self.seconds_before*self.session.video.fps) # set source video to trial start
         self.stim_status = generate_stim_status_array(self.onset_frames, self.stimulus_durations, self.seconds_before, self.seconds_after, self.fps)  
         #self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
@@ -215,7 +243,11 @@ class Visualize():
                                      tracking_video=self.settings.display_tracking, 
                                      media_type='video').file_name(self.session.mouse, trial_num, minutes_into_session)
         
-        self.trial_video = cv2.VideoWriter(trial_video_path, cv2.VideoWriter_fourcc(*"mp4v"), self.session.video.fps, (self.session.video.width, self.session.video.height), self.settings.display_tracking or self.settings.display_trail)
+        self.trial_video = cv2.VideoWriter(trial_video_path, 
+                                           cv2.VideoWriter_fourcc(*"mp4v"), 
+                                           self.session.video.fps, 
+                                           (self.session.video.width, self.session.video.height), 
+                                           self.settings.display_tracking or self.settings.display_trail)
 
     def release_video_objects(self):
         self.source_video.release()
