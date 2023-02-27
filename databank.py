@@ -17,16 +17,3 @@ Arugments:
 
 databank['session IDs'] = [[0,0, 'efizz test', False, 'YT6240_23jan20'],
                            [1,0, 'No wall, wall', False, 'YT6240_23jan19']]
-
-#############################################################################################################################
-
-"""
-Arugments:
-+ Name of experiment - type: string, e.g. 'ObstacleThenRemove'
-+ bin file location - type: string, e.g. r"D:\efizz\1677_NoShelterThenShelter_22MAY31_g0\1677_NoShelterThenShelter_22MAY31_g0_imec0\1677_NoShelterThenShelter_22MAY31_g0_t0.imec0.ap.bin" """
-
-efizz = {"Efizz_test_23Jan20": {"bin": r"D:\efizz\YT6240_23jan20\230120_g0\230120_g0_imec0\230120_g0_t0.imec0.ap.bin",
-                                "res": 0},
-         "Efizz_test_23Jan19": {"bin": r"D:\efizz\YT6240_23jan19\230119_g0\230119_g0_imec0\230119_g0_t0.imec0.ap.bin",
-                                "res": 0}
-        }

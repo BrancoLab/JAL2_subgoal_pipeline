@@ -3,7 +3,7 @@ import numpy as np
 from loguru import logger
 
 # Custom libs
-from behave_analysis.process.ttl_sync import derivative
+from behave_analysis.process.electrophysiology.ttl_sync import derivative
 
 
 def remove_idx_as_per_bonsai_ttl_resample(name_of_signal,

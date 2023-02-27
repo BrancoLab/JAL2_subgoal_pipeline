@@ -108,12 +108,15 @@ class Verifications():
         """Log the length of the video in seconds for visual inspection"""
         logger.info("The length of the video is: {}s".format(self.Process.session.video.num_frames * (1 / self.Process.session.video.fps)))
 
-    def visulize_sync_output(self):
+    def visulize_sync_output(self) -> tuple:
         """A function to plot the digital signals of the bonsai machine and the imec machine
         to ensure that after alignment they are identical. The alignment is done by
         regressing the imec signal on the bonsai signal and then shifting the imec signal.
         The intercept is removed because the true origin is close to zero. Adding the intercept
         breaks the regression. ALthough confusing the intercept was not learnt to be zero.
+        
+        Returns: Tuple:
+        (r_value, slope)
         """
         
         # Trucate Signals to the first pulse onset 
@@ -127,6 +130,7 @@ class Verifications():
         # Align signals
         slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets / self.Process.session.ttl.sampling_rate, 
                                                                              self.Process.session.ttl.bonsai_sync_onsets / self.Process.session.ttl.sampling_rate)
+        
         regression = lambda x: slope * x
         
         # Plot starting, middle and end samples to check alignment
@@ -145,15 +149,17 @@ class Verifications():
         axs[2].set_title("End of sync")
         axs[2].plot(regression(imecTime)[LastPulses : LastPulses + 500000], imecSignal[LastPulses : LastPulses + 500000], color='blue', label = 'Imec')
         axs[2].plot(bonsaiTime[LastPulses : LastPulses + 500000], bonsaiSignal[LastPulses : LastPulses + 500000], color='red', label = 'Bonsai')
-        
+                
         plt.show()
         
-    def verify_clock_drift(self):
+        return (r_value**2, slope)
+        
+    def verify_clock_drift(self, r2_value):
         """Check that the clock drift is linear and not too large given that it is deterministic that
         the clocks between the two machines are not perfectly synced (imec and bonsai). Assuming that the bonsai
         clock is faster and thus we project from the spike machine to the bonsai machine. An R squared value of
         0.9999 was recommended by the NeuroGears team.
         """
-        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets, self.Process.session.ttl.bonsai_sync_onsets)
-        assert r_value**2 > 0.9999, "The R squared value of the linear regression is too low"
-        logger.success(f"The R squared value of the linear regression for clock drift check has passed the tests and is: {r_value**2}")
+        
+        assert r2_value > 0.9999, "The R squared value of the linear regression is too low"
+        logger.success(f"The R squared value of the linear regression for clock drift check has passed the tests and is: {r2_value**2}")
