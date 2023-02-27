@@ -28,9 +28,7 @@ Todo:
 #Custom libaries
 from behave_analysis.process.session import Session
 from behave_analysis.utils.load_bin_or_np import load_or_open
-from databank import efizz
 from behave_analysis.utils.AI_dataClass_objects import TTL_Sync
-from settings.settings_process import settings_process as settings_p
 
 #OS libaries
 import os
@@ -40,8 +38,7 @@ import dill as pickle
 from loguru import logger
 
 
-#Return the above data class
-def get_TTL(session: Session):
+def get_TTL(session: Session, TTL_bin_path: str):
     """Returns the TTL_sync dataclass. 
 
     Args:
@@ -55,7 +52,7 @@ def get_TTL(session: Session):
     sampling_rate = 30000
 
     # Retrieve TTL data
-    bonsai_ttl, imec_TTL = retrieve_TTL_signals(session)
+    bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path)
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
     assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
 
@@ -99,7 +96,7 @@ def get_TTL(session: Session):
 #--------------------------------------- Load and retrieve data functions -----------------------------------------------------------------------
 
 # Retrieve TTL signals
-def retrieve_TTL_signals(session: Session):
+def retrieve_TTL_signals(session: Session, TTL_bin_path: str):
     """Retrieves TTL signals for both the bonsai machine and the imec machine
 
     Args:
@@ -115,11 +112,11 @@ def retrieve_TTL_signals(session: Session):
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
     bonsai_ttl = AI_data[np.arange(3, len(AI_data), 4)] #From the 4 index until the end select every 4th sample
-    imec_TTL = get_TTL_from_imec(settings_p.efizzDataPath["bin"])
+    imec_TTL = get_TTL_from_imec(TTL_bin_path)
     return bonsai_ttl, imec_TTL
 
 #Load imec bin file
-def get_TTL_from_imec(filename):
+def get_TTL_from_imec(filename: str):
     """Load the imec bin file and convert to np memory map
 
     Args:

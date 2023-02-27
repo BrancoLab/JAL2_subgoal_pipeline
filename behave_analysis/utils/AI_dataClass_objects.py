@@ -13,7 +13,13 @@ class TTL_Sync:
     bonsai_sync_onsets: int 
     bonsai_sync_offsets: int 
     ephys_sync_onsets: int 
-    ephys_sync_offset: int 
+    ephys_sync_offset: int
+
+@dataclass(frozen=True)
+class Elecetrophysiology:
+    spike_times: object
+    spike_clusters: object
+    TTL_bin_path: str
     
 @dataclass(frozen=True)
 class Camera_trigger:

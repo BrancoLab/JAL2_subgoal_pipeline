@@ -1,4 +1,7 @@
-"""Often fellow lab members will work in MatLab and save their output in MatLab Structs.
+"""NOTE this is old code to work with JR CLUST could be removed in future.
+
+
+Often fellow lab members will work in MatLab and save their output in MatLab Structs.
 This script is to help convert that struct away from nasty MatLab into Python
 Input: file path of .mat file which is a struct
 Returns: A python dictionary"""

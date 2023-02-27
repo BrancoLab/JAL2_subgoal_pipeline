@@ -5,14 +5,13 @@ Questions:
 
 #Custom libaries
 from behave_analysis.utils.settings_objects import Settings_process
-from databank import efizz
 
 #Os Libraries
 import os
 
 settings_process = Settings_process(
 
-    create_new_registration = True,
+    create_new_registration = False,
     skip_registration = True,
     registration = 'homography', # 'affine' 'partial affine' or 'homography' (use the least complex needed)
     fisheye_correction_file = os.path.join("sample_data", "fisheye_maps.npy"), # remove setting if n/a
@@ -24,6 +23,5 @@ settings_process = Settings_process(
     sessions = [1], # This session points to the data bank index
     all_sessions = False,
     efizz = True, # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
-    efizzDataPath = efizz["Efizz_test_23Jan19"], # Set to None if no Efizz data
 
 )

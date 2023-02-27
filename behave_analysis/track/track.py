@@ -221,14 +221,6 @@ class Track(DLC):
     
         logger.info("Head direction and body direction computed")
 
-    def load_arena(self,session):
-        """
-        A little function for loading the first frame of the movie to point to shelter and barrier location"""
-        fisheye_correction_map = load_fisheye_correction_map(session.video)
-        source_video = cv2.VideoCapture(session.video.video_file)
-        _, self.arena = source_video.read()
-        self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map)
-
     def compute_angle_shelter(self):
         """
         A function to compute the angle between the heading of the mouse and the shelter.
@@ -346,6 +338,14 @@ class Track(DLC):
         self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
 
 # --------UTILITY FUNCS---------------------------------------------------------------------
+
+    def load_arena(self,session):
+        """
+        A little function for loading the first frame of the movie to point to shelter and barrier location"""
+        fisheye_correction_map = load_fisheye_correction_map(session.video)
+        source_video = cv2.VideoCapture(session.video.video_file)
+        _, self.arena = source_video.read()
+        self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map)
 
     def save_tracking_data(self, session) -> None:
         """
