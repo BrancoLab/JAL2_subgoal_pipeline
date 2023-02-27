@@ -152,7 +152,10 @@ class Verifications():
                 
         plt.show()
         
-        return (r_value**2, slope)
+        # Last pulse to check that efizz spikes are not longer than this in another module
+        LastPulse = self.Process.session.ttl.bonsai_sync_offsets[-1]
+        
+        return (r_value**2, slope), LastPulse
         
     def verify_clock_drift(self, r2_value):
         """Check that the clock drift is linear and not too large given that it is deterministic that

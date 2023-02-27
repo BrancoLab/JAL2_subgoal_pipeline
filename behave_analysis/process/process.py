@@ -43,12 +43,14 @@ class Process():
                 
         self.print_session_details(stage=2)
         self.save_session()
-        _, slope = self.quality_check_new_sessions()
-                
+        _, slope, lastPulse = self.quality_check_new_sessions()
+                        
         if settings_p.efizz:
             self.efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
                                                      slope = slope, 
-                                                     samplingRate = self.session.ttl.sampling_rate)
+                                                     samplingRate = self.session.ttl.sampling_rate,
+                                                     filePath = self.session.file_path,
+                                                     lastPulse = lastPulse)
         
         return self.session
     
@@ -64,11 +66,11 @@ class Process():
             Verifications(self).verify_check_means()
             Verifications(self).verify_onsets_and_offsets()
             Verifications(self).verify_ttl_len_with_frame_duration()
-            r2_value, slope = Verifications(self).visulize_sync_output()
+            (r2_value, slope), lastPulse = Verifications(self).visulize_sync_output()
             Verifications(self).verify_clock_drift(r2_value)
             
         logger.success("All verifications steps passed")
-        return r2_value, slope
+        return r2_value, slope, lastPulse
 
     def save_session(self, overwrite=True) -> None:
         """
