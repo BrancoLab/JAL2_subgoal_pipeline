@@ -20,8 +20,8 @@ settings_process = Settings_process(
     by_experiment = False,
     experiments = ['block pre edge vectors'],
     by_session = True,
-    sessions = [1], # This session points to the data bank index
+    sessions = [0], # This session points to the data bank index
     all_sessions = False,
-    efizz = True, # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
+    efizz = False, # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
 
 )

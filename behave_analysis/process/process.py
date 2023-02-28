@@ -43,8 +43,11 @@ class Process():
                 
         self.print_session_details(stage=2)
         self.save_session()
-        _, slope, lastPulse = self.quality_check_new_sessions()
-                        
+        if settings_p.efizz:
+            _, slope, lastPulse = self.quality_check_new_sessions()
+        elif settings_p.efizz == False:
+            self.quality_check_new_sessions()
+            
         if settings_p.efizz:
             self.efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
                                                      slope = slope, 
@@ -69,8 +72,10 @@ class Process():
             (r2_value, slope), lastPulse = Verifications(self).visulize_sync_output()
             Verifications(self).verify_clock_drift(r2_value)
             
-        logger.success("All verifications steps passed")
-        return r2_value, slope, lastPulse
+            logger.success("All verifications steps passed")
+            return r2_value, slope, lastPulse
+        
+        return None
 
     def save_session(self, overwrite=True) -> None:
         """
