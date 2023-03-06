@@ -37,6 +37,6 @@ settings_visualize = Settings_visualize(
     by_experiment = False,
     experiments = ['no laser'],
     by_session = True,
-    sessions = [1], # This session must be the one indexed in the databank
+    sessions = [0], # This session must be the one indexed in the databank
     all_sessions = False
 )

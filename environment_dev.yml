@@ -1,4 +1,4 @@
-name: subgoal
+name: JALpipeline
 channels:
   - conda-forge
   - defaults
@@ -49,10 +49,12 @@ dependencies:
   - pip:
     - absl-py
     - astor
+    - astropy
     - atomicwrites
     - attrs
     - autopep8
     - bleach
+    - bottleneck
     - chardet
     - click
     - cloudpickle
@@ -63,10 +65,11 @@ dependencies:
     - dask
     - dataclasses
     - decorator
-    - deeplabcut
+    # - deeplabcut
     - dill
     - docopt
     - easydict
+    - ephysiopy
     - et-xmlfile
     - fastrlock
     - gast
@@ -81,9 +84,11 @@ dependencies:
     - ipython
     - jdcal
     - kiwisolver
+    - loguru
     - lml
     - markdown
     - matplotlib
+    - mat73
     - moviepy
     - networkx
     - nptdms
@@ -94,6 +99,7 @@ dependencies:
     - patsy
     - pillow
     - pluggy
+    - polars
     - prompt-toolkit
     - protobuf
     - psutil
@@ -111,6 +117,7 @@ dependencies:
     - pywavelets
     - pyyaml
     - requests
+    - resampy
     - scikit-fmm
     - scikit-image
     - scikit-learn
@@ -120,7 +127,7 @@ dependencies:
     - statsmodels
     - tables
     - tensorboard
-    - tensorflow-gpu
+    # - tensorflow-gpu
     - termcolor
     - texttable
     - toml

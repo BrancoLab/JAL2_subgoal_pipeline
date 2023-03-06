@@ -12,7 +12,7 @@ import os
 settings_process = Settings_process(
 
     create_new_registration = False,
-    skip_registration = True,
+    skip_registration = False,
     registration = 'homography', # 'affine' 'partial affine' or 'homography' (use the least complex needed)
     fisheye_correction_file = os.path.join("sample_data", "fisheye_maps.npy"), # remove setting if n/a
     size = (1024,1024), # (width, height) how big to make the renderings, in pixels

@@ -32,6 +32,9 @@ class DLC:
             logger.info("Running DeepLabCut tracking for session: {} - {}".format(session.number, session.name))
             from deeplabcut.pose_estimation_tensorflow import analyze_videos
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
+            if self.settings.save_labeled_video:
+                from deeplabcut import create_labeled_video
+                create_labeled_video(self.settings.dlc_settings_file, session.video.video_file, save_frames = True, keypoints_only=True)
     
     def create_dlc_tracking_array(self, session) -> None:
         """

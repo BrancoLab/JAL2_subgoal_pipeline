@@ -60,6 +60,6 @@ def get_Video(session: Session, settings: object, registration_transform: object
         return video
 
     registration_transform = Register(session, video, video_object).transform
-    video = Video(num_frames, video_file, fps, height, width, fisheye_correction_file, registration_transform, registration_type, registration_size, pixels_per_cm, tracking_data_file)
+    video = Video(num_frames, video_file, fps, height, width, fisheye_correction_file, registration_transform, registration_type, registration_size, pixels_per_cm)
     
     return video
