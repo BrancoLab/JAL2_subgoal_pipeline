@@ -43,6 +43,7 @@ class Process():
                 
         self.print_session_details(stage=2)
         self.save_session()
+        
         if settings_p.efizz:
             _, slope, lastPulse = self.quality_check_new_sessions()
         elif settings_p.efizz == False:
