@@ -38,5 +38,6 @@ settings_visualize = Settings_visualize(
     experiments = ['no laser'],
     by_session = True,
     sessions = [0], # This session must be the one indexed in the databank
-    all_sessions = False
+    all_sessions = False,
+    efizz = True # if you want to visualize efizz also
 )

@@ -11,6 +11,8 @@ import os, sys
 import numpy as np
 import cv2
 import argparse
+import matplotlib
+matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 import dill as pickle
 
@@ -241,13 +243,31 @@ class Track(DLC):
         self.shelter_clicked_points = self.clicked_points
 
         # calculate body to shelter angle
-        xdist = self.region_tracking_data['avg_loc'][:, 0]-int(np.mean([self.shelter_clicked_points[0][0],self.shelter_clicked_points[1][0]]))
-        ydist = self.region_tracking_data['avg_loc'][:, 1]-int(np.mean([self.shelter_clicked_points[1][0],self.shelter_clicked_points[1][1]]))
-        self.region_tracking_data['bod_shelt_dir'] = -(np.arctan2(ydist, xdist)+np.pi) # Radians
+        xdist = -self.region_tracking_data['avg_loc'][:, 0]+int(np.mean([self.shelter_clicked_points[0][0],self.shelter_clicked_points[1][0]]))
+        ydist = -self.region_tracking_data['avg_loc'][:, 1]+int(np.mean([self.shelter_clicked_points[0][1],self.shelter_clicked_points[1][1]]))
+        self.region_tracking_data['bod_shelt_dir'] = -(np.arctan2(ydist, xdist)) # Radians
+                
+        # color position by their shelter angle
+        # mass = self.region_tracking_data['avg_loc']
+        # ang_color = np.digitize(np.rad2deg(self.region_tracking_data['bod_shelt_dir']),np.arange(-180,180))
+        # phi = np.linspace(0, 2*np.pi, len(np.arange(360)))
+        # rgb_cycle = np.vstack((            # Three sinusoids
+        #     .5*(1.+np.cos(phi          )), # scaled to [0,1]
+        #     .5*(1.+np.cos(phi+2*np.pi/3)), # 120° phase shifted.
+        #     .5*(1.+np.cos(phi-2*np.pi/3)))).T # Shape = (60,3)
+        # bsa_rgb_cycle = np.zeros(shape = (len(ang_color),3))
+        # for i in np.arange(360):
+        #     bsa_rgb_cycle[ang_color == i+1,:] = rgb_cycle[i,:]
+        # plt.scatter(mass[:,0],mass[:,1],s=5,c=bsa_rgb_cycle,linewidths=0,marker='.')
+        # plt.title ('position coloured by angle to shelter')
+        # ax = plt.gca()
+        # ax.invert_yaxis()
+        # plt.show()
 
         # head shelter angle (from pi to -pi)
         self.region_tracking_data['hdir_shelt'] = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_shelt_dir'])
-        self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = -1 * (self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi))
+        self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi)
+        self.region_tracking_data['hdir_shelt'] = -self.region_tracking_data['hdir_shelt']
 
         logger.info("Shelter angle computed")
 
@@ -274,14 +294,13 @@ class Track(DLC):
                 
             self.barrier_clicked_points = self.clicked_points
             for i in np.arange(2): # calculate body to barrier angle for each edge of barrier
-                xdist = self.region_tracking_data['avg_loc'][:, 0]-self.barrier_clicked_points[i][0]
-                ydist = self.region_tracking_data['avg_loc'][:, 1]-self.barrier_clicked_points[i][1]
-                self.region_tracking_data['bod_barrier_dir'][:,i] = -(np.arctan2(ydist, xdist)+np.pi) # Radians
+                xdist = -self.region_tracking_data['avg_loc'][:, 0]+self.barrier_clicked_points[i][0]
+                ydist = -self.region_tracking_data['avg_loc'][:, 1]+self.barrier_clicked_points[i][1]
+                self.region_tracking_data['bod_barrier_dir'][:,i] = -(np.arctan2(ydist, xdist)) # Radians
                 # head barrier angle (from pi to -pi)
                 hdir = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_barrier_dir'][:,i])
-                hdir[hdir > np.pi] =  -1 * (hdir[hdir > np.pi] - (2*np.pi))
-                self.region_tracking_data['hdir_barrier'][:,i] = hdir
-
+                hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
+                self.region_tracking_data['hdir_barrier'][:,i] = - hdir
         else:
             self.region_tracking_data['bod_barrier_dir'] = []
         logger.info("Subgoal angles computed")

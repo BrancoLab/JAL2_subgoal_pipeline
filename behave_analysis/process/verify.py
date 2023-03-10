@@ -8,6 +8,8 @@ a good place to put it."""
 # OS Libaries
 from loguru import logger
 import numpy as np
+import matplotlib
+matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 import scipy
 

@@ -80,6 +80,7 @@ class Settings_visualize:
     by_session: bool=False
     sessions: list=None
     all_sessions: bool=False
+    efizz: bool=False
 
 @dataclass(frozen=True)
 class Settings_analyze_local:

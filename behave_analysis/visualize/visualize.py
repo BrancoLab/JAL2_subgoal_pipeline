@@ -6,6 +6,7 @@ from behave_analysis.track.register import load_fisheye_correction_map, correct_
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
+from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 
 # OS libaries
 import cv2
@@ -30,6 +31,11 @@ class Visualize():
             self.kalman = pickle.load(dill_file)
         
         open_tracking_data(self)
+
+        if self.settings.efizz: # this will only make efizz plots if you want them
+            if self.settings.escape_trials: Visualize_efizz(self).rasters(stim_type = 'audio')
+            if self.settings.escape_trials: Visualize_efizz(self).PSTH(stim_type = 'audio')
+            if self.settings.escape_trials: Visualize_efizz(self).HSA_tuning()
         
     def trials(self, stim_type) -> None:
         """
@@ -149,7 +155,7 @@ class Visualize():
         cv2.arrowedLine(self.actual_frame, self.avg_loc, (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y), (220,220,220), 1, 16)
         
         # Plot the body direction interger on the frame (for debugging)
-        cv2.putText(self.actual_frame, f"{int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        # cv2.putText(self.actual_frame, f"{int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
     
     def display_goal_dir_on_frame(self):
         """
