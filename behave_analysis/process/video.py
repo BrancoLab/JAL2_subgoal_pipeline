@@ -1,5 +1,5 @@
 # Custom libaries
-from behave_analysis.process.session import Session
+from behave_analysis.process.session import NEW_Session
 from behave_analysis.track.register import Register
 
 # OS Libraries
@@ -27,11 +27,12 @@ class Video:
     x_offset: int=128 # if the video frame is cropped, how far from the top left edge is it
     y_offset: int=0   # (this is for the fisheye correction step)
 
-def get_Video(session: Session, settings: object, registration_transform: object=None) -> Video:
+def get_Video(session: NEW_Session, settings: object, registration_transform: object=None) -> Video:
     """A function that searchs through the directory for a camera avi file and returns a Video object."""
     
     try:
-        video_file = glob(os.path.join(session.file_path, "cam*avi"))[-1] # take the last file if there are multiple
+        video_file = str(list(session.file_path.glob("*cam.avi"))[0]) # need lst and idx as its a generator
+    
     except IndexError:
         raise IndexError(f"No camera video file found with expected name in {session.file_path}")
     

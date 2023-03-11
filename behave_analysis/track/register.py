@@ -1,4 +1,4 @@
-from behave_analysis.process.session import Session
+from behave_analysis.process.session import NEW_Session
 from settings.settings_process import settings_process
 import sys
 import cv2
@@ -25,7 +25,7 @@ def load_fisheye_correction_map(video: object):
         fisheye_correction_map = None
     return fisheye_correction_map
     
-def generate_rendered_arena(session: Session, size: int) -> object:
+def generate_rendered_arena(session: NEW_Session, size: int) -> object:
     rendered_arena = 255 * np.ones(size).astype(np.uint8)
     #! This section must be modified with a new section for each type of arena (default: 92-cm circle with a square shelter and a 50cmx10cm removable rectangle in the middle)
     if "place preference" in session.experiment:
@@ -38,7 +38,7 @@ def generate_rendered_arena(session: Session, size: int) -> object:
     return rendered_arena, click_targets
 
 class Register():
-    def __init__(self, session: Session, video: object, video_object: object) -> object:
+    def __init__(self, session: NEW_Session, video: object, video_object: object) -> object:
         self.generate_rendered_arena(session)
         self.add_click_targets()
         self.get_image_of_actual_arena(video_object, video)
@@ -47,7 +47,7 @@ class Register():
         self.refine_transform()
 
 # ----MAIN FUNCTIONS--------------------------------------------------------------------
-    def generate_rendered_arena(self, session: Session):
+    def generate_rendered_arena(self, session: NEW_Session):
         self.rendered_arena, self.click_targets = generate_rendered_arena(session, settings_process.size)
 
     def add_click_targets(self):

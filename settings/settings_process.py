@@ -11,7 +11,7 @@ import os
 
 settings_process = Settings_process(
 
-    create_new_registration = False,
+    create_new_registration = True,
     skip_registration = False,
     registration = 'homography', # 'affine' 'partial affine' or 'homography' (use the least complex needed)
     fisheye_correction_file = os.path.join("sample_data", "fisheye_maps.npy"), # remove setting if n/a
@@ -20,8 +20,8 @@ settings_process = Settings_process(
     by_experiment = False,
     experiments = ['block pre edge vectors'],
     by_session = True,
-    sessions = [1], # This session points to the data bank index
-    all_sessions = False,
+    # sessions = [1], # This session points to the data bank index
+    all_sessions = False, # I've commented this out in collect_sessions_IDs as we are doing session by session whilst I try and simplify the code
     efizz = False, # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
 
 )

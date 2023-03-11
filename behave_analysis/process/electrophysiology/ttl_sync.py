@@ -26,7 +26,7 @@ Todo:
 """
 
 #Custom libaries
-from behave_analysis.process.session import Session
+from behave_analysis.process.session import NEW_Session
 from behave_analysis.utils.load_bin_or_np import load_or_open
 from behave_analysis.utils.AI_dataClass_objects import TTL_Sync
 
@@ -38,7 +38,7 @@ import dill as pickle
 from loguru import logger
 
 
-def get_TTL(session: Session, TTL_bin_path: str):
+def get_TTL(session: NEW_Session, TTL_bin_path: str):
     """Returns the TTL_sync dataclass. 
 
     Args:
@@ -96,7 +96,7 @@ def get_TTL(session: Session, TTL_bin_path: str):
 #--------------------------------------- Load and retrieve data functions -----------------------------------------------------------------------
 
 # Retrieve TTL signals
-def retrieve_TTL_signals(session: Session, TTL_bin_path: str):
+def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str):
     """Retrieves TTL signals for both the bonsai machine and the imec machine
 
     Args:

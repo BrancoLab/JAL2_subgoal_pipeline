@@ -11,7 +11,9 @@ from behave_analysis.visualize.visualize import Visualize
 from behave_analysis.analyze.analyze import Analyze
 from behave_analysis.utils.print_settings import print_settings, print_settings_analysis
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
-from databank import databank
+
+# Testing 
+from databank import experiments_objects
 
 # OS Libaries
 from loguru import logger
@@ -23,10 +25,12 @@ def process():
     Returns: Nothing, data is saved to a metadata file."""
     
     logger.info("Processing started")
-    session_IDs = collect_session_IDs(settings_p, databank)
-    assert list(session_IDs), "Session list should not be empty"
-    for session_ID in session_IDs:
+        
+    assert len(experiments_objects) != 0, "Session list should not be empty"
+
+    for session_ID in experiments_objects:
         Process(session_ID).create_session(settings_p)
+        
     logger.success("Processing complete")
  
 def track():
