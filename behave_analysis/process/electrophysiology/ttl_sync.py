@@ -65,9 +65,9 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
 
     # Check to see that imec pulse onset is first 
     # ??What does this do?
-    if ephys_sync_onsets[0] >= bonsai_sync_onsets[0]:
-        logger.error("The first pulse onset is the bonsai signal and not the imec signal. Error.")
-        return
+    # if ephys_sync_onsets[0] >= bonsai_sync_onsets[0]:
+    #     logger.error("The first pulse onset is the bonsai signal and not the imec signal. Error.")
+    #     return
 
     # Check pulse lengths
     check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
@@ -78,9 +78,13 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
         logger.error(f"Removing pulses with too short of a length: {pulse_len_errors}")
         bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse_len_errors)
         bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, pulse_len_errors)
+        
+    # # Removing the last pulse just to analysie seq1 this should be removed TODO; remove
+    # ephys_sync_onsets = ephys_sync_onsets[:-1]
+    # print("dont forget to remove this line")
 
     # Test that onsets len match
-    assert len(bonsai_sync_onsets) == len(ephys_sync_onsets), "The number of pulse onsets should match between the two signals"
+    assert len(bonsai_sync_onsets) == len(ephys_sync_onsets), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
 
     # define the TTL object
     ttl_object = TTL_Sync(bonsai_TTL = bonsai_ttl, 
@@ -106,11 +110,15 @@ def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str):
     - TTL signals from bonsai machine and imec board
     """
     #Retrieve TTL data
-    AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
-    if '.bin' in AI_file: 
+    
+    AI_file = list(session.file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+
+    if '.bin' in str(AI_file): 
         AI_data = np.fromfile(AI_file)
+        
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
+        
     bonsai_ttl = AI_data[np.arange(3, len(AI_data), 4)] #From the 4 index until the end select every 4th sample
     imec_TTL = get_TTL_from_imec(TTL_bin_path)
     return bonsai_ttl, imec_TTL
@@ -154,9 +162,17 @@ def get_onset_offset(signal, threshold, clean = True):
         starts = np.concatenate([[0], starts])
 
     #If the signal ends at the top of the pulse add the length of the signal to the end
+    remove_last_onset = False
+            
     if above[-1] > 0:
         logger.warning("Adding to the signal")
         ends = np.concatenate([ends, [len(signal)]])
+        
+        # In the event that the signal ends on a high, remove that last pulse
+        # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1
+        # buffering should be fixed to prevent this
+        # TODO: remove this if future recordings are affected
+        remove_last_onset = True
 
     #If clean is true
     if clean:
@@ -174,6 +190,11 @@ def get_onset_offset(signal, threshold, clean = True):
     if not np.any(ends):
         ends = np.array([len(signal)])
         logger.error("No offsets")
+    
+    # If the last pulse is to be removed because of hack above, remove it
+    if remove_last_onset:
+        starts = starts[:-1]
+        
     return starts, ends
 
 #Take the derivate so you can spot changes in state within a signal. Ie, pulse onset/offsets

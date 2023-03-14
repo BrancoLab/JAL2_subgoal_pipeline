@@ -45,4 +45,18 @@ mushroom1 = Experiment(# Mouse specific
                        experiment_time = "07_15_15",
                        experiment_path = Path(r"001_mushroom1_2023_03_10T07_15_15"))
 
-experiments_objects = [mushroom1]
+seq1 = Experiment(# Mouse specific
+                       nick_name = JAL001.nick_name,
+                       total_sessions = JAL001.total_sessions,
+                       mouse_number_pyrat = JAL001.mouse_number_pyrat,
+                       experiment_file_names = JAL001.experiment_file_names,
+                       root_path = JAL001.root_path,
+
+                       # Experiment specific
+                       experiment_name = 'Seq1',
+                       experiment_idx = 0,
+                       experiment_date = "2023_03_11",
+                       experiment_time = "08_39_25",
+                       experiment_path = Path(r"001_Seq1_2023_03_11T08_39_25"))
+
+experiments_objects = [seq1]
