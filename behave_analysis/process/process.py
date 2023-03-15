@@ -1,6 +1,5 @@
 #Import custom libaries
 from settings.settings_process import settings_process as settings_p
-from behave_analysis.process.session import Session, get_Session
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
@@ -9,6 +8,8 @@ from behave_analysis.process.electrophysiology.ttl_sync import get_TTL
 from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
+
+from behave_analysis.process.session import NEW_Session, get_experiment # Testing refactored dataclass structure
 
 #Import OS libraries
 import os
@@ -22,9 +23,9 @@ class Process():
     This stage also includes verifications of data
     """
     def __init__(self, session_ID):
-        self.session = get_Session(session_ID)
+        self.session = get_experiment(session_ID) # Session is experiment now
         
-    def create_session(self, video_settings) -> Session:
+    def create_session(self, video_settings) -> NEW_Session:
         """
         A function that creates the session, and saves the metadata file. It also runs the quality checks on the session.
         Resamples and aligns signals etc. Need to refactor as a lot is happening.
@@ -43,6 +44,7 @@ class Process():
                 
         self.print_session_details(stage=2)
         self.save_session()
+        
         if settings_p.efizz:
             _, slope, lastPulse = self.quality_check_new_sessions()
         elif settings_p.efizz == False:
@@ -85,7 +87,7 @@ class Process():
         with open(self.session.metadata_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
         return None
 
-    def load_session(self) -> Session:
+    def load_session(self) -> NEW_Session:
         """
         Load a previously exsisting file. If the file does not exsist and the settings process
         is set to skip process. Then an error may occur

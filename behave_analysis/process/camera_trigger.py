@@ -1,5 +1,5 @@
 # Custom libs
-from behave_analysis.process.session import Session
+from behave_analysis.process.session import NEW_Session
 from behave_analysis.utils.AI_dataClass_objects import Camera_trigger
 
 # Os libs
@@ -10,18 +10,19 @@ import dill as pickle
 import pandas as pd
 from loguru import logger
 
-def get_Camera_trigger(session: Session, drop_frames = False):
+def get_Camera_trigger(session: NEW_Session, drop_frames = False):
     """ AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
     AI stands for analog input. However, I believe as this is a pulse, it is digital.
     A pulse generated from the NI box one part goes to the camera and another back to the NI box."""
     
-    AI_file = glob(os.path.join(session.file_path, "analog*"))[-1] # take the last file if there are multiple
-    if '.bin' in AI_file: 
+    AI_file = list(session.file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+
+    if '.bin' in str(AI_file): 
         AI_data = np.fromfile(AI_file)
     else:
         with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)
+    
     camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)] # four interleaved time series
-
     camera_trigger_num_samples = len(camera_trigger_data)
     num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames = drop_frames)
     fps = get_fps(session, num_frames_expected, duration_of_video)
@@ -29,7 +30,7 @@ def get_Camera_trigger(session: Session, drop_frames = False):
     
     return camera_trigger, camera_trigger_data
 
-def get_num_frames_expected(session: Session, camera_trigger_data: object, drop_frames=False) -> int:
+def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, drop_frames=False) -> int:
     """Find the onset of the frame triggers. And count the onset of pulses as expected number of frames in the camera.
 
     Args:
@@ -55,11 +56,11 @@ def get_num_frames_expected(session: Session, camera_trigger_data: object, drop_
     
     return num_frames_expected, duration_of_video, frame_trigger_onsets_idx
 
-def get_fps(session: Session, num_frames_expected: int, duration_of_video: int) -> int:
+def get_fps(session: NEW_Session, num_frames_expected: int, duration_of_video: int) -> int:
     fps = int(num_frames_expected / duration_of_video)
     return fps
 
-def find_drop_frames(session: Session, frame_trigger_onsets_idx, for_video_reader=False):
+def find_drop_frames(session: NEW_Session, frame_trigger_onsets_idx, for_video_reader=False):
     """Find any dropped frames in the video.
 
     Args:
@@ -70,8 +71,10 @@ def find_drop_frames(session: Session, frame_trigger_onsets_idx, for_video_reade
     Returns:
         _type_: _description_
     """
+    frames_csv_path = list(session.file_path.glob("*frames.csv"))[0]
+  
+    # frames_csv_path = glob(os.path.join(session.file_path, "frames*"))[-1]
     
-    frames_csv_path = glob(os.path.join(session.file_path, "frames*"))[-1]
     frames_csv = pd.read_csv(frames_csv_path, names=['frame number', 'zero', 'timestamp'])
     difference_between_frames = np.diff(frames_csv['timestamp'])
     min_difference = np.min(difference_between_frames)
