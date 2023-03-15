@@ -19,33 +19,31 @@ from databank import experiments_objects
 from loguru import logger
 
 def process():
-    """A function that collects sessions from the databank, puts the sessions through a processing
+    """
+    A function that collects sessions from the databank, puts the sessions through a processing
     pipeline and then saves the sessions to a metadata file. This metadata file is then loaded and used
     by subsequent track, homing, visualize and analyze functions.
-    Returns: Nothing, data is saved to a metadata file."""
-    
+    Returns: Nothing, data is saved to a metadata file.
+    """
     logger.info("Processing started")
-        
     assert len(experiments_objects) != 0, "Session list should not be empty"
-
     for session_ID in experiments_objects:
         Process(session_ID).create_session(settings_p)
-        
     logger.success("Processing complete")
  
 def track():
-    """A function that collects sessions from the databank, puts the sessions through a tracking
-    in Deep lab cut."""
-    
+    """
+    A function that collects sessions from the databank, puts the sessions through a tracking
+    in Deep lab cut.
+    """
     logger.info("The tracking pipeline has started")
-    session_IDs = collect_session_IDs(settings_t, databank)
-    for session_ID in session_IDs:
+    for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         Track(settings_t, session)
     logger.success("Tracking complete")
 
 def homings():
-    # print("\n------ EXTRACTING HOMINGS ------"); print_settings(settings_h)
+    # TODO: Update to new databank
     session_IDs = collect_session_IDs(settings_h, databank)
     for session_ID in session_IDs:
         session = Process(session_ID).load_session()
@@ -53,9 +51,11 @@ def homings():
         get_Threshold_crossings(settings_h, session)
 
 def visualize():
+    """
+    A function that visualising the mouse's behaviour in a session by trial, and looks at how well the efizz has synced.
+    """
     logger.info("Visulisation started")
-    session_IDs = collect_session_IDs(settings_v, databank)
-    for session_ID in session_IDs:
+    for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         if settings_v.laser_trials:  Visualize(session, settings_v).trials(stim_type = 'laser')
         if settings_v.escape_trials: Visualize(session, settings_v).trials(stim_type = 'audio')
@@ -65,7 +65,8 @@ def visualize():
     logger.success("Visulisation complete")
 
 def analyze():
-    # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a); 
+    # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a);
+    # TODO: update this to use the new databank 
     session_IDs = collect_session_IDs_analysis(settings_a.analysis, databank)
     if settings_a.analysis.plot_escape:  Analyze(session_IDs, settings_a, 'escape trajectories'    ).trajectories()
     if settings_a.analysis.plot_laser:   Analyze(session_IDs, settings_a, 'laser trajectories'     ).trajectories()

@@ -116,10 +116,10 @@ class Track(DLC):
 
     def apply_kalman(self, session) -> None:
         """
-           The kalman filter is a recursive algorithm that estimates the state of a system using a sequence of measurements.
-           This function requires the tracking data to be in the form of a numpy array with the following dimensions:
-            + (2, frames)
-           The algorithm works on a single body part and thus needs to be called in a recursive manner.
+        The kalman filter is a recursive algorithm that estimates the state of a system using a sequence of measurements.
+        This function requires the tracking data to be in the form of a numpy array with the following dimensions:
+        + (2, frames)
+        The algorithm works on a single body part and thus needs to be called in a recursive manner.
         """
         if os.path.isfile(os.path.join(session.file_path, "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
