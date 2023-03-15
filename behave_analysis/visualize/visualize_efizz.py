@@ -56,9 +56,14 @@ class Visualize_efizz():
             mult = 10 # binsize for looking at data
             binedges = np.arange(t1,t2,1/mult)
             firingrate,_ = np.histogram(self.aligned_spikes[idx],binedges)
-            plt.plot(firingrate*mult) # because our bin size is 1/mult of a second
+            xval = np.arange(-5,stimulus_durations,1/mult)
+            xval = xval[:-1]+1/(2*mult)
+            plt.plot(xval,firingrate*mult) # because our bin size is 1/mult of a second
             # line is at 5*mult because 5 seconds before trial onset, mult timepoints per second
-            plt.plot([5*mult,5*mult],[0, np.amax(firingrate*mult)],'r-')
+            plt.plot([0,0],[0, np.amax(firingrate*mult)],'r-')
+            plt.title('stimulus duration = ' + str(stimulus_durations))
+            plt.ylabel('cumulative firing rate (Hz)')
+            plt.xlabel('time (s)')
         plt.show()
 
     def HSA_tuning(self):
@@ -66,6 +71,7 @@ class Visualize_efizz():
         Mean firing of each cell at each HSA orientation as a heatmap"""
         hsa = self.Visualize.tracking_data['hdir_shelt']
         hsa = np.digitize(hsa,np.arange(-np.pi,np.pi,np.pi/10)) # np.pi/10 determines the intervals
+        #hsa2 = hsa[]
         fps = 40 # camera frame rate
         clu = np.unique(self.clu_spikes)
         hsafiring_clu = np.empty(shape = [len(clu),len(np.arange(-np.pi,np.pi,np.pi/10))])
@@ -85,6 +91,43 @@ class Visualize_efizz():
         plt.imshow(hsafiring_clu[np.argsort(max_rate),:],cmap = 'hot',aspect = .05,extent = [-np.pi,np.pi,0,len(clu)])
         plt.xlabel('head-shelter ang (radians)')
         plt.ylabel('cluster (sort on pref HSA)')
+        plt.show()
+
+        # bin spike times of all neurons by 1/40, then assign HD
+        spike_by_frame = np.digitize(self.aligned_spikes, np.arange(0,len(hsa)/fps,1/fps))
+        print(np.max(spike_by_frame))
+        HD_at_spike = np.zeros_like(spike_by_frame)
+        for t in np.arange(len(hsa)):
+            HD_at_spike[spike_by_frame == t] = hsa[t]
+        # by cluster calculate rayleigh
+        r = np.zeros(len(clu))
+        counter = 0
+        for c in clu:
+            alpha = HD_at_spike[self.clu_spikes==c]
+            alpha = np.asarray(alpha)
+            w = np.ones_like(alpha)
+            cmean = np.sum((w * np.exp(1j * alpha)) / np.sum(w))
+            r[counter] = np.abs(cmean)
+            counter = counter+1
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3)
+        # histogram of rayleighs
+        ax1.hist(r,np.arange(0,1,.1))
+        # heatmap of high rayleighs sorted by pref HSA
+        idx = r > .3
+        hfc = hsafiring_clu[idx,:]
+        mr = max_rate[idx]
+        plt.imshow(hfc[np.argsort(mr),:],cmap = 'hot',aspect = .05,extent = [-np.pi,np.pi,0,len(hfc)])
+        plt.xlabel('head-shelter ang (radians)')
+        plt.ylabel('cluster (sort on pref HSA)')
+        plt.title('HSA tuned cells')
+        # heatmap of low rayleighs sorted by pref HSA
+        idx = r < .3
+        hfc = hsafiring_clu[idx,:]
+        mr = max_rate[idx]
+        plt.imshow(hfc[np.argsort(mr),:],cmap = 'hot',aspect = .05,extent = [-np.pi,np.pi,0,len(hfc)])
+        plt.xlabel('head-shelter ang (radians)')
+        plt.ylabel('cluster (sort on pref HSA)')
+        plt.title('HSA tuned cells')
         plt.show()
         
     def load_spike_data(self):
