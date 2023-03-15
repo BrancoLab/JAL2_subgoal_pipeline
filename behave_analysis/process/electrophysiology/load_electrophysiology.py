@@ -30,6 +30,7 @@ class LoadEfizz():
         try:
             self.spike_times = np.load(self.filter_by_ending(self.files, "spike_times.npy")[0])
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
+            self.spike_clusters = np.hstack(self.spike_clusters)
             self.TTL_bin_path = self.filter_by_ending(self.files, "imec0.ap.bin")[0]
             return Elecetrophysiology(spike_times = self.spike_times, 
                                       spike_clusters = self.spike_clusters,
