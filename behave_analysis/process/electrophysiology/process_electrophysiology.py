@@ -28,8 +28,10 @@ class ProcessedEfizz:
         Returns:
             object: Polars dataframe
         """
-        data = np.hstack((self.spike_times, self.spike_clusters)).T # Reshape Required for polars ingestion
-        dataFrame = pl.from_numpy(data, schema=["spike_samples", "spike_clusters"], orient="col")
+        assert self.spike_times.shape[0] == self.spike_clusters.shape[0], "Spike times and clusters are not the same shape this can't be"
+        
+        dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(),
+                                  "spike_clusters": self.spike_clusters})
         
         # UNIT TESTs
         assert len(dataFrame) == len(self.spike_times), "Dataframe not created correctly incorrect length"
@@ -44,7 +46,7 @@ class ProcessedEfizz:
         self.alignedDataFrame = preAlignedDataFrame.select(
                                                 [
                                                     pl.col("*"),  # select all
-                                                    (pl.col("spike_samples") * slope / self.samplingRate).alias("aligned_spike_times"),
+                                                    (pl.col("spike_times") * slope / self.samplingRate).alias("aligned_spike_times"),
                                                 ] 
                                             )
         
@@ -60,8 +62,8 @@ class ProcessedEfizz:
         """
         Save the processed efizz data
         """
-        self.alignedDataFrame.write_csv(self.filePath + "/" + "Processed_efizz_data", sep=",")
+        self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data", sep=",")
         logger.success("Processed Efizz data saved")
         
         # UNIT TESTS
-        assert os.path.exists(self.filePath + "/" + "Processed_efizz_data"), "Processed Efizz data not saved"
+        assert os.path.exists(str(self.filePath) + "/" + "Processed_efizz_data"), "Processed Efizz data not saved"
