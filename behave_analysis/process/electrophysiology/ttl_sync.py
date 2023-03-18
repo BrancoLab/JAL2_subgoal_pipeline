@@ -21,8 +21,9 @@ Returns an object class containing:
 - imec_TTL: The TTL from the imec bin file from the efizz machine
 - sampling_rate: This is hard coded at 30khz
 
-Todo:
+TODO:
 - update script summary with new class attributes
+- Add a check to see that the first pulse is larger than the rest, though not currently implemented in bonsai
 """
 
 #Custom libaries
@@ -73,16 +74,21 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
 
     # remove pulses that are too brief
-    pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
-    if pulse_len_errors:
-        logger.error(f"Removing pulses with too short of a length: {pulse_len_errors}")
-        bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse_len_errors)
-        bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, pulse_len_errors)
+    bonsai_pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
+    if bonsai_pulse_len_errors:
+        logger.error(f"There is a pulse length error in the bonsai signal: {bonsai_pulse_len_errors}, removing pulse")
+        bonsai_sync_offsets = np.delete(bonsai_sync_offsets, bonsai_pulse_len_errors)
+        bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, bonsai_pulse_len_errors)
+    
+    imec_pulse_len_errors = np.where(np.diff(ephys_sync_onsets) < sampling_rate / 3)[0]
+    if imec_pulse_len_errors:
+        logger.error(f"There is a pulse length error in the imec signal: {imec_pulse_len_errors}, removing pulse")
+        ephys_sync_onsets = np.delete(ephys_sync_onsets, imec_pulse_len_errors)
+        ephys_sync_offsets = np.delete(ephys_sync_offsets, imec_pulse_len_errors)
         
-    # # Removing the last pulse just to analysie seq1 this should be removed TODO; remove
-    # ephys_sync_onsets = ephys_sync_onsets[:-1]
-    # print("dont forget to remove this line")
-
+    if not imec_pulse_len_errors and bonsai_pulse_len_errors:
+        logger.error("There was an imbalance in pulse lengths this can't be good")
+        
     # Test that onsets len match
     assert len(bonsai_sync_onsets) == len(ephys_sync_onsets), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
 
