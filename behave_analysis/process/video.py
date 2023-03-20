@@ -4,6 +4,7 @@ from behave_analysis.track.register import Register
 
 # OS Libraries
 from dataclasses import dataclass
+from loguru import logger
 from glob import glob
 import numpy as np
 import cv2
@@ -27,7 +28,7 @@ class Video:
     x_offset: int=128 # if the video frame is cropped, how far from the top left edge is it
     y_offset: int=0   # (this is for the fisheye correction step)
 
-def get_Video(session: NEW_Session, settings: object, registration_transform: object=None) -> Video:
+def get_Video(session: NEW_Session, settings: object, registration_transform: object = None) -> Video:
     """A function that searchs through the directory for a camera avi file and returns a Video object."""
     
     try:
@@ -61,6 +62,19 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
         return video
 
     registration_transform = Register(session, video, video_object).transform
-    video = Video(num_frames, video_file, fps, height, width, fisheye_correction_file, registration_transform, registration_type, registration_size, pixels_per_cm)
+    
+    # Log the registration transform as if this is None it causing issues downstream at track
+    logger.info(f"Registration transform: {registration_transform}")
+    
+    video = Video(num_frames, 
+                  video_file, 
+                  fps, 
+                  height, 
+                  width, 
+                  fisheye_correction_file, 
+                  registration_transform, 
+                  registration_type, 
+                  registration_size, 
+                  pixels_per_cm)
     
     return video
