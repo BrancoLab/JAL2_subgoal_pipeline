@@ -2,6 +2,7 @@
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 
 # OS libaries
+from scipy.ndimage import gaussian_filter1d
 import numpy as np
 from glob import glob
 import polars as pl
@@ -43,31 +44,42 @@ class Visualize_efizz():
             ax.plot([onset_frames/fps,onset_frames/fps],[0, np.amax(self.clu_spikes)],'r-')
         plt.show()
 
-    def PSTH(self,stim_type):
+    def PSTH(self, stim_type):
         """
-        Plot the mean firing rate of all cells (ignore clusters) to each trial
+        Plot the mean firing rate of all cells (ignore clusters) to each trial. For each trial, retrieve:
+        - the onset frame of that stimulus
+        - the duration of that stimulus
         """
+        # Hyperparameters
+        timeBeforeStim = 5 # seconds
 
         # plot a line of mean activity for each trial
         for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-            fps = 40 # camera frame rate
-            t1 = (onset_frames/fps)-5 # from 5s before onset
-            t2 = (onset_frames/fps)+stimulus_durations
-            idx = np.logical_and(self.aligned_spikes[:,0]>t1,self.aligned_spikes[:,0]<t2)
-            mult = 10 # binsize for looking at data
-            binedges = np.arange(t1,t2,1/mult)
-            firingrate,_ = np.histogram(self.aligned_spikes[idx],binedges)
-            xval = np.arange(-5,stimulus_durations,1/mult)
-            if len(xval)>len(firingrate): # some weird thing with arange
-                xval = xval[:-1]+(1/(2*mult))
-            else:
-                xval = xval+(1/(2*mult))
-            plt.plot(xval,firingrate*mult) # because our bin size is 1/mult of a second
-            # line is at 5*mult because 5 seconds before trial onset, mult timepoints per second
-            plt.plot([0,0],[0, np.amax(firingrate*mult)],'r-')
-            plt.title('stimulus duration = ' + str(stimulus_durations))
+            time1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim 
+            time2 = (onset_frames / self.Visualize.session.video.fps) + stimulus_durations
+            
+            # Mask spikes that are within the time window
+            idx = np.logical_and(self.aligned_spikes[:,0] > time1, self.aligned_spikes[:,0] < time2)
+            assert len(idx) == self.aligned_spikes.shape[0], "idx and aligned_spikes are not the same length"
+            
+            # Bin the spikes
+            mult = 10 # binsize for looking at data - 1/10 of a second so 100ms bins 
+            binEdges = np.arange(time1, time2, 1 / mult)
+            firingrate, _ = np.histogram(self.aligned_spikes[idx], binEdges)
+            assert len(firingrate) == len(binEdges) - 1, "firingrate and binedges are not the same length"
+            
+            # Generate x values for plotting
+            xValues = binEdges - time1 - timeBeforeStim
+            assert xValues[0] == -timeBeforeStim, f"xValues[0] is not -{timeBeforeStim}"
+            
+            # Plot the PSTH
+            plt.plot(xValues[:-1], gaussian_filter1d(firingrate * mult, sigma = 2), label = f"Trial #: {trial_num}") # because our bin size is 1/mult of a second
+            plt.axvline(x = 0, color = 'k', linestyle = '-')
             plt.ylabel('cumulative firing rate (Hz)')
             plt.xlabel('time (s)')
+            plt.legend()
+        
+        plt.title('Trial by trial response PSTH for stimulus type: ' + stim_type)
         plt.show()
 
     def HSA_tuning(self):
