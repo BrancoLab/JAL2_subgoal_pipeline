@@ -1,9 +1,10 @@
 # Custom lib
-from behave_analysis.utils.AI_dataClass_objects import Elecetrophysiology
+from behave_analysis.utils.AI_dataClass_objects import Electrophsyiology
 
 # OS libs
 import os
 import numpy as np
+from loguru import logger
 
 class LoadEfizz():
     def __init__(self, session_ID):
@@ -31,17 +32,21 @@ class LoadEfizz():
             
             self.spike_times = np.load(self.filter_by_ending(self.files, "spike_times.npy")[0])
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
-            self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter = "\t", skiprows=1, dtype = str)
             self.spike_clusters = np.hstack(self.spike_clusters)
             self.TTL_bin_path = self.filter_by_ending(self.files, "imec0.ap.bin")[0]
+            
+            self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter = "\t", skiprows=1, dtype = str)
+            self.num_of_good_units = self.count_number_of_good_units()
+            logger.info(f"The number of good units is: {self.num_of_good_units} out of {len(self.cluster_group)} units")
             
             # Unit tests
             assert self.cluster_group[0][0] == "0", "The first cluster should be indexed by 0" # sort check 
             
-            return Elecetrophysiology(spike_times = self.spike_times, 
+            return Electrophsyiology(spike_times = self.spike_times, 
                                       spike_clusters = self.spike_clusters,
                                       cluster_group = self.cluster_group,
-                                      TTL_bin_path = self.TTL_bin_path)
+                                      TTL_bin_path = self.TTL_bin_path,
+                                      number_of_good_units = self.num_of_good_units)
             
         except IndexError:
             raise IndexError(f"One of these files did not exsist within {self.files}")
@@ -52,4 +57,8 @@ class LoadEfizz():
         """
         return [s for s in lst if s.endswith(ending)]
         
-      
+    def count_number_of_good_units(self):
+        """
+        A function that counts the number of good units in the cluster group file
+        """
+        return np.count_nonzero(self.cluster_group[:,1] == "good")
