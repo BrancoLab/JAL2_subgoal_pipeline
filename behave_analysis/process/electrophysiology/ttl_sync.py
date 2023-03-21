@@ -75,18 +75,20 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
 
     # remove pulses that are too brief
     bonsai_pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
-    if bonsai_pulse_len_errors:
-        logger.error(f"There is a pulse length error in the bonsai signal: {bonsai_pulse_len_errors}, removing pulse")
-        bonsai_sync_offsets = np.delete(bonsai_sync_offsets, bonsai_pulse_len_errors)
-        bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, bonsai_pulse_len_errors)
+    if bonsai_pulse_len_errors.any():
+        for pulse in bonsai_pulse_len_errors:
+            logger.error(f"There is a pulse length error in the bonsai signal: {bonsai_pulse_len_errors}, removing pulse")
+            bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse)
+            bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, pulse)
     
     imec_pulse_len_errors = np.where(np.diff(ephys_sync_onsets) < sampling_rate / 3)[0]
-    if imec_pulse_len_errors:
-        logger.error(f"There is a pulse length error in the imec signal: {imec_pulse_len_errors}, removing pulse")
-        ephys_sync_onsets = np.delete(ephys_sync_onsets, imec_pulse_len_errors)
-        ephys_sync_offsets = np.delete(ephys_sync_offsets, imec_pulse_len_errors)
+    if imec_pulse_len_errors.any():
+        for pulse in imec_pulse_len_errors:
+            logger.error(f"There is a pulse length error in the imec signal: {imec_pulse_len_errors}, removing pulse")
+            ephys_sync_onsets = np.delete(ephys_sync_onsets, pulse)
+            ephys_sync_offsets = np.delete(ephys_sync_offsets, pulse)
         
-    if not imec_pulse_len_errors and bonsai_pulse_len_errors:
+    if not imec_pulse_len_errors.any() and bonsai_pulse_len_errors.any():
         logger.error("There was an imbalance in pulse lengths this can't be good")
         
     # Test that onsets len match
@@ -284,20 +286,23 @@ def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_ra
     bonsai_pulse_len_under_errors = np.where(np.diff(bonsai_sync_onsets) < (sampling_rate / 2))[0] # Is onset delta less than 15khz
     bonsai_pulse_len_over_errors = np.where(np.diff(bonsai_sync_onsets) > (sampling_rate * 1.5))[0] # Is onset delta greater than 15khz
 
-    if bonsai_pulse_len_under_errors:
+    if bonsai_pulse_len_under_errors.any():
         onsets_delta = np.diff(bonsai_sync_onsets)
         counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
         logger.warning(f"Bonsai pulse less than 1hz duration: {counts}")
 
-    if bonsai_pulse_len_over_errors:
+    if bonsai_pulse_len_over_errors.any():
         logger.warning("Bonsai pulse greater than 1hz duration")
 
     #Imec pulse length check if too long or short
     imec_pulse_len_under_errors = np.where(np.diff(ephys_sync_onsets) < (sampling_rate / 2))[0] # Is onset delta less than 15khz
     imec_pulse_len_over_errors  = np.where(np.diff(ephys_sync_onsets) > (sampling_rate * 1.5))[0] # Is onset delta greater than 15khz
 
-    if imec_pulse_len_under_errors:
-        logger.error("Imec pulse less than expected 1hz duration")
+    if imec_pulse_len_under_errors.any():
+        logger.warning("Imec pulse less than expected 1hz duration")
+        onsets_delta = np.diff(ephys_sync_onsets)
+        counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
+        logger.warning(f"Imec pulse less than 1hz duration: {counts}")
 
-    if imec_pulse_len_over_errors:
+    if imec_pulse_len_over_errors.any():
         logger.warning("Bonsai pulse greater than 1hz duration")
