@@ -61,8 +61,8 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
     #Get onset and offsets
-    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
-    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5, type = "Bonsai", hack = True)
+    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45, type = "Imec", hack = True)
 
     # Check to see that imec pulse onset is first 
     # ??What does this do?
@@ -144,7 +144,7 @@ def get_TTL_from_imec(filename: str):
 # ---------------------------------------------- utils ------------------------------------------------------------------
 
 #Get the onsets and offsets for bonsai / imec. Your choice!
-def get_onset_offset(signal, threshold, clean = True):
+def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
     """ Get onset/offset times when a signal goes below>above and
         above>below a given threshold
 
@@ -153,6 +153,7 @@ def get_onset_offset(signal, threshold, clean = True):
             thhreshold: float, threshold
             clean: bool. If true ends before the first start and 
                 starts after the last end are removed
+            type: imec or bonsai
 
         Returns:
             Starts: Indexes of pulse onsets
@@ -166,21 +167,28 @@ def get_onset_offset(signal, threshold, clean = True):
 
     #If the signal starts with a pulse add a zero to the start
     if above[0] > 0:
-        logger.warning("Adding to the signal")
+        logger.warning(f"Adding to the start of the {type} signal because it starts with a high pulse")
         starts = np.concatenate([[0], starts])
+        
+        # Ugly ugly ugly
+        if hack == True:
+            # In the event that the signal starts on a high, remove that first pulse
+            # This is a hacky solution to the problem of the first pulse starting on a high as in for seq1_4
+            # buffering should be fixed to prevent this
+            starts = starts[1:]
+            logger.warning(f"Removing the first onset from the {type} signal as it started high")
 
-    #If the signal ends at the top of the pulse add the length of the signal to the end
-    remove_last_onset = False
-            
     if above[-1] > 0:
-        logger.warning("Adding to the signal")
+        logger.warning(f"Adding to the end of the {type} signal as it ended high")
         ends = np.concatenate([ends, [len(signal)]])
         
         # In the event that the signal ends on a high, remove that last pulse
-        # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1
+        # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1_4
         # buffering should be fixed to prevent this
-        # TODO: remove this if future recordings are affected
-        remove_last_onset = True
+        # Ugly gross ugly
+        if hack == True:
+            starts = starts[:-1]
+            logger.warning(f"Removing the last onset from the {type} signal as it ended high")
 
     #If clean is true
     if clean:
@@ -198,11 +206,7 @@ def get_onset_offset(signal, threshold, clean = True):
     if not np.any(ends):
         ends = np.array([len(signal)])
         logger.error("No offsets")
-    
-    # If the last pulse is to be removed because of hack above, remove it
-    if remove_last_onset:
-        starts = starts[:-1]
-        
+ 
     return starts, ends
 
 #Take the derivate so you can spot changes in state within a signal. Ie, pulse onset/offsets
