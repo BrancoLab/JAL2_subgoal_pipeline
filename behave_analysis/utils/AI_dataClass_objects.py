@@ -19,6 +19,7 @@ class TTL_Sync:
 class Elecetrophysiology:
     spike_times: object
     spike_clusters: object
+    cluster_group: object
     TTL_bin_path: str
     
 @dataclass(frozen=True)
