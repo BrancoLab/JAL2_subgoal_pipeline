@@ -21,8 +21,9 @@ Returns an object class containing:
 - imec_TTL: The TTL from the imec bin file from the efizz machine
 - sampling_rate: This is hard coded at 30khz
 
-Todo:
+TODO:
 - update script summary with new class attributes
+- Add a check to see that the first pulse is larger than the rest, though not currently implemented in bonsai
 """
 
 #Custom libaries
@@ -60,8 +61,8 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
     #Get onset and offsets
-    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
-    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5, type = "Bonsai", hack = True)
+    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45, type = "Imec", hack = True)
 
     # Check to see that imec pulse onset is first 
     # ??What does this do?
@@ -73,16 +74,23 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
 
     # remove pulses that are too brief
-    pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
-    if pulse_len_errors:
-        logger.error(f"Removing pulses with too short of a length: {pulse_len_errors}")
-        bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse_len_errors)
-        bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, pulse_len_errors)
+    bonsai_pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
+    if bonsai_pulse_len_errors.any():
+        for pulse in bonsai_pulse_len_errors:
+            logger.error(f"There is a pulse length error in the bonsai signal: {bonsai_pulse_len_errors}, removing pulse")
+            bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse)
+            bonsai_sync_onsets  = np.delete(bonsai_sync_onsets, pulse)
+    
+    imec_pulse_len_errors = np.where(np.diff(ephys_sync_onsets) < sampling_rate / 3)[0]
+    if imec_pulse_len_errors.any():
+        for pulse in imec_pulse_len_errors:
+            logger.error(f"There is a pulse length error in the imec signal: {imec_pulse_len_errors}, removing pulse")
+            ephys_sync_onsets = np.delete(ephys_sync_onsets, pulse)
+            ephys_sync_offsets = np.delete(ephys_sync_offsets, pulse)
         
-    # # Removing the last pulse just to analysie seq1 this should be removed TODO; remove
-    # ephys_sync_onsets = ephys_sync_onsets[:-1]
-    # print("dont forget to remove this line")
-
+    if not imec_pulse_len_errors.any() and bonsai_pulse_len_errors.any():
+        logger.error("There was an imbalance in pulse lengths this can't be good")
+        
     # Test that onsets len match
     assert len(bonsai_sync_onsets) == len(ephys_sync_onsets), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
 
@@ -136,7 +144,7 @@ def get_TTL_from_imec(filename: str):
 # ---------------------------------------------- utils ------------------------------------------------------------------
 
 #Get the onsets and offsets for bonsai / imec. Your choice!
-def get_onset_offset(signal, threshold, clean = True):
+def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
     """ Get onset/offset times when a signal goes below>above and
         above>below a given threshold
 
@@ -145,6 +153,7 @@ def get_onset_offset(signal, threshold, clean = True):
             thhreshold: float, threshold
             clean: bool. If true ends before the first start and 
                 starts after the last end are removed
+            type: imec or bonsai
 
         Returns:
             Starts: Indexes of pulse onsets
@@ -158,21 +167,28 @@ def get_onset_offset(signal, threshold, clean = True):
 
     #If the signal starts with a pulse add a zero to the start
     if above[0] > 0:
-        logger.warning("Adding to the signal")
+        logger.warning(f"Adding to the start of the {type} signal because it starts with a high pulse")
         starts = np.concatenate([[0], starts])
+        
+        # Ugly ugly ugly
+        if hack == True:
+            # In the event that the signal starts on a high, remove that first pulse
+            # This is a hacky solution to the problem of the first pulse starting on a high as in for seq1_4
+            # buffering should be fixed to prevent this
+            starts = starts[1:]
+            logger.warning(f"Removing the first onset from the {type} signal as it started high")
 
-    #If the signal ends at the top of the pulse add the length of the signal to the end
-    remove_last_onset = False
-            
     if above[-1] > 0:
-        logger.warning("Adding to the signal")
+        logger.warning(f"Adding to the end of the {type} signal as it ended high")
         ends = np.concatenate([ends, [len(signal)]])
         
         # In the event that the signal ends on a high, remove that last pulse
-        # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1
+        # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1_4
         # buffering should be fixed to prevent this
-        # TODO: remove this if future recordings are affected
-        remove_last_onset = True
+        # Ugly gross ugly
+        if hack == True:
+            starts = starts[:-1]
+            logger.warning(f"Removing the last onset from the {type} signal as it ended high")
 
     #If clean is true
     if clean:
@@ -190,11 +206,7 @@ def get_onset_offset(signal, threshold, clean = True):
     if not np.any(ends):
         ends = np.array([len(signal)])
         logger.error("No offsets")
-    
-    # If the last pulse is to be removed because of hack above, remove it
-    if remove_last_onset:
-        starts = starts[:-1]
-        
+ 
     return starts, ends
 
 #Take the derivate so you can spot changes in state within a signal. Ie, pulse onset/offsets
@@ -278,20 +290,23 @@ def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_ra
     bonsai_pulse_len_under_errors = np.where(np.diff(bonsai_sync_onsets) < (sampling_rate / 2))[0] # Is onset delta less than 15khz
     bonsai_pulse_len_over_errors = np.where(np.diff(bonsai_sync_onsets) > (sampling_rate * 1.5))[0] # Is onset delta greater than 15khz
 
-    if bonsai_pulse_len_under_errors:
+    if bonsai_pulse_len_under_errors.any():
         onsets_delta = np.diff(bonsai_sync_onsets)
         counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
         logger.warning(f"Bonsai pulse less than 1hz duration: {counts}")
 
-    if bonsai_pulse_len_over_errors:
+    if bonsai_pulse_len_over_errors.any():
         logger.warning("Bonsai pulse greater than 1hz duration")
 
     #Imec pulse length check if too long or short
     imec_pulse_len_under_errors = np.where(np.diff(ephys_sync_onsets) < (sampling_rate / 2))[0] # Is onset delta less than 15khz
     imec_pulse_len_over_errors  = np.where(np.diff(ephys_sync_onsets) > (sampling_rate * 1.5))[0] # Is onset delta greater than 15khz
 
-    if imec_pulse_len_under_errors:
-        logger.error("Imec pulse less than expected 1hz duration")
+    if imec_pulse_len_under_errors.any():
+        logger.warning("Imec pulse less than expected 1hz duration")
+        onsets_delta = np.diff(ephys_sync_onsets)
+        counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
+        logger.warning(f"Imec pulse less than 1hz duration: {counts}")
 
-    if imec_pulse_len_over_errors:
+    if imec_pulse_len_over_errors.any():
         logger.warning("Bonsai pulse greater than 1hz duration")

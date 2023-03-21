@@ -2,6 +2,7 @@
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 
 # OS libaries
+from scipy.ndimage import gaussian_filter1d
 import numpy as np
 from glob import glob
 import polars as pl
@@ -38,36 +39,49 @@ class Visualize_efizz():
             fps = 40
             t1 = (onset_frames/fps)-5 # from 5s before onset
             t2 = (onset_frames/fps)+stimulus_durations
-            idx = np.logical_and(self.aligned_spikes[:,0]>t1,self.aligned_spikes[:,0]<t2)
-            ax.eventplot(self.aligned_spikes[idx], lineoffsets=self.clu_spikes[idx])
+            idx = np.logical_and(self.aligned_spikes[:,0] > t1,self.aligned_spikes[:,0] < t2)
+            ax.eventplot(self.aligned_spikes[idx], lineoffsets = self.clu_spikes[idx])
             ax.plot([onset_frames/fps,onset_frames/fps],[0, np.amax(self.clu_spikes)],'r-')
         plt.show()
 
-    def PSTH(self,stim_type):
+    def PSTH_all_neurons(self, stim_type):
         """
-        Plot the mean firing rate of all cells (ignore clusters) to each trial
+        Plot the mean firing rate of all cells (ignore clusters) to each trial. For each trial, retrieve:
+        - the onset frame of that stimulus
+        - the duration of that stimulus
         """
+        # Hyperparameters
+        timeBeforeStim = 5 # seconds
 
         # plot a line of mean activity for each trial
         for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-            fps = 40 # camera frame rate
-            t1 = (onset_frames/fps)-5 # from 5s before onset
-            t2 = (onset_frames/fps)+stimulus_durations
-            idx = np.logical_and(self.aligned_spikes[:,0]>t1,self.aligned_spikes[:,0]<t2)
-            mult = 10 # binsize for looking at data
-            binedges = np.arange(t1,t2,1/mult)
-            firingrate,_ = np.histogram(self.aligned_spikes[idx],binedges)
-            xval = np.arange(-5,stimulus_durations,1/mult)
-            if len(xval)>len(firingrate): # some weird thing with arange
-                xval = xval[:-1]+(1/(2*mult))
-            else:
-                xval = xval+(1/(2*mult))
-            plt.plot(xval,firingrate*mult) # because our bin size is 1/mult of a second
-            # line is at 5*mult because 5 seconds before trial onset, mult timepoints per second
-            plt.plot([0,0],[0, np.amax(firingrate*mult)],'r-')
-            plt.title('stimulus duration = ' + str(stimulus_durations))
-            plt.ylabel('cumulative firing rate (Hz)')
+            time1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim 
+            time2 = (onset_frames / self.Visualize.session.video.fps) + stimulus_durations
+            
+            # Mask spikes that are within the time window
+            idx = np.logical_and(self.aligned_spikes[:,0] > time1, self.aligned_spikes[:,0] < time2)
+            assert len(idx) == self.aligned_spikes.shape[0], "idx and aligned_spikes are not the same length"
+            
+            # Bin the spikes
+            mult = 10 # binsize for looking at data - 1/10 of a second so 100ms bins 
+            binEdges = np.arange(time1, time2, 1 / mult)
+            firingrate, _ = np.histogram(self.aligned_spikes[idx], binEdges)
+            assert len(firingrate) == len(binEdges) - 1, "firingrate and binedges are not the same length"
+            
+            # Generate x values for plotting
+            xValues = binEdges - time1 - timeBeforeStim
+            assert xValues[0] == -timeBeforeStim, f"xValues[0] is not -{timeBeforeStim}"
+            
+            # Plot the PSTH
+            # plt.plot(xValues[:-1], gaussian_filter1d(firingrate * mult, sigma = 1), label = f"Trial #: {trial_num}") # because our bin size is 1/mult of a second
+            plt.plot(xValues[:-1], firingrate * mult, label = f"Trial #: {trial_num}") # because our bin size is 1/mult of a second
+
+            plt.axvline(x = 0, color = 'k', linestyle = '-')
+            plt.ylabel('Firing rate for all cells (Hz)')
             plt.xlabel('time (s)')
+            plt.legend()
+        
+        plt.title('Trial by trial response PSTH for stimulus type: ' + stim_type)
         plt.show()
 
     def HSA_tuning(self):
@@ -155,8 +169,89 @@ class Visualize_efizz():
         """
         Loads the csv of aligned data
         """
-        csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))
-        aligned_spike_data = pl.read_csv(csv_path[0],has_header=True)
+        csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
+        self.dataFrame = pl.read_csv(csv_path)
+        
+        aligned_spike_data = pl.read_csv(csv_path,has_header=True)
         asd_np = aligned_spike_data.to_numpy()
         self.aligned_spikes = np.array([asd_np[:,2]]).T
         self.clu_spikes = asd_np[:,1]
+
+    def PSTH_single_neurons(self, stim_type):
+        """
+        Plot the mean firing rate of all cells (ignore clusters) to each trial. For each trial, retrieve:
+        - the onset frame of that stimulus
+        - the duration of that stimulus
+        """
+        # Hyperparameters
+        timeBeforeStim = 5 # seconds
+        
+        # Select only the good neurons
+        conditionGood = self.dataFrame['cluster_group'] == 'good'
+        good_neurons_data_frame = self.dataFrame.filter(conditionGood)
+        assert len(good_neurons_data_frame['spike_clusters'].unique()) == self.Visualize.session.efizzDataLoaded.num_of_good_units, "The number of good neurons is not the same as the number of good neurons in the data frame"
+        
+        # Set the number of rows and columns for the subplot grid
+        n_rows = 10
+        n_columns = 5
+        counter = 0
+        row = 0
+        column = 0
+
+        # Create a figure and an array of subplots with the specified grid size
+        fig, axes = plt.subplots(nrows=n_rows, ncols=n_columns, figsize=(20, 10))
+        
+        # For each of the good neurons and then each of the trials 
+        for neuron in good_neurons_data_frame['spike_clusters'].unique():
+            
+            filtered_data_frame = pl.DataFrame()
+            
+            for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
+                
+                # Find trial window time
+                time1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim 
+                time2 = (onset_frames / self.Visualize.session.video.fps) + stimulus_durations
+                
+                # Find the spikes that are within the time window and assigned to that neuron
+                # Conditions
+                GreaterThan = good_neurons_data_frame['aligned_spike_times'] > time1
+                LessThan = good_neurons_data_frame['aligned_spike_times'] < time2
+                neuronOfInterest = good_neurons_data_frame['spike_clusters'] == neuron
+                
+                # Filter and stack
+                filtered_data_frame = filtered_data_frame.vstack(good_neurons_data_frame.filter(GreaterThan & LessThan & neuronOfInterest))
+            
+            # Plot the PSTH
+            # Bin the spikes
+            mult = 10 # binsize for looking at data - 1/10 of a second so 100ms bins 
+            binEdges = np.arange(time1, time2, 1 / mult)
+            firingrate, _ = np.histogram(filtered_data_frame["aligned_spike_times"], binEdges)
+            assert len(firingrate) == len(binEdges) - 1, "firingrate and binedges are not the same length"
+            
+            # Generate x values for plotting
+            xValues = binEdges - time1 - timeBeforeStim
+            assert xValues[0] == -timeBeforeStim, f"xValues[0] is not -{timeBeforeStim}"
+            
+            # Plot the PSTH
+            # plt.plot(xValues[:-1], gaussian_filter1d(firingrate * mult, sigma = 1), label = f"Trial #: {trial_num}") # because our bin size is 1/mult of a second
+            axes[row, column].plot(xValues[:-1], firingrate * mult, label = f"Neuron #: {neuron}") # because our bin size is 1/mult of a second
+            axes[row, column].axvline(x = 0, color = 'k', linestyle = '-')
+            axes[row, column].set_title(f'Neuron {neuron} PSTH')
+            
+             # Axes logic
+            counter += 1 # increment counter don't plot more than 50 neurons
+            if counter > n_columns * n_rows: # if counter is greater than 50, break
+                break
+            
+            # Once you've plotted on all the rows, move to the next column
+            row += 1
+            if row > 9:
+                column += 1
+                row = 0
+            
+            # If you've reached the end of the columns, break
+            if column > 4:
+                break
+                
+        plt.tight_layout()
+        plt.show()

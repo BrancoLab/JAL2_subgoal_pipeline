@@ -9,6 +9,7 @@ class ProcessedEfizz:
         self.samplingRate = samplingRate
         self.spike_times = efizzDataLoaded.spike_times
         self.spike_clusters = efizzDataLoaded.spike_clusters
+        self.cluster_group = efizzDataLoaded.cluster_group
         self.filePath = filePath
         self.lastPulse = lastPulse
         
@@ -31,7 +32,16 @@ class ProcessedEfizz:
         assert self.spike_times.shape[0] == self.spike_clusters.shape[0], "Spike times and clusters are not the same shape this can't be"
         
         dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(),
-                                  "spike_clusters": self.spike_clusters})
+                                  "spike_clusters": self.spike_clusters,
+                                 })
+        
+        # ADD CLUSTER GROUPS
+        dataFrame = dataFrame.select(
+            [
+                pl.col("*"),  # select all
+                (pl.col("spike_clusters").apply(lambda x: self.cluster_group[x][1])).alias("cluster_group"),
+            ]
+        )
         
         # UNIT TESTs
         assert len(dataFrame) == len(self.spike_times), "Dataframe not created correctly incorrect length"

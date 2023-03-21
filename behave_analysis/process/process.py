@@ -34,8 +34,8 @@ class Process():
         self.print_session_details(stage=1)
         
         if settings_p.efizz:
-            self.efizzDataLoaded = LoadEfizz(self.session)
-            self.session.ttl = get_TTL(self.session, self.efizzDataLoaded.TTL_bin_path)
+            self.session.efizzDataLoaded = LoadEfizz(self.session)
+            self.session.ttl = get_TTL(self.session, self.session.efizzDataLoaded.TTL_bin_path)
         
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
         self.session.audio = get_Audio(self.session)
@@ -43,7 +43,6 @@ class Process():
         self.session.photo_resistor = get_Photoresistor(self.session)
                 
         self.print_session_details(stage=2)
-        self.save_session()
         
         if settings_p.efizz:
             _, slope, lastPulse = self.quality_check_new_sessions()
@@ -51,11 +50,13 @@ class Process():
             self.quality_check_new_sessions()
             
         if settings_p.efizz:
-            self.efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
-                                                     slope = slope, 
-                                                     samplingRate = self.session.ttl.sampling_rate,
-                                                     filePath = self.session.file_path,
-                                                     lastPulse = lastPulse)
+            self.session.efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.session.efizzDataLoaded, 
+                                                             slope = slope, 
+                                                             samplingRate = self.session.ttl.sampling_rate,
+                                                             filePath = self.session.file_path,
+                                                             lastPulse = lastPulse)
+            
+        self.save_session()
         
         return self.session
     

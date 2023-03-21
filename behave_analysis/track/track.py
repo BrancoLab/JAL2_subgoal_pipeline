@@ -45,17 +45,19 @@ class Track(DLC):
             session (object): session dataclass
         """
         
-        # Check if processing has been done before
+        # Check if processing has FULLY been completed before
         self.processingExists = os.path.isfile(os.path.join(session.file_path, "fully_processed_tracking_data.pickle"))
 
         # If processing has been done before and you don't want to redo it then log it
         if self.processingExists and not self.settings.redo_processing_step: 
             logger.info(f"Tracking data already filtered and registered for session: {session.number} - {session.name}")
         
-        # If not regristration details have been found then log it and kill session
-        elif isinstance(session.video.registration_transform, type(None)):
+        # If no arena regristration details have been found then log it and kill session and rerun process
+        if isinstance(session.video.registration_transform, type(None)):
+            logger.error("This session has not been registered yet. Please register the video before processing tracking data. This could happen if you skip regreistation on the last process you did")
             logger.error(f"Registration details not found; and subsequently the tracking can't be processed for session: {session.number} - {session.name}")
-            assert session.video.registration_transform, "This should exist"
+            logger.info(f"The transform matrix is currently: {session.video.registration_transform}. This should be a matrix and not None or False.")
+            assert session.video.registration_transform, "The transform regristration details are not found, this is produced when you click on the arena during process."
             
         # If processing has not been done before or you want to redo it then run it
         else:
