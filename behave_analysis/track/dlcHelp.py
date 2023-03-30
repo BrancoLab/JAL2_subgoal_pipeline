@@ -67,6 +67,15 @@ class DLC:
         
         self.tracking_data_body_parts = {} # init dictionary
         self.tracking_data_body_parts['bodyparts'] = dlc_settings['bodyparts']
+
+        # fix names to make consistent across models
+        if 'right_hindpaw' in self.tracking_data_body_parts['bodyparts']:
+            self.dlc_output = self.dlc_output.rename(columns={"right_hindpaw": "right_hind_limb"})
+            self.tracking_data_body_parts['bodyparts'] = list(map(lambda x: x.replace('right_hindpaw', 'right_hind_limb'), self.tracking_data_body_parts['bodyparts']))
+        if 'left_hindpaw' in self.tracking_data_body_parts['bodyparts']:
+            self.dlc_output = self.dlc_output.rename(columns={"left_hindpaw": "left_hind_limb"})
+            self.tracking_data_body_parts['bodyparts'] = list(map(lambda x: x.replace('left_hindpaw', 'left_hind_limb'), self.tracking_data_body_parts['bodyparts']))
+        
         
         logger.info(f"The bodyparts tracked by DLC are: {self.tracking_data_body_parts['bodyparts']}")
         
@@ -87,7 +96,7 @@ class DLC:
             for j, axis in enumerate(['x', 'y']):
                 self.tracking_data_array[:, i, j] = self.dlc_output[self.dlc_network_name][body_part][axis].values
             self.tracking_data_array[:, i, 2] = self.dlc_output[self.dlc_network_name][body_part]['likelihood'].values
-            
+
         return None
     
     def remove_bad_tracking_data(self, session) -> None:

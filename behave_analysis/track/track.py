@@ -242,29 +242,12 @@ class Track(DLC):
             if key == ord('q'): print('quit.'); sys.exit()
         cv2.destroyAllWindows()
         
-        self.shelter_clicked_points = self.clicked_points
+        self.region_tracking_data['shelter_loc'] = self.clicked_points
 
         # calculate body to shelter angle
-        xdist = -self.region_tracking_data['avg_loc'][:, 0]+int(np.mean([self.shelter_clicked_points[0][0],self.shelter_clicked_points[1][0]]))
-        ydist = -self.region_tracking_data['avg_loc'][:, 1]+int(np.mean([self.shelter_clicked_points[0][1],self.shelter_clicked_points[1][1]]))
+        xdist = -self.region_tracking_data['avg_loc'][:, 0]+int(np.mean([self.region_tracking_data['shelter_loc'][0][0],self.region_tracking_data['shelter_loc'][1][0]]))
+        ydist = -self.region_tracking_data['avg_loc'][:, 1]+int(np.mean([self.region_tracking_data['shelter_loc'][0][1],self.region_tracking_data['shelter_loc'][1][1]]))
         self.region_tracking_data['bod_shelt_dir'] = -(np.arctan2(ydist, xdist)) # Radians
-                
-        # color position by their shelter angle
-        # mass = self.region_tracking_data['avg_loc']
-        # ang_color = np.digitize(np.rad2deg(self.region_tracking_data['bod_shelt_dir']),np.arange(-180,180))
-        # phi = np.linspace(0, 2*np.pi, len(np.arange(360)))
-        # rgb_cycle = np.vstack((            # Three sinusoids
-        #     .5*(1.+np.cos(phi          )), # scaled to [0,1]
-        #     .5*(1.+np.cos(phi+2*np.pi/3)), # 120° phase shifted.
-        #     .5*(1.+np.cos(phi-2*np.pi/3)))).T # Shape = (60,3)
-        # bsa_rgb_cycle = np.zeros(shape = (len(ang_color),3))
-        # for i in np.arange(360):
-        #     bsa_rgb_cycle[ang_color == i+1,:] = rgb_cycle[i,:]
-        # plt.scatter(mass[:,0],mass[:,1],s=5,c=bsa_rgb_cycle,linewidths=0,marker='.')
-        # plt.title ('position coloured by angle to shelter')
-        # ax = plt.gca()
-        # ax.invert_yaxis()
-        # plt.show()
 
         # head shelter angle (from pi to -pi)
         self.region_tracking_data['hdir_shelt'] = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_shelt_dir'])
@@ -294,17 +277,18 @@ class Track(DLC):
                 if key == ord('q'): print('quit.'); sys.exit()
             cv2.destroyAllWindows()
                 
-            self.barrier_clicked_points = self.clicked_points
+            self.region_tracking_data['barrier_loc'] = self.clicked_points
             for i in np.arange(2): # calculate body to barrier angle for each edge of barrier
-                xdist = -self.region_tracking_data['avg_loc'][:, 0]+self.barrier_clicked_points[i][0]
-                ydist = -self.region_tracking_data['avg_loc'][:, 1]+self.barrier_clicked_points[i][1]
+                xdist = -self.region_tracking_data['avg_loc'][:, 0]+self.region_tracking_data['barrier_loc'][i][0]
+                ydist = -self.region_tracking_data['avg_loc'][:, 1]+self.region_tracking_data['barrier_loc'][i][1]
                 self.region_tracking_data['bod_barrier_dir'][:,i] = -(np.arctan2(ydist, xdist)) # Radians
                 # head barrier angle (from pi to -pi)
                 hdir = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_barrier_dir'][:,i])
                 hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
                 self.region_tracking_data['hdir_barrier'][:,i] = - hdir
         else:
-            self.region_tracking_data['bod_barrier_dir'] = []
+            self.region_tracking_data['barrier_loc'] = []
+        #     self.region_tracking_data['bod_barrier_dir'] = []
         logger.info("Subgoal angles computed")
     
     def click_click_targets(self, event,x,y, flags, params):
@@ -365,6 +349,7 @@ class Track(DLC):
         A little function for loading the first frame of the movie to point to shelter and barrier location"""
         fisheye_correction_map = load_fisheye_correction_map(session.video)
         source_video = cv2.VideoCapture(session.video.video_file)
+        source_video.set(cv2.CAP_PROP_POS_FRAMES, session.video.num_frames-(2*session.video.fps)) # read a frame 2 seconds from the end
         _, self.arena = source_video.read()
         self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map)
 
