@@ -81,6 +81,7 @@ class Settings_visualize:
     sessions: list=None
     all_sessions: bool=False
     efizz: bool=False
+    show_plots: bool = True
 
 @dataclass(frozen=True)
 class Settings_analyze_local:

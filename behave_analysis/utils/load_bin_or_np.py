@@ -3,6 +3,9 @@ import numpy as np
 from pathlib import Path
 import pathlib
 from loguru import logger
+import matplotlib
+matplotlib.use('TKAgg')
+import matplotlib.pyplot as plt
 import os
 
 def load_bin(filepath, nsigs=385, dtype=None, order=None):

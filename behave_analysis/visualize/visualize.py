@@ -7,8 +7,10 @@ from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colo
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
+from behave_analysis.visualize.visualize_behave import Visualize_behave
 
 # OS libaries
+from loguru import logger
 import cv2
 import numpy as np
 import os
@@ -32,12 +34,33 @@ class Visualize():
         
         open_tracking_data(self)
 
+        # get time in minutes of shelter only and when the barrier was introduced
+        # print("When (in minutes) was the start and end of the period of shelter-only? (use -1 for end of session)")
+        # x, y = map(int, input().split())
+        # self.sheltertime = [int(x)*60, int(y)*60] # in seconds
+        # if 'Seq' in self.session.experiment: # these are sessions with barrier presumably
+        #     print("When (in minutes) was the start and end of the period with barrier? (use -1 for end of session)")
+        #     x, y = map(int, input().split())
+        #     self.barriertime = [int(x)*60, int(y)*60] # in seconds
+
+        self.sheltertime = [0, 30*60]
+        self.barriertime = [30*60, -1*60]
+
         if self.settings.efizz: # this will only make efizz plots if you want them
+            logger.info(f"Starting to make some efizz overview plots...")
             # if self.settings.escape_trials: Visualize_efizz(self).rasters(stim_type = 'audio')
+            # if self.settings.escape_trials: Visualize_efizz(self).single_cluster_raster(stim_type = 'audio')
             # if self.settings.escape_trials: Visualize_efizz(self).PSTH_all_neurons(stim_type = 'audio')
-            if self.settings.escape_trials: Visualize_efizz(self).PSTH_single_neurons(stim_type = 'audio')
-            # if self.settings.escape_trials: Visualize_efizz(self).HSA_tuning()
+            # if self.settings.escape_trials: Visualize_efizz(self).PSTH_single_neurons(stim_type = 'audio')
+            Visualize_efizz(self).HSA_tuning()
+            # Visualize_efizz(self).barrier_tuning()
+            # if self.settings.escape_trials: Visualize_efizz(self).spatial_position_firing()
         
+        logger.info(f"Starting to make some behavior overview plots...")
+        # Visualize_behave(self).position_by_bsa()
+        # Visualize_behave(self).location_occupancy()
+        # Visualize_behave(self).angle_histograms()
+
     def trials(self, stim_type) -> None:
         """
         A function that loops through all of the trials of a given type, and then loops through frame by frame.
