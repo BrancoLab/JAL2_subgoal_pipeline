@@ -4,7 +4,7 @@ from loguru import logger
 import os
 
 class ProcessedEfizz:
-    def __init__(self, efizzDataLoaded, slope, samplingRate, filePath, lastPulse):
+    def __init__(self, efizzDataLoaded, slope, intercept, samplingRate, filePath, lastPulse):
         logger.info("Processing Efizz Data via alignment to bonsai machine and creating a polars dataframe")
         self.samplingRate = samplingRate
         self.spike_times = efizzDataLoaded.spike_times
@@ -14,7 +14,7 @@ class ProcessedEfizz:
         self.lastPulse = lastPulse
         
         initDF = self.generate_polar_dataframe()
-        alignedDataFrame = self.align_spike_times(initDF, slope)
+        alignedDataFrame = self.align_spike_times(initDF, slope, intercept)
         
         print("MANNUAL CHECK: The resulting CSV to be saved - Does it look correct?")
         print(alignedDataFrame) # Print the dataframe to check it is correct
@@ -48,7 +48,7 @@ class ProcessedEfizz:
         
         return dataFrame
     
-    def align_spike_times(self, preAlignedDataFrame: object, slope: float) -> object:
+    def align_spike_times(self, preAlignedDataFrame: object, slope: float, intercept) -> object:
         """
         Align the spike times to the bonsai machine, create a new column in the dataframe
         for the aligned spike times
@@ -56,7 +56,7 @@ class ProcessedEfizz:
         self.alignedDataFrame = preAlignedDataFrame.select(
                                                 [
                                                     pl.col("*"),  # select all
-                                                    (pl.col("spike_times") * slope / self.samplingRate).alias("aligned_spike_times"),
+                                                    (((pl.col("spike_times") * slope) + intercept) / self.samplingRate).alias("aligned_spike_times"),
                                                 ] 
                                             )
         

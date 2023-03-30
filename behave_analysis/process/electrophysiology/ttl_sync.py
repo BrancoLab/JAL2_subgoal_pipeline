@@ -159,13 +159,14 @@ def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
             Starts: Indexes of pulse onsets
             Ends: Indexes of pulse offsets
     """
+    samplingrate = 30000
     above = np.zeros_like(signal) # Creates an array of zeros of length signal
     above[signal >= threshold] = 1 #If the signal is above voltage threshold, set to 1
     der = derivative(above) #Create an array of differences 
-    starts = np.where(der > 0)[0] #Where does the signal switch from 0 to 1
-    ends = np.where(der < 0)[0] #Where does the signal switch from 1 to 0
+    starts = np.where(der > .5)[0] #Where does the signal switch from 0 to 1
+    ends = np.where(der < -.5)[0] #Where does the signal switch from 1 to 0
 
-    #If the signal starts with a pulse add a zero to the start
+    # If the signal starts with a pulse add a zero to the start
     if above[0] > 0:
         logger.warning(f"Adding to the start of the {type} signal because it starts with a high pulse")
         starts = np.concatenate([[0], starts])
@@ -180,13 +181,13 @@ def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
 
     if above[-1] > 0:
         logger.warning(f"Adding to the end of the {type} signal as it ended high")
-        ends = np.concatenate([ends, [len(signal)]])
-        
+        ends = np.concatenate([ends, [starts[-1]+samplingrate]]) # make it an artificial normal pulse
+
         # In the event that the signal ends on a high, remove that last pulse
         # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1_4
         # buffering should be fixed to prevent this
         # Ugly gross ugly
-        if hack == True:
+        if np.logical_and(hack == True, type == "Imec"):
             starts = starts[:-1]
             logger.warning(f"Removing the last onset from the {type} signal as it ended high")
 

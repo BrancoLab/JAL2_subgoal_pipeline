@@ -45,13 +45,14 @@ class Process():
         self.print_session_details(stage=2)
         
         if settings_p.efizz:
-            _, slope, lastPulse = self.quality_check_new_sessions()
+            _, slope, intercept, lastPulse = self.quality_check_new_sessions()
         elif settings_p.efizz == False:
             self.quality_check_new_sessions()
             
         if settings_p.efizz:
             self.session.efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.session.efizzDataLoaded, 
                                                              slope = slope, 
+                                                             intercept = intercept,
                                                              samplingRate = self.session.ttl.sampling_rate,
                                                              filePath = self.session.file_path,
                                                              lastPulse = lastPulse)
@@ -72,11 +73,11 @@ class Process():
             Verifications(self).verify_check_means()
             Verifications(self).verify_onsets_and_offsets()
             Verifications(self).verify_ttl_len_with_frame_duration()
-            (r2_value, slope), lastPulse = Verifications(self).visulize_sync_output()
+            (r2_value, slope, intercept), lastPulse = Verifications(self).visulize_sync_output()
             Verifications(self).verify_clock_drift(r2_value)
             
             logger.success("All verifications steps passed")
-            return r2_value, slope, lastPulse
+            return r2_value, slope, intercept, lastPulse
         
         return None
 
