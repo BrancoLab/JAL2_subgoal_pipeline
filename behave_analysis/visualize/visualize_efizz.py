@@ -131,19 +131,20 @@ class Visualize_efizz():
         """
         spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_shelt'],
                                                                                  self.Visualize.sheltertime)
-        # self.tuning_heatmap('head_shelter_angle',
-        #                     self.Visualize.sheltertime,
-        #                     spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
         self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,self.Visualize.sheltertime,end_time)
+        self.tuning_heatmap('head_shelter_angle',
+                            self.Visualize.sheltertime,
+                            spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
 
     def HD_tuning(self):
         """
         Make heatmaps of each cell's firing at each HD, for first and second half of recording, sorted on first half
         """
         spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir'],
-                                                                                 [0, -1])
+                                                                                 [0, -60])
+        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,[0, -60],end_time)
         self.tuning_heatmap('head_dir',
-                            [0, -1],
+                            [0, -60],
                             spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
 
     def barrier_tuning(self):
@@ -227,16 +228,17 @@ class Visualize_efizz():
             srate,_ = np.histogram(spikes[clusters == c],timepoints)
             if len(srate)>len(OutofShelterIdx): srate = srate[:-1]
             srate = srate[OutofShelterIdx]
+            srate = srate*self.Visualize.session.video.fps # make it Hz
             for i,s in enumerate(zip(start,end)):
                 for ang in np.arange(1,len(np.linspace(-np.pi,np.pi,24,endpoint = True))):
                     anglesfiring_clu[counter,ang-1,i] = np.nanmean(srate[np.logical_and(angles[OutofShelterIdx] == ang,
                                                                                     np.logical_and(np.arange(len(srate))>=s[0],np.arange(len(srate))<=s[1]))])
-                anglesfiring_clu[counter,:,i] = anglesfiring_clu[counter,:,i]/np.nanmax(anglesfiring_clu[counter,:,i])
                 if len(np.where(np.isnan(anglesfiring_clu[counter,:,i]))[0]) < len(anglesfiring_clu[counter,:,i]): # if the whole thing is NaN
                     if s[0] == 0: max_rate[counter] = np.nanargmax(anglesfiring_clu[counter,:,i])
                     # make polar plots of first and second half
                     ax.bar(ang_step[:-1] + np.diff(ang_step[:2])/2, anglesfiring_clu[counter,:,i], width=(2*np.pi)/24, bottom=0.0, color=cc[i], alpha=0.5)
-            ax.title.set_text('cluster ' + str(c))
+                anglesfiring_clu[counter,:,i] = anglesfiring_clu[counter,:,i]/np.nanmax(anglesfiring_clu[counter,:,i])
+            ax.title.set_text('clu ' + str(c) + '\n' + ', Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
                             counter == len(np.unique(clusters))-1):
                 plt.tight_layout()
@@ -393,58 +395,27 @@ class Visualize_efizz():
         timepoints = np.arange(times[0], # start of timewindow
                                end_time, # end of timewindow
                                1/self.Visualize.session.video.fps) # each time bin is 1 frame
-        print(len(timepoints))
-        print(len(spikes))
-        print(len(clusters))
-        print(spikes[:10])
-        print(len(angles))
-        print(len(OutofShelterIdx))
-        plt.plot(OutofShelterIdx.astype(int))
-        # self.Rayleigh_theta = np.empty([len(np.unique(clusters))])
-        # self.Rayleigh = np.empty([len(np.unique(clusters))])
-        # self.Rayleigh_cluster = np.empty([len(np.unique(clusters))])
-        # for counter,c in enumerate(np.unique(clusters)):
-        #     frame_per_spike = np.digitize(spikes[clusters == c],timepoints)
-        #     angle_per_spike = np.zeros_like(frame_per_spike)
-        #     outShelter_spike = np.zeros_like(frame_per_spike)
-        #     for f in np.unique(frame_per_spike):
-        #         angle_per_spike[frame_per_spike == f] = angles[f-1]
-        #         if OutofShelterIdx[f-1] == False: outShelter_spike[frame_per_spike == f] = 1
-        #     HSA_spike = angle_per_spike[outShelter_spike == 1]
-        #     # calculate Rayleigh
-        #     if 
-        #     x = np.nanmean(np.cos(HSA_spike))
-        #     y = np.nanmean(np.sin(HSA_spike))
-        #     self.Rayleigh_theta[counter] = np.arctan(y/x)
-        #     self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
-        #     self.Rayleigh_cluster[counter] = c
-        # # histogram of rayleighs
-        # plt.hist(self.Rayleigh) # ,np.arange(0,1,.1)
-        # plt.xlabel='Rayleigh R'
-        # plt.ylabel='number of clusters'
-        # plt.show()
-
-        # # by cluster calculate rayleigh
-        # r = np.zeros(len(clu))
-        # for counter,c in enumerate(clu):
-        #     alpha = HD_at_spike[c_spikes==c]
-        #     alpha = np.asarray(alpha)
-        #     w = np.ones_like(alpha)
-        #     cmean = np.sum((w * np.exp(1j * alpha)) / np.sum(w))
-        #     r[counter] = np.abs(cmean)
-        # # heatmap of high rayleighs sorted by pref HSA
-        # thresh = .5
-        # idx = r > thresh
-        # hfc = hsafiring_clu[idx,:]
-        # mr = max_rate[idx]
-        # ax2.imshow(hfc[np.argsort(mr),:],cmap = 'hot',aspect = .05,extent = [-np.pi,np.pi,0,len(hfc)])
-        # ax2.set_title('HSA tuned cells')
-        # ax2.set(xlabel='head-shelter ang (radians)', ylabel='cluster (sort on pref HSA)')
-        # # heatmap of low rayleighs sorted by pref HSA
-        # idx = r < thresh
-        # hfc = hsafiring_clu[idx,:]
-        # mr = max_rate[idx]
-        # ax3.imshow(hfc[np.argsort(mr),:],cmap = 'hot',aspect = .05,extent = [-np.pi,np.pi,0,len(hfc)])
-        # ax3.set_title('Untuned cells')
-        # ax3.set(xlabel='head-shelter ang (radians)', ylabel='cluster (sort on pref HSA)')
-        # plt.show()
+        self.Rayleigh_theta = np.empty([len(np.unique(clusters))])
+        self.Rayleigh = np.empty([len(np.unique(clusters))])
+        self.Rayleigh_cluster = np.empty([len(np.unique(clusters))])
+        # clu = np.unique(clusters)
+        for counter,c in enumerate(np.unique(clusters)):
+            frame_per_spike = np.digitize(spikes[clusters == c],timepoints)
+            angle_per_spike = np.zeros_like(frame_per_spike)
+            outShelter_spike = np.zeros_like(frame_per_spike)
+            for f in np.unique(frame_per_spike):
+                angle_per_spike[frame_per_spike == f] = angles[f-1]
+                if OutofShelterIdx[f-1] == True: outShelter_spike[frame_per_spike == f] = 1
+            HSA_spike = angle_per_spike[outShelter_spike == 1]
+            # calculate Rayleigh
+            x = np.nanmean(np.cos(HSA_spike))
+            y = np.nanmean(np.sin(HSA_spike))
+            self.Rayleigh_theta[counter] = np.arctan(y/x)
+            self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
+            self.Rayleigh_cluster[counter] = c
+        # histogram of rayleighs
+        plt.hist(self.Rayleigh,np.arange(0,1,.1))
+        plt.xlabel('Rayleigh R')
+        plt.ylabel('number of clusters')
+        plt.savefig(str(self.Visualize.session.file_path) + "/" + "Rayleigh_vector_hist.png")
+        if self.Visualize.settings.show_plots: plt.show()
