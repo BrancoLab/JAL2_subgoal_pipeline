@@ -135,12 +135,12 @@ class Verifications():
         
         regression = lambda x: (slope * x) + intercept
 
-        plt.scatter(self.Process.session.ttl.bonsai_sync_onsets / self.Process.session.ttl.sampling_rate,self.Process.session.ttl.ephys_sync_onsets / self.Process.session.ttl.sampling_rate)
+        plt.scatter(self.Process.session.ttl.bonsai_sync_onsets / self.Process.session.ttl.sampling_rate, \
+                    self.Process.session.ttl.ephys_sync_onsets / self.Process.session.ttl.sampling_rate)
         plt.title('slope = ' + str(slope) + '\n' + ' and intercept = ' + str(intercept))
         plt.xlabel('bonsai onset (s)')
         plt.ylabel('efizz onset (s)')
         plt.savefig(str(self.Process.session.file_path) + "/" + "pulse_sync_regression.png")
-        # plt.show()
 
         # Plot starting, middle and end samples to check alignment
         fig, axs = plt.subplots(3)
@@ -151,15 +151,20 @@ class Verifications():
         
         middlePulse = int(np.median(self.Process.session.ttl.bonsai_sync_onsets))
         axs[1].set_title("Middle of sync")
-        axs[1].plot(regression(imecTime)[middlePulse : middlePulse + 500000]/ self.Process.session.ttl.sampling_rate, imecSignal[middlePulse : middlePulse + 500000], color='blue', label = 'Imec')
-        axs[1].plot(bonsaiTime[middlePulse : middlePulse + 500000]/ self.Process.session.ttl.sampling_rate, bonsaiSignal[middlePulse : middlePulse + 500000], color='red', label = 'Bonsai')
+        axs[1].plot(regression(imecTime)[middlePulse : middlePulse + 500000] / self.Process.session.ttl.sampling_rate, \
+                    imecSignal[middlePulse : middlePulse + 500000], color='blue', label = 'Imec')
+        axs[1].plot(bonsaiTime[middlePulse : middlePulse + 500000] / self.Process.session.ttl.sampling_rate, \
+                    bonsaiSignal[middlePulse : middlePulse + 500000], color='red', label = 'Bonsai')
         
         LastPulses = self.Process.session.ttl.bonsai_sync_onsets[-10]
         axs[2].set_title("End of sync")
-        axs[2].plot(regression(imecTime)[LastPulses : LastPulses + 500000]/ self.Process.session.ttl.sampling_rate, imecSignal[LastPulses : LastPulses + 500000], color='blue', label = 'Imec')
-        axs[2].plot(bonsaiTime[LastPulses : LastPulses + 500000]/ self.Process.session.ttl.sampling_rate, bonsaiSignal[LastPulses : LastPulses + 500000], color='red', label = 'Bonsai')
+        axs[2].plot(regression(imecTime)[LastPulses : LastPulses + 500000] / self.Process.session.ttl.sampling_rate, \
+                    imecSignal[LastPulses : LastPulses + 500000], color='blue', label = 'Imec')
+        axs[2].plot(bonsaiTime[LastPulses : LastPulses + 500000] / self.Process.session.ttl.sampling_rate, \
+                    bonsaiSignal[LastPulses : LastPulses + 500000], color='red', label = 'Bonsai')
                 
         plt.savefig(str(self.Process.session.file_path) + "/" + "pulse_sync_visualize.png")
+        plt.legend()
         plt.show()
         
         # Last pulse to check that efizz spikes are not longer than this in another module
