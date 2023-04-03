@@ -38,6 +38,8 @@ from glob import glob
 import dill as pickle
 from loguru import logger
 
+# Globals
+sampling_rate = 30000
 
 def get_TTL(session: NEW_Session, TTL_bin_path: str):
     """Returns the TTL_sync dataclass. 
@@ -48,10 +50,7 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     Returns:
         TTL_Sync: data class
     """
-
-    #Set global sampling rate
-    sampling_rate = 30000
-
+    
     # Retrieve TTL data
     bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path)
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
@@ -61,14 +60,12 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
     #Get onset and offsets
-    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5, type = "Bonsai", hack = True)
-    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45, type = "Imec", hack = True)
+    bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
+    ephys_sync_onsets, ephys_sync_offsets   = get_onset_offset(imec_TTL, 45)
 
-    # Check to see that imec pulse onset is first 
-    # ??What does this do?
-    # if ephys_sync_onsets[0] >= bonsai_sync_onsets[0]:
-    #     logger.error("The first pulse onset is the bonsai signal and not the imec signal. Error.")
-    #     return
+    # Test that onsets len match
+    assert len(bonsai_sync_onsets) == len(ephys_sync_onsets), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
+    logger.success("The number of efizz pulses onsets match the number of bonsai pulses onsets")
 
     # Check pulse lengths
     check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
@@ -91,9 +88,6 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     if not imec_pulse_len_errors.any() and bonsai_pulse_len_errors.any():
         logger.error("There was an imbalance in pulse lengths this can't be good")
         
-    # Test that onsets len match
-    assert len(bonsai_sync_onsets) == len(ephys_sync_onsets), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
-
     # define the TTL object
     ttl_object = TTL_Sync(bonsai_TTL = bonsai_ttl, 
                           imec_TTL = imec_TTL,
@@ -143,26 +137,60 @@ def get_TTL_from_imec(filename: str):
 
 # ---------------------------------------------- utils ------------------------------------------------------------------
 
-#Get the onsets and offsets for bonsai / imec. Your choice!
-def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
-    """ Get onset/offset times when a signal goes below>above and
-        above>below a given threshold
+def get_onset_offset(signal, threshold, clean = True):
+    """ 
+    Get onset/offset times when a signal (either bonsai or imec TLL depending on argument) 
+    goes below>above and above>below a given threshold. If no starts or ends kill programme. 
 
-        Arguments:
-            signal: 1d numpy array
-            thhreshold: float, threshold
-            clean: bool. If true ends before the first start and 
-                starts after the last end are removed
-            type: imec or bonsai
+    Arguments:
+        signal: 1d numpy array - bonsai or imec TLL
+        thhreshold: float, threshold
+        clean: bool. If true ends before the first start and starts after the last end are removed
+        type: imec or bonsai
 
-        Returns:
-            Starts: Indexes of pulse onsets
-            Ends: Indexes of pulse offsets
+    Returns:
+        Starts: Indexes of pulse onsets
+        Ends: Indexes of pulse offsets
     """
-    samplingrate = 30000
+    
+    above = np.zeros_like(signal)
+    above[signal >= threshold] = 1 # If the signal is above voltage threshold, set to 1
+    der = np.diff(above, n=1, axis=0) # Create an array of differences 
+    starts = np.where(der > .5)[0] # Where does the signal switch from 0 to 1
+    ends = np.where(der < -.5)[0] # Where does the signal switch from 1 to 0
+
+    if clean:
+        
+        # offsets before the first onsets are removed
+        ends = np.array([e for e in ends if e > starts[0]])
+
+        # onsets before the last offsets are removed
+        if np.any(ends):
+            starts = np.array([s for s in starts if s < ends[-1]])
+
+    if not np.any(starts): assert False, "No onsets"
+    if not np.any(ends): assert False, "No offsets"
+ 
+    return starts, ends
+
+#Get the onsets and offsets for bonsai / imec. Your choice!
+def OLD_get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
+    """ 
+    Get onset/offset times when a signal goes below>above and above>below a given threshold.
+
+    Arguments:
+        signal: 1d numpy array
+        thhreshold: float, threshold
+        clean: bool. If true ends before the first start and starts after the last end are removed
+        type: imec or bonsai
+
+    Returns:
+        Starts: Indexes of pulse onsets
+        Ends: Indexes of pulse offsets
+    """
     above = np.zeros_like(signal) # Creates an array of zeros of length signal
     above[signal >= threshold] = 1 #If the signal is above voltage threshold, set to 1
-    der = derivative(above) #Create an array of differences 
+    der = np.diff(above, axis=0, order=1) #Create an array of differences 
     starts = np.where(der > .5)[0] #Where does the signal switch from 0 to 1
     ends = np.where(der < -.5)[0] #Where does the signal switch from 1 to 0
 
@@ -181,7 +209,7 @@ def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
 
     if above[-1] > 0:
         logger.warning(f"Adding to the end of the {type} signal as it ended high")
-        ends = np.concatenate([ends, [starts[-1]+samplingrate]]) # make it an artificial normal pulse
+        ends = np.concatenate([ends, [starts[-1]+sampling_rate]]) # make it an artificial normal pulse
 
         # In the event that the signal ends on a high, remove that last pulse
         # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1_4
@@ -209,18 +237,6 @@ def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
         logger.error("No offsets")
  
     return starts, ends
-
-#Take the derivate so you can spot changes in state within a signal. Ie, pulse onset/offsets
-def derivative(X, axis=0, order=1):
-    """"Takes the derivative of an array X along a given axis
-
-        Arguments:
-            X: np.array with data - 1 dimensional
-            axis: int. Axis along which the derivative is to be computed
-            order: int. Derivative order
-    """
-    #Prepend 0 so the index is realigned to prevent off by 1 error
-    return np.diff(X, n=order, axis=axis)
 
 #-------------------------------------- Abberant signal checks --------------------------------------------------------------------------
 
