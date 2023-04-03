@@ -187,7 +187,7 @@ def get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
         # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1_4
         # buffering should be fixed to prevent this
         # Ugly gross ugly
-        if np.logical_and(hack == True, type == "Imec"):
+        if hack == True:
             starts = starts[:-1]
             logger.warning(f"Removing the last onset from the {type} signal as it ended high")
 
@@ -224,13 +224,15 @@ def derivative(X, axis=0, order=1):
 
 #-------------------------------------- Abberant signal checks --------------------------------------------------------------------------
 
-#Check for abberant signals and errors
 def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
     """A function that checks:
     1) If the signal lengths are too different between bonsai and immec, they shouldn't be longer than
     10 seconds. Enabling bonsai and disabling bonsai and spike glx shouldn't take >10s but if mannually this occured
     then this error would fire, or if another issue occured
     2) If the signals deviate away from an expected baseline
+    3) If the signals are too high for example, then just remove those signals just for the alignment
+    
+    Note if there are too many abberant signals this function will fail the assert. 
 
     Args:
         bonsai_ttl (object): TTL signal
@@ -242,25 +244,27 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
         Object: bonsai TTL signal cleaned from abberant spikes
     """
 
-    # Threshold for acceptable number of abberant signals made up
+    # Threshold for acceptable number of abberant signals
     threshold = 1000
 
     # check for signal differences, they should not differ by 10 seconds - Removing this check for now as it could be just a mannual delay between bonsai and spikeglx
     # if the user delays between stopping both systems
     if abs(len(bonsai_ttl) - len(imec_TTL)) > 10 * sampling_rate:
-        logger.warning("The sync signals have very different lengths before resample, this cant be!")
+        logger.error("The sync signals have very different lengths before resample, this cant be!")
         # raise ValueError("The sync signals have very different lengths before resample, this cant be!")
+        # Commenting out whilst we test the system 
 
     # check for aberrant signals in ephys
     imec_errors = np.where(imec_TTL > 75)[0]
-    if len(imec_errors):
+    if imec_errors:
         logger.warning(f"Found {len(imec_errors)} samples with too high values in probe signal")
-    if len(imec_errors) > 1000:
-        return False, 0, 0, "too_many_errors_in_ephys_sync_signal"
+        assert len(imec_errors) < threshold, "There are too many abberant signals in the imec TTL"
 
     # check of abberaant signals in bonsai TTL
     errors_bonsai = np.where(bonsai_ttl > 10)[0]
-    assert len(errors_bonsai) < threshold, "There are too many abberant signals in the bonsai TTL"
+    if errors_bonsai:
+        logger.warning(f"Found {len(errors_bonsai)} samples with too high values in probe signal")
+        assert len(errors_bonsai) < threshold, "There are too many abberant signals in the bonsai TTL"
 
     # If errors remove signals and update signals
     if errors_bonsai or imec_errors:
