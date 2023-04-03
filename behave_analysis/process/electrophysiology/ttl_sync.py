@@ -137,6 +137,7 @@ def get_TTL_from_imec(filename: str):
 
 # ---------------------------------------------- utils ------------------------------------------------------------------
 
+# Testing new onset to see if it works with less functionality
 def get_onset_offset(signal, threshold, clean = True):
     """ 
     Get onset/offset times when a signal (either bonsai or imec TLL depending on argument) 
@@ -173,7 +174,7 @@ def get_onset_offset(signal, threshold, clean = True):
  
     return starts, ends
 
-#Get the onsets and offsets for bonsai / imec. Your choice!
+# The OLD version of the get_onset_offset function - this is kept for reference
 def OLD_get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
     """ 
     Get onset/offset times when a signal goes below>above and above>below a given threshold.

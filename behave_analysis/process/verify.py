@@ -122,12 +122,12 @@ class Verifications():
         """
         
         # Trucate Signals to the first pulse onset 
-        bonsaiSignal = self.Process.session.ttl.bonsai_TTL#[self.Process.session.ttl.bonsai_sync_onsets[0]:]
-        imecSignal   = self.Process.session.ttl.imec_TTL#[self.Process.session.ttl.ephys_sync_onsets[0]:]
+        bonsaiSignal = self.Process.session.ttl.bonsai_TTL
+        imecSignal   = self.Process.session.ttl.imec_TTL
         
         # Create time vectors
-        bonsaiTime = np.arange(0, len(bonsaiSignal))# / self.Process.session.ttl.sampling_rate
-        imecTime = np.arange(0, len(imecSignal))# / self.Process.session.ttl.sampling_rate
+        bonsai_samples = np.arange(0, len(bonsaiSignal))
+        imec_samples = np.arange(0, len(imecSignal))
         
         # Align signals
         slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets, 
@@ -146,22 +146,26 @@ class Verifications():
         fig, axs = plt.subplots(3)
         fig.suptitle('Efizz syncing checks')
         axs[0].set_title("Start of sync")
-        axs[0].plot(regression(imecTime)[:500000]/ self.Process.session.ttl.sampling_rate, imecSignal[:500000], color='blue', label = 'Imec')
-        axs[0].plot(bonsaiTime[:500000]/ self.Process.session.ttl.sampling_rate, bonsaiSignal[:500000], color='red', label = 'Bonsai')
+        axs[0].plot(regression(imec_samples)[:500000] / self.Process.session.ttl.sampling_rate, imecSignal[:500000], color='blue', label = 'Imec')
+        axs[0].plot(bonsai_samples[:500000]/ self.Process.session.ttl.sampling_rate, bonsaiSignal[:500000], color='red', label = 'Bonsai')
         
-        middlePulse = int(np.median(self.Process.session.ttl.bonsai_sync_onsets))
+        middlePulseEfizz = int(np.median(self.Process.session.ttl.ephys_sync_onsets))
+        middleBon = int(np.median(self.Process.session.ttl.bonsai_sync_onsets))
+        
         axs[1].set_title("Middle of sync")
-        axs[1].plot(regression(imecTime)[middlePulse : middlePulse + 500000] / self.Process.session.ttl.sampling_rate, \
-                    imecSignal[middlePulse : middlePulse + 500000], color='blue', label = 'Imec')
-        axs[1].plot(bonsaiTime[middlePulse : middlePulse + 500000] / self.Process.session.ttl.sampling_rate, \
-                    bonsaiSignal[middlePulse : middlePulse + 500000], color='red', label = 'Bonsai')
+        axs[1].plot(regression(imec_samples)[middlePulseEfizz : middlePulseEfizz + 500000] / self.Process.session.ttl.sampling_rate, \
+                    imecSignal[middlePulseEfizz : middlePulseEfizz + 500000], color='blue', label = 'Imec')
+        axs[1].plot(bonsai_samples[middleBon : middleBon + 500000] / self.Process.session.ttl.sampling_rate, \
+                    bonsaiSignal[middleBon : middleBon + 500000], color='red', label = 'Bonsai')
         
-        LastPulses = self.Process.session.ttl.bonsai_sync_onsets[-10]
+        LastPulsesBon = self.Process.session.ttl.bonsai_sync_onsets[-10]
+        LastPulsesEfizz = self.Process.session.ttl.ephys_sync_onsets[-10]
+
         axs[2].set_title("End of sync")
-        axs[2].plot(regression(imecTime)[LastPulses : LastPulses + 500000] / self.Process.session.ttl.sampling_rate, \
-                    imecSignal[LastPulses : LastPulses + 500000], color='blue', label = 'Imec')
-        axs[2].plot(bonsaiTime[LastPulses : LastPulses + 500000] / self.Process.session.ttl.sampling_rate, \
-                    bonsaiSignal[LastPulses : LastPulses + 500000], color='red', label = 'Bonsai')
+        axs[2].plot(regression(imec_samples)[LastPulsesEfizz : LastPulsesEfizz + 500000] / self.Process.session.ttl.sampling_rate, \
+                    imecSignal[LastPulsesEfizz : LastPulsesEfizz + 500000], color='blue', label = 'Imec')
+        axs[2].plot(bonsai_samples[LastPulsesBon : LastPulsesBon + 500000] / self.Process.session.ttl.sampling_rate, \
+                    bonsaiSignal[LastPulsesBon : LastPulsesBon + 500000], color='red', label = 'Bonsai')
                 
         plt.savefig(str(self.Process.session.file_path) + "/" + "pulse_sync_visualize.png")
         plt.legend()
