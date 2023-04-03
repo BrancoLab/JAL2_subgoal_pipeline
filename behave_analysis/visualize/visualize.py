@@ -43,8 +43,8 @@ class Visualize():
         #     x, y = map(int, input().split())
         #     self.barriertime = [int(x)*60, int(y)*60] # in seconds
 
-        self.sheltertime = [0, 30*60]
-        self.barriertime = [30*60, -1*60]
+        self.sheltertime = [30*60, -1*60]
+        if 'Seq' in self.session.experiment: self.barriertime = [30*60, -1*60]
 
         if self.settings.efizz: # this will only make efizz plots if you want them
             logger.info(f"Starting to make some efizz overview plots...")
@@ -53,8 +53,8 @@ class Visualize():
             # if self.settings.escape_trials: Visualize_efizz(self).PSTH_all_neurons(stim_type = 'audio')
             # if self.settings.escape_trials: Visualize_efizz(self).PSTH_single_neurons(stim_type = 'audio')
             Visualize_efizz(self).HSA_tuning()
-            # Visualize_efizz(self).barrier_tuning()
-            # if self.settings.escape_trials: Visualize_efizz(self).spatial_position_firing()
+            if 'Seq' in self.session.experiment: Visualize_efizz(self).barrier_tuning()
+            # Visualize_efizz(self).spatial_position_firing()
         
         logger.info(f"Starting to make some behavior overview plots...")
         # Visualize_behave(self).position_by_bsa()
