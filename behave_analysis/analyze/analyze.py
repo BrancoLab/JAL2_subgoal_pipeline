@@ -1,5 +1,5 @@
 # Custom libs
-from behave_analysis.utils.mat_to_python import convert_matlab_struct
+# from behave_analysis.utils.mat_to_python import convert_matlab_struct
 from behave_analysis.process.camera_trigger import get_num_frames_expected, get_Camera_trigger
 from behave_analysis.process.process import Process
 from behave_analysis.utils.open_tracking_data import open_tracking_data
@@ -13,9 +13,9 @@ from behave_analysis.analyze.grid_cells.grid_cell_funcs import mother_plot
 #Custom libs
 from settings.settings_process import settings_process as settings_p # So to check if pipeline includes efizz
 
-# Additional libraries if running with efizz
-if settings_p.efizz:
-    from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
+# # Additional libraries if running with efizz
+# if settings_p.efizz:
+#     from behave_analysis.utils.downsample_AI_data import remove_idx_as_per_bonsai_ttl_resample
 
 # OS libs
 import mpl_toolkits.axisartist.floating_axes as floating_axes
