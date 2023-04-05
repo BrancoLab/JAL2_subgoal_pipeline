@@ -38,6 +38,11 @@ class Visualize_efizz():
         A function that extracts spikes times between trials and aligns it to the stimulus onset.
         The function returns a dictionary with the cluster ID as the key and a list of polars dataframes as the value.
         Each polar dataframe contains the spikes for a single trial.
+        
+        Returns Dictionary = {cluster_ID1: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
+                              cluster_ID2: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
+                              ...}
+                              
         """
         
         dic = {}
@@ -59,75 +64,56 @@ class Visualize_efizz():
         
         return dic
         
-    
     def single_cluster_raster(self, stim_type):
         """
         A function that extracts spike times for each good cluster and aligns it to trials as a raster plot
         """
-        # plt.figure(figsize=(15, 12))
-        # plt.subplots_adjust(hspace=0.2)
-        # # set number of rows and calculate number of columns
-        # ncols = 10
-        # nrows = 5 # nclu // ncols + (nclu % ncols > 0)
-        # figg, axs = plt.subplots(nrows,ncols)
-        # figg.set_figwidth(30)
-        # figg.set_figheight(15)
-        # fnum = 1
-        # axs = axs.ravel()
-        timeBeforeStim = 10 # in seconds
-        timeAfterStim = 10 # in seconds
-        
+        cluster_trial_spikes_dic = self.extract_trial_spikes(stim_type)
+
         for index, cluster in enumerate(self.array_of_good_neurons_IDs):
-            spikes = self.dataFrame_filt_on_good_neurons.filter(self.dataFrame_filt_on_good_neurons["spike_clusters"] == cluster)
-            spikesByTrial = []
-            
             plt.figure()
+            cluster = 52
             for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
-                time1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim
-                time2 = (onset_frames / self.Visualize.session.video.fps) + timeAfterStim
-                trialSpikesPolars = spikes.filter((spikes["aligned_spike_times"] > time1) & (spikes["aligned_spike_times"] < time2))
-                adjustedSpikeTimes = trialSpikesPolars.with_column(trialSpikesPolars['aligned_spike_times'] - onset_frames / self.Visualize.session.video.fps)
-                # spikesByTrial.append(trialSpikesPolars)
-                
-                y_values = [trial] * len(adjustedSpikeTimes)
-                plt.scatter(adjustedSpikeTimes["aligned_spike_times"], y_values, marker='|', s=100, c='k')
+                x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
+                y_values = [trial] * len(x_values)
+                plt.scatter(x_values, y_values, marker='|', s=100, c='k')
                 plt.vlines(0, 0, len(self.Visualize.session.__dict__[stim_type].onset_frames), colors='r', linestyles='solid')
-                plt.title("Cluster 52 - Raster Plot")
+                plt.title(f"Cluster: {cluster} - Raster Plot")
             plt.show()
             pass
             
      
-        for i, c in enumerate(np.unique(self.clu_spikes)):
-            spikes = self.aligned_spikes[self.clu_spikes == c]
-            trial_idx = np.zeros_like(spikes)
-            spikes_idx = np.zeros_like(spikes)
-            trial_length = np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations)
-            for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-                t1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim
-                t2 = (onset_frames/self.Visualize.session.video.fps) + trial_length
-                trial_idx[np.logical_and(spikes > t1,spikes < t2)] = trial_num + 1
-                spikes_idx[np.logical_and(spikes > t1,spikes < t2)] = spikes[np.logical_and(spikes > t1,spikes < t2)] - (onset_frames/self.Visualize.session.video.fps)
-            if i >= (ncols*nrows)*fnum:
-                figg, axs = plt.subplots(nrows,ncols)
-                figg.set_figwidth(30)
-                figg.set_figheight(15)
-                fnum = fnum + 1
-                axs = axs.ravel()
-            axs[i-(nrows*ncols*fnum)].plot([0,0],[0, np.amax(trial_idx)],'r-')
-            if np.sum(trial_idx.astype(int)) > 0:
-                axs[i-(nrows*ncols*fnum)].eventplot(np.array([spikes_idx[trial_idx > 0]]).T,lineoffsets = np.array(trial_idx[trial_idx > 0]))
-                axs[i-(nrows*ncols*fnum)].set_xlabel('time from stim (s)')
-                axs[i-(nrows*ncols*fnum)].set_xbound(-timeBeforeStim,np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations))
-                axs[i-(nrows*ncols*fnum)].set_ylabel('trials')
-            axs[i-(nrows*ncols*fnum)].title.set_text('cluster ' + str(c))
-            if np.logical_or(i-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
-                            i == len(np.unique(self.clu_spikes))-1):
-                plt.tight_layout()
-                plt.savefig(str(self.Visualize.session.file_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(fnum) + ".png")
-                if self.Visualize.settings.show_plots: 
-                    plt.show()
+        # for i, c in enumerate(np.unique(self.clu_spikes)):
+        #     spikes = self.aligned_spikes[self.clu_spikes == c]
+        #     trial_idx = np.zeros_like(spikes)
+        #     spikes_idx = np.zeros_like(spikes)
+        #     trial_length = np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations)
+        #     for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
+        #         t1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim
+        #         t2 = (onset_frames/self.Visualize.session.video.fps) + trial_length
+        #         trial_idx[np.logical_and(spikes > t1,spikes < t2)] = trial_num + 1
+        #         spikes_idx[np.logical_and(spikes > t1,spikes < t2)] = spikes[np.logical_and(spikes > t1,spikes < t2)] - (onset_frames/self.Visualize.session.video.fps)
+        #     if i >= (ncols*nrows)*fnum:
+        #         figg, axs = plt.subplots(nrows,ncols)
+        #         figg.set_figwidth(30)
+        #         figg.set_figheight(15)
+        #         fnum = fnum + 1
+        #         axs = axs.ravel()
+        #     axs[i-(nrows*ncols*fnum)].plot([0,0],[0, np.amax(trial_idx)],'r-')
+        #     if np.sum(trial_idx.astype(int)) > 0:
+        #         axs[i-(nrows*ncols*fnum)].eventplot(np.array([spikes_idx[trial_idx > 0]]).T,lineoffsets = np.array(trial_idx[trial_idx > 0]))
+        #         axs[i-(nrows*ncols*fnum)].set_xlabel('time from stim (s)')
+        #         axs[i-(nrows*ncols*fnum)].set_xbound(-timeBeforeStim,np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations))
+        #         axs[i-(nrows*ncols*fnum)].set_ylabel('trials')
+        #     axs[i-(nrows*ncols*fnum)].title.set_text('cluster ' + str(c))
+        #     if np.logical_or(i-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
+        #                     i == len(np.unique(self.clu_spikes))-1):
+        #         plt.tight_layout()
+        #         plt.savefig(str(self.Visualize.session.file_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(fnum) + ".png")
+        #         if self.Visualize.settings.show_plots: 
+        #             plt.show()
         
-        print("Done")
+        # print("Done")
 
     def rasters(self, stim_type):
         """
