@@ -33,7 +33,7 @@ class Visualize_efizz():
         self.clu_spikes = asd_np[asd_np[:,2] == 'good',1]
         print("Loaded spike data")
     
-    def extract_trial_spikes(self, stim_type, time_before_stim = 10, time_after_stim = 10) -> dict:
+    def extract_trial_spikes(self, stim_type, time_before_stim = 3, time_after_stim = 2, select_good_neurons = False) -> dict:
         """
         A function that extracts spikes times between trials and aligns it to the stimulus onset.
         The function returns a dictionary with the cluster ID as the key and a list of polars dataframes as the value.
@@ -47,8 +47,14 @@ class Visualize_efizz():
         
         dic = {}
         
+        if select_good_neurons:
+            iterator = self.array_of_good_neurons_IDs
+        
+        elif not select_good_neurons:
+            iterator = self.dataFrame["spike_clusters"].unique()
+            
         # For every cluster in the good clusters
-        for index, cluster in enumerate(self.array_of_good_neurons_IDs):
+        for index, cluster in enumerate(iterator):
             spikes = self.dataFrame_filt_on_good_neurons.filter(self.dataFrame_filt_on_good_neurons["spike_clusters"] == cluster)
             spikesByTrial = []
             
@@ -68,53 +74,52 @@ class Visualize_efizz():
         """
         A function that extracts spike times for each good cluster and aligns it to trials as a raster plot
         """
-        cluster_trial_spikes_dic = self.extract_trial_spikes(stim_type)
-
-        for index, cluster in enumerate(self.array_of_good_neurons_IDs):
-            plt.figure()
-            cluster = 52
-            for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
-                x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
-                y_values = [trial] * len(x_values)
-                plt.scatter(x_values, y_values, marker='|', s=100, c='k')
-                plt.vlines(0, 0, len(self.Visualize.session.__dict__[stim_type].onset_frames), colors='r', linestyles='solid')
-                plt.title(f"Cluster: {cluster} - Raster Plot")
-            plt.show()
-            pass
-            
-     
-        # for i, c in enumerate(np.unique(self.clu_spikes)):
-        #     spikes = self.aligned_spikes[self.clu_spikes == c]
-        #     trial_idx = np.zeros_like(spikes)
-        #     spikes_idx = np.zeros_like(spikes)
-        #     trial_length = np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations)
-        #     for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-        #         t1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim
-        #         t2 = (onset_frames/self.Visualize.session.video.fps) + trial_length
-        #         trial_idx[np.logical_and(spikes > t1,spikes < t2)] = trial_num + 1
-        #         spikes_idx[np.logical_and(spikes > t1,spikes < t2)] = spikes[np.logical_and(spikes > t1,spikes < t2)] - (onset_frames/self.Visualize.session.video.fps)
-        #     if i >= (ncols*nrows)*fnum:
-        #         figg, axs = plt.subplots(nrows,ncols)
-        #         figg.set_figwidth(30)
-        #         figg.set_figheight(15)
-        #         fnum = fnum + 1
-        #         axs = axs.ravel()
-        #     axs[i-(nrows*ncols*fnum)].plot([0,0],[0, np.amax(trial_idx)],'r-')
-        #     if np.sum(trial_idx.astype(int)) > 0:
-        #         axs[i-(nrows*ncols*fnum)].eventplot(np.array([spikes_idx[trial_idx > 0]]).T,lineoffsets = np.array(trial_idx[trial_idx > 0]))
-        #         axs[i-(nrows*ncols*fnum)].set_xlabel('time from stim (s)')
-        #         axs[i-(nrows*ncols*fnum)].set_xbound(-timeBeforeStim,np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations))
-        #         axs[i-(nrows*ncols*fnum)].set_ylabel('trials')
-        #     axs[i-(nrows*ncols*fnum)].title.set_text('cluster ' + str(c))
-        #     if np.logical_or(i-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
-        #                     i == len(np.unique(self.clu_spikes))-1):
-        #         plt.tight_layout()
-        #         plt.savefig(str(self.Visualize.session.file_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(fnum) + ".png")
-        #         if self.Visualize.settings.show_plots: 
-        #             plt.show()
+        # Load data - Choose whether to use good neurons or all neurons
+        cluster_trial_spikes_dic = self.extract_trial_spikes(stim_type, select_good_neurons = True)
         
-        # print("Done")
-
+        # How many plots do we need?
+        number_of_plots = len(cluster_trial_spikes_dic)
+        max_plots_per_figure = 20
+        
+        # How many columns and rows should the plot have
+        num_cols = int(np.ceil(np.sqrt(max_plots_per_figure)))
+        num_rows = int(np.ceil(max_plots_per_figure / num_cols))
+        
+        # Across how many figures
+        num_figures = int(np.ceil(number_of_plots / max_plots_per_figure))
+        
+        # Create the figures
+        plot_counter = 0
+        
+        # For each figure
+        for figure_idx in range(num_figures):
+            fig, axes = plt.subplots(num_rows, num_cols, figsize=(24, 8))
+            
+            # For each plot
+            for rows in range(num_rows):
+                for columns in range(num_cols):
+                    if plot_counter < number_of_plots:
+                        cluster = list(cluster_trial_spikes_dic.keys())[plot_counter]
+                        for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
+                            x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
+                            y_values = [trial] * len(x_values)
+                            axes[rows, columns].scatter(x_values, y_values, marker='|', s=100, c='k')
+                        axes[rows, columns].set_title(f"Cluster: {cluster}")
+                        axes[rows, columns].vlines(0, 0, len(self.Visualize.session.__dict__[stim_type].onset_frames), colors='r', linestyles='solid')
+                    
+                    # Remove the extra axes if there are no more plots
+                    else:
+                        fig.delaxes(axes[rows, columns])
+                    
+                    plot_counter += 1
+            
+            # SAVE FIGURE
+            fig.tight_layout()
+            plt.savefig(str(self.Visualize.session.file_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(figure_idx) + ".png")                
+        
+        if self.Visualize.settings.show_plots: 
+            plt.show()
+            
     def rasters(self, stim_type):
         """
         A function that extracts spike times and aligns it to trials as a raster plot
