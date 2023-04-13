@@ -35,13 +35,9 @@ class Visualize():
         open_tracking_data(self)
 
         # get time in minutes of shelter only and when the barrier was introduced
-        print("When (in minutes) was the start and end of the period of shelter-only? (use -1 for end of session)")
-        x, y = map(int, input().split())
-        self.sheltertime = [int(x)*60, int(y)*60] # in seconds
+        self.sheltertime = np.array(self.session.shelter_time)*60 # in seconds
         if 'Seq' in self.session.experiment: # these are sessions with barrier presumably
-            print("When (in minutes) was the start and end of the period with barrier? (use -1 for end of session)")
-            x, y = map(int, input().split())
-            self.barriertime = [int(x)*60, int(y)*60] # in seconds
+            self.barriertime = np.array(self.session.barrier_time)*60 # in seconds
 
         if self.settings.efizz: # this will only make efizz plots if you want them
             logger.info(f"Starting to make some efizz overview plots...")
@@ -49,7 +45,7 @@ class Visualize():
             if self.settings.escape_trials: Visualize_efizz(self).single_cluster_raster(stim_type = 'audio')
             # if self.settings.escape_trials: Visualize_efizz(self).single_cluster_raster_Laser_test()
             if self.settings.escape_trials: Visualize_efizz(self).PSTH_all_neurons(stim_type = 'audio')
-            if self.settings.escape_trials: Visualize_efizz(self).PSTH_single_neurons(stim_type = 'audio')
+            # if self.settings.escape_trials: Visualize_efizz(self).PSTH_single_neurons(stim_type = 'audio')
             Visualize_efizz(self).HSA_tuning()
             Visualize_efizz(self).HD_tuning()
             if 'Seq' in self.session.experiment: Visualize_efizz(self).barrier_tuning()
