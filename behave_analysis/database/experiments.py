@@ -11,8 +11,8 @@ class Experiment(Mouse):
     experiment_date: str
     experiment_time: str
     experiment_path: str # Just the name of the experiment folder e.g. 001_mushroom1_2023_03_10T07_15_15
-    shelter_placement_time: float = None # When was shelter placed in seconds
-    barrier_placement_time: float = None # When was barrier placed in seconds
+    shelter_time: list = [] # When was shelter placed in seconds
+    barrier_time: list = [] # When was barrier placed in seconds
 
 seq1 = Experiment(# Mouse specific
                     nick_name = JAL001.nick_name,
