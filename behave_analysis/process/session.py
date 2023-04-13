@@ -13,6 +13,8 @@ class NEW_Session:
     number: int
     mouse: str
     experiment: str
+    shelter_time: None
+    barrier_time: None
     file_path: str
     metadata_file: str
     daq_sampling_rate: int = 15000
@@ -40,5 +42,7 @@ def get_experiment(experiment_data_class):
                    number = experiment_repeat, # Maybe this is incorrect and the wrong number after the refactor
                    mouse = mouse, 
                    experiment = experiment_type, 
+                   shelter_time = experiment_data_class.shelter_time,
+                   barrier_time = experiment_data_class.barrier_time,
                    file_path = file_path, 
                    metadata_file = metadata_file)
