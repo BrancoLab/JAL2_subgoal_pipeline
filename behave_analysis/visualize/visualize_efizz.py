@@ -40,6 +40,7 @@ class Visualize_efizz():
             ax.set_xlabel('time from stim (s)')
         plt.savefig(str(self.Visualize.session.file_path) + "/" + "all_cluster_raster_trial.png")
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
 
     def single_cluster_raster(self,stim_type):
         """
@@ -61,9 +62,10 @@ class Visualize_efizz():
             spikes = self.aligned_spikes[self.clu_spikes == c]
             trial_idx = np.zeros_like(spikes)
             spikes_idx = np.zeros_like(spikes)
+            trial_length = np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations)
             for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
                 t1 = (onset_frames/self.Visualize.session.video.fps) - timeBeforeStim
-                t2 = (onset_frames/self.Visualize.session.video.fps) + stimulus_durations
+                t2 = (onset_frames/self.Visualize.session.video.fps) + trial_length
                 trial_idx[np.logical_and(spikes > t1,spikes < t2)] = trial_num + 1
                 spikes_idx[np.logical_and(spikes > t1,spikes < t2)] = spikes[np.logical_and(spikes > t1,spikes < t2)] - (onset_frames/self.Visualize.session.video.fps)
             if i >= (ncols*nrows)*fnum:
@@ -84,6 +86,7 @@ class Visualize_efizz():
                 plt.tight_layout()
                 plt.savefig(str(self.Visualize.session.file_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(fnum) + ".png")
                 if self.Visualize.settings.show_plots: plt.show()
+                plt.close()
 
     def PSTH_all_neurons(self, stim_type):
         """
@@ -124,6 +127,7 @@ class Visualize_efizz():
         
         plt.title('Trial by trial response PSTH for stimulus type: ' + stim_type)
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
 
     def HSA_tuning(self):
         """
@@ -131,7 +135,7 @@ class Visualize_efizz():
         """
         spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_shelt'],
                                                                                  self.Visualize.sheltertime)
-        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,self.Visualize.sheltertime,end_time)
+        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,self.Visualize.sheltertime,end_time,'head_shelter_angle')
         self.tuning_heatmap('head_shelter_angle',
                             self.Visualize.sheltertime,
                             spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
@@ -142,7 +146,7 @@ class Visualize_efizz():
         """
         spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir'],
                                                                                  [0, -60])
-        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,[0, -60],end_time)
+        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,[0, -60],end_time,'head_dir')
         self.tuning_heatmap('head_dir',
                             [0, -60],
                             spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
@@ -154,6 +158,7 @@ class Visualize_efizz():
         for i in np.arange(2):
             spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_barrier'],
                                                                                  self.Visualize.barriertime)
+            self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,self.Visualize.barriertime,end_time,'head_barrier_angle'+str(i+1))
             self.tuning_heatmap('head_barrier_angle'+str(i+1),
                                 self.Visualize.barriertime,
                                 spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
@@ -208,7 +213,7 @@ class Visualize_efizz():
         axs = axs.ravel()
 
         # firing per head/shelter angle for each cluster
-        start = [0, int(np.round(len(angles[OutofShelterIdx])/2))]
+        start = [0, int(np.round(len(angles[OutofShelterIdx])/2))] # for splitting up in first and second half
         end = [int(np.round(len(angles[OutofShelterIdx])/2)),int(len(angles[OutofShelterIdx]))]
         max_rate = np.zeros(shape = [len(np.unique(clusters))])
         anglesfiring_clu = np.empty(shape = [len(np.unique(clusters)),len(ang_step)-1,2])
@@ -238,12 +243,16 @@ class Visualize_efizz():
                     # make polar plots of first and second half
                     ax.bar(ang_step[:-1] + np.diff(ang_step[:2])/2, anglesfiring_clu[counter,:,i], width=(2*np.pi)/24, bottom=0.0, color=cc[i], alpha=0.5)
                 anglesfiring_clu[counter,:,i] = anglesfiring_clu[counter,:,i]/np.nanmax(anglesfiring_clu[counter,:,i])
-            ax.title.set_text('clu ' + str(c) + '\n' + ', Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
+            if self.Rayleigh_sig[counter] == 1:
+                ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
+            else:
+                ax.title.set_text('clu ' + str(c) + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
                             counter == len(np.unique(clusters))-1):
                 plt.tight_layout()
                 plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_polar_plots_" + str(fnum) + ".png")
-                if self.Visualize.settings.show_plots: plt.show()                
+                if self.Visualize.settings.show_plots: plt.show()  
+                plt.close()              
         
         _, axs = plt.subplots(1, 2)
         # heatmap of first half, sorted by angle with max firing
@@ -257,6 +266,24 @@ class Visualize_efizz():
         axs[1].title.set_text('second half')
         plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning.png")
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
+
+        # heatmap, but restricted to clusters with significant rayleigh vectors
+        _, axs = plt.subplots(1, 2)
+        # heatmap of first half, sorted by angle with max firing
+        A = anglesfiring_clu[self.Rayleigh_sig == 1,:,:]
+        M = max_rate[self.Rayleigh_sig == 1]
+        axs[0].imshow(A[np.argsort(M),:,0],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(M)])
+        axs[0].set_ylabel('cluster (sort on pref HSA)')
+        axs[0].set_xlabel(title + ' (radians)')
+        axs[0].title.set_text('first half')
+        # heatmap of second half, sorted on first half
+        axs[1].imshow(A[np.argsort(M),:,1],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(M)])
+        axs[1].set_xlabel(title + ' (radians)')
+        axs[1].title.set_text('second half')
+        plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning_sig_Rayleigh.png")
+        if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
         
     def load_spike_data(self):
         """
@@ -349,6 +376,7 @@ class Visualize_efizz():
                 
         plt.tight_layout()
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
 
     def spatial_position_firing(self):
         """ A function that makes maps of mousie's position in arena
@@ -389,33 +417,83 @@ class Visualize_efizz():
                 plt.tight_layout()
                 plt.savefig(str(self.Visualize.session.file_path) + "/" + "spatial_position_firing_" + str(fnum) + ".png")
                 if self.Visualize.settings.show_plots: plt.show()
+                plt.close()
 
-    def rayleigh_vector(self,spikes,clusters,angles,OutofShelterIdx,times,end_time):
-        # assign spike times of each cluster to the corresponding video frame, then assign HD
+    def rayleigh_vector(self,spikes,clusters,angles,OutofShelterIdx,times,end_time, title):
+        """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
+        It subsamples angles within 20 degree bins to ensure that angles are more uniformly sampled
+        It only considers times when the mouse was outside the shelter
+        It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
+        The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes"""    
+        # timepoints in seconds for each frame (and angles, OutofShelterIdx)
         timepoints = np.arange(times[0], # start of timewindow
                                end_time, # end of timewindow
                                1/self.Visualize.session.video.fps) # each time bin is 1 frame
-        self.Rayleigh_theta = np.empty([len(np.unique(clusters))])
-        self.Rayleigh = np.empty([len(np.unique(clusters))])
-        self.Rayleigh_cluster = np.empty([len(np.unique(clusters))])
-        # clu = np.unique(clusters)
+        
+        # randomly subsample frames at 20degree angle intervals 
+        # this ensure uniform sampling at all angles, even if mouse behavior was not uniform
+        binned_angles = np.digitize(angles,np.linspace(-np.pi,np.pi,19)) # steps of 20deg
+        all_permuted_angles = np.zeros_like(angles)
+        for b in np.arange(1,np.amax(binned_angles)+1):
+            angles_in_bin = np.where(binned_angles == b)[0]
+            rng = np.random.default_rng()
+            permuted_angles = rng.permuted(angles_in_bin)
+            permuted_angles = permuted_angles[:int(len(binned_angles)*.03)] # an index of subsampled angles
+            all_permuted_angles[permuted_angles] = 1
+
+        # initialize variables
+        self.Rayleigh_theta = np.empty([len(np.unique(clusters))]) # preferred angle
+        self.Rayleigh = np.empty([len(np.unique(clusters))]) # amplitude of Rayleigh vector
+        self.Rayleigh_sig = np.zeros([len(np.unique(clusters))]) # is the Ryleigh significant?
+        self.Rayleigh_cluster = np.empty([len(np.unique(clusters))]) # which cluster ID is this Rayleigh value for?
+
+        # assign spike times of each cluster to the corresponding video frame, then assign HD
         for counter,c in enumerate(np.unique(clusters)):
-            frame_per_spike = np.digitize(spikes[clusters == c],timepoints)
+            # bin spikes per cluster to 1 ms (to get rid of double counting the wider spikes)
+            spikes_by_cluster = spikes[clusters == c]
+            time_bins_1ms = np.arange(spikes_by_cluster[0],spikes_by_cluster[-1],.001)
+            spike_by_bin = np.histogram(spikes_by_cluster,time_bins_1ms)[0]>0
+            spikes_by_cluster = (time_bins_1ms[np.where(spike_by_bin)[0]]+.0005)
+            # at which video frame did the spikes happen? 
+            frame_per_spike = np.digitize(spikes_by_cluster,timepoints)
+            frame_per_spike = frame_per_spike[frame_per_spike <= len(angles)] # delete the spikes happening after the last of timepoints
+            # select spikes when mouse is outside shelter and at one of subsampled angles
             angle_per_spike = np.zeros_like(frame_per_spike)
-            outShelter_spike = np.zeros_like(frame_per_spike)
+            keep_spike = np.zeros_like(frame_per_spike)
             for f in np.unique(frame_per_spike):
                 angle_per_spike[frame_per_spike == f] = angles[f-1]
-                if OutofShelterIdx[f-1] == True: outShelter_spike[frame_per_spike == f] = 1
-            HSA_spike = angle_per_spike[outShelter_spike == 1]
-            # calculate Rayleigh
-            x = np.nanmean(np.cos(HSA_spike))
-            y = np.nanmean(np.sin(HSA_spike))
+                if np.logical_and(OutofShelterIdx[f-1] == True,all_permuted_angles[f-1] == 1): keep_spike[frame_per_spike == f] = 1
+            angle_per_spike = angle_per_spike[keep_spike == 1]
+            # compute rayleigh
+            x = np.nanmean(np.cos(angle_per_spike))
+            y = np.nanmean(np.sin(angle_per_spike))
             self.Rayleigh_theta[counter] = np.arctan(y/x)
             self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
             self.Rayleigh_cluster[counter] = c
+            # bootstrap x times with variable shifts in time
+            x = 100
+            shift_dist = np.empty(x)
+            for bs in np.arange(len(shift_dist)): 
+                shift = int(np.random.uniform(1,x))*self.Visualize.session.video.fps # temporal shift in video frames
+                ang_roll = np.roll(angles,shift)
+                angle_per_spike = np.zeros_like(frame_per_spike)
+                keep_spike = np.zeros_like(frame_per_spike)
+                for f in np.unique(frame_per_spike):
+                    angle_per_spike[frame_per_spike == f] = ang_roll[f-1]
+                    if np.logical_and(OutofShelterIdx[f-1] == True,all_permuted_angles[f-1] == 1): keep_spike[frame_per_spike == f] = 1
+                angle_per_spike = angle_per_spike[keep_spike == 1]
+                x = np.nanmean(np.cos(angle_per_spike))
+                y = np.nanmean(np.sin(angle_per_spike))
+                shift_dist[bs] = np.sqrt(x**2 + y**2)
+            if self.Rayleigh[counter] > np.percentile(shift_dist,95):
+                self.Rayleigh_sig[counter] = 1
+
         # histogram of rayleighs
+        plt.figure()
         plt.hist(self.Rayleigh,np.arange(0,1,.1))
+        plt.hist(self.Rayleigh[self.Rayleigh_sig == 1],np.arange(0,1,.1))
         plt.xlabel('Rayleigh R')
         plt.ylabel('number of clusters')
-        plt.savefig(str(self.Visualize.session.file_path) + "/" + "Rayleigh_vector_hist.png")
+        plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_Rayleigh_vector_hist.png")
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()

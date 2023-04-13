@@ -35,6 +35,7 @@ class Visualize_behave():
         bsa_rgb_cycle = np.zeros(shape = (len(ang_color),3))
         for i in np.arange(360):
             bsa_rgb_cycle[ang_color == i+1,:] = rgb_cycle[i,:]
+        plt.figure()
         plt.scatter(mass[:,0],mass[:,1],s=5,c=bsa_rgb_cycle,linewidths=0,marker='.')
         plt.title ('position coloured by angle to shelter')
         ax = plt.gca()
@@ -42,6 +43,7 @@ class Visualize_behave():
         ax.set_aspect('equal')
         plt.savefig(str(self.Visualize.session.file_path) + "/" + "arena_position.png")
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
     
     def location_occupancy(self):
         """
@@ -95,6 +97,7 @@ class Visualize_behave():
         axs[2].title.set_text('Near barrier edge')
         plt.savefig(str(self.Visualize.session.file_path) + "/" + "arena_occupancy_vs_time.png")
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
 
     def angle_histograms(self):
         """
@@ -124,3 +127,4 @@ class Visualize_behave():
         axs[2].title.set_text('head barrier-edge angle')
         plt.savefig(str(self.Visualize.session.file_path) + "/" + "distribution_head_angles.png")
         if self.Visualize.settings.show_plots: plt.show()
+        plt.close()
