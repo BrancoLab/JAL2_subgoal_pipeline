@@ -8,8 +8,11 @@ from behave_analysis.process.electrophysiology.ttl_sync import get_TTL
 from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
+from behave_analysis.process.laser_sync_test import get_dev3_signals
 
 from behave_analysis.process.session import NEW_Session, get_experiment # Testing refactored dataclass structure
+
+from behave_analysis.process.laser_sync_test import plot_laser_sync_test_in_process
 
 #Import OS libraries
 import os
@@ -33,10 +36,14 @@ class Process():
         self.load_registration_transform()
         self.print_session_details(stage=1)
         
+        # TODO remove this
+        # self.session.laser_sync = get_dev3_signals(self.session)
+   
         if settings_p.efizz:
             self.session.efizzDataLoaded = LoadEfizz(self.session)
             self.session.ttl = get_TTL(self.session, self.session.efizzDataLoaded.TTL_bin_path)
         
+        # Retrieve Dev 3 NIDAQ signals
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
         self.session.audio = get_Audio(self.session)
         self.session.video = get_Video(self.session, video_settings, self.loaded_registration_transform)
@@ -58,6 +65,10 @@ class Process():
                                                              lastPulse = lastPulse)
             
         self.save_session()
+        
+        # TODO remove this
+        # plot_laser_sync_test_in_process(laser_signal = self.session.laser_sync.red_Laser_Signal,
+        #                                 laser_onsets = self.session.laser_sync.laser_onsets)
         
         return self.session
     
@@ -102,6 +113,7 @@ class Process():
             print(f"The file location is: {self.session.metadata_file}. Is this correct? Does a metadata file exsist here?")
             print("Delete meta file")
             return
+        
         except AttributeError:
             print('poop') # Laurence thought this was good code, have lunch if you don't think that's funny
         return session

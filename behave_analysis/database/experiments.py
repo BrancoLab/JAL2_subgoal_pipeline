@@ -69,3 +69,31 @@ test = Experiment(# Mouse specific
                     experiment_date = "2023_03_22",
                     experiment_time = "09_58_59",
                     experiment_path = Path(r"001_synctestmanyaudio_2023_03_22T09_58_59"))
+
+laserTestShort = Experiment(# Mouse specific
+                    nick_name = JAL001.nick_name,
+                    total_sessions = JAL001.total_sessions,
+                    mouse_number_pyrat = JAL001.mouse_number_pyrat,
+                    experiment_file_names = JAL001.experiment_file_names,
+                    root_path = JAL001.root_path,
+
+                    # Experiment specific
+                    experiment_name = 'Laser test Jazz',
+                    experiment_idx = 666,
+                    experiment_date = "2023_04_11",
+                    experiment_time = "12_52_28",
+                    experiment_path = Path(r"999_laserTestJAZZ_2023_04_11T12_52_28"))
+
+laserTest = Experiment(# Mouse specific
+                    nick_name = JAL001.nick_name,
+                    total_sessions = JAL001.total_sessions,
+                    mouse_number_pyrat = JAL001.mouse_number_pyrat,
+                    experiment_file_names = JAL001.experiment_file_names,
+                    root_path = JAL001.root_path,
+
+                    # Experiment specific
+                    experiment_name = 'Laser test Jazz Hands 2',
+                    experiment_idx = 999,
+                    experiment_date = "2023_04_11",
+                    experiment_time = "15_51_58",
+                    experiment_path = Path(r"999_laserTestJAZZhands2_2023_04_11T15_51_58"))

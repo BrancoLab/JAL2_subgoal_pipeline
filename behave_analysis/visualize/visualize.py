@@ -47,6 +47,7 @@ class Visualize():
             logger.info(f"Starting to make some efizz overview plots...")
             if self.settings.escape_trials: Visualize_efizz(self).rasters(stim_type = 'audio')
             if self.settings.escape_trials: Visualize_efizz(self).single_cluster_raster(stim_type = 'audio')
+            # if self.settings.escape_trials: Visualize_efizz(self).single_cluster_raster_Laser_test()
             if self.settings.escape_trials: Visualize_efizz(self).PSTH_all_neurons(stim_type = 'audio')
             if self.settings.escape_trials: Visualize_efizz(self).PSTH_single_neurons(stim_type = 'audio')
             Visualize_efizz(self).HSA_tuning()

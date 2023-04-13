@@ -20,6 +20,7 @@ class Visualize_efizz():
         """
         Loads the csv of aligned data
         """
+        # New ingestion for speed
         csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
         self.dataFrame = pl.read_csv(csv_path)
         self.dataFrame_filt_on_good_neurons = self.dataFrame.filter(self.dataFrame['cluster_group'] == 'good')
@@ -54,11 +55,11 @@ class Visualize_efizz():
             iterator = self.dataFrame["spike_clusters"].unique()
             
         # For every cluster in the good clusters
+        # TODO should this be dataframe not good neurons data frame 
         for index, cluster in enumerate(iterator):
             spikes = self.dataFrame_filt_on_good_neurons.filter(self.dataFrame_filt_on_good_neurons["spike_clusters"] == cluster)
             spikesByTrial = []
             
-            # Extract the spikes for each trial and align it to the stimulus onset
             for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
                 time1 = (onset_frames / self.Visualize.session.video.fps) - time_before_stim
                 time2 = (onset_frames / self.Visualize.session.video.fps) + time_after_stim
@@ -69,13 +70,13 @@ class Visualize_efizz():
             dic[cluster] = spikesByTrial
         
         return dic
-        
+    
     def single_cluster_raster(self, stim_type):
         """
         A function that extracts spike times for each good cluster and aligns it to trials as a raster plot
         """
         # Load data - Choose whether to use good neurons or all neurons
-        cluster_trial_spikes_dic = self.extract_trial_spikes(stim_type, select_good_neurons = True)
+        cluster_trial_spikes_dic = self.extract_trial_spikes(stim_type, select_good_neurons = False)
         
         # How many plots do we need?
         number_of_plots = len(cluster_trial_spikes_dic)
@@ -100,6 +101,7 @@ class Visualize_efizz():
                 for columns in range(num_cols):
                     if plot_counter < number_of_plots:
                         cluster = list(cluster_trial_spikes_dic.keys())[plot_counter]
+                        
                         for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
                             x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
                             y_values = [trial] * len(x_values)
@@ -119,7 +121,7 @@ class Visualize_efizz():
         
         if self.Visualize.settings.show_plots: 
             plt.show()
-            
+                    
     def rasters(self, stim_type):
         """
         A function that extracts spike times and aligns it to trials as a raster plot
@@ -395,6 +397,7 @@ class Visualize_efizz():
             for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
                 
                 # Find trial window time
+                # Should this now be / by 30000
                 time1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim 
                 time2 = (onset_frames / self.Visualize.session.video.fps) + stimulus_durations
                 
@@ -511,3 +514,97 @@ class Visualize_efizz():
         plt.ylabel('number of clusters')
         plt.savefig(str(self.Visualize.session.file_path) + "/" + "Rayleigh_vector_hist.png")
         if self.Visualize.settings.show_plots: plt.show()
+
+# -----------------------------------LASEER SYNC TEST-----------------------------------
+
+    def extract_trial_spikes_for_laser_sync_test(self, time_before_stim = 0.5, time_after_stim = 1, select_good_neurons = False) -> dict:
+        """
+        A function that extracts spikes times between trials and aligns it to the stimulus onset.
+        The function returns a dictionary with the cluster ID as the key and a list of polars dataframes as the value.
+        Each polar dataframe contains the spikes for a single trial.
+        
+        Returns Dictionary = {cluster_ID1: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
+                              cluster_ID2: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
+                              ...}
+                              
+        """
+        
+        data = self.dataFrame
+        
+        dic = {}
+        
+        if select_good_neurons:
+            iterator = self.array_of_good_neurons_IDs
+        
+        elif not select_good_neurons:
+            iterator = data["spike_clusters"].unique()
+            
+        for index, cluster in enumerate(iterator):
+                        
+            spikes = data.filter(data["spike_clusters"] == cluster)
+            spikesByTrial = []
+            
+            counter = 0
+            for trial, onset in enumerate(self.Visualize.session.laser_sync.laser_onsets):
+                time1 = onset / 30000 - time_before_stim
+                time2 = onset / 30000 + time_after_stim
+                trialSpikesPolars = spikes.filter((spikes["aligned_spike_times"] > time1) & (spikes["aligned_spike_times"] < time2))
+                adjustedSpikeTimes = trialSpikesPolars.with_column(trialSpikesPolars['aligned_spike_times'] - onset / 30000)
+                spikesByTrial.append(adjustedSpikeTimes)
+            
+            dic[cluster] = spikesByTrial
+               
+        return dic
+    
+    def single_cluster_raster_Laser_test(self):
+        """
+        A function that extracts spike times for each good cluster and aligns it to trials as a raster plot
+        """
+        # Load data - Choose whether to use good neurons or all neurons
+        cluster_trial_spikes_dic = self.extract_trial_spikes_for_laser_sync_test(select_good_neurons = False)
+        
+        # How many plots do we need?
+        number_of_plots = len(cluster_trial_spikes_dic)
+        max_plots_per_figure = 20
+        
+        # How many columns and rows should the plot have
+        num_cols = int(np.ceil(np.sqrt(max_plots_per_figure)))
+        num_rows = int(np.ceil(max_plots_per_figure / num_cols))
+        
+        # Across how many figures
+        num_figures = int(np.ceil(number_of_plots / max_plots_per_figure))
+        
+        # Create the figures
+        plot_counter = 0
+        
+        # For each figure
+        for figure_idx in range(num_figures):
+            fig, axes = plt.subplots(num_rows, num_cols, figsize=(24, 8))
+            
+            # For each plot
+            for rows in range(num_rows):
+                for columns in range(num_cols):
+                    if plot_counter < number_of_plots:
+                        cluster = list(cluster_trial_spikes_dic.keys())[plot_counter]
+                        
+                        for trial, onset_frames in enumerate(self.Visualize.session.laser_sync.laser_onsets):
+                            x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
+                            y_values = [trial] * len(x_values)
+                            axes[rows, columns].scatter(x_values, y_values, marker='|', s=10, c='b')
+                        axes[rows, columns].set_title(f"Cluster: {cluster}")
+                        axes[rows, columns].vlines(0, 0, len(self.Visualize.session.laser_sync.laser_onsets), colors='r', linestyles='solid')
+                    
+                    # Remove the extra axes if there are no more plots
+                    else:
+                        fig.delaxes(axes[rows, columns])
+                    
+                    plot_counter += 1
+            
+            # SAVE FIGURE
+            fig.tight_layout()
+            plt.savefig(str(self.Visualize.session.file_path) + "/" + "_single_cluster_raster_" + str(figure_idx) + ".png")                
+        
+        if self.Visualize.settings.show_plots: 
+            plt.show()
+        
+        pass

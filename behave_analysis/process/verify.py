@@ -125,6 +125,9 @@ class Verifications():
         bonsaiSignal = self.Process.session.ttl.bonsai_TTL
         imecSignal   = self.Process.session.ttl.imec_TTL
         
+        #TODO remove this
+        # bonsaiSignal = self.Process.session.laser_sync.probe_Copy_TTL # this makes TTL focus on dev3
+        
         # Create time vectors
         bonsai_samples = np.arange(0, len(bonsaiSignal))
         imec_samples = np.arange(0, len(imecSignal))
