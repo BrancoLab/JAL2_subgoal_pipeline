@@ -54,7 +54,7 @@ def visualize():
     """
     A function that visualising the mouse's behaviour in a session by trial, and looks at how well the efizz has synced.
     """
-    logger.info("Visulisation started")
+    logger.info("Visualisation started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         if settings_v.laser_trials:  Visualize(session, settings_v).trials(stim_type = 'laser')
@@ -62,7 +62,7 @@ def visualize():
         if settings_v.homing_trials: Visualize(session, settings_v).trials(stim_type = 'homing')
         if settings_v.t_xing_trials: Visualize(session, settings_v).trials(stim_type = 'threshold_crossing')
         if settings_v.explore_trial: Visualize(session, settings_v).trials(stim_type = 'audio')
-    logger.success("Visulisation complete")
+    logger.success("Visualisation complete")
 
 def analyze():
     # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a);
