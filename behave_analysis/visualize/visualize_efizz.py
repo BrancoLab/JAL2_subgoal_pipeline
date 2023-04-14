@@ -11,9 +11,9 @@ class Visualize_efizz():
     """
     A class for some sanity check efizz plots using kilosort clusters
     """
-    def __init__(self, Visualize):
+    def __init__(self, Visualize, csv_path = None):
         self.Visualize = Visualize
-        # load data
+        self.csv_path = csv_path
         self.load_spike_data()
     
     def load_spike_data(self):
@@ -21,20 +21,28 @@ class Visualize_efizz():
         Loads the csv of aligned data
         """
         # New ingestion for speed
-        csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
-        self.dataFrame = pl.read_csv(csv_path)
+        
+        if self.csv_path is None:
+            self.csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
+        
+        self.dataFrame = pl.read_csv(self.csv_path)
         self.dataFrame_filt_on_good_neurons = self.dataFrame.filter(self.dataFrame['cluster_group'] == 'good')
         self.array_of_good_neurons_IDs = self.dataFrame_filt_on_good_neurons["spike_clusters"].unique()
         
         # Old code leaving incase it breaks anything - Ideally we should be using the above code utilizing polars and not numpy for speed
-        aligned_spike_data = pl.read_csv(csv_path, has_header=True)
-        asd_np = aligned_spike_data.to_numpy() # What is asd? Is that aligned spike data?
-        # filter by 'good' clusters
-        self.aligned_spikes = np.array([asd_np[asd_np[:,2] == 'good', 3]]).T # This says for every row select the 3rd column if it's good
-        self.clu_spikes = asd_np[asd_np[:,2] == 'good',1]
-        print("Loaded spike data")
+        # aligned_spike_data = pl.read_csv(self.csv_path, has_header=True)
+        # asd_np = aligned_spike_data.to_numpy() # What is asd? Is that aligned spike data?
+        # # filter by 'good' clusters
+        # self.aligned_spikes = np.array([asd_np[asd_np[:,2] == 'good', 3]]).T # This says for every row select the 3rd column if it's good
+        # self.clu_spikes = asd_np[asd_np[:,2] == 'good',1]
+        # print("Loaded spike data")
     
-    def extract_trial_spikes(self, stim_type, time_before_stim = 3, time_after_stim = 2, select_good_neurons = False) -> dict:
+    def extract_trial_spikes(self, 
+                             stim_type, 
+                             time_before_stim = 3, 
+                             time_after_stim = 2, 
+                             select_good_neurons = False,
+                             onsets = None) -> dict:
         """
         A function that extracts spikes times between trials and aligns it to the stimulus onset.
         The function returns a dictionary with the cluster ID as the key and a list of polars dataframes as the value.
@@ -46,6 +54,11 @@ class Visualize_efizz():
                               
         """
         
+        # If no onsets are provided, use the onsets from the session
+        print(onsets)
+        if onsets is None:
+            onsets = self.Visualize.session.__dict__[stim_type].onset_frames
+
         dic = {}
         
         if select_good_neurons:
@@ -54,19 +67,15 @@ class Visualize_efizz():
         elif not select_good_neurons:
             iterator = self.dataFrame["spike_clusters"].unique()
             
-        # For every cluster in the good clusters
-        # TODO should this be dataframe not good neurons data frame 
         for index, cluster in enumerate(iterator):
-            spikes = self.dataFrame_filt_on_good_neurons.filter(self.dataFrame_filt_on_good_neurons["spike_clusters"] == cluster)
+            spikes = self.dataFrame.filter(self.dataFrame["spike_clusters"] == cluster)
             spikesByTrial = []
-            
-            for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
-                time1 = (onset_frames / self.Visualize.session.video.fps) - time_before_stim
-                time2 = (onset_frames / self.Visualize.session.video.fps) + time_after_stim
+            for trial, onset in enumerate(onsets):                
+                time1 = (onset / 30000) - time_before_stim
+                time2 = (onset / 30000) + time_after_stim
                 trialSpikesPolars = spikes.filter((spikes["aligned_spike_times"] > time1) & (spikes["aligned_spike_times"] < time2))
-                adjustedSpikeTimes = trialSpikesPolars.with_column(trialSpikesPolars['aligned_spike_times'] - onset_frames / self.Visualize.session.video.fps)
+                adjustedSpikeTimes = trialSpikesPolars.with_column(trialSpikesPolars['aligned_spike_times'] - onset / 30000)
                 spikesByTrial.append(adjustedSpikeTimes)
-            
             dic[cluster] = spikesByTrial
         
         return dic
@@ -108,6 +117,7 @@ class Visualize_efizz():
                             axes[rows, columns].scatter(x_values, y_values, marker='|', s=100, c='k')
                         axes[rows, columns].set_title(f"Cluster: {cluster}")
                         axes[rows, columns].vlines(0, 0, len(self.Visualize.session.__dict__[stim_type].onset_frames), colors='r', linestyles='solid')
+                        axes[rows, columns].set_xbound(-4, 5)
                     
                     # Remove the extra axes if there are no more plots
                     else:
@@ -121,7 +131,7 @@ class Visualize_efizz():
         
         if self.Visualize.settings.show_plots: 
             plt.show()
-                    
+                            
     def rasters(self, stim_type):
         """
         A function that extracts spike times and aligns it to trials as a raster plot
@@ -685,3 +695,82 @@ class Visualize_efizz():
         
         pass
         plt.close()
+        
+# ------------------------ Break out graph functions
+
+def single_cluster_raster_break_out(cluster_trial_spikes_dic, onsets):
+    """
+    A function that extracts spike times for each good cluster and aligns it to trials as a raster plot
+    """
+    # How many plots do we need?
+    number_of_plots = len(cluster_trial_spikes_dic)
+    max_plots_per_figure = 20
+
+    # How many columns and rows should the plot have
+    num_cols = int(np.ceil(np.sqrt(max_plots_per_figure)))
+    num_rows = int(np.ceil(max_plots_per_figure / num_cols))
+
+    # Across how many figures
+    num_figures = int(np.ceil(number_of_plots / max_plots_per_figure))
+
+    # Create the figures
+    plot_counter = 0
+
+    # For each figure
+    for figure_idx in range(num_figures):
+        fig, axes = plt.subplots(num_rows, num_cols, figsize=(24, 8))
+        
+        # For each plot
+        for rows in range(num_rows):
+            for columns in range(num_cols):
+                if plot_counter < number_of_plots:
+                    cluster = list(cluster_trial_spikes_dic.keys())[plot_counter]
+                    
+                    for trial, onset_frames in enumerate(onsets):
+                        x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
+                        y_values = [trial] * len(x_values)
+                        axes[rows, columns].scatter(x_values, y_values, marker='|', s=100, c='k')
+                    axes[rows, columns].set_title(f"Cluster: {cluster}")
+                    axes[rows, columns].vlines(0, 0, len(onsets), colors='r', linestyles='solid')
+                    axes[rows, columns].set_xbound(-4, 5)
+                
+                # Remove the extra axes if there are no more plots
+                else:
+                    fig.delaxes(axes[rows, columns])
+                
+                plot_counter += 1
+        
+    plt.show()
+    
+def extract_trial_spikes_break(dataframe,
+                         onsets,    
+                         time_before_stim = 3, 
+                         time_after_stim = 2, 
+                         ) -> dict:
+        """
+        A function that extracts spikes times between trials and aligns it to the stimulus onset.
+        The function returns a dictionary with the cluster ID as the key and a list of polars dataframes as the value.
+        Each polar dataframe contains the spikes for a single trial.
+        
+        Returns Dictionary = {cluster_ID1: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
+                              cluster_ID2: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
+                              ...}
+                              
+        """
+
+        dic = {}
+        
+        iterator = dataframe["spike_clusters"].unique()
+            
+        for index, cluster in enumerate(iterator):
+            spikes = dataframe.filter(dataframe["spike_clusters"] == cluster)
+            spikesByTrial = []
+            for trial, onset in enumerate(onsets):                
+                time1 = (onset / 30000) - time_before_stim
+                time2 = (onset / 30000) + time_after_stim
+                trialSpikesPolars = spikes.filter((spikes["aligned_spike_times"] > time1) & (spikes["aligned_spike_times"] < time2))
+                adjustedSpikeTimes = trialSpikesPolars.with_column(trialSpikesPolars['aligned_spike_times'] - onset / 30000)
+                spikesByTrial.append(adjustedSpikeTimes)
+            dic[cluster] = spikesByTrial
+        
+        return dic
