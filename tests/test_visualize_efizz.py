@@ -3,11 +3,13 @@ from behave_analysis.visualize.visualize_efizz import Visualize_efizz, single_cl
 import os
 
 # Generate some fake data - Use a fixture
-synthetic_data = synthetic_data_generator()
-synthetic_data.dataFrame.write_csv(os.getcwd() + "/" + "synthetic_dataframe.csv")
-
-dic = extract_trial_spikes_break(synthetic_data.dataFrame, onsets = synthetic_data.on_sets)
-single_cluster_raster_break_out(cluster_trial_spikes_dic = dic, onsets = synthetic_data.on_sets) 
+def test_raster():
+    synthetic_data = synthetic_data_generator()
+    synthetic_data.dataFrame.write_csv(os.getcwd() + "/" + "synthetic_dataframe.csv")
+    dic = extract_trial_spikes_break(synthetic_data.dataFrame, onsets = synthetic_data.on_sets)
+    single_cluster_raster_break_out(cluster_trial_spikes_dic = dic, onsets = synthetic_data.on_sets)
+    x = 4
+    assert x == 3, "This test is not implemented yet"
 
 # for session_ID in experiments_objects:
 #         session = Process(session_ID).load_session()
