@@ -2,7 +2,7 @@ from dataclasses import dataclass
 import polars as pl
 import random
 from behave_analysis.database.synthetic_data.synthetic_data_functions import ImhomogeneousProcess
-import numpy as np 
+import pickle as pkl
 
 @dataclass(frozen=True)
 class FakeData:
@@ -12,16 +12,11 @@ class FakeData:
     
 class GenerateFakeData:
     def __init__(self):
-        # Hyperparameters to tune
         self.length_of_session = 225336000
         self.sampling_rate = 30000
-        
-        # Generate the data
         self.onsets = self.generate_onsets(number_of_onsets = 5)
         self.spikes = self.generate_fake_spikes()
-        self.clusters = self.generate_fake_clusters(number_of_spikes = len(self.spikes))
-        
-        # Package the data
+        self.clusters = self.generate_fake_clusters(number_of_spikes = len(self.spikes), number_of_clusters = 10)
         self.dataframe = self.produce_polars_dataframe()
         
     def generate_onsets(self, number_of_onsets) -> list:
@@ -71,16 +66,16 @@ class GenerateFakeData:
         for idx, onset in enumerate(self.onsets):
             spikes.append(self.poisson_process(onset / self.sampling_rate))
             print("Generate trial {} of {}".format(idx + 1, len(self.onsets)))
-            
-        # Flatten the list of lists
-        flat_list = [item for sublist in spikes for item in sublist]
 
+        flat_list = [item for sublist in spikes for item in sublist]
+        
         return flat_list
     
-    def generate_fake_clusters(self, number_of_spikes):
+    def generate_fake_clusters(self, number_of_spikes, number_of_clusters):
         """Create a fake cluster of spikes all cluster 0"""
-        return [0] * number_of_spikes
-    
+        # return [0] * number_of_spikes
+        return [random.randint(0, number_of_clusters) for _ in range(number_of_spikes)]
+
     def produce_polars_dataframe(self):
         
         # Create a Polars DataFrame
@@ -95,18 +90,19 @@ class GenerateFakeData:
         # Print the DataFrame
         return df
 
-def populate():
-    generator = GenerateFakeData()
-    return FakeData(on_sets = generator.onsets, 
-                    dataFrame = generator.dataframe)
-
 if __name__ == "__main__":
 
+    path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
     generator = GenerateFakeData()
     dataframe = generator.dataframe
+    onsets = generator.onsets
+    
+    with open(r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_onsets.pkl", "wb") as f:
+        pkl.dump(onsets, f)
+    
     print(dataframe)
-    dataframe.write_csv("synthetic_dataframe.csv")
-
+    dataframe.write_csv(path)
+    
 
         
 

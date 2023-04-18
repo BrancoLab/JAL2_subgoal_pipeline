@@ -67,8 +67,9 @@ class ImhomogeneousProcess:
         m = 0
         point = [0]
         s = [0]
-        lambda_bar = max([self.cif_function_gaussian(x) for x in np.arange(0, self.T, 0.01)])
-
+        t_values = np.arange(0, self.T, 0.01)
+        lambda_bar = np.max(self.cif_function_gaussian(t_values))
+        
         while s[m] < self.T:
             # convert to float so polars can accept it doesnt like numpy.float64
             
@@ -139,17 +140,15 @@ class PointProcessPlotting:
         plt.show()
 
 if __name__ == "__main__":
-    
-    # Run ImhomogeneousProcess
-    
+        
     # Parameters for the simulation
     T = 10 
     peak_time_of_kernel = 5 
     width_of_kernel = 1
-    peak_intensity_of_kernel = 50
+    peak_intensity_of_kernel = 5
     num_bins = T
     bin_duration = T / num_bins
-    lam = 10
+    
     object = ImhomogeneousProcess(time_end = T, 
                                 peak_time = peak_time_of_kernel, 
                                 width = width_of_kernel, 
@@ -157,21 +156,11 @@ if __name__ == "__main__":
                                 kernel = "gaussian")
 
     spike_times = object.events # Tunned to the kernel function
+    
+    # Parameters for the background events
+    lam = 0
+    
     background_events = homogeneous_poisson_process(T, lam) # Background events
     event_times = np.concatenate((spike_times, background_events)) # Concatenate the background events and the spike times
-
-    plot_object = PointProcessPlotting(inhomogeneous_events = event_times,
-                                    T = object.T,
-                                    num_bins = num_bins)
+    plot_object = PointProcessPlotting(inhomogeneous_events = event_times, T = object.T, num_bins = num_bins)
         
-# # Run HomogeneousProcess
-# lam = 1.0  # Rate λ
-# T = 10.0   # Time interval [0, T]
-# result = homogeneous_poisson_process(lam, T)
-
-# # plot the result
-# plt.eventplot(result)
-# plt.xlabel("Time")
-# plt.yticks([]) # Remove the y-axis ticks
-# plt.title(f"Homogeneous Poisson process (λ = {lam}, T = {T})")
-# plt.show()
