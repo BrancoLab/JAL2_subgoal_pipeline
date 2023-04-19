@@ -24,5 +24,4 @@ def visualize():
             Visualize(session, settings_v).trials(stim_type="audio")
     logger.success("Visulisation complete")
 
-
 visualize()

@@ -2,4 +2,4 @@
 from behave_analysis.database.experiments import seq4, seq3, seq1, test, laserTest
 
 # Place all experiments in a list and 
-experiments_objects = [laserTest]
+experiments_objects = [seq3]

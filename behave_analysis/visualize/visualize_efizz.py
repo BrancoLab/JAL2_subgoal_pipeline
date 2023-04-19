@@ -25,13 +25,16 @@ class Visualize_efizz():
         """
         Loads the csv of aligned data
         """
-        if self.run_type is "Production":
+        if self.run_type == "Production":
             self.csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
         
-        elif self.run_type is "Test":
+        elif self.run_type == "Test":
             logger.info("Synethic data is being used when visualizing efizz")
             self.csv_path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
     
+        else: 
+            raise ValueError("Run type not recognised")
+        
     def process_spike_data(self):
         self.dataFrame = pl.read_csv(self.csv_path)
         self.dataFrame_filt_on_good_neurons = self.dataFrame.filter(self.dataFrame['cluster_group'] == 'good')
@@ -39,7 +42,14 @@ class Visualize_efizz():
         
         # Old code leaving incase it breaks anything - Ideally we should be using the above code utilizing polars and not numpy for speed
         aligned_spike_data = pl.read_csv(self.csv_path, has_header=True)
+    
+        # Hard code for one neuron TODO remove
+        # aligned_spike_data = aligned_spike_data.filter(aligned_spike_data['spike_clusters'] == 3)
+        
+        
         asd_np = aligned_spike_data.to_numpy() # What is asd? Is that aligned spike data?
+        # self.aligned_spikes = aligned_spike_data.get_column("aligned_spike_times").to_numpy()
+        
         # filter by 'good' clusters
         self.aligned_spikes = np.array([asd_np[asd_np[:,2] == 'good', 3]]).T # This says for every row select the 3rd column if it's good
         self.clu_spikes = asd_np[asd_np[:,2] == 'good',1]

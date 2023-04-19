@@ -43,7 +43,7 @@ class Visualize:
 
         if self.settings.efizz:  # this will only make efizz plots if you want them
             logger.info(f"Starting to make some efizz overview plots...")
-            visualObject = Visualize_efizz(self, run="Production")
+            visualObject = Visualize_efizz(self, run="Test")
             
             # Rasters for all clusters
             # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'Synthetic_test', onsets = "Synthetic_test_onsets")

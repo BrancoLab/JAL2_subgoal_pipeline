@@ -51,7 +51,7 @@ polar_df_hdir = pl.DataFrame(
     {
         #  "spike_clusters": clusters.astype(np.int64),
         "spike_times": [0] * len(spike_times),
-        "spike_clusters": [3] * len(spike_times),
+        "spike_clusters": np.random.randint(0, 5, size=len(spike_times), dtype=np.int64),
         "cluster_group": ["good"] * len(spike_times),
         "aligned_spike_times": spike_times,
     }

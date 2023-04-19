@@ -13,17 +13,11 @@ class Mouse:
     root_path: str  # The path to the local data folder
 
 
-# # Mices
-# JAL001 = Mouse(nick_name = 'JAL001',
-#                total_sessions = 3,
-#                mouse_number_pyrat = "BAA-1102922",
-#                experiment_file_names = None,
-#                root_path = Path(r"D:\efizz\MouseID_001"))
-
+# Mices
 JAL001 = Mouse(
     nick_name="JAL001",
     total_sessions=3,
     mouse_number_pyrat="BAA-1102922",
     experiment_file_names=None,
-    root_path=Path(r"D:\efizz"),
+    root_path=Path(r"D:\efizz\MouseID_001"),
 )
