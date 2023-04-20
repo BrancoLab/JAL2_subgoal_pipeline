@@ -57,6 +57,7 @@ class ProcessedEfizz:
                                                 [
                                                     pl.col("*"),  # select all
                                                     (((pl.col("spike_times") * slope) + intercept) / self.samplingRate).alias("aligned_spike_times"),
+                                                    (((pl.col("spike_times") * slope) + intercept)).alias("aligned_spike_times_in_samples"),
                                                 ] 
                                             )
         

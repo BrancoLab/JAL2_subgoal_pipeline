@@ -37,7 +37,7 @@ def get_Audio(session: NEW_Session) -> Audio:
     audio_onset_frames, stimulus_durations, _ = get_onset_and_duration(audio_on, 
                                                                        session, 
                                                                        stim_type='audio', 
-                                                                       min_frames_between_trials = session.daq_sampling_rate * 30, 
+                                                                       min_frames_between_trials = session.daq_sampling_rate * 5, 
                                                                        data_type='samples')
     
     audio = Audio(audio_num_samples, audio_onset_frames, stimulus_durations)
