@@ -29,7 +29,7 @@ class Visualize_efizz():
             self.csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
         
         elif self.run_type == "Test":
-            logger.info("Synethic data is being used when visualizing efizz")
+            logger.warning("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
             self.csv_path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
     
         else: 
@@ -79,7 +79,10 @@ class Visualize_efizz():
             self.onsets = self.Visualize.session.__dict__[stim_type].onset_frames
             
         elif onsets is "Synthetic_test_onsets":
-            self.onsets = np.load(r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_onsets.pkl", allow_pickle=True)
+            self.onsets = np.load(r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_onsets.pkl", allow_pickle=True) # TODO: Make this a relative path
+            
+        else:
+            raise ValueError("Onsets type not recognised")
 
         dic = {}
         
@@ -102,11 +105,15 @@ class Visualize_efizz():
         
         return dic
     
-    def filter_spikes(self,angles,times):
+    def filter_spikes(self, angles, times):
         """
         Filter the data for times when the mouse was not in the shelter,
         and for barrier-only or shelter-only times
         """
+        
+        if len(times) == 0:
+            raise ValueError("No times provided")
+        
         # find times when the mouse was not inside the shelter
         OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
             self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
@@ -265,7 +272,8 @@ class Visualize_efizz():
         """
         Make heatmaps of each cell's firing at each HD, for first and second half of recording, sorted on first half
         """
-        spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir'], [0, -60])
+        spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir'], 
+                                                                             times = [0, -60])
         
         logger.info("Calculating Rayleigh vector for each cluster with respect to head direction")
         
@@ -286,6 +294,30 @@ class Visualize_efizz():
                             angles = angles,
                             OutofShelterIdx = OutofShelterIdx,
                             end_time = end_time) # find times when the mouse was not inside the shelter
+
+    def HSA_tuning(self):
+        """
+        Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
+        """
+        logger.info("Plotting head shelter angle tuning")
+        spikes, clusters, angles, OutofShelterIdx, end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_shelt'], 
+                                                                                 self.Visualize.sheltertime)
+        
+        self.rayleigh_vector(spikes,
+                             clusters,
+                             angles,
+                             OutofShelterIdx,
+                             self.Visualize.sheltertime,
+                             end_time,
+                             'head_shelter_angle')
+        
+        self.tuning_heatmap('head_shelter_angle',
+                            self.Visualize.sheltertime,
+                            spikes,
+                            clusters,
+                            angles,
+                            OutofShelterIdx,
+                            end_time) # find times when the mouse was not inside the shelter
 
     def rayleigh_vector(self,spikes,clusters,angles,OutofShelterIdx,times,end_time, title):
         """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
@@ -528,21 +560,11 @@ class Visualize_efizz():
         if self.Visualize.settings.show_plots: plt.show()
         plt.close()
 
-    def HSA_tuning(self):
-        """
-        Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
-        """
-        spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_shelt'], self.Visualize.sheltertime)
-        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,self.Visualize.sheltertime,end_time,'head_shelter_angle')
-        
-        self.tuning_heatmap('head_shelter_angle',
-                            self.Visualize.sheltertime,
-                            spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
-
     def barrier_tuning(self):
         """
         Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
         """
+        logger.info("Plotting barrier tuning")
         for i in np.arange(2):
             spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_barrier'],
                                                                                  self.Visualize.barriertime)
@@ -768,4 +790,3 @@ class Visualize_efizz():
         pass
         plt.close()
         
-# ------------------------ Break out graph functions
