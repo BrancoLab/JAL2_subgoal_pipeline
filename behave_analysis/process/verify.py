@@ -189,7 +189,7 @@ class Verifications():
         assert r2_value > 0.9999, "The R squared value of the linear regression is too low"
         logger.success(f"The R squared value of the linear regression for clock drift check has passed the tests and is: {r2_value**2}")
         
-    def plot_residuals(self):
+    def plot_residuals(self, show):
         """
         Caswell says to plot residuals across time points to check for clock drift
         """
@@ -205,5 +205,6 @@ class Verifications():
         
         xs = np.arange(0, len(residuals))
         
-        plt.plot(xs, residuals)
-        plt.show()
+        if show:
+            plt.plot(xs, residuals)
+            plt.show()
