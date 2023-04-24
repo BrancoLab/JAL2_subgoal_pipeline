@@ -86,6 +86,7 @@ class Process():
             Verifications(self).verify_ttl_len_with_frame_duration()
             (r2_value, slope, intercept), lastPulse = Verifications(self).visulize_sync_output()
             Verifications(self).verify_clock_drift(r2_value)
+            Verifications(self).plot_residuals()
             
             logger.success("All verifications steps passed")
             return r2_value, slope, intercept, lastPulse
