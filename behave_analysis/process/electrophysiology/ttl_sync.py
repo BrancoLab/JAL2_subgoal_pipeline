@@ -277,7 +277,7 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
 
     # check for aberrant signals in ephys
     imec_errors = np.where(imec_TTL > 75)[0]
-    if imec_errors:
+    if imec_errors.any():
         logger.warning(f"Found {len(imec_errors)} samples with too high values in probe signal")
         assert len(imec_errors) < threshold, "There are too many abberant signals in the imec TTL"
 
@@ -288,13 +288,13 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
         assert len(errors_bonsai) < threshold, "There are too many abberant signals in the bonsai TTL"
 
     # If errors remove signals and update signals
-    if errors_bonsai or imec_errors:
-        imec_TTL = np.delete(imec_TTL, imec_errors)
-        bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
-        logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(imec_errors), len(errors_bonsai)))
+    if errors_bonsai.any() or imec_errors.any():
+        # imec_TTL = np.delete(imec_TTL, imec_errors)
+        # bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
+        logger.warning("There are {} abberant signals in imec and {} and bonsai".format(len(imec_errors), len(errors_bonsai)))
     
     # Log success
-    logger.success("Bonsai and Imec TTL are of similar lengths and have passed the abberant signal verification ")
+    logger.info("Finished checking signals check if any errors above, assertions have been removed for now ")
 
     return imec_TTL, bonsai_ttl
 
