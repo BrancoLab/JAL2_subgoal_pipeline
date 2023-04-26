@@ -188,3 +188,23 @@ class Verifications():
         
         assert r2_value > 0.9999, "The R squared value of the linear regression is too low"
         logger.success(f"The R squared value of the linear regression for clock drift check has passed the tests and is: {r2_value**2}")
+        
+    def plot_residuals(self, show):
+        """
+        Caswell says to plot residuals across time points to check for clock drift
+        """
+        # Align signals
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets, 
+                                                                             self.Process.session.ttl.bonsai_sync_onsets)
+        
+        regression = lambda x: (slope * x) + intercept
+        
+        imec_regressed = regression(self.Process.session.ttl.ephys_sync_onsets)
+        
+        residuals = self.Process.session.ttl.bonsai_sync_onsets - imec_regressed
+        
+        xs = np.arange(0, len(residuals))
+        
+        if show:
+            plt.plot(xs, residuals)
+            plt.show()

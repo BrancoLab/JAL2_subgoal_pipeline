@@ -2,7 +2,7 @@
 # TODO: remove unused columns from dataframe when indexing is fixed in efizz to be polars 
 
 from behave_analysis.database.synthetic_data.synthetic_data_functions import ImhomogeneousProcess
-from behave_analysis.database.synthetic_data.extract_real_tracking_data import (polar_df_hdir,)  # This is the polar dataframe with the spikes fpr the head direction just concat it
+from behave_analysis.database.synthetic_data.extract_real_tracking_data import polar_df_hdir # polar_df_sheldir  # This is the polar dataframe with the spikes fpr the head direction just concat it
 from databank import experiments_objects
 from behave_analysis.process.process import Process
 from dataclasses import dataclass
@@ -107,14 +107,16 @@ if __name__ == "__main__":
     generator = GenerateFakeData()
     dataframe = generator.dataframe
     onsets = generator.onsets
-    
-    print(dataframe)
 
+    # Generate fake onsets for the raster plot
     with open(r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_onsets.pkl", "wb") as f:
         pkl.dump(onsets, f)
 
     # Concat angle data
-    dataframe = dataframe.vstack(polar_df_hdir)
+    # dataframe = dataframe.vstack(polar_df_hdir)
+    dataframe = polar_df_hdir
+    # dataframe = dataframe.vstack(polar_df_sheldir)
+    # dataframe = polar_df_sheldir
     # dataframe = polar_df_hdir # TODO just look at the head direction
 
     print(dataframe)
