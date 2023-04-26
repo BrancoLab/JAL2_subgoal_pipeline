@@ -17,7 +17,7 @@ import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-def generate_synth_vectorial_cells(cell_type, add_noise = False):
+def generate_synth_vectorial_cells(cell_type, number_of_spikes_per_cluster,  add_noise = False):
     
     np.random.seed(42)  # For reproducibility, you can remove this line for true randomnes
     tracking = load_tracking_data()
@@ -26,7 +26,7 @@ def generate_synth_vectorial_cells(cell_type, add_noise = False):
     
     if cell_type == "Head_Direction":
         spike_times, cluster_ids = return_spike_times_locked_to_behavioural_direction(headDirection, 
-                                                                                      number_of_spikes = 100000, 
+                                                                                      number_of_spikes = number_of_spikes_per_cluster, 
                                                                                       direction_ranges = [(-0.1, 0.1), (2, 2.1), (-2.1, -2), (-1.7, -1.6)], 
                                                                                       fps = 40,
                                                                                       mean = 0, 
@@ -36,7 +36,7 @@ def generate_synth_vectorial_cells(cell_type, add_noise = False):
         
     elif cell_type == "Shelter_Direction":
         spike_times, cluster_ids = return_spike_times_locked_to_behavioural_direction(shelterDirection, 
-                                                                                      number_of_spikes = 100000, 
+                                                                                      number_of_spikes = number_of_spikes_per_cluster, 
                                                                                       direction_ranges = [(-0.1, 0.1), (2, 2.1), (-2.1, -2), (-1.7, -1.6)], 
                                                                                       fps = 40,
                                                                                       mean = 0, 
@@ -115,8 +115,10 @@ if __name__ == "__main__":
     
     tracking = load_tracking_data()
     headDirection = tracking["hdir"]  # head direction for each frame
-    # shelterDirection = tracking["hdir_shelt"]  # shelter direction for each frame
-    spike_times_hdir, cluster_ids = generate_synth_vectorial_cells(cell_type = "Head_Direction", add_noise = True)
+    # shelterDirection = tracking["hdir_shelt"]  # shelter direction for each frame TODO Un comment this if you want to plot some shelter cells 
+    spike_times_hdir, cluster_ids = generate_synth_vectorial_cells(cell_type = "Head_Direction", 
+                                                                   add_noise = True,
+                                                                   number_of_spikes_per_cluster = 10000)
 
 # PLOTTING LOGIC -----------------------------------------------------------------------------------------------
 # This is just for plotting the data, you can ignore this part. But is here to show you how the data looks likes
