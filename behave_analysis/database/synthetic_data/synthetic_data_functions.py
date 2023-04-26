@@ -25,7 +25,6 @@ def homogeneous_poisson_process(lam, T):
 """ALGORITHM 2: Imhomogeneous Poisson process; Taken from Thinning Algorithms for Simulating Point Processes 
 by Yuanda Chen, 2016, https://www.math.fsu.edu/~ychen/research/Thinning%20algorithm.pdf"""
 
-
 class ImhomogeneousProcess:
     def __init__(self, time_end, peak_time, width, peak_intensity, kernel = "guassian"):
         """

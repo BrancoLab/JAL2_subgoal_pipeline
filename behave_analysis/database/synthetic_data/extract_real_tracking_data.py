@@ -8,29 +8,18 @@ import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-for session_ID in experiments_objects:
-    session = Process(session_ID).load_session()
-    break
+# Hyperparameters
+np.random.seed(42)  # For reproducibility, you can remove this line for true randomness
 
-file = os.path.join(session.file_path, "fully_processed_tracking_data.pickle")
-with open(file, "rb") as dill_file:
-    tracking = pickle.load(dill_file)
+# =================== UTILITY FUNCTIONS ===================
 
-headDirection = tracking["hdir"]  # head direction for each frame
-
-print(headDirection)
-
-fps = 40
-
-# Filter head_directions between -0.1 and 0.1 radians
-indices = np.where((-0.1 <= headDirection) & (headDirection <= 0.1))[0]
-
-# Calculate the time of each frame
-times = indices / fps
-
-# Generate the desired number of spikes
-def generate_spikes(spike_count, times, mean, std_dev):
-    np.random.seed(42)  # For reproducibility, you can remove this line for true randomness
+def generate_spikes(spike_count, 
+                    times, 
+                    mean, 
+                    std_dev) -> np.ndarray:
+    """
+    Produces a gaussian of spikes around times of behavioural relevant events.
+    """
     valid_indices = np.arange(len(times))
     chosen_indices = np.random.choice(valid_indices, size=spike_count)
     gaussian_offsets = np.random.normal(mean, std_dev, size=spike_count)
@@ -38,27 +27,76 @@ def generate_spikes(spike_count, times, mean, std_dev):
     spike_times.sort()
     return spike_times
 
-# Example usage
-spike_count = 100000  # The desired number of spikes
-mean = 0  # Mean offset for the Gaussian distribution
-std_dev = 0.1  # Standard deviation for the Gaussian distribution
-spike_times = generate_spikes(spike_count, times, mean, std_dev)
+def return_spike_times_locked_to_behavioural_direction(behavioural_direction, 
+                                                       number_of_spikes, 
+                                                       range = (-0.1, 0.1), 
+                                                       fps = 40, 
+                                                       mean = 0, 
+                                                       std_dev = 1) -> np.ndarray:
+    
+    """
+    Selecting the behavioural direction of interest, this function will gather the samples
+    of when that direction is occuring, convert into time and then generate spikes around that time. 
+    """
+    indices = np.where((range[0] <= behavioural_direction) & (behavioural_direction <= range[-1]))[0]
+    times = indices / fps
+    spike_times = generate_spikes(number_of_spikes, times, mean, std_dev)
+    return spike_times
 
-# clusters = np.random.randint(1, 11, size=len(spike_times))
+# =================== LOAD DATA ================================
 
-# Create a polar dataframe
-polar_df_hdir = pl.DataFrame(
-    {
-        #  "spike_clusters": clusters.astype(np.int64),
-        "spike_times": [0] * len(spike_times),
-        "spike_clusters": np.random.randint(0, 5, size=len(spike_times), dtype=np.int64),
-        "cluster_group": ["good"] * len(spike_times),
-        "aligned_spike_times": spike_times,
-    }
-)
+# Get Session data
+for session_ID in experiments_objects:
+    session = Process(session_ID).load_session()
+    break
 
-# # Display the polar dataframe
-print(polar_df_hdir)
+# Get tracking data
+file = os.path.join(session.file_path, "fully_processed_tracking_data.pickle")
+with open(file, "rb") as dill_file:
+    tracking = pickle.load(dill_file)
+
+# Extract the required information from the tracking data
+headDirection = tracking["hdir"]  # head direction for each frame
+shelterDirection = tracking["hdir_shelt"]  # shelter direction for each frame
+
+# =================== CREATE SYNTHETIC DATA ===================
+number_of_clusters = 10
+
+result = np.array([])
+shift = 0
+clusters = []
+for i in range(number_of_clusters): 
+    
+    spike_times_hdir = return_spike_times(headDirection, 
+                                          number_of_spikes = 1000000, 
+                                          range = (-0.1 + shift, 0.1 + shift), 
+                                          fps = 40,
+                                          mean = 0, 
+                                          std_dev = 1)
+    
+    result = np.concatenate((result, spike_times_hdir))
+    shift += 0.3
+    clusters.append([i] * len(spike_times_hdir))
+
+clusters = [item for sublist in clusters for item in sublist]
+
+polar_df_hdir = pl.DataFrame({"spike_times": [0] * len(result),
+                              "spike_clusters": clusters,
+                              "cluster_group": ["good"] * len(result),
+                              "aligned_spike_times": result})
+
+# ------------Produce robot data for the shelter direction----------------
+# spike_times_Sheldir = return_spike_times(shelterDirection, number_of_spikes = 1000000, range = (-0.1, 0.1), fps = 40, mean = 0, std_dev = 1)
+# polar_df_sheldir = pl.DataFrame(
+#     {
+#         "spike_times": [0] * len(spike_times_Sheldir),
+#         "spike_clusters": np.random.randint(20, 25, size=len(spike_times_Sheldir), dtype=np.int64),
+#         "cluster_group": ["good"] * len(spike_times_Sheldir),
+#         "aligned_spike_times": spike_times_Sheldir,
+#     }
+# )
+
+# ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
     
@@ -69,7 +107,7 @@ if __name__ == "__main__":
     blue_patch = mpatches.Patch(color="dodgerblue", alpha=0.75, label="Firing Rate")
 
     # Convert spike times to indices
-    spike_indices = np.round(spike_times * fps).astype(int)
+    spike_indices = np.round(spike_times_hdir * 40).astype(int)
 
     # Retrieve head directions corresponding to spike indices
     spike_head_directions = headDirection[spike_indices]
