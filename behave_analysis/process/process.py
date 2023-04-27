@@ -62,6 +62,7 @@ class Process():
                                                              intercept = intercept,
                                                              samplingRate = self.session.ttl.sampling_rate,
                                                              filePath = self.session.file_path,
+                                                             camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
                                                              lastPulse = lastPulse)
             
         self.save_session()
