@@ -97,8 +97,8 @@ class Visualize_efizz():
                 {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
                 "hdir": self.Visualize.tracking_data['hdir'],
                 "hsa": self.Visualize.tracking_data['hdir_shelt'],
-                "h_bar_north_a": self.Visualize.tracking_data['hdir_barrier'][0,:],
-                "h_bar_south_a": self.Visualize.tracking_data['hdir_barrier'][1,:],
+                "h_bar_north_a": self.Visualize.tracking_data['hdir_barrier'][:,0],
+                "h_bar_south_a": self.Visualize.tracking_data['hdir_barrier'][:,1],
                 "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
                 "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
                 "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
@@ -108,8 +108,16 @@ class Visualize_efizz():
         Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
         """
         self.rayleigh_vector(which_angle = 'head_shelter_angle')
-        
-        # self.tuning_heatmap(which_angle = 'head_shelter_angle') 
+        logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
+        self.polar_plots(which_angle = 'head_shelter_angle') 
+
+    def HD_tuning(self):
+        """
+        Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
+        """
+        self.rayleigh_vector(which_angle = 'hdir')
+        logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
+        self.polar_plots(which_angle = 'hdir') 
 
     def rayleigh_vector(self,which_angle):
         """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
@@ -169,7 +177,6 @@ class Visualize_efizz():
             self.Rayleigh_theta[counter] = np.arctan(y/x)
             self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
             self.Rayleigh_cluster[counter] = c
-            print(self.Rayleigh[counter])
             # bootstrap x times with variable shifts in time
             x = 100
             shift_dist = np.empty(x)
@@ -205,7 +212,7 @@ class Visualize_efizz():
         plt.savefig(str(self.Visualize.session.file_path) + "/" + str(which_angle) + "_Rayleigh_vector_hist.png")
         if self.Visualize.settings.show_plots: plt.show()
 
-    def tuning_heatmap(self,title,times,spikes,clusters,angles,OutofShelterIdx,end_time):
+    def polar_plots(self,which_angle):
         """
         Mean firing of each cell at each HSA orientation as a heatmap in which they are sorted by HSA with greatest firing.
         It also computes rayleigh vectors (a circular vector sum) which gives us how oblong vs. round their tuning profile is. 
@@ -215,8 +222,8 @@ class Visualize_efizz():
         """
         
         # bin the angles 
-        ang_step = np.linspace(-np.pi,np.pi,24,endpoint = True)
-        angles = np.digitize(angles,ang_step) # np.pi/10 determines the intervals
+        bin_angles = np.linspace(-np.pi,np.pi,19)
+        bin_angle_center = np.sort(np.append([-np.pi,np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles))/2)]))
 
         # set up polar plots figure
         # set number of rows and calculate number of columns
@@ -228,16 +235,27 @@ class Visualize_efizz():
         fnum = 1
         axs = axs.ravel()
 
-        # firing per head/shelter angle for each cluster
-        start = [0, int(np.round(len(angles[OutofShelterIdx])/2))] # for splitting up in first and second half
-        end = [int(np.round(len(angles[OutofShelterIdx])/2)),int(len(angles[OutofShelterIdx]))]
-        max_rate = np.zeros(shape = [len(np.unique(clusters))])
-        anglesfiring_clu = np.empty(shape = [len(np.unique(clusters)),len(ang_step)-1,2])
-        timepoints = np.arange(times[0]-1/(2*self.Visualize.session.video.fps), # start of timewindow
-                               end_time+1/(2*self.Visualize.session.video.fps), # end of timewindow
-                               1/self.Visualize.session.video.fps) # each time bin is 1 frame
-        cc = ['green','red']
-        for counter,c in enumerate(np.unique(clusters)):
+        # subselect frames of interest:
+        # 1. mouse has to be outside shelter
+        # 2. for hdir take all time, for hsa take times when only a shelter was present in the arena, for hba take times when barrier was present
+        # TODO 3. exclude threat stimuli times and the escape
+        if which_angle == 'head_shelter_angle':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["shelter_only"] == True))
+            angle_filt = 'hsa'
+        elif which_angle == 'head_south_barrier_angle':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            angle_filt = 'h_bar_south_a'
+        elif which_angle == 'head_north_barrier_angle':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            angle_filt = 'h_bar_north_a'
+        elif which_angle == 'hdir':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True))
+            angle_filt = 'hdir'
+
+        # assign spike times of each cluster to the corresponding video frame, then assign HD
+        clu_num = self.spikedataframe["spike_clusters"].unique()
+        for counter,c in enumerate(clu_num):
+            # if you have filled a figure with polar plots, move onto next figure
             if counter >= (ncols*nrows)*fnum:
                 figg, axs = plt.subplots(nrows,ncols)
                 figg.set_figwidth(30)
@@ -245,58 +263,104 @@ class Visualize_efizz():
                 fnum = fnum + 1
                 axs = axs.ravel()
             ax = plt.subplot(nrows,ncols,1+counter-(nrows*ncols*(fnum-1)),projection = 'polar')
-            # the firing rate is computed in bins that are centered on the occurrence of a camera frame
-            srate,_ = np.histogram(spikes[clusters == c],timepoints)
-            if len(srate)>len(OutofShelterIdx): srate = srate[:-1]
-            srate = srate[OutofShelterIdx]
-            srate = srate*self.Visualize.session.video.fps # make it Hz
-            for i,s in enumerate(zip(start,end)):
-                for ang in np.arange(1,len(np.linspace(-np.pi,np.pi,24,endpoint = True))):
-                    anglesfiring_clu[counter,ang-1,i] = np.nanmean(srate[np.logical_and(angles[OutofShelterIdx] == ang,
-                                                                                    np.logical_and(np.arange(len(srate))>=s[0],np.arange(len(srate))<=s[1]))])
-                if len(np.where(np.isnan(anglesfiring_clu[counter,:,i]))[0]) < len(anglesfiring_clu[counter,:,i]): # if the whole thing is NaN
-                    if s[0] == 0: max_rate[counter] = np.nanargmax(anglesfiring_clu[counter,:,i])
-                    # make polar plots of first and second half
-                    ax.bar(ang_step[:-1] + np.diff(ang_step[:2])/2, anglesfiring_clu[counter,:,i], width=(2*np.pi)/24, bottom=0.0, color=cc[i], alpha=0.5)
-                anglesfiring_clu[counter,:,i] = anglesfiring_clu[counter,:,i]/np.nanmax(anglesfiring_clu[counter,:,i])
+            # filter spikes by cluster
+            spikes = self.spikedataframe.filter(self.spikedataframe['spike_clusters'] == c)
+            # count number of spikes on each video frame, and then turn it into firing rate (Hz)
+            spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            spikes = spikes.with_columns(pl.col('spike_count')*self.Visualize.session.video.fps)
+            # align spike dataframe to video dataframe
+            spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+            if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
+                logger.info(f"Cluster {c} had no spikes")
+                break
+            # calculate firing rates in angle bins
+            spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
+            spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df[angle_filt].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
+            spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
+            angles_firing = (spike_to_video_df.groupby(by='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
+            ax.bar(angles_firing['binned_angles'].apply(float).to_numpy(), angles_firing['mean_firing_rate'].to_numpy(), width=(2*np.pi)/19, bottom=0.0, color='green', alpha=0.5)
+            # add title to the subplot
             if self.Rayleigh_sig[counter] == 1:
                 ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
             else:
                 ax.title.set_text('clu ' + str(c) + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
+            # save the whole figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
-                            counter == len(np.unique(clusters))-1):
+                            counter == len(clu_num)-1):
                 plt.tight_layout()
-                plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_polar_plots_" + str(fnum) + ".png")
+                plt.savefig(str(self.Visualize.session.file_path) + "/" + str(which_angle) + "_cluster_polar_plots_" + str(fnum) + ".png")
                 if self.Visualize.settings.show_plots: plt.show()  
-                plt.close()              
-        
-        _, axs = plt.subplots(1, 2)
-        # heatmap of first half, sorted by angle with max firing
-        axs[0].imshow(anglesfiring_clu[np.argsort(max_rate),:,0],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(np.unique(clusters))])
-        axs[0].set_ylabel('cluster (sort on pref HSA)')
-        axs[0].set_xlabel(title + ' (radians)')
-        axs[0].title.set_text('first half')
-        # heatmap of second half, sorted on first half
-        axs[1].imshow(anglesfiring_clu[np.argsort(max_rate),:,1],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(np.unique(clusters))])
-        axs[1].set_xlabel(title + ' (radians)')
-        axs[1].title.set_text('second half')
-        plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning.png")
-        if self.Visualize.settings.show_plots: plt.show()
-        plt.close()
+                plt.close() 
 
-        # heatmap, but restricted to clusters with significant rayleigh vectors
-        _, axs = plt.subplots(1, 2)
-        # heatmap of first half, sorted by angle with max firing
-        A = anglesfiring_clu[self.Rayleigh_sig == 1,:,:]
-        M = max_rate[self.Rayleigh_sig == 1]
-        axs[0].imshow(A[np.argsort(M),:,0],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(M)])
-        axs[0].set_ylabel('cluster (sort on pref HSA)')
-        axs[0].set_xlabel(title + ' (radians)')
-        axs[0].title.set_text('first half')
-        # heatmap of second half, sorted on first half
-        axs[1].imshow(A[np.argsort(M),:,1],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(M)])
-        axs[1].set_xlabel(title + ' (radians)')
-        axs[1].title.set_text('second half')
-        plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning_sig_Rayleigh.png")
-        if self.Visualize.settings.show_plots: plt.show()
-        plt.close()
+        # # firing per head/shelter angle for each cluster
+        # start = [0, int(np.round(len(angles[OutofShelterIdx])/2))] # for splitting up in first and second half
+        # end = [int(np.round(len(angles[OutofShelterIdx])/2)),int(len(angles[OutofShelterIdx]))]
+        # max_rate = np.zeros(shape = [len(np.unique(clusters))])
+        # anglesfiring_clu = np.empty(shape = [len(np.unique(clusters)),len(ang_step)-1,2])
+        # timepoints = np.arange(times[0]-1/(2*self.Visualize.session.video.fps), # start of timewindow
+        #                        end_time+1/(2*self.Visualize.session.video.fps), # end of timewindow
+        #                        1/self.Visualize.session.video.fps) # each time bin is 1 frame
+        # cc = ['green','red']
+        # for counter,c in enumerate(np.unique(clusters)):
+        #     if counter >= (ncols*nrows)*fnum:
+        #         figg, axs = plt.subplots(nrows,ncols)
+        #         figg.set_figwidth(30)
+        #         figg.set_figheight(15)
+        #         fnum = fnum + 1
+        #         axs = axs.ravel()
+        #     ax = plt.subplot(nrows,ncols,1+counter-(nrows*ncols*(fnum-1)),projection = 'polar')
+        #     # the firing rate is computed in bins that are centered on the occurrence of a camera frame
+        #     srate,_ = np.histogram(spikes[clusters == c],timepoints)
+        #     if len(srate)>len(OutofShelterIdx): srate = srate[:-1]
+        #     srate = srate[OutofShelterIdx]
+        #     srate = srate*self.Visualize.session.video.fps # make it Hz
+        #     for i,s in enumerate(zip(start,end)):
+        #         for ang in np.arange(1,len(np.linspace(-np.pi,np.pi,24,endpoint = True))):
+        #             anglesfiring_clu[counter,ang-1,i] = np.nanmean(srate[np.logical_and(angles[OutofShelterIdx] == ang,
+        #                                                                             np.logical_and(np.arange(len(srate))>=s[0],np.arange(len(srate))<=s[1]))])
+        #         if len(np.where(np.isnan(anglesfiring_clu[counter,:,i]))[0]) < len(anglesfiring_clu[counter,:,i]): # if the whole thing is NaN
+        #             if s[0] == 0: max_rate[counter] = np.nanargmax(anglesfiring_clu[counter,:,i])
+        #             # make polar plots of first and second half
+        #             ax.bar(ang_step[:-1] + np.diff(ang_step[:2])/2, anglesfiring_clu[counter,:,i], width=(2*np.pi)/24, bottom=0.0, color=cc[i], alpha=0.5)
+        #         anglesfiring_clu[counter,:,i] = anglesfiring_clu[counter,:,i]/np.nanmax(anglesfiring_clu[counter,:,i])
+        #     if self.Rayleigh_sig[counter] == 1:
+        #         ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
+        #     else:
+        #         ax.title.set_text('clu ' + str(c) + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
+        #     if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
+        #                     counter == len(np.unique(clusters))-1):
+        #         plt.tight_layout()
+        #         plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_polar_plots_" + str(fnum) + ".png")
+        #         if self.Visualize.settings.show_plots: plt.show()  
+        #         plt.close()              
+        
+        # _, axs = plt.subplots(1, 2)
+        # # heatmap of first half, sorted by angle with max firing
+        # axs[0].imshow(anglesfiring_clu[np.argsort(max_rate),:,0],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(np.unique(clusters))])
+        # axs[0].set_ylabel('cluster (sort on pref HSA)')
+        # axs[0].set_xlabel(title + ' (radians)')
+        # axs[0].title.set_text('first half')
+        # # heatmap of second half, sorted on first half
+        # axs[1].imshow(anglesfiring_clu[np.argsort(max_rate),:,1],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(np.unique(clusters))])
+        # axs[1].set_xlabel(title + ' (radians)')
+        # axs[1].title.set_text('second half')
+        # plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning.png")
+        # if self.Visualize.settings.show_plots: plt.show()
+        # plt.close()
+
+        # # heatmap, but restricted to clusters with significant rayleigh vectors
+        # _, axs = plt.subplots(1, 2)
+        # # heatmap of first half, sorted by angle with max firing
+        # A = anglesfiring_clu[self.Rayleigh_sig == 1,:,:]
+        # M = max_rate[self.Rayleigh_sig == 1]
+        # axs[0].imshow(A[np.argsort(M),:,0],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(M)])
+        # axs[0].set_ylabel('cluster (sort on pref HSA)')
+        # axs[0].set_xlabel(title + ' (radians)')
+        # axs[0].title.set_text('first half')
+        # # heatmap of second half, sorted on first half
+        # axs[1].imshow(A[np.argsort(M),:,1],cmap = 'hot',aspect = .1,extent = [-np.pi,np.pi,0,len(M)])
+        # axs[1].set_xlabel(title + ' (radians)')
+        # axs[1].title.set_text('second half')
+        # plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning_sig_Rayleigh.png")
+        # if self.Visualize.settings.show_plots: plt.show()
+        # plt.close()
