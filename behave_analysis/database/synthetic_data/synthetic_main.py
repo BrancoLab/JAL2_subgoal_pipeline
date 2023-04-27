@@ -109,8 +109,13 @@ if __name__ == "__main__":
     head_direction_only = pl.DataFrame({"spike_times": [0] * len(head_direction_spikes), # Not used
                                         "spike_clusters": head_direction_clusters,
                                         "cluster_group": ["good"] * len(head_direction_spikes),
-                                         "aligned_spike_times": head_direction_spikes})
+                                        "aligned_spike_times": head_direction_spikes,
+                                        "spike_aligned_to_frame": (head_direction_spikes * 40)})
+    
+    head_direction_only = head_direction_only.with_columns(head_direction_only["spike_aligned_to_frame"].cast(pl.Int64))
+
     head_direction_only.write_csv(path)
+    logger.success("Head direction dataframe saved to {}".format(path))
     
     # shelter_direction_only = pl.DataFrame({"spike_times": [0] * len(shelter_direction_spikes), # Not used
     #                                        "spike_clusters": shelter_direction_clusters,

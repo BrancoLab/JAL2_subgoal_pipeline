@@ -124,7 +124,8 @@ class Visualize_efizz():
         It subsamples angles within 20 degree bins to ensure that angles are more uniformly sampled
         It only considers times when the mouse was outside the shelter
         It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
-        The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes"""    
+        The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes"""
+        logger.info("Calculating Rayleigh vectors")
         
         # subselect frames of interest:
         # 1. mouse has to be outside shelter
@@ -279,6 +280,7 @@ class Visualize_efizz():
             spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
             angles_firing = (spike_to_video_df.groupby(by='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
             ax.bar(angles_firing['binned_angles'].apply(float).to_numpy(), angles_firing['mean_firing_rate'].to_numpy(), width=(2*np.pi)/19, bottom=0.0, color='green', alpha=0.5)
+            ax.vlines(self.Rayleigh_theta[counter], 0, self.Rayleigh[counter], colors='black')
             # add title to the subplot
             if self.Rayleigh_sig[counter] == 1:
                 ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
