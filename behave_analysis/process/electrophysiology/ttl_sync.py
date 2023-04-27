@@ -37,6 +37,7 @@ import numpy as np
 from glob import glob
 import dill as pickle
 from loguru import logger
+import matplotlib.pyplot as plt
 
 # Globals
 sampling_rate = 30000
@@ -276,19 +277,19 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
         # Commenting out whilst we test the system 
 
     # check for aberrant signals in ephys
-    imec_errors = np.where(imec_TTL > 75)[0]
-    if imec_errors:
+    imec_errors = np.where(imec_TTL > np.median(imec_TTL[imec_TTL > 0]))[0]
+    if len(imec_errors)>0:
         logger.warning(f"Found {len(imec_errors)} samples with too high values in probe signal")
         assert len(imec_errors) < threshold, "There are too many abberant signals in the imec TTL"
 
     # check of abberaant signals in bonsai TTL
-    errors_bonsai = np.where(bonsai_ttl > 10)[0]
-    if errors_bonsai:
+    errors_bonsai = np.where(bonsai_ttl > 5.1)[0]
+    if len(errors_bonsai)>0:
         logger.warning(f"Found {len(errors_bonsai)} samples with too high values in probe signal")
         assert len(errors_bonsai) < threshold, "There are too many abberant signals in the bonsai TTL"
 
     # If errors remove signals and update signals
-    if errors_bonsai or imec_errors:
+    if len(errors_bonsai)>0 or len(imec_errors)>0:
         imec_TTL = np.delete(imec_TTL, imec_errors)
         bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
         logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(imec_errors), len(errors_bonsai)))

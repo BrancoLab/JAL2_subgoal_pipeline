@@ -1,16 +1,18 @@
 import polars as pl
 import numpy as np
 from loguru import logger
+import matplotlib.pyplot as plt
 import os
 
 class ProcessedEfizz:
-    def __init__(self, efizzDataLoaded, slope, intercept, samplingRate, filePath, lastPulse):
+    def __init__(self, efizzDataLoaded, slope, intercept, samplingRate, filePath, camera_trigger, lastPulse):
         logger.info("Processing Efizz Data via alignment to bonsai machine and creating a polars dataframe")
         self.samplingRate = samplingRate
         self.spike_times = efizzDataLoaded.spike_times
         self.spike_clusters = efizzDataLoaded.spike_clusters
         self.cluster_group = efizzDataLoaded.cluster_group
         self.filePath = filePath
+        self.camera_trigger = camera_trigger
         self.lastPulse = lastPulse
         
         initDF = self.generate_polar_dataframe()
@@ -61,6 +63,9 @@ class ProcessedEfizz:
                                                 ] 
                                             )
         
+        self.alignedDataFrame = self.alignedDataFrame.with_columns(self.alignedDataFrame['spike_times'].cut(bins=self.camera_trigger, labels = [str(x) for x in np.arange(0,len(self.camera_trigger)+1)])['category'].alias('spike_aligned_to_frame'))
+        print(self.alignedDataFrame)
+
         # UNIT TESTs
         print("MANNUAL CHECK: The number of null values in each column - This should be 0")
         print(self.alignedDataFrame.null_count())

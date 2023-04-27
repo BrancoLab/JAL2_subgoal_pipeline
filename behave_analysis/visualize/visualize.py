@@ -34,10 +34,8 @@ class Visualize:
         open_tracking_data(self)
 
         # get time in minutes of shelter only and when the barrier was introduced
-        self.sheltertime = np.array(self.session.shelter_time) * 60  # in seconds
-        
-        if "Seq" in self.session.experiment:  # these are sessions with barrier presumably
-            self.barriertime = np.array(self.session.barrier_time) * 60  # in seconds
+        if len(self.session.shelter_time) > 0: self.sheltertime = np.array(self.session.shelter_time)*60 # in seconds
+        if len(self.session.barrier_time) > 0: self.barriertime = np.array(self.session.barrier_time)*60 # in seconds
 
         if self.settings.efizz:  # this will only make efizz plots if you want them
             logger.info(f"Starting to make some efizz overview plots...")
@@ -48,11 +46,12 @@ class Visualize:
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'Synthetic_test')
 
             # Production - Run 
-            # visualObject = Visualize_efizz(self, run="Production")
+            visualObject = Visualize_efizz(self, run = "Production")
             # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'audio', onsets = "Production", select_good_neurons = True)
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'audio')            
 
             # Production of vectorized plots should not change with run type 
+
             visualObject.HD_tuning() 
             visualObject.HSA_tuning()
             
