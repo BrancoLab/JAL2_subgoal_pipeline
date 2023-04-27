@@ -56,18 +56,19 @@ class Visualize_behave():
         figg, axs = plt.subplots(1,3)
         figg.set_figwidth(15)
         # time in shelter
-        if 'mushroom' in self.Visualize.session.experiment:
-            extra = 50 # in the mushroom session extend what the shelter is beyond the base
-        else: extra = 0
-        InShelterIdx = np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0]-extra,
-            self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]+extra),
-            np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1]-extra,
-            self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1]+extra))
-        axs[0].plot(x,np.convolve(InShelterIdx.astype(int), np.ones(self.Visualize.session.video.fps*60*w), 'valid') / (self.Visualize.session.video.fps*60*w))
-        axs[0].plot([self.Visualize.sheltertime[0]/60,self.Visualize.sheltertime[0]/60],[0, 1],'-k')
-        axs[0].title.set_text('In shelter')
-        axs[0].set_xlabel('time (mins)')
-        axs[0].set_ylabel('fraction occupancy')
+        if len(self.Visualize.session.shelter_time) > 0:
+            if 'mushroom' in self.Visualize.session.experiment:
+                extra = 50 # in the mushroom session extend what the shelter is beyond the base
+            else: extra = 0
+            InShelterIdx = np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0]-extra,
+                self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]+extra),
+                np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1]-extra,
+                self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1]+extra))
+            axs[0].plot(x,np.convolve(InShelterIdx.astype(int), np.ones(self.Visualize.session.video.fps*60*w), 'valid') / (self.Visualize.session.video.fps*60*w))
+            axs[0].plot([self.Visualize.sheltertime[0]/60,self.Visualize.sheltertime[0]/60],[0, 1],'-k')
+            axs[0].title.set_text('In shelter')
+            axs[0].set_xlabel('time (mins)')
+            axs[0].set_ylabel('fraction occupancy')
 
         # time in 4 quadrants
         cc = matplotlib.cm.Set1
@@ -83,7 +84,7 @@ class Visualize_behave():
         axs[1].set_xlabel('time (mins)')
 
         # time near barrier edge
-        if 'Seq' in self.Visualize.session.experiment:
+        if len(self.Visualize.session.barrier_time) > 0:
             for i, c in enumerate(self.Visualize.tracking_data['barrier_loc']):
                 extra = 35 # 
                 NearBarrier = np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > c[0]-extra,
@@ -95,6 +96,7 @@ class Visualize_behave():
         axs[2].set_xlabel('time (mins)')
         axs[2].legend(['left_edge','right_edge'])
         axs[2].title.set_text('Near barrier edge')
+
         plt.savefig(str(self.Visualize.session.file_path) + "/" + "arena_occupancy_vs_time.png")
         if self.Visualize.settings.show_plots: plt.show()
         plt.close()
@@ -118,13 +120,26 @@ class Visualize_behave():
         axs[0].hist(self.Visualize.tracking_data['hdir'][OutofShelterIdx],np.arange(-np.pi,np.pi,np.pi/10),density = 'stacked')
         axs[0].set_ylabel('fraction of frames')
         axs[0].title.set_text('head dir')
+
         # head shelter angle
-        axs[1].hist(self.Visualize.tracking_data['hdir_shelt'][OutofShelterIdx],np.arange(-np.pi,np.pi,np.pi/10),density = 'stacked')
-        axs[1].title.set_text('head shelter angle')
+        if len(self.Visualize.session.shelter_time) > 0:
+            # only for times when there is a shelter-only
+            frames_with_shelter = np.zeros_like(self.Visualize.tracking_data['hdir_shelt'])
+            if self.Visualize.sheltertime[1] == -60: frames_with_shelter[self.Visualize.sheltertime[0]*self.Visualize.session.video.fps:] = 1
+            else: frames_with_shelter[self.Visualize.sheltertime[0]*self.Visualize.session.video.fps:self.Visualize.sheltertime[1]*self.Visualize.session.video.fps] = 1
+            axs[1].hist(self.Visualize.tracking_data['hdir_shelt'][np.logical_and(OutofShelterIdx,frames_with_shelter == 1)],np.arange(-np.pi,np.pi,np.pi/10),density = 'stacked')
+            axs[1].title.set_text('head shelter angle')
+
         # head barrier angle
-        for c in np.arange(2):
-            axs[2].hist(self.Visualize.tracking_data['hdir_barrier'][OutofShelterIdx,c],np.arange(-np.pi,np.pi,np.pi/10),density = 'stacked')
-        axs[2].title.set_text('head barrier-edge angle')
+        if len(self.Visualize.session.barrier_time) > 0:
+            # only for times when there is a barrier
+            frames_with_barrier = np.zeros_like(self.Visualize.tracking_data['hdir_shelt'])
+            if self.Visualize.barriertime[1] == -60: frames_with_barrier[self.Visualize.barriertime[0]*self.Visualize.session.video.fps:] = 1
+            else: frames_with_barrier[self.Visualize.barriertime[0]*self.Visualize.session.video.fps:self.Visualize.barriertime[1]*self.Visualize.session.video.fps] = 1
+            for c in np.arange(2):
+                axs[2].hist(self.Visualize.tracking_data['hdir_barrier'][np.logical_and(OutofShelterIdx,frames_with_shelter == 1),c],np.arange(-np.pi,np.pi,np.pi/10),density = 'stacked')
+            axs[2].title.set_text('head barrier-edge angle')
+        
         plt.savefig(str(self.Visualize.session.file_path) + "/" + "distribution_head_angles.png")
         if self.Visualize.settings.show_plots: plt.show()
         plt.close()
