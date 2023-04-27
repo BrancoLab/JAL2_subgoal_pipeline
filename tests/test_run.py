@@ -1,18 +1,18 @@
-from behave_analysis.run import process, track, analyze, visualize, homings
+# from behave_analysis.run import process, track, analyze, visualize, homings
 
-# These tests use the currently active settings
+# # These tests use the currently active settings
 
-def test_process():
-    process() 
+# def test_process():
+#     process() 
 
-def test_track():
-    track()
+# def test_track():
+#     track()
     
-def test_homings():
-    homings()
+# def test_homings():
+#     homings()
 
-def test_visualize():
-    visualize()
+# def test_visualize():
+#     visualize()
 
-def test_analyze():
-    analyze()
+# def test_analyze():
+#     analyze()

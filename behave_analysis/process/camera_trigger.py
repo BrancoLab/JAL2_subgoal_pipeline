@@ -54,6 +54,8 @@ def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, d
     num_frames_expected = len(frame_trigger_onsets_idx)
     duration_of_video = (frame_trigger_onsets_idx[-1] - frame_trigger_onsets_idx[0]) / session.daq_sampling_rate
     
+    logger.info(f"Number of frames expected: {num_frames_expected}")
+    
     return num_frames_expected, duration_of_video, frame_trigger_onsets_idx
 
 def get_fps(session: NEW_Session, num_frames_expected: int, duration_of_video: int) -> int:

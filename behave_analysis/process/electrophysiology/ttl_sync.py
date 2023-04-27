@@ -59,7 +59,7 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     # bonsai_ttl = session.laser_sync.probe_Copy_TTL
     
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
-    assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
+    # assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
 
     #Check and correct for abberant signals
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)

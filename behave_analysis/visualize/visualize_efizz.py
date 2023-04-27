@@ -7,6 +7,7 @@ import os
 import matplotlib
 matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
+from loguru import logger
 
 class Visualize_efizz():
     """
@@ -21,6 +22,8 @@ class Visualize_efizz():
         self.process_spike_data()
         self.track_to_polars()
 
+# INIT FUNCTIONS ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    
     def load_spike_data(self):
         """
         Loads the csv of aligned data
@@ -53,8 +56,7 @@ class Visualize_efizz():
     
         # # Hard code for one neuron TODO remove
         # # aligned_spike_data = aligned_spike_data.filter(aligned_spike_data['spike_clusters'] == 3)
-        
-        
+
         # asd_np = aligned_spike_data.to_numpy() # What is asd? Is that aligned spike data?
         # # self.aligned_spikes = aligned_spike_data.get_column("aligned_spike_times").to_numpy()
         
