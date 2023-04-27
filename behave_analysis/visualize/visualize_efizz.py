@@ -1,4 +1,5 @@
 # OS libaries
+from loguru import logger
 import numpy as np
 from glob import glob
 import polars as pl
@@ -11,289 +12,196 @@ class Visualize_efizz():
     """
     A class for some sanity check efizz plots using kilosort clusters
     """
-    def __init__(self, Visualize):
+    def __init__(self, Visualize, run = "Production", select_good_neurons = True):
         self.Visualize = Visualize
+        self.run_type = run
+        self.select_good_neurons = select_good_neurons
         # load data
         self.load_spike_data()
-    
+        self.process_spike_data()
+        self.track_to_polars()
+
     def load_spike_data(self):
         """
         Loads the csv of aligned data
         """
+        if self.run_type == "Production":
+            self.csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
+        
+        elif self.run_type == "Test":
+            logger.warning("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
+            self.csv_path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
+    
+        else: 
+            raise ValueError("Run type not recognised")
+
+    def process_spike_data(self):
+        self.dataFrame = pl.read_csv(self.csv_path)
+
         # New ingestion for speed
-        csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
-        self.dataFrame = pl.read_csv(csv_path)
-        self.dataFrame_filt_on_good_neurons = self.dataFrame.filter(self.dataFrame['cluster_group'] == 'good')
-        self.array_of_good_neurons_IDs = self.dataFrame_filt_on_good_neurons["spike_clusters"].unique()
+        dataFrame = pl.read_csv(self.csv_path)
+        if self.select_good_neurons:
+            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'good')
+        else:
+            self.spikedataframe = dataFrame
+
+        # self.dataFrame_filt_on_good_neurons = self.dataFrame.filter(self.dataFrame['cluster_group'] == 'good')
+        # self.array_of_good_neurons_IDs = self.dataFrame_filt_on_good_neurons["spike_clusters"].unique()
         
-        # Old code leaving incase it breaks anything - Ideally we should be using the above code utilizing polars and not numpy for speed
-        aligned_spike_data = pl.read_csv(csv_path, has_header=True)
-        asd_np = aligned_spike_data.to_numpy() # What is asd? Is that aligned spike data?
-        # filter by 'good' clusters
-        self.aligned_spikes = np.array([asd_np[asd_np[:,2] == 'good', 3]]).T # This says for every row select the 3rd column if it's good
-        self.clu_spikes = asd_np[asd_np[:,2] == 'good',1]
+        # # Old code leaving incase it breaks anything - Ideally we should be using the above code utilizing polars and not numpy for speed
+        # aligned_spike_data = pl.read_csv(self.csv_path, has_header=True)
+    
+        # # Hard code for one neuron TODO remove
+        # # aligned_spike_data = aligned_spike_data.filter(aligned_spike_data['spike_clusters'] == 3)
+        
+        
+        # asd_np = aligned_spike_data.to_numpy() # What is asd? Is that aligned spike data?
+        # # self.aligned_spikes = aligned_spike_data.get_column("aligned_spike_times").to_numpy()
+        
+        # # filter by 'good' clusters
+        # self.aligned_spikes = np.array([asd_np[asd_np[:,2] == 'good', 3]]).T # This says for every row select the 3rd column if it's good
+        # self.clu_spikes = asd_np[asd_np[:,2] == 'good',1]
         print("Loaded spike data")
-    
-    def extract_trial_spikes(self, stim_type, time_before_stim = 3, time_after_stim = 2, select_good_neurons = False) -> dict:
-        """
-        A function that extracts spikes times between trials and aligns it to the stimulus onset.
-        The function returns a dictionary with the cluster ID as the key and a list of polars dataframes as the value.
-        Each polar dataframe contains the spikes for a single trial.
-        
-        Returns Dictionary = {cluster_ID1: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
-                              cluster_ID2: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
-                              ...}
-                              
-        """
-        
-        dic = {}
-        
-        if select_good_neurons:
-            iterator = self.array_of_good_neurons_IDs
-        
-        elif not select_good_neurons:
-            iterator = self.dataFrame["spike_clusters"].unique()
-            
-        # For every cluster in the good clusters
-        # TODO should this be dataframe not good neurons data frame 
-        for index, cluster in enumerate(iterator):
-            spikes = self.dataFrame_filt_on_good_neurons.filter(self.dataFrame_filt_on_good_neurons["spike_clusters"] == cluster)
-            spikesByTrial = []
-            
-            for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
-                time1 = (onset_frames / self.Visualize.session.video.fps) - time_before_stim
-                time2 = (onset_frames / self.Visualize.session.video.fps) + time_after_stim
-                trialSpikesPolars = spikes.filter((spikes["aligned_spike_times"] > time1) & (spikes["aligned_spike_times"] < time2))
-                adjustedSpikeTimes = trialSpikesPolars.with_column(trialSpikesPolars['aligned_spike_times'] - onset_frames / self.Visualize.session.video.fps)
-                spikesByTrial.append(adjustedSpikeTimes)
-            
-            dic[cluster] = spikesByTrial
-        
-        return dic
-    
-    def single_cluster_raster(self, stim_type):
-        """
-        A function that extracts spike times for each good cluster and aligns it to trials as a raster plot
-        """
-        # Load data - Choose whether to use good neurons or all neurons
-        cluster_trial_spikes_dic = self.extract_trial_spikes(stim_type, select_good_neurons = False)
-        
-        # How many plots do we need?
-        number_of_plots = len(cluster_trial_spikes_dic)
-        max_plots_per_figure = 20
-        
-        # How many columns and rows should the plot have
-        num_cols = int(np.ceil(np.sqrt(max_plots_per_figure)))
-        num_rows = int(np.ceil(max_plots_per_figure / num_cols))
-        
-        # Across how many figures
-        num_figures = int(np.ceil(number_of_plots / max_plots_per_figure))
-        
-        # Create the figures
-        plot_counter = 0
-        
-        # For each figure
-        for figure_idx in range(num_figures):
-            fig, axes = plt.subplots(num_rows, num_cols, figsize=(24, 8))
-            
-            # For each plot
-            for rows in range(num_rows):
-                for columns in range(num_cols):
-                    if plot_counter < number_of_plots:
-                        cluster = list(cluster_trial_spikes_dic.keys())[plot_counter]
-                        
-                        for trial, onset_frames in enumerate(self.Visualize.session.__dict__[stim_type].onset_frames):
-                            x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
-                            y_values = [trial] * len(x_values)
-                            axes[rows, columns].scatter(x_values, y_values, marker='|', s=100, c='k')
-                        axes[rows, columns].set_title(f"Cluster: {cluster}")
-                        axes[rows, columns].vlines(0, 0, len(self.Visualize.session.__dict__[stim_type].onset_frames), colors='r', linestyles='solid')
-                    
-                    # Remove the extra axes if there are no more plots
-                    else:
-                        fig.delaxes(axes[rows, columns])
-                    
-                    plot_counter += 1
-            
-            # SAVE FIGURE
-            fig.tight_layout()
-            plt.savefig(str(self.Visualize.session.file_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(figure_idx) + ".png")                
-        
-        if self.Visualize.settings.show_plots: 
-            plt.show()
-                    
-    def rasters(self, stim_type):
-        """
-        A function that extracts spike times and aligns it to trials as a raster plot
-        """
-        # make a raster plot for each trial
-        ntrial = len(self.Visualize.session.__dict__[stim_type].onset_frames)
-        plt.figure(figsize=(15, 12))
-        plt.subplots_adjust(hspace=0.2)
-        # set number of rows and calculate number of columns
-        nrows = 3
-        ncols = ntrial // nrows + (ntrial % nrows > 0)
-        timeBeforeStim = 5 # in seconds
 
-        for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-            ax = plt.subplot(nrows, ncols, trial_num + 1)
-            t1 = (onset_frames/self.Visualize.session.video.fps) - timeBeforeStim
-            t2 = (onset_frames/self.Visualize.session.video.fps) + stimulus_durations
-            idx = np.logical_and(self.aligned_spikes[:,0] > t1,self.aligned_spikes[:,0] < t2)
-            ax.eventplot(self.aligned_spikes[idx]-(onset_frames/self.Visualize.session.video.fps), lineoffsets = self.clu_spikes[idx])
-            ax.plot([0,0],[0, np.amax(self.clu_spikes)],'r-')
-            ax.set_ylabel('clusters')
-            ax.set_xlabel('time from stim (s)')
-        plt.savefig(str(self.Visualize.session.file_path) + "/" + "all_cluster_raster_trial.png")
-        if self.Visualize.settings.show_plots: plt.show()
-        plt.close()
-
-    def OLD_single_cluster_raster(self,stim_type):
+    def track_to_polars(self):
         """
-        A function that extracts spike times for each goo cluster and aligns it to trials as a raster plot
+        Adds all the behavioral variables from track to the polars psike dataframe
         """
-        plt.figure(figsize=(15, 12))
-        plt.subplots_adjust(hspace=0.2)
-        # set number of rows and calculate number of columns
-        ncols = 10
-        nrows = 5 # nclu // ncols + (nclu % ncols > 0)
-        figg, axs = plt.subplots(nrows,ncols)
-        figg.set_figwidth(30)
-        figg.set_figheight(15)
-        fnum = 1
-        axs = axs.ravel()
-        timeBeforeStim = 10 # in seconds
-
-        for i,c in enumerate(np.unique(self.clu_spikes)):
-            spikes = self.aligned_spikes[self.clu_spikes == c]
-            trial_idx = np.zeros_like(spikes)
-            spikes_idx = np.zeros_like(spikes)
-            trial_length = np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations)
-            for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-                t1 = (onset_frames/self.Visualize.session.video.fps) - timeBeforeStim
-                t2 = (onset_frames/self.Visualize.session.video.fps) + trial_length
-                trial_idx[np.logical_and(spikes > t1,spikes < t2)] = trial_num + 1
-                spikes_idx[np.logical_and(spikes > t1,spikes < t2)] = spikes[np.logical_and(spikes > t1,spikes < t2)] - (onset_frames/self.Visualize.session.video.fps)
-            if i >= (ncols*nrows)*fnum:
-                figg, axs = plt.subplots(nrows,ncols)
-                figg.set_figwidth(30)
-                figg.set_figheight(15)
-                fnum = fnum + 1
-                axs = axs.ravel()
-            axs[i-(nrows*ncols*fnum)].plot([0,0],[0, np.amax(trial_idx)],'r-')
-            if np.sum(trial_idx.astype(int)) > 0:
-                axs[i-(nrows*ncols*fnum)].eventplot(np.array([spikes_idx[trial_idx > 0]]).T,lineoffsets = np.array(trial_idx[trial_idx > 0]))
-                axs[i-(nrows*ncols*fnum)].set_xlabel('time from stim (s)')
-                axs[i-(nrows*ncols*fnum)].set_xbound(-timeBeforeStim,np.amax(self.Visualize.session.__dict__[stim_type].stimulus_durations))
-                axs[i-(nrows*ncols*fnum)].set_ylabel('trials')
-            axs[i-(nrows*ncols*fnum)].title.set_text('cluster ' + str(c))
-            if np.logical_or(i-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
-                            i == len(np.unique(self.clu_spikes))-1):
-                plt.tight_layout()
-                plt.savefig(str(self.Visualize.session.file_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(fnum) + ".png")
-                if self.Visualize.settings.show_plots: plt.show()
-                plt.close()
-
-    def PSTH_all_neurons(self, stim_type):
-        """
-        Plot the mean firing rate of all cells (ignore clusters) to each trial. For each trial, retrieve:
-        - the onset frame of that stimulus
-        - the duration of that stimulus
-        """
-        # Hyperparameters
-        timeBeforeStim = 5 # seconds
-
-        # plot a line of mean activity for each trial
-        for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-            time1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim 
-            time2 = (onset_frames / self.Visualize.session.video.fps) + stimulus_durations
-            
-            # Mask spikes that are within the time window
-            idx = np.logical_and(self.aligned_spikes[:,0] > time1, self.aligned_spikes[:,0] < time2)
-            assert len(idx) == self.aligned_spikes.shape[0], "idx and aligned_spikes are not the same length"
-            
-            # Bin the spikes
-            mult = 10 # binsize for looking at data - 1/10 of a second so 100ms bins 
-            binEdges = np.arange(time1, time2, 1 / mult)
-            firingrate, _ = np.histogram(self.aligned_spikes[idx], binEdges)
-            assert len(firingrate) == len(binEdges) - 1, "firingrate and binedges are not the same length"
-            
-            # Generate x values for plotting
-            xValues = binEdges - time1 - timeBeforeStim
-            assert xValues[0] == -timeBeforeStim, f"xValues[0] is not -{timeBeforeStim}"
-            
-            # Plot the PSTH
-            # plt.plot(xValues[:-1], gaussian_filter1d(firingrate * mult, sigma = 1), label = f"Trial #: {trial_num}") # because our bin size is 1/mult of a second
-            plt.plot(xValues[:-1], firingrate * mult, label = f"Trial #: {trial_num}") # because our bin size is 1/mult of a second
-
-            plt.axvline(x = 0, color = 'k', linestyle = '-')
-            plt.ylabel('Firing rate for all cells (Hz)')
-            plt.xlabel('time (s)')
-            plt.legend()
+        OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
+            self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
+            np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
+            self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
         
-        plt.title('Trial by trial response PSTH for stimulus type: ' + stim_type)
-        if self.Visualize.settings.show_plots: plt.show()
-        plt.close()
+        if len(self.Visualize.session.shelter_time) > 0: # is there a time with shelter only?
+            if self.Visualize.session.shelter_time[1] == -1: # shelter only until the end of the session
+                shelteronly = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
+            else:
+                shelteronly = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps),
+                                             np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.sheltertime[1]*self.Visualize.session.video.fps))
+        else:
+            shelteronly = np.zeros(len(OutofShelterIdx)) == 1
+
+        if len(self.Visualize.session.barrier_time) > 0: # is there a time with shelter only?
+            if self.Visualize.session.barrier_time[1] == -1: # shelter only until the end of the session
+                barrier_present = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
+            else:
+                barrier_present = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps),
+                                             np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.sheltertime[1]*self.Visualize.session.video.fps))
+        else:
+            barrier_present = np.zeros(len(OutofShelterIdx)) == 1
+
+        # make a video dataframe where for each video frame:
+        self.Video_df = pl.DataFrame(
+                {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
+                "hdir": self.Visualize.tracking_data['hdir'],
+                "hsa": self.Visualize.tracking_data['hdir_shelt'],
+                "h_bar_north_a": self.Visualize.tracking_data['hdir_barrier'][0,:],
+                "h_bar_south_a": self.Visualize.tracking_data['hdir_barrier'][1,:],
+                "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
+                "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
+                "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
 
     def HSA_tuning(self):
         """
         Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
         """
-        spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_shelt'], self.Visualize.sheltertime)
-        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,self.Visualize.sheltertime,end_time,'head_shelter_angle')
+        self.rayleigh_vector(which_angle = 'head_shelter_angle')
         
-        self.tuning_heatmap('head_shelter_angle',
-                            self.Visualize.sheltertime,
-                            spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
+        # self.tuning_heatmap(which_angle = 'head_shelter_angle') 
 
-    def HD_tuning(self):
-        """
-        Make heatmaps of each cell's firing at each HD, for first and second half of recording, sorted on first half
-        """
-        spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir'],
-                                                                                 [0, -60])
-        self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,[0, -60],end_time,'head_dir')
-        self.tuning_heatmap('head_dir',
-                            [0, -60],
-                            spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
+    def rayleigh_vector(self,which_angle):
+        """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
+        It subsamples angles within 20 degree bins to ensure that angles are more uniformly sampled
+        It only considers times when the mouse was outside the shelter
+        It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
+        The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes"""    
+        
+        # subselect frames of interest:
+        # 1. mouse has to be outside shelter
+        # 2. for hdir take all time, for hsa take times when only a shelter was present in the arena, for hba take times when barrier was present
+        # TODO 3. exclude threat stimuli times and the escape
+        if which_angle == 'head_shelter_angle':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["shelter_only"] == True))
+            angle_filt = 'hsa'
+        elif which_angle == 'head_south_barrier_angle':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            angle_filt = 'h_bar_south_a'
+        elif which_angle == 'head_north_barrier_angle':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            angle_filt = 'h_bar_north_a'
+        elif which_angle == 'hdir':
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True))
+            angle_filt = 'hdir'
 
-    def barrier_tuning(self):
-        """
-        Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
-        """
-        for i in np.arange(2):
-            spikes,clusters,angles,OutofShelterIdx,end_time = self.filter_spikes(self.Visualize.tracking_data['hdir_barrier'],
-                                                                                 self.Visualize.barriertime)
-            self.rayleigh_vector(spikes,clusters,angles,OutofShelterIdx,self.Visualize.barriertime,end_time,'head_barrier_angle'+str(i+1))
-            self.tuning_heatmap('head_barrier_angle'+str(i+1),
-                                self.Visualize.barriertime,
-                                spikes,clusters,angles,OutofShelterIdx,end_time) # find times when the mouse was not inside the shelter
+        # edges for binning firing rate at different angles
+        bin_angles = np.linspace(-np.pi,np.pi,19)
+        bin_angle_center = np.sort(np.append([-np.pi,np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles))/2)]))
 
-    def filter_spikes(self,angles,times):
-        """
-        Filter the data for times when the mouse was not in the shelter,
-        and for barrier-only or shelter-only times
-        """
-        # find times when the mouse was not inside the shelter
-        OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
-            self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
-            np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
-            self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
-       
-        # only look at tuning when shelter (and no barrier) was in arena
-        if times[1] == -60: # -1 times 60 hehe
-            idx = self.aligned_spikes > times[0]
-            end_time = len(angles)/self.Visualize.session.video.fps
-            angles = angles[times[0]*self.Visualize.session.video.fps:]
-            OutofShelterIdx = OutofShelterIdx[times[0]*self.Visualize.session.video.fps:]
-        else:
-            idx = np.logical_and(self.aligned_spikes > times[0],self.aligned_spikes < times[1])
-            end_time = times[1]
-            angles = angles[times[0]*self.Visualize.session.video.fps:times[1]*self.Visualize.session.video.fps]
-            OutofShelterIdx = OutofShelterIdx[times[0]*self.Visualize.session.video.fps:times[1]*self.Visualize.session.video.fps]
-        spikes = self.aligned_spikes[idx]
-        clusters = self.clu_spikes[idx[:,0]]
-        return spikes,clusters,angles,OutofShelterIdx,end_time
+        # initialize variables
+        clu_num = self.spikedataframe["spike_clusters"].unique()
+        self.Rayleigh_theta = np.empty([len(clu_num)]) # preferred angle
+        self.Rayleigh = np.empty([len(clu_num)]) # amplitude of Rayleigh vector
+        self.Rayleigh_sig = np.zeros([len(clu_num)]) # is the Ryleigh significant?
+        self.Rayleigh_cluster = np.empty([len(clu_num)]) # which cluster ID is this Rayleigh value for?
+
+        # assign spike times of each cluster to the corresponding video frame, then assign HD
+        for counter,c in enumerate(clu_num):
+            # filter by cluster
+            spikes = self.spikedataframe.filter(self.spikedataframe['spike_clusters'] == c)
+            # count number of spikes on each video frame, and then turn it into firing rate (Hz)
+            spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            spikes = spikes.with_columns(pl.col('spike_count')*self.Visualize.session.video.fps)
+            # align spike dataframe to video dataframe
+            spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+            if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
+                logger.info(f"Cluster {c} had no spikes")
+                break
+            # calculate firing rates in angle bins
+            spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
+            spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df[angle_filt].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
+            spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
+            angles_firing = (spike_to_video_df.groupby(by='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
+            # compute rayleigh
+            x = np.sum(np.cos(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
+            y = np.sum(np.sin(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
+            self.Rayleigh_theta[counter] = np.arctan(y/x)
+            self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
+            self.Rayleigh_cluster[counter] = c
+            print(self.Rayleigh[counter])
+            # bootstrap x times with variable shifts in time
+            x = 100
+            shift_dist = np.empty(x)
+            for it in np.arange(len(shift_dist)): 
+                # shuffled shifts performed at a random offset between 0 and 100 seconds
+                shift = int(np.random.uniform(1,100))*self.Visualize.session.video.fps # temporal shift in video frames
+                angles = filtered_video_df[angle_filt].to_numpy()
+                ang_roll = np.roll(angles,shift)
+                rolled_filtered_video_df = filtered_video_df.select(pl.col('*'),pl.Series(name="rolled_angles", values = ang_roll))
+                # align spike dataframe to video dataframe
+                spike_to_video_df = rolled_filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+                # calculate firing rates in angle bins
+                spike_to_video_df.sort('rolled_angles') # polars can be annoying, when using cut it doesn't preserve order :/
+                spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df['rolled_angles'].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
+                spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
+                angles_firing = (spike_to_video_df.groupby(by ='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
+                # compute rayleigh
+                x = np.sum(np.cos(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
+                y = np.sum(np.sin(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
+                # add to distribution of rayleigh vectors with shift
+                shift_dist[it] = np.sqrt(x**2 + y**2)
+            # significance logical
+            if self.Rayleigh[counter] > np.percentile(shift_dist,95):
+                self.Rayleigh_sig[counter] = 1
+                print('yay!')
+
+        # histogram of rayleighs
+        plt.figure()
+        plt.hist(self.Rayleigh,np.arange(0,1,.1))
+        plt.hist(self.Rayleigh[self.Rayleigh_sig == 1],np.arange(0,1,.1))
+        plt.xlabel('Rayleigh R')
+        plt.ylabel('number of clusters')
+        plt.savefig(str(self.Visualize.session.file_path) + "/" + str(which_angle) + "_Rayleigh_vector_hist.png")
+        if self.Visualize.settings.show_plots: plt.show()
 
     def tuning_heatmap(self,title,times,spikes,clusters,angles,OutofShelterIdx,end_time):
         """
@@ -389,299 +297,4 @@ class Visualize_efizz():
         axs[1].title.set_text('second half')
         plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning_sig_Rayleigh.png")
         if self.Visualize.settings.show_plots: plt.show()
-        plt.close()
-        
-    def PSTH_single_neurons(self, stim_type):
-        """
-        Plot the mean firing rate of all cells (ignore clusters) to each trial. For each trial, retrieve:
-        - the onset frame of that stimulus
-        - the duration of that stimulus
-        """
-        # Hyperparameters
-        timeBeforeStim = 5 # seconds
-        
-        # Select only the good neurons
-        conditionGood = self.dataFrame['cluster_group'] == 'good'
-        good_neurons_data_frame = self.dataFrame.filter(conditionGood)
-        assert len(good_neurons_data_frame['spike_clusters'].unique()) == self.Visualize.session.efizzDataLoaded.num_of_good_units, "The number of good neurons is not the same as the number of good neurons in the data frame"
-        
-        # Set the number of rows and columns for the subplot grid
-        n_rows = 10
-        n_columns = 5
-        counter = 0
-        row = 0
-        column = 0
-
-        # Create a figure and an array of subplots with the specified grid size
-        _, axes = plt.subplots(nrows=n_rows, ncols=n_columns, figsize=(20, 10))
-        
-        # For each of the good neurons and then each of the trials 
-        for neuron in good_neurons_data_frame['spike_clusters'].unique():
-            
-            filtered_data_frame = pl.DataFrame()
-            
-            for trial_num, (onset_frames, stimulus_durations) in enumerate(zip(self.Visualize.session.__dict__[stim_type].onset_frames, self.Visualize.session.__dict__[stim_type].stimulus_durations)):
-                
-                # Find trial window time
-                # Should this now be / by 30000
-                time1 = (onset_frames / self.Visualize.session.video.fps) - timeBeforeStim 
-                time2 = (onset_frames / self.Visualize.session.video.fps) + stimulus_durations
-                
-                # Find the spikes that are within the time window and assigned to that neuron
-                # Conditions
-                GreaterThan = good_neurons_data_frame['aligned_spike_times'] > time1
-                LessThan = good_neurons_data_frame['aligned_spike_times'] < time2
-                neuronOfInterest = good_neurons_data_frame['spike_clusters'] == neuron
-                
-                # Filter and stack
-                filtered_data_frame = filtered_data_frame.vstack(good_neurons_data_frame.filter(GreaterThan & LessThan & neuronOfInterest))
-            
-            # Plot the PSTH
-            # Bin the spikes
-            mult = 10 # binsize for looking at data - 1/10 of a second so 100ms bins 
-            binEdges = np.arange(time1, time2, 1 / mult)
-            firingrate, _ = np.histogram(filtered_data_frame["aligned_spike_times"], binEdges)
-            assert len(firingrate) == len(binEdges) - 1, "firingrate and binedges are not the same length"
-            
-            # Generate x values for plotting
-            xValues = binEdges - time1 - timeBeforeStim
-            assert xValues[0] == -timeBeforeStim, f"xValues[0] is not -{timeBeforeStim}"
-            
-            # Plot the PSTH
-            # plt.plot(xValues[:-1], gaussian_filter1d(firingrate * mult, sigma = 1), label = f"Trial #: {trial_num}") # because our bin size is 1/mult of a second
-            axes[row, column].plot(xValues[:-1], firingrate * mult, label = f"Neuron #: {neuron}") # because our bin size is 1/mult of a second
-            axes[row, column].axvline(x = 0, color = 'k', linestyle = '-')
-            axes[row, column].set_title(f'Neuron {neuron} PSTH')
-            
-             # Axes logic
-            counter += 1 # increment counter don't plot more than 50 neurons
-            if counter > n_columns * n_rows: # if counter is greater than 50, break
-                break
-            
-            # Once you've plotted on all the rows, move to the next column
-            row += 1
-            if row > 9:
-                column += 1
-                row = 0
-            
-            # If you've reached the end of the columns, break
-            if column > 4:
-                break
-                
-        plt.tight_layout()
-        if self.Visualize.settings.show_plots: plt.show()
-        plt.close()
-
-    def spatial_position_firing(self):
-        """ A function that makes maps of mousie's position in arena
-        and show where each cluster fired"""
-        
-        cc = matplotlib.cm.Reds # could use Reds or copper
-        # set number of rows and calculate number of columns
-        ncols = 10
-        nrows = 5 # nclu // ncols + (nclu % ncols > 0)
-        figg, axs = plt.subplots(nrows,ncols)
-        figg.set_figwidth(30)
-        figg.set_figheight(15)
-        fnum = 1
-        axs = axs.ravel()
-
-        mass = self.Visualize.tracking_data['avg_loc']
-        # what is firing rate per frame?
-        timepoints = np.arange(0-1/(2*self.Visualize.session.video.fps), # start of timewindow
-                               (len(self.Visualize.tracking_data['avg_loc'])/self.Visualize.session.video.fps)+1/(2*self.Visualize.session.video.fps), # end of timewindow
-                               1/self.Visualize.session.video.fps) # each time bin is 1 frame
-        for counter,c in enumerate(np.unique(self.clu_spikes)):
-            # the firing rate is computed in bins that are centered on the occurrence of a camera frame
-            srate,_ = np.histogram(self.aligned_spikes[self.clu_spikes == c],timepoints)
-            srate = srate*self.Visualize.session.video.fps # make it Hz
-            if counter >= (ncols*nrows)*fnum:
-                figg, axs = plt.subplots(nrows,ncols)
-                figg.set_figwidth(30)
-                figg.set_figheight(15)
-                fnum = fnum + 1
-                axs = axs.ravel()
-            axs[counter-(nrows*ncols*fnum)].scatter(mass[:,0],mass[:,1],s=5,c=cc(srate*2),linewidths=0,marker='.') # srate*2 increase contrast
-            axs[counter-(nrows*ncols*fnum)].set_axis_off()
-            axs[counter-(nrows*ncols*fnum)].invert_yaxis()
-            axs[counter-(nrows*ncols*fnum)].set_aspect('equal')
-            axs[counter-(nrows*ncols*fnum)].title.set_text('cluster ' + str(c))
-            if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
-                             counter == len(np.unique(self.clu_spikes))-1):
-                plt.tight_layout()
-                plt.savefig(str(self.Visualize.session.file_path) + "/" + "spatial_position_firing_" + str(fnum) + ".png")
-                if self.Visualize.settings.show_plots: plt.show()
-                plt.close()
-
-    def rayleigh_vector(self,spikes,clusters,angles,OutofShelterIdx,times,end_time, title):
-        """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
-        It subsamples angles within 20 degree bins to ensure that angles are more uniformly sampled
-        It only considers times when the mouse was outside the shelter
-        It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
-        The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes"""    
-        # timepoints in seconds for each frame (and angles, OutofShelterIdx)
-        timepoints = np.arange(times[0], # start of timewindow
-                               end_time, # end of timewindow
-                               1/self.Visualize.session.video.fps) # each time bin is 1 frame
-        
-        # randomly subsample frames at 20degree angle intervals 
-        # this ensure uniform sampling at all angles, even if mouse behavior was not uniform
-        binned_angles = np.digitize(angles,np.linspace(-np.pi,np.pi,19)) # steps of 20deg
-        all_permuted_angles = np.zeros_like(angles)
-        for b in np.arange(1,np.amax(binned_angles)+1):
-            angles_in_bin = np.where(binned_angles == b)[0]
-            rng = np.random.default_rng()
-            permuted_angles = rng.permuted(angles_in_bin)
-            permuted_angles = permuted_angles[:int(len(binned_angles)*.03)] # an index of subsampled angles
-            all_permuted_angles[permuted_angles] = 1
-
-        # initialize variables
-        self.Rayleigh_theta = np.empty([len(np.unique(clusters))]) # preferred angle
-        self.Rayleigh = np.empty([len(np.unique(clusters))]) # amplitude of Rayleigh vector
-        self.Rayleigh_sig = np.zeros([len(np.unique(clusters))]) # is the Ryleigh significant?
-        self.Rayleigh_cluster = np.empty([len(np.unique(clusters))]) # which cluster ID is this Rayleigh value for?
-
-        # assign spike times of each cluster to the corresponding video frame, then assign HD
-        for counter,c in enumerate(np.unique(clusters)):
-            # bin spikes per cluster to 1 ms (to get rid of double counting the wider spikes)
-            spikes_by_cluster = spikes[clusters == c]
-            time_bins_1ms = np.arange(spikes_by_cluster[0],spikes_by_cluster[-1],.001)
-            spike_by_bin = np.histogram(spikes_by_cluster,time_bins_1ms)[0]>0
-            spikes_by_cluster = (time_bins_1ms[np.where(spike_by_bin)[0]]+.0005)
-            # at which video frame did the spikes happen? 
-            frame_per_spike = np.digitize(spikes_by_cluster,timepoints)
-            frame_per_spike = frame_per_spike[frame_per_spike <= len(angles)] # delete the spikes happening after the last of timepoints
-            # select spikes when mouse is outside shelter and at one of subsampled angles
-            angle_per_spike = np.zeros_like(frame_per_spike)
-            keep_spike = np.zeros_like(frame_per_spike)
-            for f in np.unique(frame_per_spike):
-                angle_per_spike[frame_per_spike == f] = angles[f-1]
-                if np.logical_and(OutofShelterIdx[f-1] == True,all_permuted_angles[f-1] == 1): keep_spike[frame_per_spike == f] = 1
-            angle_per_spike = angle_per_spike[keep_spike == 1]
-            # compute rayleigh
-            x = np.nanmean(np.cos(angle_per_spike))
-            y = np.nanmean(np.sin(angle_per_spike))
-            self.Rayleigh_theta[counter] = np.arctan(y/x)
-            self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
-            self.Rayleigh_cluster[counter] = c
-            # bootstrap x times with variable shifts in time
-            x = 100
-            shift_dist = np.empty(x)
-            for bs in np.arange(len(shift_dist)): 
-                shift = int(np.random.uniform(1,x))*self.Visualize.session.video.fps # temporal shift in video frames
-                ang_roll = np.roll(angles,shift)
-                angle_per_spike = np.zeros_like(frame_per_spike)
-                keep_spike = np.zeros_like(frame_per_spike)
-                for f in np.unique(frame_per_spike):
-                    angle_per_spike[frame_per_spike == f] = ang_roll[f-1]
-                    if np.logical_and(OutofShelterIdx[f-1] == True,all_permuted_angles[f-1] == 1): keep_spike[frame_per_spike == f] = 1
-                angle_per_spike = angle_per_spike[keep_spike == 1]
-                x = np.nanmean(np.cos(angle_per_spike))
-                y = np.nanmean(np.sin(angle_per_spike))
-                shift_dist[bs] = np.sqrt(x**2 + y**2)
-            if self.Rayleigh[counter] > np.percentile(shift_dist,95):
-                self.Rayleigh_sig[counter] = 1
-
-        # histogram of rayleighs
-        plt.figure()
-        plt.hist(self.Rayleigh,np.arange(0,1,.1))
-        plt.hist(self.Rayleigh[self.Rayleigh_sig == 1],np.arange(0,1,.1))
-        plt.xlabel('Rayleigh R')
-        plt.ylabel('number of clusters')
-        plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_Rayleigh_vector_hist.png")
-        if self.Visualize.settings.show_plots: plt.show()
-
-# -----------------------------------LASEER SYNC TEST-----------------------------------
-
-    def extract_trial_spikes_for_laser_sync_test(self, time_before_stim = 0.5, time_after_stim = 1, select_good_neurons = False) -> dict:
-        """
-        A function that extracts spikes times between trials and aligns it to the stimulus onset.
-        The function returns a dictionary with the cluster ID as the key and a list of polars dataframes as the value.
-        Each polar dataframe contains the spikes for a single trial.
-        
-        Returns Dictionary = {cluster_ID1: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
-                              cluster_ID2: [polar_dataframe_trial_1, polar_dataframe_trial_2, ...], 
-                              ...}
-                              
-        """
-        
-        data = self.dataFrame
-        
-        dic = {}
-        
-        if select_good_neurons:
-            iterator = self.array_of_good_neurons_IDs
-        
-        elif not select_good_neurons:
-            iterator = data["spike_clusters"].unique()
-            
-        for index, cluster in enumerate(iterator):
-                        
-            spikes = data.filter(data["spike_clusters"] == cluster)
-            spikesByTrial = []
-            
-            counter = 0
-            for trial, onset in enumerate(self.Visualize.session.laser_sync.laser_onsets):
-                time1 = onset / 30000 - time_before_stim
-                time2 = onset / 30000 + time_after_stim
-                trialSpikesPolars = spikes.filter((spikes["aligned_spike_times"] > time1) & (spikes["aligned_spike_times"] < time2))
-                adjustedSpikeTimes = trialSpikesPolars.with_column(trialSpikesPolars['aligned_spike_times'] - onset / 30000)
-                spikesByTrial.append(adjustedSpikeTimes)
-            
-            dic[cluster] = spikesByTrial
-               
-        return dic
-    
-    def single_cluster_raster_Laser_test(self):
-        """
-        A function that extracts spike times for each good cluster and aligns it to trials as a raster plot
-        """
-        # Load data - Choose whether to use good neurons or all neurons
-        cluster_trial_spikes_dic = self.extract_trial_spikes_for_laser_sync_test(select_good_neurons = False)
-        
-        # How many plots do we need?
-        number_of_plots = len(cluster_trial_spikes_dic)
-        max_plots_per_figure = 20
-        
-        # How many columns and rows should the plot have
-        num_cols = int(np.ceil(np.sqrt(max_plots_per_figure)))
-        num_rows = int(np.ceil(max_plots_per_figure / num_cols))
-        
-        # Across how many figures
-        num_figures = int(np.ceil(number_of_plots / max_plots_per_figure))
-        
-        # Create the figures
-        plot_counter = 0
-        
-        # For each figure
-        for figure_idx in range(num_figures):
-            fig, axes = plt.subplots(num_rows, num_cols, figsize=(24, 8))
-            
-            # For each plot
-            for rows in range(num_rows):
-                for columns in range(num_cols):
-                    if plot_counter < number_of_plots:
-                        cluster = list(cluster_trial_spikes_dic.keys())[plot_counter]
-                        
-                        for trial, onset_frames in enumerate(self.Visualize.session.laser_sync.laser_onsets):
-                            x_values = cluster_trial_spikes_dic[cluster][trial]["aligned_spike_times"]
-                            y_values = [trial] * len(x_values)
-                            axes[rows, columns].scatter(x_values, y_values, marker='|', s=10, c='b')
-                        axes[rows, columns].set_title(f"Cluster: {cluster}")
-                        axes[rows, columns].vlines(0, 0, len(self.Visualize.session.laser_sync.laser_onsets), colors='r', linestyles='solid')
-                    
-                    # Remove the extra axes if there are no more plots
-                    else:
-                        fig.delaxes(axes[rows, columns])
-                    
-                    plot_counter += 1
-            
-            # SAVE FIGURE
-            fig.tight_layout()
-            plt.savefig(str(self.Visualize.session.file_path) + "/" + "_single_cluster_raster_" + str(figure_idx) + ".png")                
-        
-        if self.Visualize.settings.show_plots: 
-            plt.show()
-        
-        pass
         plt.close()
