@@ -10,6 +10,8 @@ import polars as pl
 import random
 import pickle as pkl
 import numpy as np 
+from loguru import logger
+
 
 # Collect session data currently in the databank
 for session_ID in experiments_objects:

@@ -117,8 +117,8 @@ if __name__ == "__main__":
     headDirection = tracking["hdir"]  # head direction for each frame
     # shelterDirection = tracking["hdir_shelt"]  # shelter direction for each frame TODO Un comment this if you want to plot some shelter cells 
     spike_times_hdir, cluster_ids = generate_synth_vectorial_cells(cell_type = "Head_Direction", 
-                                                                   add_noise = True,
-                                                                   number_of_spikes_per_cluster = 10000)
+                                                                   add_noise = False,
+                                                                   number_of_spikes_per_cluster = 100000)
 
 # PLOTTING LOGIC -----------------------------------------------------------------------------------------------
 # This is just for plotting the data, you can ignore this part. But is here to show you how the data looks likes
