@@ -50,4 +50,18 @@ seq4 = Experiment(# Mouse specific
                     shelter_time = [],
                     barrier_time = [])
 
+mushroom5JAL001 =  Experiment(# Mouse specific
+                    nick_name = JAL001.nick_name,
+                    total_sessions = JAL001.total_sessions,
+                    mouse_number_pyrat = JAL001.mouse_number_pyrat,
+                    experiment_file_names = JAL001.experiment_file_names,
+                    root_path = JAL001.root_path,
 
+                    # Experiment specific
+                    experiment_name = 'Mushy5',
+                    experiment_idx = 4,
+                    experiment_date = "2023_03_21",
+                    experiment_time = "08_14_30",
+                    experiment_path = Path(r"001_mushroom_5_2023_03_21T08_14_30"),
+                    shelter_time = [],
+                    barrier_time = [])
