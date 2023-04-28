@@ -63,11 +63,11 @@ class ProcessedEfizz:
                                                 ] 
                                             )
         
-        self.alignedDataFrame = self.alignedDataFrame.with_columns(self.alignedDataFrame['spike_times'].cut(bins=self.camera_trigger, labels = [str(x) for x in np.arange(0,len(self.camera_trigger)+1)])['category'].alias('spike_aligned_to_frame'))
-        print(self.alignedDataFrame)
+        self.alignedDataFrame = self.alignedDataFrame.with_columns(self.alignedDataFrame['aligned_spike_times_in_samples'].cut(bins=self.camera_trigger, labels = [str(x) for x in np.arange(0,len(self.camera_trigger)+1)])['category'].alias('spike_aligned_to_frame'))
+        self.alignedDataFrame = self.alignedDataFrame.select([pl.col('spike_aligned_to_frame').apply(float),pl.exclude('spike_aligned_to_frame')])
 
         # UNIT TESTs
-        print("MANNUAL CHECK: The number of null values in each column - This should be 0")
+        print("MANUAL CHECK: The number of null values in each column - This should be 0")
         print(self.alignedDataFrame.null_count())
         lastPulseTime = self.lastPulse / self.samplingRate
         assert lastPulseTime + 60 > self.alignedDataFrame["aligned_spike_times"].max(), "The last spike was recorded more than 60 seconds after the last TTL pulse, unlikely. Check the data."
