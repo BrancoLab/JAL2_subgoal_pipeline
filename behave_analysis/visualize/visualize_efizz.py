@@ -43,6 +43,7 @@ class Visualize_efizz():
 
         # New ingestion for speed
         dataFrame = pl.read_csv(self.csv_path)
+
         if self.select_good_neurons:
             self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'good')
         else:
@@ -162,46 +163,59 @@ class Visualize_efizz():
             spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
             spikes = spikes.with_columns(pl.col('spike_count')*self.Visualize.session.video.fps)
             # align spike dataframe to video dataframe
+            filtered_video_df = filtered_video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
             spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
             if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
                 logger.info(f"Cluster {c} had no spikes")
                 break
             # calculate firing rates in angle bins
-            spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
+            spike_to_video_df = spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
             spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df[angle_filt].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
             spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
-            angles_firing = (spike_to_video_df.groupby(by='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
+            spike_to_video_df = spike_to_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) 
+            angles_firing = (spike_to_video_df.groupby(by = 'binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
+            angles_firing = angles_firing.sort('binned_angles')
+            # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
+            all_angles_firing = pl.DataFrame({'all_angles': bin_angle_center[1:-1]})
+            all_angles_firing = all_angles_firing.join(angles_firing, left_on="all_angles", right_on="binned_angles", how="left")
+            all_angles_firing = all_angles_firing.fill_null(strategy="zero")
             # compute rayleigh
-            x = np.sum(np.cos(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
-            y = np.sum(np.sin(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
+            x = np.sum(np.cos(all_angles_firing['all_angles'].to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
+            y = np.sum(np.sin(all_angles_firing['all_angles'].to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
             self.Rayleigh_theta[counter] = np.arctan(y/x)
             self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
             self.Rayleigh_cluster[counter] = c
             # bootstrap x times with variable shifts in time
-            x = 100
-            shift_dist = np.empty(x)
-            for it in np.arange(len(shift_dist)): 
-                # shuffled shifts performed at a random offset between 0 and 100 seconds
-                shift = int(np.random.uniform(1,100))*self.Visualize.session.video.fps # temporal shift in video frames
-                angles = filtered_video_df[angle_filt].to_numpy()
-                ang_roll = np.roll(angles,shift)
-                rolled_filtered_video_df = filtered_video_df.select(pl.col('*'),pl.Series(name="rolled_angles", values = ang_roll))
-                # align spike dataframe to video dataframe
-                spike_to_video_df = rolled_filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-                # calculate firing rates in angle bins
-                spike_to_video_df.sort('rolled_angles') # polars can be annoying, when using cut it doesn't preserve order :/
-                spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df['rolled_angles'].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
-                spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
-                angles_firing = (spike_to_video_df.groupby(by ='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
-                # compute rayleigh
-                x = np.sum(np.cos(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
-                y = np.sum(np.sin(angles_firing['binned_angles'].apply(float).to_numpy())*(angles_firing['mean_firing_rate'].to_numpy()))/np.sum(angles_firing['mean_firing_rate'].to_numpy())
-                # add to distribution of rayleigh vectors with shift
-                shift_dist[it] = np.sqrt(x**2 + y**2)
-            # significance logical
-            if self.Rayleigh[counter] > np.percentile(shift_dist,95):
-                self.Rayleigh_sig[counter] = 1
-                print('yay!')
+            # x = 100
+            # shift_dist = np.empty(x)
+            # for it in np.arange(len(shift_dist)): 
+            #     # shuffled shifts performed at a random offset between 0 and 100 seconds
+            #     shift = int(np.random.uniform(1,100))*self.Visualize.session.video.fps # temporal shift in video frames
+            #     angles = filtered_video_df[angle_filt].to_numpy()
+            #     ang_roll = np.roll(angles,shift)
+            #     rolled_filtered_video_df = filtered_video_df.select(pl.col('*'),pl.Series(name="rolled_angles", values = ang_roll))
+            #     # align spike dataframe to video dataframe
+            #     spike_to_video_df = rolled_filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+            #     # calculate firing rates in angle bins
+            #     spike_to_video_df = spike_to_video_df.sort('rolled_angles') # polars can be annoying, when using cut it doesn't preserve order :/
+            #     spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df['rolled_angles'].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
+            #     spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
+            #     spike_to_video_df = spike_to_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) # TODO add this line to rayleigh v function
+            #     angles_firing = (spike_to_video_df.groupby(by ='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
+            #     angles_firing = angles_firing.sort('binned_angles')
+            #     # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
+            #     all_angles_firing = pl.DataFrame({'all_angles': bin_angle_center[1:-1]})
+            #     all_angles_firing = all_angles_firing.join(angles_firing, left_on="all_angles", right_on="binned_angles", how="left")
+            #     all_angles_firing = all_angles_firing.fill_null(strategy="zero")
+            #     # compute rayleigh
+            #     x = np.sum(np.cos(all_angles_firing['all_angles'].apply(float).to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
+            #     y = np.sum(np.sin(all_angles_firing['all_angles'].apply(float).to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
+            #     # add to distribution of rayleigh vectors with shift
+            #     shift_dist[it] = np.sqrt(x**2 + y**2)
+            # # significance logical
+            # if self.Rayleigh[counter] > np.percentile(shift_dist,95):
+            #     self.Rayleigh_sig[counter] = 1
+            #     print('yay!')
 
         # histogram of rayleighs
         plt.figure()
@@ -222,7 +236,8 @@ class Visualize_efizz():
         """
         
         # bin the angles 
-        bin_angles = np.linspace(-np.pi,np.pi,19)
+        number_of_bins = 19
+        bin_angles = np.linspace(-np.pi,np.pi,number_of_bins)
         bin_angle_center = np.sort(np.append([-np.pi,np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles))/2)]))
 
         # set up polar plots figure
@@ -269,16 +284,21 @@ class Visualize_efizz():
             spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
             spikes = spikes.with_columns(pl.col('spike_count')*self.Visualize.session.video.fps)
             # align spike dataframe to video dataframe
+            filtered_video_df = filtered_video_df.select([pl.col('frames').apply(float),pl.exclude('frames')]) 
             spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
             if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
                 logger.info(f"Cluster {c} had no spikes")
                 break
             # calculate firing rates in angle bins
-            spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
+            # TODO add this line to rayleigh v function
+            spike_to_video_df = spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
             spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df[angle_filt].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
             spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
+            spike_to_video_df = spike_to_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) # TODO add this line to rayleigh v function
             angles_firing = (spike_to_video_df.groupby(by='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
-            ax.bar(angles_firing['binned_angles'].apply(float).to_numpy(), angles_firing['mean_firing_rate'].to_numpy(), width=(2*np.pi)/19, bottom=0.0, color='green', alpha=0.5)
+            angles_firing = angles_firing.sort('binned_angles') # TODO add this line to rayleigh v function
+            ax.bar(angles_firing['binned_angles'].to_numpy(), angles_firing['mean_firing_rate'].to_numpy(), width=(2*np.pi)/19, bottom=0.0, color='green', alpha=0.5)
+            ax.vlines(self.Rayleigh_theta[counter], 0, self.Rayleigh[counter]*np.amax(angles_firing['mean_firing_rate'].to_numpy()), colors='black')
             # add title to the subplot
             if self.Rayleigh_sig[counter] == 1:
                 ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
