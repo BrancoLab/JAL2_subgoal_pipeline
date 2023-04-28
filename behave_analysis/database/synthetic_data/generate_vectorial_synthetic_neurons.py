@@ -27,12 +27,14 @@ def generate_synth_vectorial_cells(cell_type, number_of_spikes_per_cluster,  add
     if cell_type == "Head_Direction":
         spike_times, cluster_ids = return_spike_times_locked_to_behavioural_direction(headDirection, 
                                                                                       number_of_spikes = number_of_spikes_per_cluster, 
-                                                                                      direction_ranges = [(-0.1, 0.1), (2, 2.1), (-2.1, -2), (-1.7, -1.6)], 
+                                                                                    #   direction_ranges = [(-0.1, 0.1), (2, 2.1), (-2.1, -2), (-1.7, -1.6)],
+                                                                                      direction_ranges = [(-0.1, 0.1), (-1.6, -1.5), (1.5, 1.6), (3, 3.1)], 
+ 
                                                                                       fps = 40,
                                                                                       mean = 0, 
                                                                                       std_dev = 1,
                                                                                       add_noise = add_noise,
-                                                                                      noise_scale = 25)
+                                                                                      noise_scale = 10)
         
     elif cell_type == "Shelter_Direction":
         spike_times, cluster_ids = return_spike_times_locked_to_behavioural_direction(shelterDirection, 
