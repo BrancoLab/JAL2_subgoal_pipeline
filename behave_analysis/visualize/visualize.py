@@ -41,12 +41,12 @@ class Visualize:
             logger.info(f"Starting to make some efizz overview plots...")
             
             # Sythetic test run 
-            # visualObject = Visualize_efizz(self, run= "Test")
+            visualObject = Visualize_efizz(self, run= "Test")
             # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'Synth', onsets = "Synthetic_test_onsets", select_good_neurons = True)
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'Synthetic_test')
 
             # Production - Run 
-            visualObject = Visualize_efizz(self, run = "Production")
+            # visualObject = Visualize_efizz(self, run = "Production")
             # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'audio', onsets = "Production", select_good_neurons = True)
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'audio')            
 
