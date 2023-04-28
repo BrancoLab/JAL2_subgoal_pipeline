@@ -1,5 +1,4 @@
-# Created dataframe has unused columns but required due to indexing in visualize efizz.
-# TODO: remove unused columns from dataframe when indexing is fixed in efizz to be polars 
+"""Run this module to extract the behavioural data from the session inputted in the databank. NOTE that you have to rerun this every time you change the session in the databank else you will be looking at synethic data on the wrong behaviour."""
 
 from behave_analysis.database.synthetic_data.generate_vectorial_synthetic_neurons import generate_synth_vectorial_cells
 from behave_analysis.database.synthetic_data.poison_process_functions import ImhomogeneousProcess
@@ -100,8 +99,6 @@ class GenerateFakeDataForRasters:
 
 if __name__ == "__main__":
     
-
-    # Generate vectorial cells 
     head_direction_spikes, head_direction_clusters = generate_synth_vectorial_cells(cell_type = "Head_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
     # shelter_direction_spikes, shelter_direction_clusters = generate_synth_vectorial_cells(cell_type = "Shelter_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
 
@@ -115,10 +112,13 @@ if __name__ == "__main__":
     head_direction_only = head_direction_only.with_columns(head_direction_only["spike_aligned_to_frame"].cast(pl.Float64))
 
     head_direction_only.write_csv(session.file_path / "synthetic_data_base.csv")
-    logger.success("Head direction dataframe saved to {}".format(session.file_path))
+    logger.success("Dataframe saved to {}".format(session.file_path))
     
     # shelter_direction_only = pl.DataFrame({"spike_times": [0] * len(shelter_direction_spikes), # Not used
     #                                        "spike_clusters": shelter_direction_clusters,
     #                                        "cluster_group": ["good"] * len(shelter_direction_spikes),
     #                                        "aligned_spike_times": shelter_direction_spikes})
     # shelter_direction_only.write_csv(path)
+    
+    # shelter_direction_only.write_csv(session.file_path / "synthetic_data_base.csv")
+    # logger.success("Dataframe saved to {}".format(session.file_path))
