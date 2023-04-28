@@ -33,8 +33,7 @@ class Visualize_efizz():
         
         elif self.run_type == "Test":
             logger.warning("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
-            self.csv_path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
-            # self.csv_path = r"C:\Users\jreggiani\Documents\GitHub\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
+            self.csv_path = self.Visualize.session.file_path / "synthetic_data_base.csv"
     
         else: 
             raise ValueError("Run type not recognised")
