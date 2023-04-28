@@ -100,9 +100,7 @@ class GenerateFakeDataForRasters:
 
 if __name__ == "__main__":
     
-    # TODO - Enter where you want your synthetic data to be saved
-    path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
-    
+
     # Generate vectorial cells 
     head_direction_spikes, head_direction_clusters = generate_synth_vectorial_cells(cell_type = "Head_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
     # shelter_direction_spikes, shelter_direction_clusters = generate_synth_vectorial_cells(cell_type = "Shelter_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
@@ -116,8 +114,8 @@ if __name__ == "__main__":
     
     head_direction_only = head_direction_only.with_columns(head_direction_only["spike_aligned_to_frame"].cast(pl.Float64))
 
-    head_direction_only.write_csv(path)
-    logger.success("Head direction dataframe saved to {}".format(path))
+    head_direction_only.write_csv(session.file_path / "synthetic_data_base.csv")
+    logger.success("Head direction dataframe saved to {}".format(session.file_path))
     
     # shelter_direction_only = pl.DataFrame({"spike_times": [0] * len(shelter_direction_spikes), # Not used
     #                                        "spike_clusters": shelter_direction_clusters,
