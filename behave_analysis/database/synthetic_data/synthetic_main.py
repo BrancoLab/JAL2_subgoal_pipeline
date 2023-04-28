@@ -105,16 +105,16 @@ if __name__ == "__main__":
     
     # Generate vectorial cells 
     head_direction_spikes, head_direction_clusters = generate_synth_vectorial_cells(cell_type = "Head_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
-    shelter_direction_spikes, shelter_direction_clusters = generate_synth_vectorial_cells(cell_type = "Shelter_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
+    # shelter_direction_spikes, shelter_direction_clusters = generate_synth_vectorial_cells(cell_type = "Shelter_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
 
     # Create a Polars DataFrame - TODO - Comment out if you want to use the vectorial cells
     head_direction_only = pl.DataFrame({"spike_times": [0] * len(head_direction_spikes), # Not used
                                         "spike_clusters": head_direction_clusters,
                                         "cluster_group": ["good"] * len(head_direction_spikes),
                                         "aligned_spike_times": head_direction_spikes,
-                                        "spike_aligned_to_frame": (head_direction_spikes * 40)})
+                                        "spike_aligned_to_frame": np.around((head_direction_spikes * 40))})
     
-    head_direction_only = head_direction_only.with_columns(head_direction_only["spike_aligned_to_frame"].cast(pl.Int64))
+    head_direction_only = head_direction_only.with_columns(head_direction_only["spike_aligned_to_frame"].cast(pl.Float64))
 
     head_direction_only.write_csv(path)
     logger.success("Head direction dataframe saved to {}".format(path))
