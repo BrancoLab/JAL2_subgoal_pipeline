@@ -125,7 +125,8 @@ class Visualize_efizz():
         It subsamples angles within 20 degree bins to ensure that angles are more uniformly sampled
         It only considers times when the mouse was outside the shelter
         It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
-        The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes"""    
+        The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes"""
+        logger.info("Calculating Rayleigh vectors")
         
         # subselect frames of interest:
         # 1. mouse has to be outside shelter
@@ -149,14 +150,14 @@ class Visualize_efizz():
         bin_angle_center = np.sort(np.append([-np.pi,np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles))/2)]))
 
         # initialize variables
-        clu_num = self.spikedataframe["spike_clusters"].unique()
-        self.Rayleigh_theta = np.empty([len(clu_num)]) # preferred angle
-        self.Rayleigh = np.empty([len(clu_num)]) # amplitude of Rayleigh vector
-        self.Rayleigh_sig = np.zeros([len(clu_num)]) # is the Ryleigh significant?
-        self.Rayleigh_cluster = np.empty([len(clu_num)]) # which cluster ID is this Rayleigh value for?
+        number_of_clusters = self.spikedataframe["spike_clusters"].unique()
+        self.Rayleigh_theta = np.empty([len(number_of_clusters)]) # preferred angle
+        self.Rayleigh = np.empty([len(number_of_clusters)]) # amplitude of Rayleigh vector
+        self.Rayleigh_sig = np.zeros([len(number_of_clusters)]) # is the Ryleigh significant?
+        self.Rayleigh_cluster = np.empty([len(number_of_clusters)]) # which cluster ID is this Rayleigh value for?
 
         # assign spike times of each cluster to the corresponding video frame, then assign HD
-        for counter,c in enumerate(clu_num):
+        for counter,c in enumerate(number_of_clusters):
             # filter by cluster
             spikes = self.spikedataframe.filter(self.spikedataframe['spike_clusters'] == c)
             # count number of spikes on each video frame, and then turn it into firing rate (Hz)
@@ -234,6 +235,7 @@ class Visualize_efizz():
         Rayleigh's R close to 1 = very tuned, fires only when head is in one orientation
         It makes a histogram of all Rayleigh vectors and remakes the heatmaps but splitting them up into high vs. low Rayleigh R
         """
+        # ---------------------------------------------------
         
         # bin the angles 
         number_of_bins = 19
@@ -266,10 +268,21 @@ class Visualize_efizz():
         elif which_angle == 'hdir':
             filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True))
             angle_filt = 'hdir'
+                
+        # Preprocess ----------------------------------------
+        number_of_bins = 19
+        bin_angles, bin_angle_center = generate_bin_angles(number_of_bins)
+        number_of_clusters = self.spikedataframe["spike_clusters"].unique()
+        num_cols, num_rows, num_figures = calculate_figure_plotting_axes(how_many_plots_you_need = len(number_of_clusters))
+        cluster_counter = 0
+       
+        # ---------------------------------------------------
+        for figure in range(num_figures):
+            fig, axes = plt.subplots(num_rows, num_cols, figsize=(24, 8), subplot_kw={'projection': 'polar'})
 
         # assign spike times of each cluster to the corresponding video frame, then assign HD
-        clu_num = self.spikedataframe["spike_clusters"].unique()
-        for counter,c in enumerate(clu_num):
+        number_of_clusters = self.spikedataframe["spike_clusters"].unique()
+        for counter,c in enumerate(number_of_clusters):
             # if you have filled a figure with polar plots, move onto next figure
             if counter >= (ncols*nrows)*fnum:
                 figg, axs = plt.subplots(nrows,ncols)
@@ -306,7 +319,7 @@ class Visualize_efizz():
                 ax.title.set_text('clu ' + str(c) + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[counter],2)))
             # save the whole figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
-                            counter == len(clu_num)-1):
+                            counter == len(number_of_clusters)-1):
                 plt.tight_layout()
                 plt.savefig(str(self.Visualize.session.file_path) + "/" + str(which_angle) + "_cluster_polar_plots_" + str(fnum) + ".png")
                 if self.Visualize.settings.show_plots: plt.show()  
@@ -384,3 +397,20 @@ class Visualize_efizz():
         # plt.savefig(str(self.Visualize.session.file_path) + "/" + str(title) + "_cluster_tuning_sig_Rayleigh.png")
         # if self.Visualize.settings.show_plots: plt.show()
         # plt.close()
+
+
+# Utility functions ------------------------------------------------------------------------------------------------
+def find_bin_labels(angles, bins, labels): 
+    return np.array(labels)[np.digitize(angles, bins, right=False) - 1]
+
+def generate_bin_angles(number_of_bins): 
+    bin_angles = np.linspace(-np.pi, np.pi, number_of_bins)
+    bin_angle_center = np.sort(np.append([-np.pi,np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles))/2)]))
+    return bin_angles, bin_angle_center
+
+def calculate_figure_plotting_axes(how_many_plots_you_need):
+    max_plots_per_figure = 20
+    num_cols = int(np.ceil(np.sqrt(max_plots_per_figure)))
+    num_rows = int(np.ceil(max_plots_per_figure / num_cols))
+    num_figures = int(np.ceil(how_many_plots_you_need / max_plots_per_figure))
+    return num_cols, num_rows, num_figures

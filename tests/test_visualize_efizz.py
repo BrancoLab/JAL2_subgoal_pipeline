@@ -1,4 +1,4 @@
-from behave_analysis.database.synthetic_data.generate_data import populate as synthetic_data_generator
+from behave_analysis.database.synthetic_data.synthetic_main import populate as synthetic_data_generator
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz, single_cluster_raster_break_out, extract_trial_spikes_break
 import os
 
