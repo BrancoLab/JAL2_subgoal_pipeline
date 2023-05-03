@@ -29,7 +29,7 @@ class Visualize_efizz():
         Loads the csv of aligned data
         """
         if self.run_type == "Production":
-            self.csv_path = glob(os.path.join(self.Visualize.session.file_path, "Processed_efizz_data"))[0]
+            self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
         
         elif self.run_type == "Test":
             logger.warning("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
@@ -75,7 +75,8 @@ class Visualize_efizz():
             np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
             self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
         
-        if len(self.Visualize.session.shelter_time) > 0: # is there a time with shelter only?
+         # is there a time with shelter only?
+        if len(self.Visualize.session.shelter_time) > 0:
             if self.Visualize.session.shelter_time[1] == -1: # shelter only until the end of the session
                 shelteronly = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
             else:
@@ -84,7 +85,8 @@ class Visualize_efizz():
         else:
             shelteronly = np.zeros(len(OutofShelterIdx)) == 1
 
-        if len(self.Visualize.session.barrier_time) > 0: # is there a time with shelter only?
+         # what period in the recording was there a barrier?
+        if len(self.Visualize.session.barrier_time) > 0:
             if self.Visualize.session.barrier_time[1] == -1: # shelter only until the end of the session
                 barrier_present = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
             else:
@@ -92,6 +94,11 @@ class Visualize_efizz():
                                              np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.sheltertime[1]*self.Visualize.session.video.fps))
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
+
+        # find the escape periods
+        EscapePeriod = np.zeros_like(OutofShelterIdx)
+        for onsets in self.Visualize.session.audio.onset_frames:
+            EscapePeriod[(onsets[0]-self.Visualize.session.video.fps):(onsets[0]+(10*self.Visualize.session.video.fps))] = 1
 
         # make a video dataframe where for each video frame:
         self.Video_df = pl.DataFrame(
@@ -101,26 +108,19 @@ class Visualize_efizz():
                 "h_bar_north_a": self.Visualize.tracking_data['hdir_barrier'][:,0],
                 "h_bar_south_a": self.Visualize.tracking_data['hdir_barrier'][:,1],
                 "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
+                "EscapePeriod": EscapePeriod == 1, # frames from 1 second before to 10 seconds after escape
                 "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
                 "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
 
-    def HSA_tuning(self):
+    def tuning(self, which_angle, compute_bootstrap = False, object_present = True):
         """
         Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
         """
-        self.rayleigh_vector(which_angle = 'head_shelter_angle')
+        self.rayleigh_vector(which_angle, compute_bootstrap, object_present)
         logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
-        self.polar_plots(which_angle = 'head_shelter_angle') 
+        self.polar_plots(which_angle, object_present) 
 
-    def HD_tuning(self):
-        """
-        Make heatmaps of each cell's firing at each HSA, for first and second half of recording, sorted on first half
-        """
-        self.rayleigh_vector(which_angle = 'hdir')
-        logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
-        self.polar_plots(which_angle = 'hdir') 
-
-    def rayleigh_vector(self,which_angle):
+    def rayleigh_vector(self,which_angle, compute_bootstrap, object_present):
         """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
         It subsamples angles within 20 degree bins to ensure that angles are more uniformly sampled
         It only considers times when the mouse was outside the shelter
@@ -131,18 +131,28 @@ class Visualize_efizz():
         # subselect frames of interest:
         # 1. mouse has to be outside shelter
         # 2. for hdir take all time, for hsa take times when only a shelter was present in the arena, for hba take times when barrier was present
-        # TODO 3. exclude threat stimuli times and the escape
+        # 3. exclude threat stimuli times and the escape
         if which_angle == 'head_shelter_angle':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["shelter_only"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & 
+                                                     (self.Video_df["EscapePeriod"] == False) & 
+                                                     (self.Video_df["shelter_only"] == object_present))
             angle_filt = 'hsa'
+
         elif which_angle == 'head_south_barrier_angle':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & 
+                                                     (self.Video_df["EscapePeriod"] == False) & 
+                                                     (self.Video_df["barrier_present"] == object_present))
             angle_filt = 'h_bar_south_a'
+
         elif which_angle == 'head_north_barrier_angle':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) &
+                                                     (self.Video_df["EscapePeriod"] == False) & 
+                                                     (self.Video_df["barrier_present"] == object_present))
             angle_filt = 'h_bar_north_a'
+
         elif which_angle == 'hdir':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) &
+                                                     (self.Video_df["EscapePeriod"] == False))
             angle_filt = 'hdir'
 
         # edges for binning firing rate at different angles
@@ -184,40 +194,41 @@ class Visualize_efizz():
             x = np.sum(np.cos(all_angles_firing['all_angles'].to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
             y = np.sum(np.sin(all_angles_firing['all_angles'].to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
             self.Rayleigh_theta[counter] = np.arctan2(y,x)
-            print(self.Rayleigh_theta[counter])
             self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
             self.Rayleigh_cluster[counter] = c
+            
             # bootstrap x times with variable shifts in time
-            # x = 100
-            # shift_dist = np.empty(x)
-            # for it in np.arange(len(shift_dist)): 
-            #     # shuffled shifts performed at a random offset between 0 and 100 seconds
-            #     shift = int(np.random.uniform(1,100))*self.Visualize.session.video.fps # temporal shift in video frames
-            #     angles = filtered_video_df[angle_filt].to_numpy()
-            #     ang_roll = np.roll(angles,shift)
-            #     rolled_filtered_video_df = filtered_video_df.select(pl.col('*'),pl.Series(name="rolled_angles", values = ang_roll))
-            #     # align spike dataframe to video dataframe
-            #     spike_to_video_df = rolled_filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-            #     # calculate firing rates in angle bins
-            #     spike_to_video_df = spike_to_video_df.sort('rolled_angles') # polars can be annoying, when using cut it doesn't preserve order :/
-            #     spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df['rolled_angles'].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
-            #     spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
-            #     spike_to_video_df = spike_to_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) # TODO add this line to rayleigh v function
-            #     angles_firing = (spike_to_video_df.groupby(by ='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
-            #     angles_firing = angles_firing.sort('binned_angles')
-            #     # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
-            #     all_angles_firing = pl.DataFrame({'all_angles': bin_angle_center[1:-1]})
-            #     all_angles_firing = all_angles_firing.join(angles_firing, left_on="all_angles", right_on="binned_angles", how="left")
-            #     all_angles_firing = all_angles_firing.fill_null(strategy="zero")
-            #     # compute rayleigh
-            #     x = np.sum(np.cos(all_angles_firing['all_angles'].apply(float).to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
-            #     y = np.sum(np.sin(all_angles_firing['all_angles'].apply(float).to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
-            #     # add to distribution of rayleigh vectors with shift
-            #     shift_dist[it] = np.sqrt(x**2 + y**2)
-            # # significance logical
-            # if self.Rayleigh[counter] > np.percentile(shift_dist,95):
-            #     self.Rayleigh_sig[counter] = 1
-            #     print('yay!')
+            if compute_bootstrap:
+                x = 100
+                shift_dist = np.empty(x)
+                for it in np.arange(len(shift_dist)): 
+                    # shuffled shifts performed at a random offset between 0 and 100 seconds
+                    shift = int(np.random.uniform(1,100))*self.Visualize.session.video.fps # temporal shift in video frames
+                    angles = filtered_video_df[angle_filt].to_numpy()
+                    ang_roll = np.roll(angles,shift)
+                    rolled_filtered_video_df = filtered_video_df.select(pl.col('*'),pl.Series(name="rolled_angles", values = ang_roll))
+                    # align spike dataframe to video dataframe
+                    spike_to_video_df = rolled_filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+                    # calculate firing rates in angle bins
+                    spike_to_video_df = spike_to_video_df.sort('rolled_angles') # polars can be annoying, when using cut it doesn't preserve order :/
+                    spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df['rolled_angles'].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
+                    spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
+                    spike_to_video_df = spike_to_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) # TODO add this line to rayleigh v function
+                    angles_firing = (spike_to_video_df.groupby(by ='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
+                    angles_firing = angles_firing.sort('binned_angles')
+                    # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
+                    all_angles_firing = pl.DataFrame({'all_angles': bin_angle_center[1:-1]})
+                    all_angles_firing = all_angles_firing.join(angles_firing, left_on="all_angles", right_on="binned_angles", how="left")
+                    all_angles_firing = all_angles_firing.fill_null(strategy="zero")
+                    # compute rayleigh
+                    x = np.sum(np.cos(all_angles_firing['all_angles'].apply(float).to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
+                    y = np.sum(np.sin(all_angles_firing['all_angles'].apply(float).to_numpy())*(all_angles_firing['mean_firing_rate'].to_numpy()))/np.sum(all_angles_firing['mean_firing_rate'].to_numpy())
+                    # add to distribution of rayleigh vectors with shift
+                    shift_dist[it] = np.sqrt(x**2 + y**2)
+                # significance logical
+                if self.Rayleigh[counter] > np.percentile(shift_dist,95):
+                    self.Rayleigh_sig[counter] = 1
+                    print('yay!')
 
         # histogram of rayleighs
         plt.figure()
@@ -225,10 +236,13 @@ class Visualize_efizz():
         plt.hist(self.Rayleigh[self.Rayleigh_sig == 1],np.arange(0,1,.1))
         plt.xlabel('Rayleigh R')
         plt.ylabel('number of clusters')
-        plt.savefig(str(self.Visualize.session.file_path) + "/" + str(which_angle) + "_Rayleigh_vector_hist.png")
+        if object_present:
+            plt.savefig(str(self.Visualize.session.processed_path) + "/" + str(which_angle) + "_Rayleigh_vector_hist.png")
+        else:
+            plt.savefig(str(self.Visualize.session.processed_path) + "/pre_" + str(which_angle) + "_Rayleigh_vector_hist.png")
         if self.Visualize.settings.show_plots: plt.show()
 
-    def polar_plots(self,which_angle):
+    def polar_plots(self,which_angle, object_present):
         """
         Mean firing of each cell at each HSA orientation as a heatmap in which they are sorted by HSA with greatest firing.
         It also computes rayleigh vectors (a circular vector sum) which gives us how oblong vs. round their tuning profile is. 
@@ -256,18 +270,28 @@ class Visualize_efizz():
         # subselect frames of interest:
         # 1. mouse has to be outside shelter
         # 2. for hdir take all time, for hsa take times when only a shelter was present in the arena, for hba take times when barrier was present
-        # TODO 3. exclude threat stimuli times and the escape
+        # 3. exclude threat stimuli times and the escape
         if which_angle == 'head_shelter_angle':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["shelter_only"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & 
+                                                     (self.Video_df["EscapePeriod"] == False) & 
+                                                     (self.Video_df["shelter_only"] == object_present))
             angle_filt = 'hsa'
+
         elif which_angle == 'head_south_barrier_angle':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & 
+                                                     (self.Video_df["EscapePeriod"] == False) & 
+                                                     (self.Video_df["barrier_present"] == object_present))
             angle_filt = 'h_bar_south_a'
+
         elif which_angle == 'head_north_barrier_angle':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) & (self.Video_df["barrier_present"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) &
+                                                     (self.Video_df["EscapePeriod"] == False) & 
+                                                     (self.Video_df["barrier_present"] == object_present))
             angle_filt = 'h_bar_north_a'
+
         elif which_angle == 'hdir':
-            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True))
+            filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) &
+                                                     (self.Video_df["EscapePeriod"] == False))
             angle_filt = 'hdir'
                 
         # Preprocess ----------------------------------------
@@ -322,7 +346,10 @@ class Visualize_efizz():
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
                             counter == len(number_of_clusters)-1):
                 plt.tight_layout()
-                plt.savefig(str(self.Visualize.session.file_path) + "/" + str(which_angle) + "_cluster_polar_plots_" + str(fnum) + ".png")
+                if object_present:
+                    plt.savefig(str(self.Visualize.session.processed_path) + "/" + str(which_angle) + "_cluster_polar_plots_" + str(fnum) + ".png")
+                else:
+                    plt.savefig(str(self.Visualize.session.processed_path) + "/pre_" + str(which_angle) + "_cluster_polar_plots_" + str(fnum) + ".png")
                 if self.Visualize.settings.show_plots: plt.show()  
                 plt.close() 
 
