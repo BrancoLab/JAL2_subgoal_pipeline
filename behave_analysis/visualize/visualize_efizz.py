@@ -33,7 +33,8 @@ class Visualize_efizz():
         
         elif self.run_type == "Test":
             logger.warning("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
-            self.csv_path = r"C:\Users\jreggiani\Documents\GitHub\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
+            self.csv_path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
+            # self.csv_path = r"C:\Users\jreggiani\Documents\GitHub\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
     
         else: 
             raise ValueError("Run type not recognised")
@@ -196,6 +197,7 @@ class Visualize_efizz():
             self.Rayleigh_theta[counter] = np.arctan2(y,x)
             self.Rayleigh[counter] = np.sqrt(x**2 + y**2)
             self.Rayleigh_cluster[counter] = c
+            
             
             # bootstrap x times with variable shifts in time
             if compute_bootstrap:
