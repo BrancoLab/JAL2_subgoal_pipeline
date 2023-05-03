@@ -26,8 +26,10 @@ class Visualize:
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000 / self.session.video.fps * (not self.settings.rapid) + self.settings.rapid)
 
+        self.print_session_details() # let us know which session we're doing
+
         # Load kalman tracking data
-        file = os.path.join(self.session.file_path, "kalman_tracking_data.pickle")
+        file = os.path.join(self.session.processed_path, "kalman_tracking_data.pickle")
         with open(file, "rb") as dill_file:
             self.kalman = pickle.load(dill_file)
 
@@ -46,28 +48,37 @@ class Visualize:
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'Synthetic_test')
 
             # Production - Run 
-            visualObject = Visualize_efizz(self, run = "Production")
+            visualObject = Visualize_efizz(self, run = "Production", select_good_neurons = True)
             # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'audio', onsets = "Production", select_good_neurons = True)
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'audio')            
 
-            # Production of vectorized plots should not change with run type 
+            # Production of vectorized plots  
+            # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
+            # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            visualObject.HD_tuning() 
-            # visualObject.HSA_tuning()
+            visualObject.tuning('hdir', compute_bootstrap = False)
+            # visualObject.tuning('head_shelter_angle', compute_bootstrap = False, object_present = False)
+            visualObject.tuning('head_shelter_angle', compute_bootstrap = False, object_present = True)
+            visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = True)
+            visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = True)
+            visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = False)
+            visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = False) 
+
+            # visualObject.spatial_position_firing()
             
+            logger.info(f"Starting to make some plots of stimulus responses.")
             # if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
             # if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
             # if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
-            # if 'Seq' in self.session.experiment: visualObject.barrier_tuning() # TODO Doesn't work broke it
-            # visualObject.spatial_position_firing()
             
             # Laser sync test
             # if self.settings.escape_trials: visualObject.single_cluster_raster_Laser_test()
 
-        # logger.info(f"Starting to make some behaviour ONLY overview plots.")
-        # Visualize_behave(self).position_by_bsa()
-        # Visualize_behave(self).location_occupancy()
-        # Visualize_behave(self).angle_histograms()
+        logger.info(f"Starting to make some behaviour ONLY overview plots.")
+        BehaveObject = Visualize_behave(self)
+        BehaveObject.position_by_bsa()
+        BehaveObject.location_occupancy()
+        BehaveObject.angle_histograms()
 
     def trials(self, stim_type) -> None:
         """
@@ -346,6 +357,13 @@ class Visualize:
             self.trail_colors.append(trail_color)
             self.trail.append(self.avg_loc)
             self.trail_thicknesses.append(int(self.stim_status[i] != 0) + int(self.stim_type == "audio") + 1)
+
+    def print_session_details(self) -> None:
+        logger.info("Commencing processing of sessions")
+        for key in self.session.__dict__.keys():
+            if key in ['name']:
+                logger.info(" {}: {}".format(key, self.session.__dict__[key]))
+        return None
 
     # ----SETUP FUNCTIONS-----------------------------------------------------------------------------------------------
     def set_up_videos(self, stim_type: str, trial_num: int, onset_frames: object, stimulus_durations: object):
