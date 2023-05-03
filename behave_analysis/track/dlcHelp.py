@@ -23,7 +23,7 @@ class DLC:
         Args:
             session (object): A data class containing relevant information for tracking contained within settings_track.py
         """
-        dlc_already_run = bool(glob.glob(os.path.join(session.file_path, "*resnet*"))) # Does a file exist with this token in the name?
+        dlc_already_run = bool(glob.glob(os.path.join(session.processed_path, "*resnet*"))) # Does a file exist with this token in the name?
         
         if dlc_already_run:
             logger.info("DeepLabCut has already been run for this session: {} - {}".format(session.number, session.name))
@@ -32,6 +32,8 @@ class DLC:
             logger.info("Running DeepLabCut tracking for session: {} - {}".format(session.number, session.name))
             from deeplabcut.pose_estimation_tensorflow import analyze_videos
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
+            for files in glob.glob(os.path.join(session.file_path, "*resnet*")):
+                os.rename(files,os.path.join(session.processed_path,os.path.basename(files)))
             if self.settings.save_labeled_video:
                 from deeplabcut import create_labeled_video
                 create_labeled_video(self.settings.dlc_settings_file, session.video.video_file, save_frames = True, keypoints_only=True)
@@ -58,7 +60,7 @@ class DLC:
         """
         
         # Load DLC Tracking Data
-        dlc_tracking_file = glob.glob(os.path.join(session.file_path, "*.h5"))[0] #Selects the .h5 file in video dir
+        dlc_tracking_file = glob.glob(os.path.join(session.processed_path, "*.h5"))[0] #Selects the .h5 file in video dir
         self.dlc_output = pd.read_hdf(dlc_tracking_file) #Converts .h5 to pandas
         
         # Load DLC Config from settings dataclass 

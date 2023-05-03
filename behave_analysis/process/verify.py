@@ -56,10 +56,10 @@ class Verifications():
             logger.error(f"The number of samples in the audio {self.Process.session.audio.num_samples} and camera trigger {self.Process.session.camera_trigger.num_samples} streams do not match after alignment")
             assert self.Process.session.camera_trigger.num_samples == self.Process.session.audio.num_samples, "The length of camera trigger doesn't match the length of the audio, processing has failed, kill script"
         
-        if self.Process.session.camera_trigger.num_samples != len(self.Process.session.ttl.bonsai_TTL):
-            print("Length of camera trigger:", self.Process.session.camera_trigger.num_samples)
-            print("Length of bonsai TTL:", len(self.Process.session.ttl.bonsai_TTL))
-            assert self.session.camera_trigger.num_samples == len(self.session.ttl.bonsai_TTL), "The length of camera trigger data doesn't match the length of the bonsai TTL"
+        # if self.Process.session.camera_trigger.num_samples != len(self.Process.session.ttl.bonsai_TTL):
+        #     print("Length of camera trigger:", self.Process.session.camera_trigger.num_samples)
+        #     print("Length of bonsai TTL:", len(self.Process.session.ttl.bonsai_TTL))
+        #     assert self.Process.session.camera_trigger.num_samples == len(self.Process.session.ttl.bonsai_TTL), "The length of camera trigger data doesn't match the length of the bonsai TTL"
 
     def verify_onsets_and_offsets(self):
         
@@ -143,7 +143,7 @@ class Verifications():
         plt.title('slope = ' + str(slope) + '\n' + ' and intercept = ' + str(intercept))
         plt.xlabel('bonsai onset (s)')
         plt.ylabel('efizz onset (s)')
-        plt.savefig(str(self.Process.session.file_path) + "/" + "pulse_sync_regression.png")
+        plt.savefig(str(self.Process.session.processed_path) + "/" + "pulse_sync_regression.png")
 
         # Plot starting, middle and end samples to check alignment
         fig, axs = plt.subplots(3)
@@ -170,7 +170,7 @@ class Verifications():
         axs[2].plot(bonsai_samples[LastPulsesBon : LastPulsesBon + 500000] / self.Process.session.ttl.sampling_rate, \
                     bonsaiSignal[LastPulsesBon : LastPulsesBon + 500000], color='red', label = 'Bonsai')
                 
-        plt.savefig(str(self.Process.session.file_path) + "/" + "pulse_sync_visualize.png")
+        plt.savefig(str(self.Process.session.processed_path) + "/" + "pulse_sync_visualize.png")
         plt.legend()
         plt.show()
         

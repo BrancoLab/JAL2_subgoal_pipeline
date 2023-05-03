@@ -46,7 +46,7 @@ class Track(DLC):
         """
         
         # Check if processing has FULLY been completed before
-        self.processingExists = os.path.isfile(os.path.join(session.file_path, "fully_processed_tracking_data.pickle"))
+        self.processingExists = os.path.isfile(os.path.join(session.processed_path, "fully_processed_tracking_data.pickle"))
 
         # If processing has been done before and you don't want to redo it then log it
         if self.processingExists and not self.settings.redo_processing_step: 
@@ -123,12 +123,12 @@ class Track(DLC):
         + (2, frames)
         The algorithm works on a single body part and thus needs to be called in a recursive manner.
         """
-        if os.path.isfile(os.path.join(session.file_path, "kalman_tracking_data.pickle")):
+        if os.path.isfile(os.path.join(session.processed_path, "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
             
             # Load the kalman tracking data to speed up development but NOTE remove this code
             
-            path = os.path.join(session.file_path, "kalman_tracking_data.pickle")
+            path = os.path.join(session.processed_path, "kalman_tracking_data.pickle")
             with open(path, 'rb') as f:
                 # deserialize the data and load it into a Python object
                 self.lds_tracking_data = pickle.load(f)
@@ -163,7 +163,7 @@ class Track(DLC):
         """
         Save the kalman tracking dictionary to a pickle file contained within the session folder. 
         """
-        savePath = os.path.join(session.file_path, "kalman_tracking_data.pickle")
+        savePath = os.path.join(session.processed_path, "kalman_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
             pickle.dump(dictionary, dill_file)
 
@@ -357,7 +357,7 @@ class Track(DLC):
         """
         A function to save the tracking data pickled.
         """
-        savePath = os.path.join(session.file_path, "fully_processed_tracking_data.pickle")
+        savePath = os.path.join(session.processed_path, "fully_processed_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
             pickle.dump(self.region_tracking_data, dill_file)
         

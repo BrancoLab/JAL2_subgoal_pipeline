@@ -27,6 +27,7 @@ class Process():
     """
     def __init__(self, session_ID):
         self.session = get_experiment(session_ID) # Session is experiment now
+        if not(os.path.exists(self.session.processed_path)): os.makedirs(self.session.processed_path)
         
     def create_session(self, video_settings) -> NEW_Session:
         """
@@ -61,7 +62,7 @@ class Process():
                                                              slope = slope, 
                                                              intercept = intercept,
                                                              samplingRate = self.session.ttl.sampling_rate,
-                                                             filePath = self.session.file_path,
+                                                             filePath = self.session.processed_path,
                                                              camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
                                                              lastPulse = lastPulse)
             
