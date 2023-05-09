@@ -42,43 +42,54 @@ class Visualize:
         if self.settings.efizz:  # this will only make efizz plots if you want them
             logger.info(f"Starting to make some efizz overview plots...")
             
+            """ Load synthetic data into visual object"""
             # Sythetic test run 
             # visualObject = Visualize_efizz(self, run= "Test")
             # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'Synth', onsets = "Synthetic_test_onsets", select_good_neurons = True)
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'Synthetic_test')
 
+            """ Load mouse brain data into visual object"""
             # Production - Run 
             visualObject = Visualize_efizz(self, run = "Production", select_good_neurons = True)
             # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'audio', onsets = "Production", select_good_neurons = True)
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'audio')            
 
+            """Make tuning plots"""
             # Production of vectorized plots  
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            visualObject.tuning('hdir', compute_bootstrap = False)
+            # visualObject.tuning('hdir', compute_bootstrap = False)
             # visualObject.tuning('head_shelter_angle', compute_bootstrap = False, object_present = False)
-            visualObject.tuning('head_shelter_angle', compute_bootstrap = False, object_present = True)
-            visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = True)
-            visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = True)
-            visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = False)
-            visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = False) 
+            # visualObject.tuning('head_shelter_angle', compute_bootstrap = False, object_present = True)
+            # visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = True)
+            # visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = True)
+            # visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = False)
+            # visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = False)
 
-            # visualObject.spatial_position_firing()
-            
+            # make a figure of all tuning polar plots for each cluster
+            # visualObject.tuning('all_tuning_by_cluster', compute_bootstrap = False, object_present = False) 
+
+            visualObject.spatial_position_firing() # TODO
+            # TODO: build edge-tuning maps
+            # TODO: tuning heatmap
+
+            """Make plots of stimulus response"""
             logger.info(f"Starting to make some plots of stimulus responses.")
             # if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
             # if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
             # if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
+            # if self.settings.escape_trials: visualObject.single_cluster_raster(stim_type = 'audio')
             
-            # Laser sync test
+            """Laser sync test"""
+            # Laser sync test TODO: check if this still works with new polars data organization
             # if self.settings.escape_trials: visualObject.single_cluster_raster_Laser_test()
 
         logger.info(f"Starting to make some behaviour ONLY overview plots.")
         BehaveObject = Visualize_behave(self)
-        BehaveObject.position_by_bsa()
-        BehaveObject.location_occupancy()
-        BehaveObject.angle_histograms()
+        # BehaveObject.position_by_bsa()
+        # BehaveObject.location_occupancy()
+        # BehaveObject.angle_histograms()
 
     def trials(self, stim_type) -> None:
         """
@@ -400,7 +411,7 @@ class Visualize:
         # self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 
         trial_video_path = Directory(
-            self.settings.save_folder,
+            self.session.processed_path,
             experiment=self.session.experiment,
             stim_type=self.stim_type,
             tracking_video=self.settings.display_tracking,
