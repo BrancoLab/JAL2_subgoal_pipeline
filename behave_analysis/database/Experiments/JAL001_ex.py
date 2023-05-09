@@ -79,5 +79,5 @@ seq1_2 = Experiment(# Mouse specific
                     experiment_date = "2023_03_14",
                     experiment_time = "08_11_32",
                     experiment_path = Path(r"001_seq1_2_2023_03_14T08_11_32"),
-                    shelter_time = [0, -1],
+                    shelter_time = [0, 29],
                     barrier_time = [29, -1])
