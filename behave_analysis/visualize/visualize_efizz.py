@@ -241,8 +241,7 @@ class Visualize_efizz:
             ax = plt.subplot(nrows, ncols, trial_num + 1)
             time1 = (onset_frames/self.processed_data.Visualize.session.video.fps) - timeBeforeStim
             time2 = (onset_frames/self.processed_data.Visualize.session.video.fps) + all_stimulus_durations
-            spikes_trial = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1)
-                                                      & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
+            spikes_trial = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1) & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
             ax.scatter(spikes_trial['aligned_spike_times'].to_numpy()-(onset_frames/self.processed_data.Visualize.session.video.fps),
                        spikes_trial['spike_clusters'].to_numpy(),
                        marker='|', s=5, c='k')
@@ -266,13 +265,12 @@ class Visualize_efizz:
         for trial, onset_frames in enumerate(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames):
             time1 = (onset_frames / self.processed_data.Visualize.session.video.fps) - timeBeforeStim 
             time2 = (onset_frames / self.processed_data.Visualize.session.video.fps) + stimulus_durations
-            filt = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1)
-                                            & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
+            filt = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1) & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
             filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/self.processed_data.Visualize.session.video.fps)),
                                 pl.col('spike_clusters'),
                                 pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
             if trial == 0: spikes_trial = filt
-            else: spikes_trial =spikes_trial.vstack(filt)      
+            else: spikes_trial = spikes_trial.vstack(filt)      
 
         # How many plots do we need?
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
@@ -351,7 +349,7 @@ class Visualize_efizz:
 
             # head direction
             if run['hdir']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.Video_df, 'hdir')
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'hdir')
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
             # head shelter angle
             if len(self.processed_data.Visualize.session.shelter_time) > 0:
@@ -589,7 +587,7 @@ class Visualize_efizz:
             spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
             # align spike dataframe to video dataframe
-            filtered_video_df = self.Video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
+            filtered_video_df = self.processed_data.Video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
             spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
             spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
             axs[counter-(nrows*ncols*fnum)].scatter(spike_to_video_df['mouse_x_position'].to_numpy(),
