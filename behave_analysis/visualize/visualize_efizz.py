@@ -4,11 +4,8 @@ import numpy as np
 from glob import glob
 import polars as pl
 import os
-import matplotlib
-# matplotlib.use('TKAgg')
-matplotlib.use('Agg')
+import matplotlib 
 import matplotlib.pyplot as plt
-plt.switch_backend('agg')
 from loguru import logger
 
 class PreProcess:
@@ -41,10 +38,14 @@ class PreProcess:
             raise ValueError("Run type not recognised")
 
     def process_spike_data(self):
+        """
+        Filter the spike data to only include good neurons or good + MUA
+        """
         dataFrame = pl.read_csv(self.csv_path)
         if self.select_good_neurons:
             self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'good')
         else:
+            #TO DO - add MUA and good neuron filtering
             self.spikedataframe = dataFrame
 
         print("Loaded spike data")
@@ -57,17 +58,20 @@ class PreProcess:
             self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
             np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
             self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
-        
          # is there a time with shelter only?
         if len(self.Visualize.session.shelter_time) > 0:
-            if self.Visualize.session.shelter_time[1] == -1: # shelter only until the end of the session
-                shelteronly = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
+            if not(np.logical_and(self.Visualize.session.shelter_time[0] == 0, self.Visualize.session.shelter_time[1] == -1)):
+                if self.Visualize.session.shelter_time[1] == -1: # shelter only until the end of the session
+                    shelteronly = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
+                else:
+                    shelteronly = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps),
+                                                np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.sheltertime[1]*self.Visualize.session.video.fps))
             else:
-                shelteronly = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps),
-                                             np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.sheltertime[1]*self.Visualize.session.video.fps))
+                shelteronly = np.zeros(len(OutofShelterIdx)) == 0
+                print('shelter always present')
         else:
-            shelteronly = np.zeros(len(OutofShelterIdx)) == 1
-
+            shelteronly = np.zeros(len(OutofShelterIdx)) == 0
+            print('no shelter in this session')
          # what period in the recording was there a barrier?
         if len(self.Visualize.session.barrier_time) > 0:
             if self.Visualize.session.barrier_time[1] == -1: # shelter only until the end of the session
@@ -77,12 +81,11 @@ class PreProcess:
                                              np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.barriertime[1]*self.Visualize.session.video.fps))
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
-
+            print('no barrier in this session')
         # find the escape periods
         EscapePeriod = np.zeros_like(OutofShelterIdx)
         for onsets in self.Visualize.session.audio.onset_frames:
             EscapePeriod[(onsets[0]-self.Visualize.session.video.fps):(onsets[0]+(10*self.Visualize.session.video.fps))] = 1
-
         # make a video dataframe where for each video frame:
         self.Video_df = pl.DataFrame(
                 {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
@@ -335,7 +338,7 @@ class Visualize_efizz:
             filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, which_angle, object_present)
 
             # compute tuning
-            logger.info("Calculating Rayleigh vectors")
+            logger.info("Calculating Rayleigh vectors for condition: " + str(title) + "is object present: " + str(object_present))
             self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
             logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
             self.all_clusters_polar_plots(title) 
@@ -387,20 +390,22 @@ class Visualize_efizz:
         The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes
         Rayleigh's R close to zero = untuned, fires at all head directions
         Rayleigh's R close to 1 = very tuned, fires only when head is in one orientation"""
+        
+        logger.info("Calculating Rayleigh vectors for condition: " + angle_filt + str(title))
 
         # edges for binning firing rate at different angles
-        number_of_bins = 19
-        bin_angles, bin_angle_center = generate_bin_angles(number_of_bins)
+        bin_angles, bin_angle_center = generate_bin_angles(number_of_bins = 19)
+        
         if not hasattr(self, 'tuning_dict'):
             self.tuning_dict = {'angles': bin_angle_center[1:-1]}
+            
+        # Catch empty video dataframes
+        if len(filtered_video_df) == 0:
+            raise ValueError("Video dataframe is empty, bug.")
 
-        # initialize variables
+        # initialize variables to compute the Rayleigh vector
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
-        Rayleigh_theta = np.empty([len(number_of_clusters)]) # preferred angle
-        Rayleigh = np.empty([len(number_of_clusters)]) # amplitude of Rayleigh vector
-        Rayleigh_sig = np.zeros([len(number_of_clusters)]) # is the Ryleigh significant?
-        Rayleigh_cluster = np.empty([len(number_of_clusters)]) # which cluster ID is this Rayleigh value for?
-        angle_firing_hist = np.empty([len(number_of_clusters),len(bin_angle_center)-2])
+        Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(number_of_clusters, bin_angle_center)
 
         # assign spike times of each cluster to the corresponding video frame, then assign HD
         for counter,c in enumerate(number_of_clusters):
@@ -409,12 +414,17 @@ class Visualize_efizz:
             # count number of spikes on each video frame, and then turn it into firing rate (Hz)
             spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
+                     
+            # Cast frames to float to permit join and remove old frames column with wrong type 
+            filtered_video_df = filtered_video_df.select([pl.col('frames').apply(float), pl.exclude('frames')])
+            
             # align spike dataframe to video dataframe
-            filtered_video_df = filtered_video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
             spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+            
             if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
                 logger.info(f"Cluster {c} had no spikes")
                 continue
+            
             # calculate firing rates in angle bins
             spike_to_video_df = spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
             spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df[angle_filt].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
@@ -422,10 +432,12 @@ class Visualize_efizz:
             spike_to_video_df = spike_to_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) 
             angles_firing = (spike_to_video_df.groupby(by = 'binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
             angles_firing = angles_firing.sort('binned_angles')
+            
             # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
             all_angles_firing = pl.DataFrame({'all_angles': bin_angle_center[1:-1]})
             all_angles_firing = all_angles_firing.join(angles_firing, left_on="all_angles", right_on="binned_angles", how="left")
             all_angles_firing = all_angles_firing.fill_null(strategy="zero")
+            
             # compute rayleigh
             Rayleigh[counter], Rayleigh_theta[counter] = compute_rayleigh(all_angles_firing['all_angles'].to_numpy(),all_angles_firing['mean_firing_rate'].to_numpy())
             Rayleigh_cluster[counter] = c
@@ -487,7 +499,9 @@ class Visualize_efizz:
 
     def all_clusters_polar_plots(self, title):
         """
-        It makes a polar plot of firing at each angle (e.g. HD or HSA) for each cluster
+        It makes a polar plot of firing at each angle (e.g. HD or HSA) for each cluster.
+        self.tuning_dict['angles'] is a binned set of angles and self.tuning_dict[title][0] will give you the firing rates for cluster 0.
+        Where the title is what the tunning was calculated for (e.g. 'HD' or 'HSA').
         """
         # ---------------------------------------------------
         # set up polar plots figure
@@ -502,6 +516,7 @@ class Visualize_efizz:
 
         # assign spike times of each cluster to the corresponding video frame, then assign HD
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
+        logger.info("About to generate plots for {} clusters".format(len(number_of_clusters)))
         for counter,c in enumerate(number_of_clusters):
             # if you have filled a figure with polar plots, move onto next figure
             if counter >= (ncols*nrows)*fnum:
@@ -511,9 +526,19 @@ class Visualize_efizz:
                 fnum = fnum + 1
                 axs = axs.ravel()
             ax = plt.subplot(nrows,ncols,1+counter-(nrows*ncols*(fnum-1)),projection = 'polar')
+            
             # polar plots!
-            ax.bar(self.tuning_dict['angles'], self.tuning_dict[title][counter,:], width=(2*np.pi)/(len(self.tuning_dict['angles'])+1), bottom=0.0, color='green', alpha=0.5)
-            ax.vlines(self.Rayleigh_theta[title][counter], 0, self.Rayleigh[title][counter]*np.amax(self.tuning_dict[title][counter,:]), colors='black')
+            ax.bar(self.tuning_dict['angles'], 
+                   self.tuning_dict[title][counter,:], 
+                   width=(2*np.pi)/(len(self.tuning_dict['angles'])+1), 
+                   bottom=0.0, 
+                   color='green', 
+                   alpha=0.5)
+            
+            ax.vlines(self.Rayleigh_theta[title][counter], 
+                      0, 
+                      self.Rayleigh[title][counter]*np.amax(self.tuning_dict[title][counter,:]), colors='black')
+            
             # add title to the subplot
             if self.Rayleigh_sig[title][counter] == 1:
                 ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
@@ -554,7 +579,7 @@ class Visualize_efizz:
         plt.tight_layout()
         cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, "cluster_plots")
         if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
-        plt.savefig(str(cluster_path + "/cluster" + str(c) + "_polar_plots.png"))
+        plt.savefig(str(cluster_path + "/cluster" + str(c) + self.processed_data.spikedataframe["cluster_group"][c] + "_polar_plots.png"))
         if self.processed_data.Visualize.settings.show_plots: 
             plt.show()  
         #plt.close()
@@ -609,6 +634,17 @@ class Visualize_efizz:
 
 # Utility functions ------------------------------------------------------------------------------------------------
 
+def init_rayleigh(number_of_clusters, bin_angle_center):
+    """
+    Initializes the variables needed to compute the Rayleigh test
+    """
+    Rayleigh_theta = np.empty([len(number_of_clusters)]) # preferred angle
+    Rayleigh = np.empty([len(number_of_clusters)]) # amplitude of Rayleigh vector
+    Rayleigh_sig = np.zeros([len(number_of_clusters)]) # is the Ryleigh significant?
+    Rayleigh_cluster = np.empty([len(number_of_clusters)]) # which cluster ID is this Rayleigh value for?
+    angle_firing_hist = np.empty([len(number_of_clusters),len(bin_angle_center)-2])
+    return Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist
+    
 def compute_rayleigh(angles,firing):
     x = np.sum(np.cos(angles)*(firing))/np.sum(firing)
     y = np.sum(np.sin(angles)*(firing))/np.sum(firing)
@@ -617,6 +653,9 @@ def compute_rayleigh(angles,firing):
     return r, theta
 
 def filter_video_dataframe(dataframe, which_angle, object_present):
+    """
+    A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
+    """
     if which_angle == 'head_shelter_angle':
         filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
                                             (dataframe["EscapePeriod"] == False) & 
@@ -641,7 +680,9 @@ def filter_video_dataframe(dataframe, which_angle, object_present):
         angle_filt = 'hdir'
         
     title = angle_filt
-    if object_present == False: title = str('pre_' + angle_filt)
+    if object_present == False: 
+        title = str('pre_' + angle_filt)
+        
     return filtered_video_df, angle_filt, title
 
 def find_bin_labels(angles, bins, labels): 
