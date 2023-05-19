@@ -17,10 +17,12 @@ class LoadEfizz():
         A function that collects all the efizz files from the session folder. Although dirnames
         not used, it is needed to walk the directory tree
         """
+        logger.info("Searching through efizz files")
         files = []
         for dirpath, dirnames, filenames in os.walk(self.file_path):
             for filename in filenames:
                 files.append(os.path.join(dirpath, filename))
+        logger.success("Efizz file names collected")
         return files
     
     def select_and_load_efizz_files(self) -> None:
@@ -29,7 +31,6 @@ class LoadEfizz():
         Should return a list of strings
         """
         try:
-            
             self.spike_times = np.load(self.filter_by_ending(self.files, "spike_times.npy")[0])
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
             self.spike_clusters = np.hstack(self.spike_clusters)
@@ -43,10 +44,10 @@ class LoadEfizz():
             assert self.cluster_group[0][0] == "0", "The first cluster should be indexed by 0" # sort check 
             
             return Electrophsyiology(spike_times = self.spike_times, 
-                                      spike_clusters = self.spike_clusters,
-                                      cluster_group = self.cluster_group,
-                                      TTL_bin_path = self.TTL_bin_path,
-                                      number_of_good_units = self.num_of_good_units)
+                                     spike_clusters = self.spike_clusters,
+                                     cluster_group = self.cluster_group,
+                                     TTL_bin_path = self.TTL_bin_path,
+                                     number_of_good_units = self.num_of_good_units)
             
         except IndexError:
             raise IndexError(f"One of these files did not exsist within {self.files}")
