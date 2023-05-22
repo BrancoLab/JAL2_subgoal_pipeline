@@ -118,6 +118,7 @@ if __name__ == "__main__":
 
     head_direction_only.write_csv(path)
     logger.success("Head direction dataframe saved to {}".format(path))
+    print(head_direction_only)
     
     # shelter_direction_only = pl.DataFrame({"spike_times": [0] * len(shelter_direction_spikes), # Not used
     #                                        "spike_clusters": shelter_direction_clusters,
