@@ -60,11 +60,11 @@ class Visualize:
 
             visualObject.compute_a_single_tuning_for_all_cells('hdir', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False)
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
-            visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
-            visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
-            visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
-            visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = False)
-            visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = False)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = False)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = False)
 
             # make a figure of all tuning polar plots for each cluster
             visualObject.compute_all_tunings_for_each_cell(spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False) 
