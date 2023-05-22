@@ -6,6 +6,7 @@ import polars as pl
 import os
 import matplotlib 
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 from loguru import logger
 import time
 
@@ -21,7 +22,7 @@ class PreProcess:
         self.run_type = run
         
         self.load_spike_data()
-        self.process_spike_data()
+        self.filter_spike_data()
         self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(user_wants_to_regenerate_spike_by_frame_count)
         
@@ -40,7 +41,7 @@ class PreProcess:
         else: 
             raise ValueError("Run type not recognised")
 
-    def process_spike_data(self):
+    def filter_spike_data(self):
         """
         Filter the spike data to only include good neurons or good + MUA
         """
@@ -51,10 +52,14 @@ class PreProcess:
         if self.select_good_neurons:
             self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'good')
             logger.info("Loaded good neurons only")
+            numneurons = len(self.spikedataframe['spike_clusters'].unique())
+            logger.info(f"Loaded {numneurons} neurons")
             
         elif self.select_mua:
             self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'mua')
             logger.info("Loaded MUA only")
+            numneurons = len(self.spikedataframe['spike_clusters'].unique())
+            logger.info(f"Loaded {numneurons} neurons")
         
         else:
             self.spikedataframe = dataFrame
@@ -135,7 +140,7 @@ class PreProcess:
             start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(self.processed_data.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
+            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
             return spikecountbyframe_neuron
         
         finally:
