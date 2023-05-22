@@ -5,7 +5,7 @@ from glob import glob
 import polars as pl
 import os
 import matplotlib
-matplotlib.use('TKAgg')
+# matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 from loguru import logger
 
