@@ -1,3 +1,5 @@
+#TODO update visualize behaviour to use new preprocess object as attributes will not be found now
+
 # OS libaries
 import numpy as np
 from glob import glob

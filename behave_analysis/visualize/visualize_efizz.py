@@ -6,21 +6,25 @@ import polars as pl
 import os
 import matplotlib 
 import matplotlib.pyplot as plt
+matplotlib.use('Agg')
 from loguru import logger
+import time
 
 class PreProcess:
     """
     A class that loads the csv of aligned data and processes it into a dataframe that can be used for visualisation
     """
-    def __init__(self,  visualize_object, run = "Production", select_good_neurons = True):
+    def __init__(self,  visualize_object, run = "Production", select_mua = False, select_good_neurons = True, user_wants_to_regenerate_spike_by_frame_count = False):
         logger.info("Preprocessing started")
         self.Visualize = visualize_object
         self.select_good_neurons = select_good_neurons
+        self.select_mua = select_mua
         self.run_type = run
         
         self.load_spike_data()
-        self.process_spike_data()
+        self.filter_spike_data()
         self.track_to_polars()
+        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(user_wants_to_regenerate_spike_by_frame_count)
         
     def load_spike_data(self):
         """
@@ -37,16 +41,29 @@ class PreProcess:
         else: 
             raise ValueError("Run type not recognised")
 
-    def process_spike_data(self):
+    def filter_spike_data(self):
         """
         Filter the spike data to only include good neurons or good + MUA
         """
+        # NOTE - This will break if user says yes to both mua and good - too tired to fix 
+        
         dataFrame = pl.read_csv(self.csv_path)
+        
         if self.select_good_neurons:
             self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'good')
+            logger.info("Loaded good neurons only")
+            numneurons = len(self.spikedataframe['spike_clusters'].unique())
+            logger.info(f"Loaded {numneurons} neurons")
+            
+        elif self.select_mua:
+            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'mua')
+            logger.info("Loaded MUA only")
+            numneurons = len(self.spikedataframe['spike_clusters'].unique())
+            logger.info(f"Loaded {numneurons} neurons")
+        
         else:
-            #TO DO - add MUA and good neuron filtering
             self.spikedataframe = dataFrame
+            logger.info("Loaded all neurons")
 
         print("Loaded spike data")
 
@@ -100,6 +117,43 @@ class PreProcess:
                 "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
                 "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
 
+    def count_spikes_and_units_to_frames(self, user_wants_to_regenerate_spike_by_frame_count = False):
+        """
+        Testing the query format of polars. In theory by using the query formation we can speed up the computation of the spike count outside of a loop
+        by using the lazy() function, which means that computations are not immediately executed. This allows the computer to plan the operations before
+        proceeding. Additionally the computational power is not linear, and thread operations are at play. This means outside of a loop should be faster. 
+        """
+        
+        # NOTE - THis will create an arror if the filteer on the cells changes e.g good vs mua as the dataframe will not update
+        # TODO - Fix this
+        
+        try:
+            with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv", "rb") as file:
+                spikecountbyframe_neuron = pl.read_csv(file.read())
+            logger.success("Found spike count by frame and cluster dataframe, loading it now")
+            return spikecountbyframe_neuron
+                
+        except FileNotFoundError:
+            logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
+            logger.info("Commencing long computation to count spikes for each cluster for each frame")
+            query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
+            start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
+            spikecountbyframe_neuron = query.collect()
+            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
+            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
+            return spikecountbyframe_neuron
+        
+        finally:
+            if user_wants_to_regenerate_spike_by_frame_count == True:
+                logger.info("recreating the spike count by frame and unit dataframe as requested by user, likely because of changing the filter on cluster type, creating it now")
+                logger.info("Commencing long computation to count spikes for each cluster for each frame")
+                query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
+                start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
+                spikecountbyframe_neuron = query.collect()
+                print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
+                spikecountbyframe_neuron.write_csv(self.processed_data.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
+                return spikecountbyframe_neuron
+                
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters
@@ -322,68 +376,86 @@ class Visualize_efizz:
 
 # FUNCTIONS FOR PLOTTING TUNING ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    def tuning(self, which_angle, compute_bootstrap = False, object_present = True):
+    def compute_all_tunings_for_each_cell(self, spike_count_by_frame_and_neuron, compute_bootstrap = False):
+        """
+        A function that computes every single tuning curve for each cell
+        """
+        logger.info("Commence making figures of each individual cluster and all its respective tuning plots")
+        run = {'hdir': True,'hsa':True, 'pre_hsa': True, 'h_bar_south_a': True, 'pre_h_bar_south_a': True, 'h_bar_north_a': True, 'pre_h_bar_north_a': True}
+        
+        # If the tuning dictionary exsits, then run the keys of the above dtionary, and if the key is int the tuning directory, then set it to false
+        # What?
+        if self.tuning_dict:
+            for key in run.keys():
+                if key in self.tuning_dict: 
+                    run[key] = False
+
+        # head direction
+        if run['hdir']:
+            filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'hdir')
+            self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+            
+        # head shelter angle
+        if len(self.processed_data.Visualize.session.shelter_time) > 0:
+            if run['hsa']:
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle', object_present = True)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                if not(np.logical_and(self.processed_data.Visualize.session.shelter_time[0] == 0, self.processed_data.Visualize.session.shelter_time[1] == -1)):
+                    if run['pre_hsa']:
+                        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle',object_present = False)
+                        self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                        
+        # head barrier angle
+        if len(self.processed_data.Visualize.session.barrier_time) > 0:
+            if run['h_bar_south_a']:
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = True)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                
+            if run['h_bar_north_a']:
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = True)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                
+            if not(np.logical_and(self.processed_data.Visualize.session.barrier_time[0] == 0, self.processed_data.Visualize.session.barrier_time[1] == -1)):
+                if run['pre_h_bar_south_a']:
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = False)
+                    self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                    
+                if run['pre_h_bar_north_a']:
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = False)
+                    self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+
+        # individual figures for each cluster with all polar plots
+        number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
+        for c in number_of_clusters:
+            self.single_cluster_polar_plots(c)
+            
+        logger.success("Finished making figures of each individual cluster and all its respective tuning plots")
+        
+    def compute_a_single_tuning_for_all_cells(self, which_angle, spike_count_by_frame_and_neuron, compute_bootstrap = False, object_present = True):
         """
         Calculates tuning for individual clusters. Has two modes:
         1. input an angle (e.g. 'hdir') and it computes Rayleigh R and makes polar plots for that angle
         2. all_tuning_by_cluster goes through each cluster and computes rayleigh R for all possible angles ('hdir', 'hsa' and 'hba') 
         and plots the polar plots in one figure for each cluster
         """
+        # subselect frames of interest:
+        # 1. mouse has to be outside shelter
+        # 2. for hdir take all time, for hsa take times when only a shelter was present in the arena, for hba take times when barrier was present
+        # 3. exclude threat stimuli times and the escape
+        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, which_angle, object_present)
 
-        if not(which_angle == 'all_tuning_by_cluster'):
-            # subselect frames of interest:
-            # 1. mouse has to be outside shelter
-            # 2. for hdir take all time, for hsa take times when only a shelter was present in the arena, for hba take times when barrier was present
-            # 3. exclude threat stimuli times and the escape
-            filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, which_angle, object_present)
+        logger.info("Commence making figures of every cluster for a single tuning curve")
+        
+        # compute tuning
+        logger.info("Calculating Rayleigh vectors for condition: " + str(title) + "is object present: " + str(object_present))
+        self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+        
+        logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
+        self.all_clusters_polar_plots(title) 
+        
+        logger.success("Finished making figures of every cluster for a single tuning curve")
 
-            # compute tuning
-            logger.info("Calculating Rayleigh vectors for condition: " + str(title) + "is object present: " + str(object_present))
-            self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-            logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
-            self.all_clusters_polar_plots(title) 
-
-        else: 
-            logger.info("making figures of each cluster and all its tuning plots")
-            run = {'hdir': True,'hsa':True, 'pre_hsa': True, 'h_bar_south_a': True, 'pre_h_bar_south_a': True, 'h_bar_north_a': True, 'pre_h_bar_north_a': True}
-            if self.tuning_dict:
-                for key in run.keys():
-                    if key in self.tuning_dict: run[key] = False
-
-            # head direction
-            if run['hdir']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'hdir')
-                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-            # head shelter angle
-            if len(self.processed_data.Visualize.session.shelter_time) > 0:
-                if run['hsa']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle',object_present = True)
-                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-                    if not(np.logical_and(self.processed_data.Visualize.session.shelter_time[0] == 0, self.processed_data.Visualize.session.shelter_time[1] == -1)):
-                        if run['pre_hsa']:
-                            filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle',object_present = False)
-                            self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-            # head barrier angle
-            if len(self.processed_data.Visualize.session.barrier_time) > 0:
-                if run['h_bar_south_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = True)
-                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-                if run['h_bar_north_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = True)
-                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-                if not(np.logical_and(self.processed_data.Visualize.session.barrier_time[0] == 0, self.processed_data.Visualize.session.barrier_time[1] == -1)):
-                    if run['pre_h_bar_south_a']:
-                        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = False)
-                        self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-                    if run['pre_h_bar_north_a']:
-                        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = False)
-                        self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
-            # individual figures for each cluster with all polar plots
-            number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
-            for c in number_of_clusters:
-                self.single_cluster_polar_plots(c)
-
-    def rayleigh_vector(self,filtered_video_df, angle_filt, title, compute_bootstrap):
+    def rayleigh_vector(self, filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap = False):
         """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
         It only considers times when the mouse was outside the shelter
         It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
@@ -391,8 +463,6 @@ class Visualize_efizz:
         Rayleigh's R close to zero = untuned, fires at all head directions
         Rayleigh's R close to 1 = very tuned, fires only when head is in one orientation"""
         
-        logger.info("Calculating Rayleigh vectors for condition: " + angle_filt + str(title))
-
         # edges for binning firing rate at different angles
         bin_angles, bin_angle_center = generate_bin_angles(number_of_bins = 19)
         
@@ -406,25 +476,27 @@ class Visualize_efizz:
         # initialize variables to compute the Rayleigh vector
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
         Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(number_of_clusters, bin_angle_center)
-
+        
         # assign spike times of each cluster to the corresponding video frame, then assign HD
         for counter,c in enumerate(number_of_clusters):
+                        
             # filter by cluster
-            spikes = self.processed_data.spikedataframe.filter(self.processed_data.spikedataframe['spike_clusters'] == c)
-            # count number of spikes on each video frame, and then turn it into firing rate (Hz)
-            spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            spikes = spike_count_by_frame_and_neuron.filter(spike_count_by_frame_and_neuron['spike_clusters'] == c)
+            
+            # Convert spike count to firing rate
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
-                     
+                                 
             # Cast frames to float to permit join and remove old frames column with wrong type 
             filtered_video_df = filtered_video_df.select([pl.col('frames').apply(float), pl.exclude('frames')])
             
             # align spike dataframe to video dataframe
             spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
             
+            # Check for empoty cluster dataframes
             if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
-                logger.info(f"Cluster {c} had no spikes")
+                logger.info(f"Cluster {c} had no spikes, skipping this cluster and no Rayleigh vector will be computed for it nor will it be plotted")
                 continue
-            
+ 
             # calculate firing rates in angle bins
             spike_to_video_df = spike_to_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
             spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df[angle_filt].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
@@ -437,12 +509,12 @@ class Visualize_efizz:
             all_angles_firing = pl.DataFrame({'all_angles': bin_angle_center[1:-1]})
             all_angles_firing = all_angles_firing.join(angles_firing, left_on="all_angles", right_on="binned_angles", how="left")
             all_angles_firing = all_angles_firing.fill_null(strategy="zero")
-            
+                        
             # compute rayleigh
             Rayleigh[counter], Rayleigh_theta[counter] = compute_rayleigh(all_angles_firing['all_angles'].to_numpy(),all_angles_firing['mean_firing_rate'].to_numpy())
             Rayleigh_cluster[counter] = c
             angle_firing_hist[counter,:] = all_angles_firing['mean_firing_rate'].to_numpy()
-
+            
             # bootstrap x times with variable shifts in time
             if compute_bootstrap:
                 x = 100
@@ -515,6 +587,7 @@ class Visualize_efizz:
         axs = axs.ravel()
 
         # assign spike times of each cluster to the corresponding video frame, then assign HD
+        
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
         logger.info("About to generate plots for {} clusters".format(len(number_of_clusters)))
         for counter,c in enumerate(number_of_clusters):
@@ -528,12 +601,17 @@ class Visualize_efizz:
             ax = plt.subplot(nrows,ncols,1+counter-(nrows*ncols*(fnum-1)),projection = 'polar')
             
             # polar plots!
-            ax.bar(self.tuning_dict['angles'], 
-                   self.tuning_dict[title][counter,:], 
-                   width=(2*np.pi)/(len(self.tuning_dict['angles'])+1), 
-                   bottom=0.0, 
-                   color='green', 
-                   alpha=0.5)
+            if self.tuning_dict['angles'].size > 0 and len(self.tuning_dict[title][counter,:]) > 0:
+                ax.bar(self.tuning_dict['angles'], 
+                    self.tuning_dict[title][counter,:], 
+                    width=(2*np.pi)/(len(self.tuning_dict['angles'])+1), 
+                    bottom=0.0, 
+                    color='green', 
+                    alpha=0.5)
+                
+            else:
+                logger.warning(f"Empty array for cluster {c}. Skipping plot.")
+                continue # skip this cluster
             
             ax.vlines(self.Rayleigh_theta[title][counter], 
                       0, 
@@ -542,8 +620,10 @@ class Visualize_efizz:
             # add title to the subplot
             if self.Rayleigh_sig[title][counter] == 1:
                 ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
+                
             else:
                 ax.title.set_text('clu ' + str(c) + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
+                
             # save the whole figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(number_of_clusters)-1):
                 plt.tight_layout()
