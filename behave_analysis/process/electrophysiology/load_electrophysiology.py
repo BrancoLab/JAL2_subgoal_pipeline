@@ -31,16 +31,19 @@ class LoadEfizz():
         Should return a list of strings
         """
         try:
+            assert len(self.files) != 0, "Session list should not be empty"
+            assert len(self.filter_by_ending(self.files, "spike_times.npy")) == 1, "There should only be one spike_times.npy file"
+            assert len(self.filter_by_ending(self.files, "spike_clusters.npy")) == 1, "There should only be one spike_clusters.npy file"
+            assert len(self.filter_by_ending(self.files, "cluster_group.tsv")) == 1, "There should only be one cluster_group.tsv file"
+            
             self.spike_times = np.load(self.filter_by_ending(self.files, "spike_times.npy")[0])
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
             self.spike_clusters = np.hstack(self.spike_clusters)
             self.TTL_bin_path = self.filter_by_ending(self.files, "imec0.ap.bin")[0]
-            
             self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter = "\t", skiprows=1, dtype = str)
             self.num_of_good_units = self.count_number_of_good_units()
             logger.info(f"The number of good units is: {self.num_of_good_units} out of {len(self.cluster_group)} units")
             
-            # Unit tests
             assert self.cluster_group[0][0] == "0", "The first cluster should be indexed by 0" # sort check 
             
             return Electrophsyiology(spike_times = self.spike_times, 
