@@ -41,8 +41,10 @@ class LoadEfizz():
             self.spike_clusters = np.hstack(self.spike_clusters)
             self.TTL_bin_path = self.filter_by_ending(self.files, "imec0.ap.bin")[0]
             self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter = "\t", skiprows=1, dtype = str)
-            self.num_of_good_units = self.count_number_of_good_units()
+            self.num_of_good_units = self.count_number_of_label_units("good")
             logger.info(f"The number of good units is: {self.num_of_good_units} out of {len(self.cluster_group)} units")
+            num_mua = self.count_number_of_label_units("mua")
+            logger.info(f"The number of mua is: {num_mua} out of {len(self.cluster_group)} units")
             
             assert self.cluster_group[0][0] == "0", "The first cluster should be indexed by 0" # sort check 
             
@@ -61,8 +63,8 @@ class LoadEfizz():
         """
         return [s for s in lst if s.endswith(ending)]
         
-    def count_number_of_good_units(self):
+    def count_number_of_label_units(self, label):
         """
         A function that counts the number of good units in the cluster group file
         """
-        return np.count_nonzero(self.cluster_group[:,1] == "good")
+        return np.count_nonzero(self.cluster_group[:,1] == label)
