@@ -4,7 +4,7 @@ from behave_analysis.track.register import load_fisheye_correction_map, correct_
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
-from behave_analysis.visualize.visualize_efizz import Visualize_efizz
+from behave_analysis.visualize.visualize_efizz import Visualize_efizz, PreProcess
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 
 # OS libaries
@@ -21,7 +21,7 @@ class Visualize:
     """
 
     def __init__(self, session: object, settings: object):
-        self.session = session
+        self.session = session        
         self.settings = settings
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000 / self.session.video.fps * (not self.settings.rapid) + self.settings.rapid)
@@ -49,45 +49,46 @@ class Visualize:
             # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'Synthetic_test')
 
             """ Load mouse brain data into visual object"""
-            # Production - Run 
-            visualObject = Visualize_efizz(self, run = "Production", select_good_neurons = True)
+            # Production - Run
+            preprocessObject = PreProcess(self, run = "Production", select_mua = True, select_good_neurons = False, user_wants_to_regenerate_spike_by_frame_count = False)
+            visualObject = Visualize_efizz(preprocessObject)
             
             """Make tuning plots"""
             # Production of vectorized plots  
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            visualObject.tuning('hdir', compute_bootstrap = False)
-            visualObject.tuning('head_shelter_angle', compute_bootstrap = False, object_present = False)
-            visualObject.tuning('head_shelter_angle', compute_bootstrap = False, object_present = True)
-            visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = True)
-            visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = True)
-            visualObject.tuning('head_south_barrier_angle', compute_bootstrap = False, object_present = False)
-            visualObject.tuning('head_north_barrier_angle', compute_bootstrap = False, object_present = False)
+            visualObject.compute_a_single_tuning_for_all_cells('hdir', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
+            # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = False)
+            # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = False)
 
             # make a figure of all tuning polar plots for each cluster
-            visualObject.tuning('all_tuning_by_cluster', compute_bootstrap = False, object_present = False) 
+            visualObject.compute_all_tunings_for_each_cell(spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False) 
 
-            visualObject.spatial_position_firing() # TODO
+            # visualObject.spatial_position_firing() # TODO
             # TODO: build edge-tuning maps
             # TODO: tuning heatmap
 
             """Make plots of stimulus response"""
-            logger.info(f"Starting to make some plots of stimulus responses.")
-            if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
-            if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
-            if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
-            if self.settings.escape_trials: visualObject.single_cluster_raster(stim_type = 'audio')
+            # logger.info(f"Starting to make some plots of stimulus responses.")
+            # if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
+            # if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
+            # if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
+            # if self.settings.escape_trials: visualObject.single_cluster_raster(stim_type = 'audio')
             
             """Laser sync test"""
             # Laser sync test TODO: check if this still works with new polars data organization
             # if self.settings.escape_trials: visualObject.single_cluster_raster_Laser_test()
 
-        logger.info(f"Starting to make some behaviour ONLY overview plots.")
-        BehaveObject = Visualize_behave(self)
-        BehaveObject.position_by_bsa()
-        BehaveObject.location_occupancy()
-        BehaveObject.angle_histograms()
+        # logger.info(f"Starting to make some behaviour ONLY overview plots.")
+        # BehaveObject = Visualize_behave(self)
+        # BehaveObject.position_by_bsa()
+        # BehaveObject.location_occupancy()
+        # BehaveObject.angle_histograms()
 
     def trials(self, stim_type) -> None:
         """

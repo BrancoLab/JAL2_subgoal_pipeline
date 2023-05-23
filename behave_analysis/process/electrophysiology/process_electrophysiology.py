@@ -33,18 +33,15 @@ class ProcessedEfizz:
         """
         assert self.spike_times.shape[0] == self.spike_clusters.shape[0], "Spike times and clusters are not the same shape this can't be"
         
-        dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(),
-                                  "spike_clusters": self.spike_clusters,
-                                 })
+        # CREATE DATAFRAME of SPIKE TIMES and CLUSTERS ids
+        dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(), "spike_clusters": self.spike_clusters})
         
-        # ADD CLUSTER GROUPS
-        dataFrame = dataFrame.select(
-            [
-                pl.col("*"),  # select all
-                (pl.col("spike_clusters").apply(lambda x: self.cluster_group[x][1])).alias("cluster_group"),
-            ]
-        )
+        # ADD CLUSTER GROUPS labels
+        clusterLabelDataFrame = pl.DataFrame({"spike_clusters": self.cluster_group[:,0].astype(np.int32), "cluster_group": self.cluster_group[:,1]})
         
+        # MERGE
+        dataFrame = dataFrame.join(clusterLabelDataFrame, on = "spike_clusters")
+
         # UNIT TESTs
         assert len(dataFrame) == len(self.spike_times), "Dataframe not created correctly incorrect length"
         
