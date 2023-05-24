@@ -25,6 +25,7 @@ class PreProcess:
         self.filter_spike_data()
         self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(user_wants_to_regenerate_spike_by_frame_count)
+        self.clean_behavioural_data = self.behaviourally_pure_tracking_data()
         
     def load_spike_data(self):
         """
@@ -69,7 +70,7 @@ class PreProcess:
 
     def track_to_polars(self):
         """
-        Adds all the behavioral variables from track to the polars psike dataframe
+        Adds all the behavioral variables from track to the polars sike dataframe
         """
         OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
             self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
@@ -117,6 +118,17 @@ class PreProcess:
                 "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
                 "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
 
+    def behaviourally_pure_tracking_data(self):
+        """
+        Filter out all the data where the mouse is in the shelter for example
+        """
+        filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) 
+                                                 & (self.Video_df["EscapePeriod"] == False))        
+ 
+        assert len(filtered_video_df) > 0, "No data left after filtering"
+        
+        return filtered_video_df
+
     def count_spikes_and_units_to_frames(self, user_wants_to_regenerate_spike_by_frame_count = False):
         """
         Testing the query format of polars. In theory by using the query formation we can speed up the computation of the spike count outside of a loop
@@ -153,7 +165,8 @@ class PreProcess:
                 print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
                 spikecountbyframe_neuron.write_csv(self.processed_data.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
                 return spikecountbyframe_neuron
-                
+
+
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters

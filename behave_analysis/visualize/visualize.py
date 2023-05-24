@@ -6,6 +6,7 @@ from behave_analysis.utils.generate_stim_status_array import generate_stim_statu
 from behave_analysis.utils.directory import Directory
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz, PreProcess
 from behave_analysis.visualize.visualize_behave import Visualize_behave
+from behave_analysis.visualize.visualize_behave import Correlations
 
 # OS libaries
 from loguru import logger
@@ -19,7 +20,6 @@ class Visualize:
     A class that visualizes the tracking data of a session. Can be used to ensure that the tracking is working.
     The tracking data is loaded from prior pipeline step into a self.tracking_data
     """
-
     def __init__(self, session: object, settings: object):
         self.session = session        
         self.settings = settings
@@ -50,15 +50,27 @@ class Visualize:
 
             """ Load mouse brain data into visual object"""
             # Production - Run
-            preprocessObject = PreProcess(self, run = "Production", select_mua = True, select_good_neurons = False, user_wants_to_regenerate_spike_by_frame_count = False)
+            preprocessObject = PreProcess(self, run = "Production", select_mua = False, select_good_neurons = True, user_wants_to_regenerate_spike_by_frame_count = False)
             visualObject = Visualize_efizz(preprocessObject)
+            
+            # Test Behaviour correlation plots
+            correlationChild = Correlations(MaxPlotsPerFigure = 10, 
+                                            how_many_plots_you_need = 6, 
+                                            CleanVideoDf = preprocessObject.clean_behavioural_data,
+                                            directoryToSaveTo = self.session.processed_path, 
+                                            plotName = "Cheese")
+            
+            correlationChild.create_correration_plot()
             
             """Make tuning plots"""
             # Production of vectorized plots  
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            visualObject.compute_a_single_tuning_for_all_cells('hdir', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False)
+            visualObject.compute_a_single_tuning_for_all_cells('hdir', 
+                                                               spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, 
+                                                               compute_bootstrap = False)
+            
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
             # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', spike_count_by_frame_and_neuron = preprocessObject.spikeCountByFrameAndCluster, compute_bootstrap = False, object_present = True)
