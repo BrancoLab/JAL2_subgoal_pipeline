@@ -50,7 +50,10 @@ class Visualize:
 
             """ Load mouse brain data into visual object"""
             # Production - Run
-            preprocessObject = PreProcess(self, run = "Production", select_clusters = "good", user_wants_to_regenerate_spike_by_frame_count = False)
+            preprocessObject = PreProcess(self, 
+                                          run = "Production", 
+                                          select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+                                          user_wants_to_regenerate_spike_by_frame_count = False)
             visualObject = Visualize_efizz(preprocessObject)
             
             """Make tuning plots"""
@@ -76,7 +79,7 @@ class Visualize:
             """Make plots of stimulus response"""
             # logger.info(f"Starting to make some plots of stimulus responses.")
             # if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
-            # if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
+            if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
             # if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
             # if self.settings.escape_trials: visualObject.single_cluster_raster(stim_type = 'audio')
             
@@ -85,8 +88,8 @@ class Visualize:
             # if self.settings.escape_trials: visualObject.single_cluster_raster_Laser_test()
 
         # logger.info(f"Starting to make some behaviour ONLY overview plots.")
-        # BehaveObject = Visualize_behave(self)
-        # BehaveObject.position_by_bsa()
+        BehaveObject = Visualize_behave(self)
+        BehaveObject.position_by_bsa()
         # BehaveObject.location_occupancy()
         # BehaveObject.angle_histograms()
 

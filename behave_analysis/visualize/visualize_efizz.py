@@ -56,6 +56,9 @@ class PreProcess:
             self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == self.select_clusters)
             numneurons = len(self.spikedataframe['spike_clusters'].unique())
             logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
+        
+        self.clu_label = self.spikedataframe.groupby(["spike_clusters"]).first()
+        self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
 
     def track_to_polars(self):
         """
@@ -117,14 +120,25 @@ class PreProcess:
         # NOTE - THis will create an arror if the filteer on the cells changes e.g good vs mua as the dataframe will not update
         # TODO - Fix this
         
-        try:
-            with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv", "rb") as file:
-                spikecountbyframe_neuron = pl.read_csv(file.read())
-            logger.success("Found spike count by frame and cluster dataframe, loading it now")
-            return spikecountbyframe_neuron
-                
-        except FileNotFoundError:
-            logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
+        if user_wants_to_regenerate_spike_by_frame_count == False:
+            try:
+                with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv", "rb") as file:
+                    spikecountbyframe_neuron = pl.read_csv(file.read())
+                logger.success("Found spike count by frame and cluster dataframe, loading it now")
+                return spikecountbyframe_neuron
+                    
+            except FileNotFoundError:
+                logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
+                logger.info("Commencing long computation to count spikes for each cluster for each frame")
+                query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
+                start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
+                spikecountbyframe_neuron = query.collect()
+                print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
+                spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
+                return spikecountbyframe_neuron
+        
+        elif user_wants_to_regenerate_spike_by_frame_count == True:
+            logger.info("recreating the spike count by frame and unit dataframe as requested by user, likely because of changing the filter on cluster type, creating it now")
             logger.info("Commencing long computation to count spikes for each cluster for each frame")
             query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
             start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
@@ -133,17 +147,6 @@ class PreProcess:
             spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
             return spikecountbyframe_neuron
         
-        finally:
-            if user_wants_to_regenerate_spike_by_frame_count == True:
-                logger.info("recreating the spike count by frame and unit dataframe as requested by user, likely because of changing the filter on cluster type, creating it now")
-                logger.info("Commencing long computation to count spikes for each cluster for each frame")
-                query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
-                start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
-                spikecountbyframe_neuron = query.collect()
-                print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-                spikecountbyframe_neuron.write_csv(self.processed_data.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
-                return spikecountbyframe_neuron
-                
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters
@@ -608,11 +611,14 @@ class Visualize_efizz:
                       self.Rayleigh[title][counter]*np.amax(self.tuning_dict[title][counter,:]), colors='black')
             
             # add title to the subplot
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [c])
             if self.Rayleigh_sig[title][counter] == 1:
-                ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
+                ax.title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' clu ' + str(c) + ' (sig.)' + 
+                                    '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
                 
             else:
-                ax.title.set_text('clu ' + str(c) + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
+                ax.title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' clu ' + str(c) + 
+                                    '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
                 
             # save the whole figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(number_of_clusters)-1):
@@ -648,7 +654,11 @@ class Visualize_efizz:
         plt.tight_layout()
         cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
         if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
-        plt.savefig(str(cluster_path + "/cluster" + str(c) + self.processed_data.spikedataframe["cluster_group"][c] + "_polar_plots.png"))
+        if self.processed_data.select_clusters == "all":
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [c])
+            plt.savefig(str(cluster_path + "/" + this_cluster["cluster_group"].to_numpy() + "cluster" + str(c) + "_polar_plots.png"))
+        else:
+            plt.savefig(str(cluster_path + "/cluster" + str(c) + "_polar_plots.png"))
         if self.processed_data.Visualize.settings.show_plots: 
             plt.show()  
         #plt.close()
@@ -676,9 +686,10 @@ class Visualize_efizz:
                 fnum = fnum + 1
                 axs = axs.ravel()
             # filter spikes by cluster
-            spikes = self.processed_data.spikedataframe.filter(self.processed_data.spikedataframe['spike_clusters'] == cluster)
+            # spikes = self.processed_data.spikedataframe.filter(self.processed_data.spikedataframe['spike_clusters'] == cluster)
             # count number of spikes on each video frame, and then turn it into firing rate (Hz)
-            spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            # spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            spikes = spike_count_by_frame_and_neuron.filter(spike_count_by_frame_and_neuron['spike_clusters'] == c)
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
             # align spike dataframe to video dataframe
             filtered_video_df = self.processed_data.Video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
