@@ -50,7 +50,7 @@ class Visualize:
 
             """ Load mouse brain data into visual object"""
             # Production - Run
-            preprocessObject = PreProcess(self, run = "Production", select_mua = True, select_good_neurons = False, user_wants_to_regenerate_spike_by_frame_count = False)
+            preprocessObject = PreProcess(self, run = "Production", select_clusters = "good", user_wants_to_regenerate_spike_by_frame_count = False)
             visualObject = Visualize_efizz(preprocessObject)
             
             """Make tuning plots"""

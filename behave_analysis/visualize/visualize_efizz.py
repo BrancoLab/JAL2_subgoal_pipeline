@@ -14,18 +14,17 @@ class PreProcess:
     """
     A class that loads the csv of aligned data and processes it into a dataframe that can be used for visualisation
     """
-    def __init__(self,  visualize_object, run = "Production", select_mua = False, select_good_neurons = True, user_wants_to_regenerate_spike_by_frame_count = False):
+    def __init__(self,  visualize_object, run = "Production", select_clusters = "good", user_wants_to_regenerate_spike_by_frame_count = False):
         logger.info("Preprocessing started")
         self.Visualize = visualize_object
-        self.select_good_neurons = select_good_neurons
-        self.select_mua = select_mua
+        self.select_clusters = select_clusters
         self.run_type = run
         
         self.load_spike_data()
         self.filter_spike_data()
         self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(user_wants_to_regenerate_spike_by_frame_count)
-        
+
     def load_spike_data(self):
         """
         Loads the csv of aligned data
@@ -49,23 +48,14 @@ class PreProcess:
         
         dataFrame = pl.read_csv(self.csv_path)
         
-        if self.select_good_neurons:
-            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'good')
-            logger.info("Loaded good neurons only")
-            numneurons = len(self.spikedataframe['spike_clusters'].unique())
-            logger.info(f"Loaded {numneurons} neurons")
-            
-        elif self.select_mua:
-            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'mua')
-            logger.info("Loaded MUA only")
-            numneurons = len(self.spikedataframe['spike_clusters'].unique())
-            logger.info(f"Loaded {numneurons} neurons")
-        
+        if self.select_clusters == 'all':
+            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == "good"
+                                                   & dataFrame['cluster_group'] == "mua")
+            logger.info("Loaded good and multi unit clusters")
         else:
-            self.spikedataframe = dataFrame
-            logger.info("Loaded all neurons")
-
-        print("Loaded spike data")
+            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == self.select_clusters)
+            numneurons = len(self.spikedataframe['spike_clusters'].unique())
+            logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
 
     def track_to_polars(self):
         """
@@ -128,7 +118,7 @@ class PreProcess:
         # TODO - Fix this
         
         try:
-            with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv", "rb") as file:
+            with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv", "rb") as file:
                 spikecountbyframe_neuron = pl.read_csv(file.read())
             logger.success("Found spike count by frame and cluster dataframe, loading it now")
             return spikecountbyframe_neuron
@@ -140,7 +130,7 @@ class PreProcess:
             start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
+            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
             return spikecountbyframe_neuron
         
         finally:
@@ -151,7 +141,7 @@ class PreProcess:
                 start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
                 spikecountbyframe_neuron = query.collect()
                 print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-                spikecountbyframe_neuron.write_csv(self.processed_data.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
+                spikecountbyframe_neuron.write_csv(self.processed_data.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
                 return spikecountbyframe_neuron
                 
 class Visualize_efizz:
@@ -552,7 +542,7 @@ class Visualize_efizz:
         plt.hist(Rayleigh[Rayleigh_sig == 1],np.arange(0,1,.1))
         plt.xlabel('Rayleigh R')
         plt.ylabel('number of clusters')
-        plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title) + "_Rayleigh_vector_hist.png")
+        plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title)  + "_" + self.processed_data.select_clusters +  "_Rayleigh_vector_hist.png")
         if self.processed_data.Visualize.settings.show_plots: plt.show()
 
         # save all to dict
@@ -627,10 +617,9 @@ class Visualize_efizz:
             # save the whole figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(number_of_clusters)-1):
                 plt.tight_layout()
-                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title) + "_cluster_polar_plots_" + str(fnum) + ".png")
+                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title) + "_" + self.processed_data.select_clusters + "_cluster_polar_plots_" + str(fnum) + ".png")
                 if self.processed_data.Visualize.settings.show_plots: 
                     plt.show()  
-                #plt.close() 
 
     def single_cluster_polar_plots(self,c):
         """Plots all polar plots for 1 cluster in 1 figure"""
@@ -657,7 +646,7 @@ class Visualize_efizz:
                         ax.title.set_text(angle + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[angle][counter][0],2)) + ', sig = ' + str(np.around(self.Rayleigh_sig[angle][counter][0],2)))
 
         plt.tight_layout()
-        cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, "cluster_plots")
+        cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
         if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
         plt.savefig(str(cluster_path + "/cluster" + str(c) + self.processed_data.spikedataframe["cluster_group"][c] + "_polar_plots.png"))
         if self.processed_data.Visualize.settings.show_plots: 
