@@ -369,7 +369,7 @@ class Visualize_efizz:
 
 # FUNCTIONS FOR PLOTTING TUNING ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    def compute_all_tunings_for_each_cell(self, spike_count_by_frame_and_neuron, compute_bootstrap = False):
+    def compute_all_tunings_for_each_cell(self, compute_bootstrap = False):
         """
         A function that computes every single tuning curve for each cell
         """
@@ -386,36 +386,36 @@ class Visualize_efizz:
         # head direction
         if run['hdir']:
             filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'hdir')
-            self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+            self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
             
         # head shelter angle
         if len(self.processed_data.Visualize.session.shelter_time) > 0:
             if run['hsa']:
                 filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle', object_present = True)
-                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 if not(np.logical_and(self.processed_data.Visualize.session.shelter_time[0] == 0, self.processed_data.Visualize.session.shelter_time[1] == -1)):
                     if run['pre_hsa']:
                         filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle',object_present = False)
-                        self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                        self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                         
         # head barrier angle
         if len(self.processed_data.Visualize.session.barrier_time) > 0:
             if run['h_bar_south_a']:
                 filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = True)
-                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if run['h_bar_north_a']:
                 filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = True)
-                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if not(np.logical_and(self.processed_data.Visualize.session.barrier_time[0] == 0, self.processed_data.Visualize.session.barrier_time[1] == -1)):
                 if run['pre_h_bar_south_a']:
                     filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = False)
-                    self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                     
                 if run['pre_h_bar_north_a']:
                     filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = False)
-                    self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
 
         # individual figures for each cluster with all polar plots
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
@@ -424,7 +424,7 @@ class Visualize_efizz:
             
         logger.success("Finished making figures of each individual cluster and all its respective tuning plots")
         
-    def compute_a_single_tuning_for_all_cells(self, which_angle, spike_count_by_frame_and_neuron, compute_bootstrap = False, object_present = True):
+    def compute_a_single_tuning_for_all_cells(self, which_angle, compute_bootstrap = False, object_present = True):
         """
         Calculates tuning for individual clusters. Has two modes:
         1. input an angle (e.g. 'hdir') and it computes Rayleigh R and makes polar plots for that angle
@@ -441,14 +441,14 @@ class Visualize_efizz:
         
         # compute tuning
         logger.info("Calculating Rayleigh vectors for condition: " + str(title) + "is object present: " + str(object_present))
-        self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+        self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
         
         logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
         self.all_clusters_polar_plots(title) 
         
         logger.success("Finished making figures of every cluster for a single tuning curve")
 
-    def rayleigh_vector(self, filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap = False):
+    def rayleigh_vector(self, filtered_video_df, angle_filt, title, compute_bootstrap = False):
         """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
         It only considers times when the mouse was outside the shelter
         It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
@@ -474,7 +474,7 @@ class Visualize_efizz:
         for counter,c in enumerate(number_of_clusters):
                         
             # filter by cluster
-            spikes = spike_count_by_frame_and_neuron.filter(spike_count_by_frame_and_neuron['spike_clusters'] == c)
+            spikes = self.processed_data.spikeCountByFrameAndCluster.filter(self.processed_data.spikeCountByFrameAndCluster['spike_clusters'] == c)
             
             # Convert spike count to firing rate
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
@@ -661,12 +661,13 @@ class Visualize_efizz:
             plt.savefig(str(cluster_path + "/cluster" + str(c) + "_polar_plots.png"))
         if self.processed_data.Visualize.settings.show_plots: 
             plt.show()  
-        #plt.close()
+        plt.close()
 
     def spatial_position_firing(self):
         """ A function that makes maps of mousie's position in arena
         and show where each cluster fired"""
 
+        logger.info("Commence making figures of spatial position firing plots of all clusters")
         cc = matplotlib.cm.Reds # could use Reds or copper
         # set number of rows and calculate number of columns
         ncols = 10
@@ -689,7 +690,7 @@ class Visualize_efizz:
             # spikes = self.processed_data.spikedataframe.filter(self.processed_data.spikedataframe['spike_clusters'] == cluster)
             # count number of spikes on each video frame, and then turn it into firing rate (Hz)
             # spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-            spikes = spike_count_by_frame_and_neuron.filter(spike_count_by_frame_and_neuron['spike_clusters'] == c)
+            spikes = self.processed_data.spikeCountByFrameAndCluster.filter(self.processed_data.spikeCountByFrameAndCluster['spike_clusters'] == cluster)
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
             # align spike dataframe to video dataframe
             filtered_video_df = self.processed_data.Video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
@@ -701,13 +702,14 @@ class Visualize_efizz:
             axs[counter-(nrows*ncols*fnum)].set_axis_off()
             axs[counter-(nrows*ncols*fnum)].invert_yaxis()
             axs[counter-(nrows*ncols*fnum)].set_aspect('equal')
-            axs[counter-(nrows*ncols*fnum)].title.set_text('cluster ' + str(cluster))
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [cluster])
+            axs[counter-(nrows*ncols*fnum)].title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' cluster ' + str(cluster))
 
             # save the figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
                              counter == len(self.processed_data.spikedataframe["spike_clusters"].unique())-1):
                 plt.tight_layout()
-                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + "spatial_position_firing_" + str(fnum) + ".png")
+                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
                 if self.processed_data.Visualize.settings.show_plots: 
                     plt.show()
                 #plt.close()
