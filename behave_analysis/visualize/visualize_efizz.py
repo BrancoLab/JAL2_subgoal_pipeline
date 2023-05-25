@@ -1,4 +1,5 @@
 # OS libaries
+from behave_analysis.database.synthetic_data.synthetic_main import synthetic_dataframe
 from loguru import logger
 import numpy as np
 from glob import glob
@@ -18,6 +19,7 @@ class PreProcess:
         logger.info("Preprocessing started")
         self.Visualize = visualize_object
         self.select_clusters = select_clusters
+        if run == "Test": self.select_clusters = "synthetic"
         self.run_type = run
         
         self.load_spike_data()
@@ -33,9 +35,16 @@ class PreProcess:
             self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
         
         elif self.run_type == "Test":
-            logger.warning("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
-            self.csv_path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
-            # self.csv_path = r"C:\Users\jreggiani\Documents\GitHub\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
+            self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
+            if not os.path.exists(self.csv_path):
+                logger.warning("Synethic spike data doesn't exist and will now be generated")
+                tuning = ['hdir']
+                if len(self.Visualize.session.shelter_time) > 0: tuning.append('hsa')
+                if len(self.Visualize.session.barrier_time) > 0: tuning.append('h_bar_north_a','h_bar_south_a')
+                synth_df = synthetic_dataframe(tuning)
+                synth_df.write_csv(self.csv_path)
+            else:
+                logger.info("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
     
         else: 
             raise ValueError("Run type not recognised")
@@ -48,14 +57,18 @@ class PreProcess:
         
         dataFrame = pl.read_csv(self.csv_path)
         
-        if self.select_clusters == 'all':
-            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == "good"
-                                                   & dataFrame['cluster_group'] == "mua")
-            logger.info("Loaded good and multi unit clusters")
-        else:
-            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == self.select_clusters)
-            numneurons = len(self.spikedataframe['spike_clusters'].unique())
-            logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
+        if self.run_type == "Production":
+            if self.select_clusters == 'all':
+                self.spikedataframe = dataFrame.filter((dataFrame['cluster_group'] == "good")
+                                                    | (dataFrame['cluster_group'] == "mua"))
+                logger.info("Loaded good and multi unit clusters")
+            else:
+                self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == self.select_clusters)
+                numneurons = len(self.spikedataframe['spike_clusters'].unique())
+                logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
+        elif self.run_type == "Test":
+            self.spikedataframe = dataFrame
+            logger.info("Loaded all clusters")
         
         self.clu_label = self.spikedataframe.groupby(["spike_clusters"]).first()
         self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
@@ -440,7 +453,7 @@ class Visualize_efizz:
         logger.info("Commence making figures of every cluster for a single tuning curve")
         
         # compute tuning
-        logger.info("Calculating Rayleigh vectors for condition: " + str(title) + "is object present: " + str(object_present))
+        logger.info("Calculating Rayleigh vectors for condition: " + str(title) + ", is object present? " + str(object_present))
         self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
         
         logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
@@ -654,9 +667,9 @@ class Visualize_efizz:
         plt.tight_layout()
         cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
         if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
-        if self.processed_data.select_clusters == "all":
+        if np.logical_or(self.processed_data.select_clusters == "all", self.processed_data.select_clusters == "synthetic"):
             this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [c])
-            plt.savefig(str(cluster_path + "/" + this_cluster["cluster_group"].to_numpy() + "cluster" + str(c) + "_polar_plots.png"))
+            plt.savefig(str(cluster_path + "/" + this_cluster["cluster_group"].to_numpy()[0] + "_cluster" + str(c) + "_polar_plots.png"))
         else:
             plt.savefig(str(cluster_path + "/cluster" + str(c) + "_polar_plots.png"))
         if self.processed_data.Visualize.settings.show_plots: 

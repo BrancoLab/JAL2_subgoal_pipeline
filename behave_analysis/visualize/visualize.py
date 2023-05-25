@@ -42,18 +42,12 @@ class Visualize:
         if self.settings.efizz:  # this will only make efizz plots if you want them
             logger.info(f"Starting to make some efizz overview plots...")
             
-            """ Load synthetic data into visual object"""
-            # Sythetic test run 
-            # visualObject = Visualize_efizz(self, run= "Test")
-            # spike_dictionary = visualObject.extract_trial_spikes(stim_type = 'Synth', onsets = "Synthetic_test_onsets", select_good_neurons = True)
-            # visualObject.plot_single_cluster_raster(spikes_by_trials_and_cluster = spike_dictionary, stim_type = 'Synthetic_test')
-
-            """ Load mouse brain data into visual object"""
+            """ Load data into visual object"""
             # Production - Run
             preprocessObject = PreProcess(self, 
-                                          run = "Production", 
+                                          run = "Test", # "Test" for synth data, "Production" for mouse brain data
                                           select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-                                          user_wants_to_regenerate_spike_by_frame_count = False)
+                                          user_wants_to_regenerate_spike_by_frame_count = True)
             visualObject = Visualize_efizz(preprocessObject)
             
             """Make tuning plots"""
@@ -61,7 +55,7 @@ class Visualize:
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            # visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
+            visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = True)
             # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle',  compute_bootstrap = False, object_present = True)
@@ -70,7 +64,7 @@ class Visualize:
             # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', compute_bootstrap = False, object_present = False)
 
             # make a figure of all tuning polar plots for each cluster
-            # visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
+            visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
 
             visualObject.spatial_position_firing()
             # TODO: build edge-tuning maps
@@ -250,7 +244,7 @@ class Visualize:
         )
 
         # Plot the body direction interger on the frame (for debugging)
-        # cv2.putText(self.actual_frame, f"{int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(self.actual_frame, f"HD: {int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
     def display_goal_dir_on_frame(self):
         """
@@ -275,15 +269,15 @@ class Visualize:
             16,
         )
         # Plot the body direction interger on the frame (for debugging)
-        cv2.putText(
-            self.actual_frame,
-            f"{int(np.rad2deg(self.bod_shelt_dir))}deg",
-            (self.actual_frame.shape[1] - 200, 200),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (255, 255, 255),
-            2,
-        )
+        # cv2.putText(
+        #     self.actual_frame,
+        #     f"{int(np.rad2deg(self.bod_shelt_dir))}deg",
+        #     (self.actual_frame.shape[1] - 200, 200),
+        #     cv2.FONT_HERSHEY_SIMPLEX,
+        #     1,
+        #     (255, 255, 255),
+        #     2,
+        # )
 
         # plot a green and red arrow in direction to two barrier edges (no arrows if no barrier)
         if np.any(self.bod_barr_dir):
