@@ -18,7 +18,7 @@ class ProcessedEfizz:
         initDF = self.generate_polar_dataframe()
         alignedDataFrame = self.align_spike_times(initDF, slope, intercept)
         
-        print("MANNUAL CHECK: The resulting CSV to be saved - Does it look correct?")
+        print("MANUAL CHECK: The resulting CSV to be saved - Does it look correct?")
         print(alignedDataFrame) # Print the dataframe to check it is correct
         
         self.save_processed_efizz()
