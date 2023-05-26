@@ -1,127 +1,141 @@
 # Created dataframe has unused columns but required due to indexing in visualize efizz.
 # TODO: remove unused columns from dataframe when indexing is fixed in efizz to be polars 
 
-from behave_analysis.database.synthetic_data.generate_vectorial_synthetic_neurons import generate_synth_vectorial_cells
-from behave_analysis.database.synthetic_data.poison_process_functions import ImhomogeneousProcess
 from databank import experiments_objects
 from behave_analysis.process.process import Process
 from dataclasses import dataclass
 import polars as pl
-import random
-import pickle as pkl
+import os
+import dill as pickle
 import numpy as np 
 from loguru import logger
-
+import matplotlib.pyplot as plt
 
 # Collect session data currently in the databank
 for session_ID in experiments_objects:
     session = Process(session_ID).load_session()
     break
 
-class GenerateFakeDataForRasters:
-    def __init__(self):
-        self.length_of_session = len(session.ttl.bonsai_TTL)
-        self.sampling_rate = 30000
-        self.onsets = self.generate_onsets(number_of_onsets = 10)
-        self.spikes = self.generate_fake_spikes()
-        self.clusters = self.generate_fake_clusters(number_of_spikes=len(self.spikes), number_of_clusters=10)
-        self.dataframe = self.produce_polars_dataframe()
-
-    def generate_onsets(self, number_of_onsets) -> list:
-        """How many onsets do you want to generate? In essence how many
-        trials do you want to simulate?
-
-        Args:
-            number_of_onsets (_type_): _description_
-
-        Raises:
-            ValueError: _description_
-
-        Returns:
-            list: _description_
-        """
-
-        # Check if the number of onsets requested is within a valid range
-        if number_of_onsets < 1 or number_of_onsets > self.length_of_session:
-            raise ValueError("Count must be between 1 and {}".format(self.length_of_session))
-
-        # Use the random.sample function to generate unique random integers
-        return random.sample(range(self.length_of_session + 1), number_of_onsets)
-
-    def poisson_process(self, onset_time):
-        # Params for the kernel
-        T = 10
-        width_of_kernel = 0.5
-        peak_intensity_of_kernel = 50
-        num_bins = T
-        bin_duration = T / num_bins
-
-        object = ImhomogeneousProcess(
-            time_end=onset_time + 10,
-            peak_time=onset_time,
-            width=width_of_kernel,
-            peak_intensity=peak_intensity_of_kernel,
-            kernel="gaussian",
-        )
-
-        spike_times = object.events  # Tunned to the kernel function
-
-        return spike_times
-
-    def generate_fake_spikes(self) -> list:
-        # Create a list of lists
-        spikes = []
-        for idx, onset in enumerate(self.onsets):
-            spikes.append(self.poisson_process(onset / self.sampling_rate))
-            print("Generate trial {} of {}".format(idx + 1, len(self.onsets)))
-
-        flat_list = [item for sublist in spikes for item in sublist]
-
-        return flat_list
-
-    def generate_fake_clusters(self, number_of_spikes, number_of_clusters):
-        """Create a fake cluster of spikes all cluster 0"""
-        # return [0] * number_of_spikes
-        return np.random.randint(6, 10, size=number_of_spikes, dtype=np.int64)
-
-    def produce_polars_dataframe(self):
-        # Create a Polars DataFrame
-        df = pl.DataFrame(
-            {
-                "spike_times": [0] * len(self.spikes), # Not used
-                "spike_clusters": self.clusters,
-                "cluster_group": ["good"] * len(self.spikes),
-                "aligned_spike_times": self.spikes,
-            }
-        )
-
-        # Print the DataFrame
-        return df
-
-if __name__ == "__main__":
+def synthetic_dataframe(tuning):
     
-    # TODO - Enter where you want your synthetic data to be saved
-    path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
-    
-    # Generate vectorial cells 
-    head_direction_spikes, head_direction_clusters = generate_synth_vectorial_cells(cell_type = "Head_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
-    # shelter_direction_spikes, shelter_direction_clusters = generate_synth_vectorial_cells(cell_type = "Shelter_Direction", add_noise = False, number_of_spikes_per_cluster = 100000)
+    np.random.seed(42)  # For reproducibility, you can remove this line for true randomnes
+    cell_num = 10 # how many cells to generate per type
+    session, tracking = load_tracking_data()
+    spikes_per_clu = efizz_stats(session)
 
-    # Create a Polars DataFrame - TODO - Comment out if you want to use the vectorial cells
-    head_direction_only = pl.DataFrame({"spike_times": [0] * len(head_direction_spikes), # Not used
-                                        "spike_clusters": head_direction_clusters,
-                                        "cluster_group": ["good"] * len(head_direction_spikes),
-                                        "aligned_spike_times": head_direction_spikes,
-                                        "spike_aligned_to_frame": np.around((head_direction_spikes * 40))})
-    
-    head_direction_only = head_direction_only.with_columns(head_direction_only["spike_aligned_to_frame"].cast(pl.Float64))
+    all_spikes = []
+    all_clu_ID = []
+    all_clu_label = []
+    clu_offset = 0
 
-    head_direction_only.write_csv(path)
-    logger.success("Head direction dataframe saved to {}".format(path))
-    print(head_direction_only)
+    for cell_type in tuning:
+        
+        if cell_type == "hdir": angles = tracking["hdir"]
+        elif cell_type == "hsa": angles = tracking["hdir_shelt"]
+        elif cell_type == "h_bar_north_a": angles = tracking['hdir_barrier'][:,0]
+        elif cell_type == "h_bar_south_a": angles = tracking['hdir_barrier'][:,1]
+        
+        # Generate vectorial cells 
+        spikes, clusters = return_spike_times_locked_to_behavioural_direction(angles, 
+                                                                            number_of_spikes = np.random.choice(spikes_per_clu, size = cell_num, replace = False), 
+                                                                            direction = np.linspace(-np.pi,np.pi,cell_num), 
+                                                                            dir_std = np.random.choice(np.linspace(.1,np.pi/4,50), size = cell_num),
+                                                                            fps = 40,
+                                                                            mean = 0, 
+                                                                            std_dev = 1,
+                                                                            add_noise = False,
+                                                                            noise_scale = 25)
+        
+        all_spikes.extend(spikes)
+        all_clu_ID.extend(clusters + clu_offset)
+        clu_offset = clu_offset + np.amax(clusters)
+        all_clu_label.extend([cell_type]*len(spikes))
     
-    # shelter_direction_only = pl.DataFrame({"spike_times": [0] * len(shelter_direction_spikes), # Not used
-    #                                        "spike_clusters": shelter_direction_clusters,
-    #                                        "cluster_group": ["good"] * len(shelter_direction_spikes),
-    #                                        "aligned_spike_times": shelter_direction_spikes})
-    # shelter_direction_only.write_csv(path)
+    all_spikes = np.array(all_spikes)
+    all_clu_ID = np.array(all_clu_ID)
+
+    # Create a Polars DataFrame
+    synth_df = pl.DataFrame({"spike_times": [0] * len(all_spikes), # Not used
+                            "spike_clusters": all_clu_ID,
+                            "cluster_group": all_clu_label,
+                            "aligned_spike_times": all_spikes,
+                            "aligned_spike_times_in_samples": [0] * len(all_spikes), # Not used
+                            "spike_aligned_to_frame": np.around((all_spikes * 40))})
+    
+    synth_df = synth_df.with_columns(synth_df["spike_aligned_to_frame"].cast(pl.Float64))
+
+    return synth_df
+
+def return_spike_times_locked_to_behavioural_direction(behavioural_direction, 
+                                                       number_of_spikes,
+                                                       direction, 
+                                                       dir_std = .1,
+                                                       fps = 40, 
+                                                       mean = 0, 
+                                                       std_dev = 1,
+                                                       add_noise = False,
+                                                       noise_scale=0.1) -> np.ndarray:
+    
+    """
+    Selecting the behavioural direction of interest, this function will gather the samples
+    of when that direction is occuring, convert into time and then generate spikes around that time. 
+    """
+    all_spike_times = []
+    all_cluster_ids = []
+    
+    for idx, z in enumerate(zip(direction,number_of_spikes,dir_std), start=1):
+        direction = z[0]
+        spike_num = z[1]
+        dir_std = z[2]
+        
+        indices = np.where(((direction - dir_std) <= behavioural_direction) & (behavioural_direction <= (direction + dir_std)))[0]
+        times = indices / fps
+        spike_times = generate_spikes(spike_num, times, mean, std_dev)
+    
+        if add_noise:
+                noise = np.random.uniform(low=-noise_scale, high=noise_scale, size=len(spike_times))
+                spike_times += noise
+                
+        all_spike_times.extend(spike_times)
+        all_cluster_ids.extend([idx] * len(spike_times))
+    
+    all_spike_times = np.array(all_spike_times)
+    all_cluster_ids = np.array(all_cluster_ids)
+                
+    return all_spike_times, all_cluster_ids
+
+## UTIL FUNCTIONS ----------------------------------------------------
+def load_tracking_data():
+    """Just for first session, load the tracking data."""
+    for session_ID in experiments_objects:
+        session = Process(session_ID).load_session()
+        break
+    file = os.path.join(session.processed_path, "fully_processed_tracking_data.pickle")
+    with open(file, "rb") as dill_file:
+        tracking = pickle.load(dill_file)
+    return session, tracking
+
+def efizz_stats(session):
+    spikedataframe = session.efizzDataProcessed.alignedDataFrame.filter((session.efizzDataProcessed.alignedDataFrame['cluster_group'] == "good")
+                                                                        | (session.efizzDataProcessed.alignedDataFrame['cluster_group'] == "mua"))
+    spikecount = spikedataframe.groupby("spike_clusters").count()
+    number_of_spikes = spikecount["count"].to_numpy()
+    return number_of_spikes
+
+def generate_spikes(spike_count, 
+                    times, 
+                    mean, 
+                    std_dev) -> np.ndarray:
+    """
+    Produces a gaussian of spikes around times of behavioural relevant events.
+    """
+    valid_indices = np.arange(len(times))
+    
+    if len(valid_indices) == 0:
+        raise ValueError("No valid indices to choose from")
+    
+    chosen_indices = np.random.choice(valid_indices, size=spike_count)
+    gaussian_offsets = np.random.normal(mean, std_dev, size=spike_count)
+    spike_times = times[chosen_indices] + gaussian_offsets
+    spike_times.sort()
+    return spike_times

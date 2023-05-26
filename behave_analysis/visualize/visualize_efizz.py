@@ -1,4 +1,5 @@
 # OS libaries
+from behave_analysis.database.synthetic_data.synthetic_main import synthetic_dataframe
 from loguru import logger
 import numpy as np
 from glob import glob
@@ -14,11 +15,11 @@ class PreProcess:
     """
     A class that loads the csv of aligned data and processes it into a dataframe that can be used for visualisation
     """
-    def __init__(self,  visualize_object, run = "Production", select_mua = False, select_good_neurons = True, user_wants_to_regenerate_spike_by_frame_count = False):
+    def __init__(self,  visualize_object, run = "Production", select_clusters = "good", user_wants_to_regenerate_spike_by_frame_count = False):
         logger.info("Preprocessing started")
         self.Visualize = visualize_object
-        self.select_good_neurons = select_good_neurons
-        self.select_mua = select_mua
+        self.select_clusters = select_clusters
+        if run == "Test": self.select_clusters = "synthetic"
         self.run_type = run
         
         self.load_spike_data()
@@ -35,9 +36,16 @@ class PreProcess:
             self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
         
         elif self.run_type == "Test":
-            logger.warning("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
-            self.csv_path = r"C:\Users\laurence\Documents\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
-            # self.csv_path = r"C:\Users\jreggiani\Documents\GitHub\JAL-pipeline\behave_analysis\database\synthetic_data\synthetic_dataframe.csv"
+            self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
+            if not os.path.exists(self.csv_path):
+                logger.warning("Synethic spike data doesn't exist and will now be generated")
+                tuning = ['hdir']
+                if len(self.Visualize.session.shelter_time) > 0: tuning.append('hsa')
+                if len(self.Visualize.session.barrier_time) > 0: tuning.append('h_bar_north_a','h_bar_south_a')
+                synth_df = synthetic_dataframe(tuning)
+                synth_df.write_csv(self.csv_path)
+            else:
+                logger.info("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
     
         else: 
             raise ValueError("Run type not recognised")
@@ -50,23 +58,21 @@ class PreProcess:
         
         dataFrame = pl.read_csv(self.csv_path)
         
-        if self.select_good_neurons:
-            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'good')
-            logger.info("Loaded good neurons only")
-            numneurons = len(self.spikedataframe['spike_clusters'].unique())
-            logger.info(f"Loaded {numneurons} neurons")
-            
-        elif self.select_mua:
-            self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == 'mua')
-            logger.info("Loaded MUA only")
-            numneurons = len(self.spikedataframe['spike_clusters'].unique())
-            logger.info(f"Loaded {numneurons} neurons")
-        
-        else:
+        if self.run_type == "Production":
+            if self.select_clusters == 'all':
+                self.spikedataframe = dataFrame.filter((dataFrame['cluster_group'] == "good")
+                                                    | (dataFrame['cluster_group'] == "mua"))
+                logger.info("Loaded good and multi unit clusters")
+            else:
+                self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == self.select_clusters)
+                numneurons = len(self.spikedataframe['spike_clusters'].unique())
+                logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
+        elif self.run_type == "Test":
             self.spikedataframe = dataFrame
-            logger.info("Loaded all neurons")
-
-        print("Loaded spike data")
+            logger.info("Loaded all clusters")
+        
+        self.clu_label = self.spikedataframe.groupby(["spike_clusters"]).first()
+        self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
 
     def track_to_polars(self):
         """
@@ -139,34 +145,33 @@ class PreProcess:
         # NOTE - THis will create an arror if the filteer on the cells changes e.g good vs mua as the dataframe will not update
         # TODO - Fix this
         
-        try:
-            with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv", "rb") as file:
-                spikecountbyframe_neuron = pl.read_csv(file.read())
-            logger.success("Found spike count by frame and cluster dataframe, loading it now")
-            return spikecountbyframe_neuron
-                
-        except FileNotFoundError:
-            logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
-            logger.info("Commencing long computation to count spikes for each cluster for each frame")
-            query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
-            start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
-            spikecountbyframe_neuron = query.collect()
-            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
-            return spikecountbyframe_neuron
-        
-        finally:
-            if user_wants_to_regenerate_spike_by_frame_count == True:
-                logger.info("recreating the spike count by frame and unit dataframe as requested by user, likely because of changing the filter on cluster type, creating it now")
+        if user_wants_to_regenerate_spike_by_frame_count == False:
+            try:
+                with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv", "rb") as file:
+                    spikecountbyframe_neuron = pl.read_csv(file.read())
+                logger.success("Found spike count by frame and cluster dataframe, loading it now")
+                return spikecountbyframe_neuron
+                    
+            except FileNotFoundError:
+                logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
                 logger.info("Commencing long computation to count spikes for each cluster for each frame")
                 query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
                 start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
                 spikecountbyframe_neuron = query.collect()
                 print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-                spikecountbyframe_neuron.write_csv(self.processed_data.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_cluster.csv")
+                spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
                 return spikecountbyframe_neuron
-
-
+        
+        elif user_wants_to_regenerate_spike_by_frame_count == True:
+            logger.info("recreating the spike count by frame and unit dataframe as requested by user, likely because of changing the filter on cluster type, creating it now")
+            logger.info("Commencing long computation to count spikes for each cluster for each frame")
+            query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
+            start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
+            spikecountbyframe_neuron = query.collect()
+            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
+            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
+            return spikecountbyframe_neuron
+        
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters
@@ -389,7 +394,7 @@ class Visualize_efizz:
 
 # FUNCTIONS FOR PLOTTING TUNING ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
-    def compute_all_tunings_for_each_cell(self, spike_count_by_frame_and_neuron, compute_bootstrap = False):
+    def compute_all_tunings_for_each_cell(self, compute_bootstrap = False):
         """
         A function that computes every single tuning curve for each cell
         """
@@ -406,36 +411,36 @@ class Visualize_efizz:
         # head direction
         if run['hdir']:
             filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'hdir')
-            self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+            self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
             
         # head shelter angle
         if len(self.processed_data.Visualize.session.shelter_time) > 0:
             if run['hsa']:
                 filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle', object_present = True)
-                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 if not(np.logical_and(self.processed_data.Visualize.session.shelter_time[0] == 0, self.processed_data.Visualize.session.shelter_time[1] == -1)):
                     if run['pre_hsa']:
                         filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle',object_present = False)
-                        self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                        self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                         
         # head barrier angle
         if len(self.processed_data.Visualize.session.barrier_time) > 0:
             if run['h_bar_south_a']:
                 filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = True)
-                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if run['h_bar_north_a']:
                 filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = True)
-                self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if not(np.logical_and(self.processed_data.Visualize.session.barrier_time[0] == 0, self.processed_data.Visualize.session.barrier_time[1] == -1)):
                 if run['pre_h_bar_south_a']:
                     filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = False)
-                    self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                     
                 if run['pre_h_bar_north_a']:
                     filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = False)
-                    self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
 
         # individual figures for each cluster with all polar plots
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
@@ -444,7 +449,7 @@ class Visualize_efizz:
             
         logger.success("Finished making figures of each individual cluster and all its respective tuning plots")
         
-    def compute_a_single_tuning_for_all_cells(self, which_angle, spike_count_by_frame_and_neuron, compute_bootstrap = False, object_present = True):
+    def compute_a_single_tuning_for_all_cells(self, which_angle, compute_bootstrap = False, object_present = True):
         """
         Calculates tuning for individual clusters. Has two modes:
         1. input an angle (e.g. 'hdir') and it computes Rayleigh R and makes polar plots for that angle
@@ -460,15 +465,15 @@ class Visualize_efizz:
         logger.info("Commence making figures of every cluster for a single tuning curve")
         
         # compute tuning
-        logger.info("Calculating Rayleigh vectors for condition: " + str(title) + "is object present: " + str(object_present))
-        self.rayleigh_vector(filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap)
+        logger.info("Calculating Rayleigh vectors for condition: " + str(title) + ", is object present? " + str(object_present))
+        self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
         
         logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
         self.all_clusters_polar_plots(title) 
         
         logger.success("Finished making figures of every cluster for a single tuning curve")
 
-    def rayleigh_vector(self, filtered_video_df, angle_filt, title, spike_count_by_frame_and_neuron, compute_bootstrap = False):
+    def rayleigh_vector(self, filtered_video_df, angle_filt, title, compute_bootstrap = False):
         """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
         It only considers times when the mouse was outside the shelter
         It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
@@ -494,7 +499,7 @@ class Visualize_efizz:
         for counter,c in enumerate(number_of_clusters):
                         
             # filter by cluster
-            spikes = spike_count_by_frame_and_neuron.filter(spike_count_by_frame_and_neuron['spike_clusters'] == c)
+            spikes = self.processed_data.spikeCountByFrameAndCluster.filter(self.processed_data.spikeCountByFrameAndCluster['spike_clusters'] == c)
             
             # Convert spike count to firing rate
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
@@ -565,7 +570,7 @@ class Visualize_efizz:
         plt.hist(Rayleigh[Rayleigh_sig == 1],np.arange(0,1,.1))
         plt.xlabel('Rayleigh R')
         plt.ylabel('number of clusters')
-        plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title) + "_Rayleigh_vector_hist.png")
+        plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title)  + "_" + self.processed_data.select_clusters +  "_Rayleigh_vector_hist.png")
         if self.processed_data.Visualize.settings.show_plots: plt.show()
 
         # save all to dict
@@ -633,21 +638,21 @@ class Visualize_efizz:
                       self.Rayleigh[title][counter]*np.amax(self.tuning_dict[title][counter,:]), colors='black')
             
             # add title to the subplot
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [c])
             if self.Rayleigh_sig[title][counter] == 1:
-                ax.title.set_text('clu ' + str(c) + ' sig.' + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
+                ax.title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' clu ' + str(c) + ' (sig.)' + 
+                                    '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
                 
             else:
-                ax.title.set_text('clu ' + str(c) + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
+                ax.title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' clu ' + str(c) + 
+                                    '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[title][counter],2)))
                 
             # save the whole figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(number_of_clusters)-1):
                 plt.tight_layout()
-                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title) + "_cluster_polar_plots_" + str(fnum) + ".png")
+                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title) + "_" + self.processed_data.select_clusters + "_cluster_polar_plots_" + str(fnum) + ".png")
                 if self.processed_data.Visualize.settings.show_plots: 
                     plt.show()  
-            
-            # close the figure for each cluster
-            # plt.close() 
 
     def single_cluster_polar_plots(self, cluster):
         """Plots all polar plots for 1 cluster in 1 figure"""
@@ -679,21 +684,23 @@ class Visualize_efizz:
                         ax.title.set_text(angle + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[angle][counter][0],2)) + ', sig = ' + str(np.around(self.Rayleigh_sig[angle][counter][0],2)))
 
         plt.tight_layout()
-        cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, "cluster_plots")
-        
-        if not(os.path.exists(cluster_path)): 
-            os.makedirs(cluster_path)
-            
+
+        cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
+        if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
+        if np.logical_or(self.processed_data.select_clusters == "all", self.processed_data.select_clusters == "synthetic"):
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [c])
+            plt.savefig(str(cluster_path + "/" + this_cluster["cluster_group"].to_numpy()[0] + "_cluster" + str(c) + "_polar_plots.png"))
+        else:
+            plt.savefig(str(cluster_path + "/cluster" + str(c) + "_polar_plots.png"))
         if self.processed_data.Visualize.settings.show_plots: 
             plt.show()  
-            
-        plt.savefig(str(cluster_path + "/cluster" + str(cluster) + self.processed_data.spikedataframe["cluster_group"][cluster] + "_polar_plots.png"))
         plt.close()
 
     def spatial_position_firing(self):
         """ A function that makes maps of mousie's position in arena
         and show where each cluster fired"""
 
+        logger.info("Commence making figures of spatial position firing plots of all clusters")
         cc = matplotlib.cm.Reds # could use Reds or copper
         # set number of rows and calculate number of columns
         ncols = 10
@@ -713,9 +720,10 @@ class Visualize_efizz:
                 fnum = fnum + 1
                 axs = axs.ravel()
             # filter spikes by cluster
-            spikes = self.processed_data.spikedataframe.filter(self.processed_data.spikedataframe['spike_clusters'] == cluster)
+            # spikes = self.processed_data.spikedataframe.filter(self.processed_data.spikedataframe['spike_clusters'] == cluster)
             # count number of spikes on each video frame, and then turn it into firing rate (Hz)
-            spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            # spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            spikes = self.processed_data.spikeCountByFrameAndCluster.filter(self.processed_data.spikeCountByFrameAndCluster['spike_clusters'] == cluster)
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
             # align spike dataframe to video dataframe
             filtered_video_df = self.processed_data.Video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
@@ -727,13 +735,13 @@ class Visualize_efizz:
             axs[counter-(nrows*ncols*fnum)].set_axis_off()
             axs[counter-(nrows*ncols*fnum)].invert_yaxis()
             axs[counter-(nrows*ncols*fnum)].set_aspect('equal')
-            axs[counter-(nrows*ncols*fnum)].title.set_text('cluster ' + str(cluster))
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [cluster])
+            axs[counter-(nrows*ncols*fnum)].title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' cluster ' + str(cluster))
 
             # save the figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spikedataframe["spike_clusters"].unique())-1):
                 plt.tight_layout()
-                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + "spatial_position_firing_" + str(fnum) + ".png")
-                
+                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
                 if self.processed_data.Visualize.settings.show_plots: 
                     plt.show()
                 #plt.close()

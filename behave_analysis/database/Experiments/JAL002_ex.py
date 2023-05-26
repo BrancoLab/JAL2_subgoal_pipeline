@@ -93,11 +93,11 @@ seq1_2_002 = Experiment(# Mouse specific
                         experiment_file_names = JAL002.experiment_file_names,
                         root_path = JAL002.root_path,
                         
-                         # Experiment specific
-                    experiment_name = 'sequence1_2',
-                    experiment_idx = 0,
-                    experiment_date = "2023_04_25",
-                    experiment_time = "07_32_30",
-                    shelter_time = [0, -1],
-                    barrier_time = [125, -1], # assuming 125 minutes is 125
-                    experiment_path = Path(r"002_seq1_2_2023_04_25T07_32_30"))
+                        # Experiment specific
+                        experiment_name = 'sequence1_2',
+                        experiment_idx = 0,
+                        experiment_date = "2023_04_25",
+                        experiment_time = "07_32_30",
+                        shelter_time = [0, -1],
+                        barrier_time = [125, -1], # assuming 125 minutes is 125
+                        experiment_path = Path(r"002_seq1_2_2023_04_25T07_32_30"))

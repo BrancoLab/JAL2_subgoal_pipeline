@@ -39,6 +39,8 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
     
     video_object = cv2.VideoCapture(video_file)
     num_frames = int(video_object.get(cv2.CAP_PROP_FRAME_COUNT))
+    logger.info(f"Number of recorded camera frames : {num_frames}")
+    
     fps = int(video_object.get(cv2.CAP_PROP_FPS))
     height = int(video_object.get(cv2.CAP_PROP_FRAME_HEIGHT))
     width = int(video_object.get(cv2.CAP_PROP_FRAME_WIDTH))

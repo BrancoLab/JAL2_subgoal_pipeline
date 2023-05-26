@@ -9,6 +9,8 @@ from glob import glob
 import dill as pickle
 import pandas as pd
 from loguru import logger
+import matplotlib.pyplot as plt
+import datetime as datetime
 
 def get_Camera_trigger(session: NEW_Session, drop_frames = False):
     """ AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
@@ -54,7 +56,7 @@ def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, d
     num_frames_expected = len(frame_trigger_onsets_idx)
     duration_of_video = (frame_trigger_onsets_idx[-1] - frame_trigger_onsets_idx[0]) / session.daq_sampling_rate
     
-    logger.info(f"Number of frames expected: {num_frames_expected}")
+    logger.info(f"Number of frames expected based on TTL: {num_frames_expected}")
     
     return num_frames_expected, duration_of_video, frame_trigger_onsets_idx
 
@@ -78,7 +80,10 @@ def find_drop_frames(session: NEW_Session, frame_trigger_onsets_idx, for_video_r
     # frames_csv_path = glob(os.path.join(session.file_path, "frames*"))[-1]
     
     frames_csv = pd.read_csv(frames_csv_path, names=['frame number', 'zero', 'timestamp'])
-    difference_between_frames = np.diff(frames_csv['timestamp'])
+    logger.info(f"Number of frames timestamps: {len(frames_csv['timestamp'])}")
+    difference_between_frames = np.diff(frames_csv['timestamp'])/125000
+    # TODO: figure out if it works better when we divide by 125000
+    
     min_difference = np.min(difference_between_frames)
     dropped_frame_diff = difference_between_frames[difference_between_frames > min_difference * 2]
     num_frames_dropped = np.round(dropped_frame_diff / min_difference - 1).astype(int)
