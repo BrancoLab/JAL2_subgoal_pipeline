@@ -6,6 +6,7 @@ from behave_analysis.utils.generate_stim_status_array import generate_stim_statu
 from behave_analysis.utils.directory import Directory
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz, PreProcess
 from behave_analysis.visualize.visualize_behave import Visualize_behave
+from behave_analysis.visualize.visualize_behave import Correlations
 
 # OS libaries
 from loguru import logger
@@ -19,7 +20,6 @@ class Visualize:
     A class that visualizes the tracking data of a session. Can be used to ensure that the tracking is working.
     The tracking data is loaded from prior pipeline step into a self.tracking_data
     """
-
     def __init__(self, session: object, settings: object):
         self.session = session        
         self.settings = settings
@@ -44,11 +44,21 @@ class Visualize:
             
             """ Load data into visual object"""
             # Production - Run
+
             preprocessObject = PreProcess(self, 
                                           run = "Test", # "Test" for synth data, "Production" for mouse brain data
                                           select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
                                           user_wants_to_regenerate_spike_by_frame_count = True)
             visualObject = Visualize_efizz(preprocessObject)
+            
+            # Test Behaviour correlation plots
+            correlationChild = Correlations(MaxPlotsPerFigure = 10, 
+                                            how_many_plots_you_need = 6, 
+                                            CleanVideoDf = preprocessObject.clean_behavioural_data,
+                                            directoryToSaveTo = self.session.processed_path, 
+                                            plotName = "Cheese")
+            
+            correlationChild.create_correration_plot()
             
             """Make tuning plots"""
             # Production of vectorized plots  
