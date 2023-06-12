@@ -2,13 +2,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Utility function for testing NOTE can be deleted later
-
-def generate_stimulus_variable():
-    """
-    Generate a random stimulus variable between 0 and 360 degrees for of length Nsamples
-    """
-    return np.random.uniform(0, 360, (1, Nsamples))
 
 class TunED:
     """
@@ -36,13 +29,33 @@ class TunED:
     
     def compute_stimulus_indx(self):
         """
-        A method to compute the stimulus index after binning
-        NOTE binning might have to be done identically for each variable
+        A method to compute the stimulus index after binning. NOTE binning might have to be done identically
+        for each variable. So first create bin edges for a given variable ending in stimulus_bin_edges
+        of shape (Nbins, ). Then use digitize to discretize he stimulus variable into 
+        
+        Returns:
+            stimulus_idx: <np.ndarray> of size (1, Nsamples). The stimulus index for each sample.
+            stimulus_bin_edges: <np.ndarray> of size (Nbins, ). The bin edges used to bin the stimulus variable.
         """
         stimulus_bin_edges =  np.linspace(np.min(self.stimulus_variable), np.max(self.stimulus_variable), Nbins+1)
-        return np.digitize(self.stimulus_variable, stimulus_bin_edges) - 1, stimulus_bin_edges
+        stimulus_idx = np.digitize(self.stimulus_variable, stimulus_bin_edges) - 1
+        return stimulus_idx, stimulus_bin_edges
     
-    def tuning_function(self):
+    def tuning_function(self, Ncells, Nbins, spike_count_matrix):
+        """The purpose of this function is to compute the tuning function for each cell which equates
+        to the corresponding mean spike count for each stimulus bin.
+        
+        Inputs:
+            Ncells: <int> The number of cells in the spike count matrix
+            Nbins: <int> The number of bins to use to bin up the stimulus variable
+            spike_count_matrix: <np.ndarray> of size (Ncells, Nsamples). The spike count matrix.
+
+        Returns:
+            tf: <np.ndarray> of size (Ncells, Nbins). The tuning function for each cell.
+            tf_sem: <np.ndarray> of size (Ncells, Nbins). The standard error of the mean for each cell.
+            tf_s2: <np.ndarray> of size (Ncells, Nbins). The variance of the tuning function for each cell.
+            n: <np.ndarray> of size (Ncells, Nbins). The number of samples in each bin for each cell.
+        """
         tf = np.zeros((Ncells, Nbins))
         tf_sem = np.zeros((Ncells, Nbins))
         tf_s2 = np.zeros((Ncells, Nbins))
@@ -69,16 +82,59 @@ class TunED:
         
         return tf, tf_sem, tf_s2, n
     
-    # @staticmethod
-    # def compute_joint_prob(stimulusV1, stimulusV2, stimulusV2edges, stimulusV1edges):
-    #     Pv2v1, _, _ = np.histogram2d(x = stimulusV1[0, :], # NOTE this is a hack to get the 1D array out of the 2D array
-    #                                  y = stimulusV2[0, :], 
-    #                                  normed = True)
-    #     return Pv2v1
+    @staticmethod
+    def compute_joint_prob(stimulusV1, stimulusV2, stimulusV2edges, stimulusV1edges):
+        """A static method to compute the joint probability between two stimulus variables. Returns a joint probability
+        table of size (Nbins, Nbins) that can be used to compute the mutual information between the two variables.
+        There is a unit test below to ensure that the joint probability table is computed correctly.
+        
+        Inputs:
+            stimulusV1: <np.ndarray> of size (1, Nsamples). The first stimulus variable.
+            stimulusV2: <np.ndarray> of size (1, Nsamples). The second stimulus variable.
+            stimulusV2edges: <np.ndarray> of size (Nbins, ). The bin edges used to bin the second stimulus variable.
+            stimulusV1edges: <np.ndarray> of size (Nbins, ). The bin edges used to bin the first stimulus variable.
+        
+        Returns:
+            Pv2v1, _, _: Joint probability table of size (Nbins, Nbins)
+        """
+        Pv2v1, xedges, yedges = np.histogram2d(x = stimulusV1[0, :], # index to get the 1D array out of the 2D array
+                                               y = stimulusV2[0, :], # index to get the 1D array out of the 2D array
+                                               bins = Nbins,
+                                               range = [[min(stimulusV1edges), max(stimulusV1edges)], 
+                                                        [min(stimulusV2edges), max(stimulusV2edges)]],
+                                               density = True)
+        
+        # ----------- Unit Test Logic below for internal consistency----------------
+        
+        # Calculate bin widths in both dimensions
+        x_bin_width = xedges[1:] - xedges[:-1]
+        y_bin_width = yedges[1:] - yedges[:-1]
+
+        # Calculate bin areas by taking the outer product of the bin widths
+        bin_areas = np.outer(y_bin_width, x_bin_width)
+
+        # Multiply each bin value with its corresponding bin area and sum over all bins - Definition per
+        # https://numpy.org/doc/stable/reference/generated/numpy.histogram2d.html
+        total = np.sum(Pv2v1 * bin_areas)
+        
+        # Assertion Test for internal consistency
+        assert np.isclose(total, 1), 'The joint probability does not sum to 1'
+        assert np.all(Pv2v1 >= 0), 'The joint probability has negative values'
+        assert np.all(Pv2v1 <= 1), 'The joint probability has values greater than 1'
+        assert np.isclose(sum(np.sum(Pv2v1 * bin_areas , axis=0)), 1), 'The marginal probability of V1 does not sum to 1'
+        assert np.isclose(sum(np.sum(Pv2v1 * bin_areas , axis=1)), 1), 'The marginal probability of V2 does not sum to 1'
+        
+        return Pv2v1, xedges, yedges
     
-    # @staticmethod
-    # def marginalize(joint_prob):
-    #     raise NotImplementedError
+    @staticmethod
+    def marginalize(joint_prob):
+        """
+        Computes the marginal probability distribution of a joint probability distribution.
+        """
+        marginal_x = np.sum(joint_prob, axis=0)
+        marginal_y = np.sum(joint_prob, axis=1)
+        
+        return marginal_x, marginal_y
     
     @staticmethod
     def tuning_function_nh2(tf_y, tf_y_s2, n_x, Py_x):
@@ -102,31 +158,35 @@ if __name__ == '__main__':
     # Generate some data
     Ncells = 5
     Nsamples = 100
-    Nbins = 10
+    Nbins = 10 # Number of bins to use to bin up the stimulus variable
     spike_count_matrix = np.random.uniform(10, 40, (Ncells, Nsamples)) # Generate random spike counts between 10 and 40 hertz
     
-    # Gen the stimulus variables
-    stimulusV1 = generate_stimulus_variable()
-    stimulusV2 = generate_stimulus_variable()
+    # Gen the stimulus variables to shape (1, Nsamples)
+    stimulusV1 = np.random.uniform(0, 360, (1, Nsamples))
+    stimulusV2 = stimulusV1 * 2 # A second stimulus variable that correlates with the first
     
     # Compute the tuning functions
-    v1 = TunED(spike_count_matrix, stimulusV1, Nbins)
-    tfv1, tf_semv1, tf_s2v1, nv1 = v1.tuning_function()
-    v2 = TunED(spike_count_matrix, stimulusV2, Nbins)
-    tfv2, tf_semv2, tf_s2v2, nv2 = v2.tuning_function()
+    v1Object = TunED(spike_count_matrix, stimulusV1, Nbins)
+    tfv1, tf_semv1, tf_s2v1, nv1 = v1Object.tuning_function(Ncells, Nbins, spike_count_matrix)
+    
+    v2Object = TunED(spike_count_matrix, stimulusV2, Nbins)
+    tfv2, tf_semv2, tf_s2v2, nv2 = v2Object.tuning_function(Ncells, Nbins, spike_count_matrix)
 
-    # Calculate the joint probability between the two stimulus variables
-    Pv2v1, _, _ = np.histogram2d(stimulusV1[0, :], stimulusV2[0, :], normed = True)
+    # Joint probability of the stimuli --------------------------------------------------------
+    jointProb_stimuli, _, _ = TunED.compute_joint_prob(stimulusV1, 
+                                           stimulusV2, 
+                                           stimulusV2edges = v2Object.stimulus_bin_edges, 
+                                           stimulusV1edges = v1Object.stimulus_bin_edges)
+        
+    # Marginalize the joint probability ------------------------------------------------------
+    Pv1, Pv2 = TunED.marginalize(jointProb_stimuli)
     
-    # Marginalize the joint probability
-    Pv1 = np.sum(Pv2v1, axis=0)
-    Pv2 = np.sum(Pv2v1, axis=1)
-    
+    # Compute the conditional probabilities ---------------------------------------------------
     # P(v2|v1)
-    Pv2_v1 = Pv2v1 / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1)
+    Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1)
 
     # P(v1|v2)
-    Pv1_v2 = Pv2v1.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2)
+    Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2)
     
     # Tuning function for v1 conditioned on v2
     tf_x_nh12, tf_x_nh_sem12 = TunED.tuning_function_nh2(tfv2, tf_s2v2, nv1, Pv2_v1)
