@@ -137,10 +137,23 @@ class TunED:
         return marginal_x, marginal_y
     
     @staticmethod
-    def tuning_function_nh2(tf_y, tf_y_s2, n_x, Py_x):
+    def tuning_function_null_hypothesis_PYX(tf_y, tf_y_s2, n_x, Py_x):
         """
-        Also estimates SEM (new output).
+        Compute the tuning_function to 'x' expected from the Null hypothesis that its structure is entirely a 
+        consequence of tuning to a quantity 'y' (which may be correlated with 'x'). In essence:
+         --> P(x = firing curve|y)
+         
+        Inputs:
+            tf_y: <np.ndarray> of size (Ncells, Nbins_y). The mean firing rate of each cell as a function of stimulus y.
+            tf_y_s2: <np.ndarray> of size (Ncells, Nbins_y). The variance of the firing rate of each cell as a function of stimulus y.
+            n_x: <np.ndarray> of size (Ncells, Nbins_x). The number of samples in each bin of stimulus x.
+            Py_x: <np.ndarray> of size (Nbins_y, Nbins_x). The probability of stimulus y given stimulus x. P(y|x)
+            
+        Returns:
+            tf_x_nh: <np.ndarray> of size (Ncells, Nbins_x). The tuning function to stimulus x expected from the null hypothesis.
+            tf_x_nh_sem: <np.ndarray> of size (Ncells, Nbins_x). The standard error of the tuning function to stimulus x expected from the null hypothesis.
         """
+        
         Ncells, Nbins_x = tf_y.shape[0], Py_x.shape[1]
         tf_x_nh = np.zeros((Ncells, Nbins_x))
         tf_x_nh_sem = np.zeros((Ncells, Nbins_x))
@@ -181,18 +194,20 @@ if __name__ == '__main__':
     # Marginalize the joint probability ------------------------------------------------------
     Pv1, Pv2 = TunED.marginalize(jointProb_stimuli)
     
-    # Compute the conditional probabilities ---------------------------------------------------
-    # P(v2|v1)
-    Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1)
-
-    # P(v1|v2)
-    Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2)
+    # Compute the conditional probabilities for the stimulus ---------------------------------------------------
+    Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
+    # Tranpose to ensure broadcasting works correctly row wise instead of column wise
+    Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2)
     
-    # Tuning function for v1 conditioned on v2
+    # NULL Hypothesis tests ---------------------------------------------------------------------
+    
+    # apparent tuning to 'v2' given NH that cell is driven purely by v1:
+    tf_x_nh21, tf_x_nh_sem21 = TunED.tuning_function_nh2(tfv1, tf_s2v1, nv2, Pv1_v2)
+    
+    # apparent tuning to 'v1' given NH that cell is driven purely by v2:
     tf_x_nh12, tf_x_nh_sem12 = TunED.tuning_function_nh2(tfv2, tf_s2v2, nv1, Pv2_v1)
     
-    # Tuning function for v2 conditioned on v1
-    tf_x_nh21, tf_x_nh_sem21 = TunED.tuning_function_nh2(tfv1, tf_s2v1, nv2, Pv1_v2)
+    # PLOT
     
     # Plot the tuning functions -------------------------------------------------------------
     # Create a figure
