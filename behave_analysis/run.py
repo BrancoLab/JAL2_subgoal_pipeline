@@ -28,7 +28,8 @@ def process():
     logger.info("Processing started")
     assert len(experiments_objects) != 0, "Session list should not be empty"
     for session_ID in experiments_objects:
-        Process(session_ID).create_session(settings_p)
+        processObject = Process(session_ID)
+        processObject.create_session(settings_p)
     logger.success("Processing complete")
  
 def track():
