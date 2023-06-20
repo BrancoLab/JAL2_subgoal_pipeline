@@ -18,10 +18,11 @@ class PreProcess:
     def __init__(self,  visualize_object, run = "Production", select_clusters = "good", user_wants_to_regenerate_spike_by_frame_count = False):
         logger.info("Preprocessing started")
         self.Visualize = visualize_object
-        self.select_clusters = select_clusters
-        if run == "Test": self.select_clusters = "synthetic"
         self.run_type = run
-        
+        if run == "Test": 
+            self.select_clusters = "synthetic"
+        else:
+            self.select_clusters = select_clusters
         self.load_spike_data()
         self.filter_spike_data()
         self.track_to_polars()
@@ -37,13 +38,21 @@ class PreProcess:
         
         elif self.run_type == "Test":
             self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
+            
             if not os.path.exists(self.csv_path):
                 logger.warning("Synethic spike data doesn't exist and will now be generated")
                 tuning = ['hdir']
-                if len(self.Visualize.session.shelter_time) > 0: tuning.append('hsa')
-                if len(self.Visualize.session.barrier_time) > 0: tuning.append('h_bar_north_a','h_bar_south_a')
+                
+                if len(self.Visualize.session.shelter_time) > 0: 
+                    tuning.append('hsa')
+                    
+                if len(self.Visualize.session.barrier_time) > 0: 
+                    tuning.append('h_bar_north_a')
+                    tuning.append('h_bar_south_a') # Adding as seperate line as bug when adding two params at once
+                    
                 synth_df = synthetic_dataframe(tuning)
                 synth_df.write_csv(self.csv_path)
+                
             else:
                 logger.info("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
     
@@ -686,14 +695,20 @@ class Visualize_efizz:
         plt.tight_layout()
 
         cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
-        if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
+        
+        if not(os.path.exists(cluster_path)): 
+            os.makedirs(cluster_path)
+            
         if np.logical_or(self.processed_data.select_clusters == "all", self.processed_data.select_clusters == "synthetic"):
-            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [c])
-            plt.savefig(str(cluster_path + "/" + this_cluster["cluster_group"].to_numpy()[0] + "_cluster" + str(c) + "_polar_plots.png"))
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == cluster)
+            plt.savefig(str(cluster_path + "/" + this_cluster["cluster_group"].to_numpy()[0] + "_cluster" + str(cluster) + "_polar_plots.png"))
+            
         else:
-            plt.savefig(str(cluster_path + "/cluster" + str(c) + "_polar_plots.png"))
+            plt.savefig(str(cluster_path + "/cluster" + str(cluster) + "_polar_plots.png"))
+            
         if self.processed_data.Visualize.settings.show_plots: 
-            plt.show()  
+            plt.show()
+            
         plt.close()
 
     def spatial_position_firing(self):
