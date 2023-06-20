@@ -43,8 +43,6 @@ class Visualize:
             logger.info(f"Starting to make some efizz overview plots...")
             
             """ Load data into visual object"""
-            # Production - Run
-
             preprocessObject = PreProcess(self, 
                                           run = "Test", # "Test" for synth data, "Production" for mouse brain data
                                           select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
