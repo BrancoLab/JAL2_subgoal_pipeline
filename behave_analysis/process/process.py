@@ -19,6 +19,7 @@ import os
 import numpy as np
 import dill as pickle
 from loguru import logger
+import sys
 
 class Process():
     """
@@ -111,6 +112,10 @@ class Process():
         try:
             with open(self.session.metadata_file, "rb") as dill_file: 
                 session = pickle.load(dill_file)
+                
+        except FileNotFoundError:
+            print("Meta data file not found, aborting script")
+            sys.exit()
 
         except EOFError:
             print(f"The file location is: {self.session.metadata_file}. Is this correct? Does a metadata file exsist here?")
@@ -118,7 +123,8 @@ class Process():
             return
         
         except AttributeError:
-            print('poop') # Laurence thought this was good code, have lunch if you don't think that's funny
+            print('Attribute Error')
+            
         return session
 
     def load_registration_transform(self) -> None:
