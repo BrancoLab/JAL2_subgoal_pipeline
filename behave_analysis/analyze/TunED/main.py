@@ -237,7 +237,7 @@ if __name__ == '__main__':
     # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
     fig, ax = plt.subplots(1, 2, figsize=(23, 5))
 
-    ax[0].plot(bin_centresV1, tfv1[0, :], '.-', label='Tuning to V1', color="cornflowerblue")
+    ax[0].plot(bin_centresV1, tfv1[0, :], '.-', label='Tuning to v1', color="cornflowerblue")
     ax[0].fill_between(bin_centresV1, tfv1[0, :] - tf_semv1[0, :], tfv1[0, :] + tf_semv1[0, :], alpha=0.1, color="cornflowerblue")
     ax[0].plot(bin_centresV1, tf_x_nh1_drive_by_2[0, :], '.--', label='Tuning to v1 given NH that driver is v2', color='darkorchid')
     ax[0].fill_between(bin_centresV1, tf_x_nh1_drive_by_2[0, :] - tf_x_nh_sem12[0, :], tf_x_nh1_drive_by_2[0, :] + tf_x_nh_sem12[0, :], alpha=0.1, color='darkorchid')
@@ -246,7 +246,7 @@ if __name__ == '__main__':
     ax[0].legend(loc='upper right')
     ax[0].set_title("Tuning to V1", fontweight="bold")
 
-    ax[1].plot(bin_centresV2, tfv2[0, :], '.-', label='Tuning to V2', color='cornflowerblue')
+    ax[1].plot(bin_centresV2, tfv2[0, :], '.-', label='Tuning to v2', color='cornflowerblue')
     ax[1].fill_between(bin_centresV2, tfv2[0, :] - tf_semv2[0, :], tfv2[0, :] + tf_semv2[0, :], color='cornflowerblue', alpha=0.1)
     ax[1].plot(bin_centresV2, tf_x_nh2_driven_by_1[0, :], '.--', label='Tuning to v2 given NH that driver is v1', color='darkorchid')
     ax[1].fill_between(bin_centresV2, tf_x_nh2_driven_by_1[0, :] - tf_x_nh_sem21[0, :], tf_x_nh2_driven_by_1[0, :] + tf_x_nh_sem21[0, :], color='darkorchid', alpha=0.1)

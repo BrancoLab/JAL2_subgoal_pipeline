@@ -19,7 +19,7 @@ for session_ID in experiments_objects:
 def synthetic_dataframe(tuning):
     
     np.random.seed(42)  # For reproducibility, you can remove this line for true randomnes
-    cell_num = 10 # how many cells to generate per type
+    cell_num = 37 # how many cells to generate per type
     session, tracking = load_tracking_data()
     spikes_per_clu = efizz_stats(session)
 

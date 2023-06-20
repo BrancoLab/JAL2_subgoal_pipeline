@@ -7,6 +7,6 @@ JAL002 = Mouse(
     total_sessions=0,
     mouse_number_pyrat="xxx-xxxxxxx",
     experiment_file_names=None,
-    # root_path=Path(r"D:\efizz\JAL002"),
-    root_path=Path(r"C:\Users\jreggiani\Documents\Experimental_Data\JAL002"),
+    root_path=Path(r"D:\efizz\JAL002"),
+    # root_path=Path(r"C:\Users\jreggiani\Documents\Experimental_Data\JAL002"),
 )
