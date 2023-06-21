@@ -4,13 +4,19 @@ import matplotlib.pyplot as plt
 from scipy.stats import poisson
 import matplotlib.pyplot as plt
 import seaborn as sns
+import polars as pl
+from loguru import logger
+
+# TODO - There should be some quality checks done on the ingested data because I found a spike count at 130 
+# in one frame for one cell which is impossible so data quality is not there yet.
+# Putting here so don't forget. It could be somelike checking that there are no spike counts about 10 or something basic
 
 class TunED:
     """
     Estimate tuning functions for 2 stimulus variables, along with tuning functions under the null hypothesis (NH) that only one variable is the driver.
     A new instance of this class should be created for each stimulus variable.
     """
-    def __init__(self, spike_count_matrix, stimulus_variable, Nbins):
+    def __init__(self, spike_count_matrix, stimulus_variable, Nbins, Nsamples):
         """
         Args:
             spike_count_matrix (np.array): Firing rate matrix of shape (Ncells, Nsamples)
@@ -22,6 +28,7 @@ class TunED:
         self.Nbins = Nbins
         self.number_of_cells = spike_count_matrix.shape[0]
         self.number_of_samples = spike_count_matrix.shape[1]
+        self.Nsamples = Nsamples
         
         self.__conduct_input_validation()
         self.stimulus_idx, self.stimulus_bin_edges = self.compute_stimulus_indx()
@@ -32,7 +39,7 @@ class TunED:
         
         Returns: Nothing
         """
-        if Nsamples != self.stimulus_variable.shape[1]:
+        if self.Nsamples != self.stimulus_variable.shape[1]:
             raise ValueError('Mismatched input')
         if self.stimulus_variable.shape[0] != 1:
             raise ValueError('Unexpected input format')
@@ -95,7 +102,7 @@ class TunED:
         return tf, tf_sem, tf_s2, n, bin_centres
     
     @staticmethod
-    def compute_joint_prob(stimulusV1, stimulusV2, stimulusV2edges, stimulusV1edges):
+    def compute_joint_prob(stimulusV1, stimulusV2, stimulusV2edges, stimulusV1edges, Nbins):
         """
         A static method to compute the joint probability between two stimulus variables. Returns a joint probability
         table of size (Nbins, Nbins) that can be used to compute the mutual information between the two variables.
@@ -132,8 +139,7 @@ class TunED:
         
         # Assertion Test for internal consistency
         assert np.isclose(total, 1), 'The joint probability does not sum to 1'
-        assert np.all(Pv2v1 >= 0), 'The joint probability has negative values'
-        assert np.all(Pv2v1 <= 1), 'The joint probability has values greater than 1'
+        assert np.all(Pv2v1 >= 0), 'The joint probability density function has negative values'
         assert np.isclose(sum(np.sum(Pv2v1 * bin_areas , axis=0)), 1), 'The marginal probability of V1 does not sum to 1'
         assert np.isclose(sum(np.sum(Pv2v1 * bin_areas , axis=1)), 1), 'The marginal probability of V2 does not sum to 1'
         
@@ -181,12 +187,124 @@ class TunED:
             tf_x_nh[cluster, :] = np.sum((tf_y[cluster, :][:, None] @ np.ones((1, Nbins_x))) * Py_x, axis=0)
             s2_nh = np.sum((tf_y_s2[cluster, :][:, None] @ np.ones((1, Nbins_x))) * Py_x, axis=0)
             v_nh = s2_nh - tf_x_nh[cluster, :]**2
+            
+            # Epislon smoothing to prevent division by zero
+            # Could 
+            epsilon = 1e-8  # Small constant
             tf_x_nh_sem[cluster, :] = np.sqrt(v_nh / n_x[cluster, :])
+            tf_x_nh_sem = np.nan_to_num(tf_x_nh_sem, nan=epsilon, posinf=epsilon, neginf=epsilon)
             
         return tf_x_nh, tf_x_nh_sem
-    
-if __name__ == '__main__':
 
+    @staticmethod
+    def boot_strap(Ncells, hdir, hsa, raster, Nbins, Nsamples, iterations = 100):
+        
+        # Init
+        tuning_function_hdir = np.zeros((iterations, Nbins))
+        tuning_function_hsa = np.zeros((iterations, Nbins))
+        conditional_of_hdir_driven_by_hsa = np.zeros((iterations, Nbins))
+        conditional_of_hsa_driven_by_hdir= np.zeros((iterations, Nbins))
+        
+        for sample in range(iterations):
+            
+            # Generate a bootstrap sample
+            bootstrap_indices = np.random.choice(Nsamples, Nsamples, replace=True)
+            bootstrap_raster = raster[:, bootstrap_indices]
+            bootstrap_hdir = hdir[:, bootstrap_indices]
+            bootstrap_hsa = hsa[:, bootstrap_indices]
+            
+            # Compute the tuning functions
+            hdirObject = TunED(bootstrap_raster, bootstrap_hdir, Nbins, len(bootstrap_indices)) # V1
+            tuning_function_hdir[sample], _, tf_s2v1, nv1, _ = hdirObject.tuning_function(Ncells, Nbins, raster)
+            
+            # Compute the second tuning function
+            hsaObject = TunED(bootstrap_raster, bootstrap_hsa, Nbins, len(bootstrap_indices)) # V2
+            tuning_function_hsa[sample], _, tf_s2v2, nv2, _ = hsaObject.tuning_function(Ncells, Nbins, raster)
+            
+            # Compute the joint probability of hdir and hsa
+            jointProb_stimuli, _, _ = TunED.compute_joint_prob(bootstrap_hdir, 
+                                                               bootstrap_hsa, 
+                                                               hsaObject.stimulus_bin_edges, 
+                                                               hdirObject.stimulus_bin_edges, 
+                                                               Nbins)
+            
+            # Compute the marginal probabilities
+            Pv1, Pv2 = TunED.marginalize(jointProb_stimuli)
+            
+            # Compute the conditional prbabilities for the stimulus ---------------------------------------------------
+            Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
+            # Tranpose to ensure broadcasting works correctly row wise instead of column wise
+            Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2)
+            
+            # Compute the conditional probability of hdir given hsa
+            conditional_of_hdir_driven_by_hsa[sample], _ = TunED.tuning_function_null_hypothesis_PYX(tuning_function_hdir[sample].reshape(1, Nbins), 
+                                                                                                     tf_s2v1, 
+                                                                                                     nv2, 
+                                                                                                     Pv1_v2)
+            
+            conditional_of_hsa_driven_by_hdir[sample], _ = TunED.tuning_function_null_hypothesis_PYX(tuning_function_hsa[sample].reshape(1, Nbins),
+                                                                                                     tf_s2v2,
+                                                                                                     nv1,
+                                                                                                     Pv2_v1)
+            
+        # Calculate Euclidean distances between each boostrap iteration
+        # (Samples, bin) - Calculate the norm across bins
+        # This works because the Euclidean distance is the l2 norm, and the default value of the ord parameter in numpy.linalg.norm is 2
+        
+        # Get rid of Nans
+        tuning_function_hdir = np.nan_to_num(tuning_function_hdir, nan=0.0)
+        tuning_function_hsa = np.nan_to_num(tuning_function_hsa, nan=0.0)
+                
+        euc_dist_hsa = np.linalg.norm(tuning_function_hsa - conditional_of_hsa_driven_by_hdir, axis=1)
+        euc_dist_hd = np.linalg.norm(tuning_function_hdir - conditional_of_hdir_driven_by_hsa, axis=1)
+            
+        # compute difference
+        diff_distribution = abs(euc_dist_hsa - euc_dist_hd)
+        
+        # # Calculate percentiles
+        percentile_2_5 = np.percentile(diff_distribution, 2.5)
+        percentile_97_5 = np.percentile(diff_distribution, 97.5)
+        
+        # Create the histograms
+        plt.figure(figsize=(10, 6))
+
+        plt.hist(euc_dist_hsa, bins=25, density=True, color='b', label='dHSA')
+        plt.hist(euc_dist_hd, bins=25, density=True, color='r', label='dHD')
+        plt.hist(diff_distribution, bins=25, density=True, color='g', label='dHSA - dHD')
+
+        plt.axvline(x=percentile_2_5, color='purple', linestyle='--', label='2.5 percentile')
+        plt.axvline(x=percentile_97_5, color='orange', linestyle='--', label='97.5 percentile')
+
+        plt.legend()
+        plt.xlabel('Change of eudclid Firing Rate')
+        plt.ylabel('Probability Density')
+        plt.title('Distribution of Firing Rates')
+        plt.grid(True)
+        plt.show()
+            
+# Does everything the below does but now can import it to test module
+def tunED_main(dataframe):
+    
+    for cluster in range(1, 50):
+        
+        # Filter by one cluster to test
+        filtered_df = dataframe.filter(pl.col("spike_clusters") == cluster)
+        
+        # Parameters
+        Nsamples = len(filtered_df)
+        Ncells = 1
+        Nbins = 20 # Number of bins to use to bin up the stimulus variable
+        
+        # Extract the stimulus variables
+        hdir = np.array(filtered_df["hdir"].to_numpy()).reshape(1, Nsamples)
+        hsa  = np.array(filtered_df["hsa"].to_numpy()).reshape(1, Nsamples)
+        
+        raster = np.array(filtered_df["spike_count"].to_numpy()).reshape(1, Nsamples)
+        TunED.boot_strap(Ncells, hdir, hsa, raster, Nbins, Nsamples, iterations = 100)
+
+if __name__ == '__main__':
+    """The below should be set up to run as a self contained module so the user can check the module and test it works."""
+    
     # Set random seed and parameters
     np.random.seed(0)
     Ncells = 1
@@ -207,16 +325,17 @@ if __name__ == '__main__':
     raster[0, :] = poisson.rvs(frate)
     
     # Compute the tuning functions
-    v1Object = TunED(raster, stimulusV1, Nbins)
+    v1Object = TunED(raster, stimulusV1, Nbins, Nsamples)
     tfv1, tf_semv1, tf_s2v1, nv1, bin_centresV1 = v1Object.tuning_function(Ncells, Nbins, raster)
-    v2Object = TunED(raster, stimulusV2, Nbins)
+    v2Object = TunED(raster, stimulusV2, Nbins, Nsamples)
     tfv2, tf_semv2, tf_s2v2, nv2, bin_centresV2 = v2Object.tuning_function(Ncells, Nbins, raster)
 
     # Joint probability of the stimuli --------------------------------------------------------
     jointProb_stimuli, _, _ = TunED.compute_joint_prob(stimulusV1, 
                                                        stimulusV2, 
                                                        stimulusV2edges = v2Object.stimulus_bin_edges, 
-                                                       stimulusV1edges = v1Object.stimulus_bin_edges)
+                                                       stimulusV1edges = v1Object.stimulus_bin_edges,
+                                                       Nbins = Nbins)
         
     # Marginalize the joint probability ------------------------------------------------------
     Pv1, Pv2 = TunED.marginalize(jointProb_stimuli)

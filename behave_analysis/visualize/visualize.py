@@ -46,7 +46,7 @@ class Visualize:
             preprocessObject = PreProcess(self, 
                                           run = "Test", # "Test" for synth data, "Production" for mouse brain data
                                           select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-                                          user_wants_to_regenerate_spike_by_frame_count = True)
+                                          user_wants_to_regenerate_spike_by_frame_count = False)
             visualObject = Visualize_efizz(preprocessObject)
             
             # Test Behaviour correlation plots
@@ -54,7 +54,7 @@ class Visualize:
                                             how_many_plots_you_need = 6, 
                                             CleanVideoDf = preprocessObject.clean_behavioural_data,
                                             directoryToSaveTo = self.session.processed_path, 
-                                            plotName = "Cheese")
+                                            plotName = "CorrelationPlots")
             
             correlationChild.create_correration_plot()
             

@@ -26,8 +26,12 @@ class PreProcess:
         self.load_spike_data()
         self.filter_spike_data()
         self.track_to_polars()
+        
+        # TODO: Functions that assign variable to self should return the variable to it's clear what is being assigned e.g the below functions
+        # Refactor this class for the above functions to do that
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(user_wants_to_regenerate_spike_by_frame_count)
         self.clean_behavioural_data = self.behaviourally_pure_tracking_data()
+        self.large_dataFrame = self.merge_and_save_spike_count_df_with_frame_data()
         
     def load_spike_data(self):
         """
@@ -180,7 +184,16 @@ class PreProcess:
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
             spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
             return spikecountbyframe_neuron
-        
+    
+    def merge_and_save_spike_count_df_with_frame_data(self) -> pl.DataFrame:
+        """
+        Merge and save the spike count dataframe with the video dataframe and save it as a new dataframe for later use in the pipeline in the processed file
+        """
+        video_df = self.Video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
+        large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + self.run_type + "_large_dataframe.csv") # TODO - Change this name to change depending on synthetic or not
+        return large_dataFrame
+    
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters

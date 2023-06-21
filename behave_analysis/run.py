@@ -11,8 +11,7 @@ from behave_analysis.visualize.visualize import Visualize
 from behave_analysis.analyze.analyze import Analyze
 from behave_analysis.utils.print_settings import print_settings, print_settings_analysis
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
-
-# Testing 
+from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from databank import experiments_objects
 
 # OS Libaries
@@ -66,14 +65,24 @@ def visualize():
     logger.success("Visualisation complete")
 
 def analyze():
-    # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a);
-    # TODO: update this to use the new databank 
-    session_IDs = collect_session_IDs_analysis(settings_a.analysis, databank)
-    if settings_a.analysis.plot_escape:  Analyze(session_IDs, settings_a, 'escape trajectories'    ).trajectories()
-    if settings_a.analysis.plot_laser:   Analyze(session_IDs, settings_a, 'laser trajectories'     ).trajectories()
-    if settings_a.analysis.plot_homings: Analyze(session_IDs, settings_a, 'homing trajectories'    ).trajectories()
-    if settings_a.analysis.plot_t_xings: Analyze(session_IDs, settings_a, 't xing trajectories'    ).trajectories()
-    if settings_a.analysis.plot_trial:   Analyze(session_IDs, settings_a, 'escape trial trajectory').single_trial()
-    if settings_a.analysis.plot_homing:  Analyze(session_IDs, settings_a, 'homing trial trajectory').single_trial()
-    if settings_a.analysis.plot_targets: Analyze(session_IDs, settings_a, 'escape targets'         ).distribution()
-    if settings_a.analysis.plot_explore: Analyze(session_IDs, settings_a, 'exploration'            ).exploration() 
+    """
+    A function that calls all the analysis modules and is designed to be run last and for the whole dataset.
+    """
+    logger.info("The analysis pipeline has started")
+    for session_ID in experiments_objects:
+        session = Process(session_ID).load_session()
+        AnalyzeEfizz(session)
+    
+    logger.success("Analysis pipeline complete")
+        
+    # # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a);
+    # # TODO: update this to use the new databank 
+    # session_IDs = collect_session_IDs_analysis(settings_a.analysis, databank)
+    # if settings_a.analysis.plot_escape:  Analyze(session_IDs, settings_a, 'escape trajectories'    ).trajectories()
+    # if settings_a.analysis.plot_laser:   Analyze(session_IDs, settings_a, 'laser trajectories'     ).trajectories()
+    # if settings_a.analysis.plot_homings: Analyze(session_IDs, settings_a, 'homing trajectories'    ).trajectories()
+    # if settings_a.analysis.plot_t_xings: Analyze(session_IDs, settings_a, 't xing trajectories'    ).trajectories()
+    # if settings_a.analysis.plot_trial:   Analyze(session_IDs, settings_a, 'escape trial trajectory').single_trial()
+    # if settings_a.analysis.plot_homing:  Analyze(session_IDs, settings_a, 'homing trial trajectory').single_trial()
+    # if settings_a.analysis.plot_targets: Analyze(session_IDs, settings_a, 'escape targets'         ).distribution()
+    # if settings_a.analysis.plot_explore: Analyze(session_IDs, settings_a, 'exploration'            ).exploration() 

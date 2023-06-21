@@ -30,10 +30,14 @@ def synthetic_dataframe(tuning):
 
     for cell_type in tuning:
         
-        if cell_type == "hdir": angles = tracking["hdir"]
-        elif cell_type == "hsa": angles = tracking["hdir_shelt"]
-        elif cell_type == "h_bar_north_a": angles = tracking['hdir_barrier'][:,0]
-        elif cell_type == "h_bar_south_a": angles = tracking['hdir_barrier'][:,1]
+        if cell_type == "hdir": 
+            angles = tracking["hdir"]
+        elif cell_type == "hsa": 
+            angles = tracking["hdir_shelt"]
+        elif cell_type == "h_bar_north_a": 
+            angles = tracking['hdir_barrier'][:,0]
+        elif cell_type == "h_bar_south_a": 
+            angles = tracking['hdir_barrier'][:,1]
         
         # Generate vectorial cells 
         spikes, clusters = return_spike_times_locked_to_behavioural_direction(angles, 

@@ -24,7 +24,7 @@ class Process():
     This stage also includes verifications of data
     """
     def __init__(self, session_ID):
-        logger.info("Processing session: {}".format(session_ID))
+        logger.info("Session details: {}".format(session_ID))
         self.session = get_experiment(session_ID) # Retrieve experimental data
         self.__check_files_exist() # Check that all behavioural files exist
         
