@@ -104,3 +104,37 @@ seq1_2_002 = Experiment(# Mouse specific
                     shelter_time = [],
                     barrier_time = [85, -1],
                     experiment_path = Path(r"002_seq1_2_2023_04_25T07_32_30"))
+
+mushroom2_002 = Experiment(# Mouse specific
+                    nick_name = JAL002.nick_name,
+                    total_sessions = JAL002.total_sessions,
+                    mouse_number_pyrat = JAL002.mouse_number_pyrat,
+                    experiment_file_names = JAL002.experiment_file_names,
+                    root_path = JAL002.root_path,
+
+
+                    # Experiment specific
+                    experiment_name = 'mushroom',
+                    experiment_idx = 0,
+                    experiment_date = "2023_04_24",
+                    experiment_time = "08_38_34",
+                    shelter_time = [42, -1],
+                    barrier_time = [],
+                    experiment_path = Path(r"002_mushroom2_2023_04_24T08_38_34"))
+
+seq2_2_002 = Experiment(# Mouse specific
+                    nick_name = JAL002.nick_name,
+                    total_sessions = JAL002.total_sessions,
+                    mouse_number_pyrat = JAL002.mouse_number_pyrat,
+                    experiment_file_names = JAL002.experiment_file_names,
+                    root_path = JAL002.root_path,
+
+
+                    # Experiment specific
+                    experiment_name = 'mushroom',
+                    experiment_idx = 0,
+                    experiment_date = "2023_05_11",
+                    experiment_time = "07_33_35",
+                    shelter_time = [31, -1],
+                    barrier_time = [31, 80],
+                    experiment_path = Path(r"002_seq2_2_2023_05_11T07_33_35"))
