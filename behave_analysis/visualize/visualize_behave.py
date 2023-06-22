@@ -145,3 +145,92 @@ class Visualize_behave():
         plt.savefig(os.path.join(self.Visualize.session.processed_path, "distribution_head_angles.png"))
         if self.Visualize.settings.show_plots: plt.show()
         plt.close()
+        
+class GraphingBase:
+    """
+    A base parent class for all graphing functions
+    """
+    def __init__(self, MaxPlotsPerFigure, how_many_plots_you_need):
+        self.num_cols = int(np.ceil(np.sqrt(MaxPlotsPerFigure)))
+        self.num_rows = int(np.ceil(MaxPlotsPerFigure / self.num_cols))
+        self.num_figures = int(np.ceil(how_many_plots_you_need / MaxPlotsPerFigure))
+        self.how_many_plots_you_need = how_many_plots_you_need
+        
+        print(f"The number of figures created will be: {self.num_figures}")
+                
+    def create_figure_with_subplots(self):
+        fig, axs = plt.subplots(self.num_rows, self.num_cols)
+        fig.set_figwidth(15)
+        fig.set_figheight(8)
+        return fig, axs
+    
+    def save_plot(self, directoryToSaveTo, plotName):
+        plt.savefig(directoryToSaveTo + "/" + plotName + ".png", dpi = 300)
+         
+class Correlations(GraphingBase):
+    """
+    A class for plotting correlations between different angle variables
+    """
+    def __init__(self, MaxPlotsPerFigure, how_many_plots_you_need, CleanVideoDf, directoryToSaveTo, plotName):
+        super().__init__(MaxPlotsPerFigure, how_many_plots_you_need)
+        self.CleanVideoDf = CleanVideoDf
+        self.variable_permutations = self.extract_correlation_permutations()
+        self.xsys = self.extract_xsys()
+        self.directoryToSaveTo = directoryToSaveTo
+        self.plotName = plotName
+                
+    def extract_correlation_permutations(self):
+        """
+        A function to extract all possible permutations of the correlation variables for plotting. There should be six permutations:
+        1. head direction vs head shelter angle, south, north
+        2. head shelter angl vs head barrier angle south, north
+        3. north barrier vs south barrier
+        """
+        variable_permutation_dictionary = {"head direction VS head shelter angle": ("hdir", "hsa"),
+                      "head direction VS north barrier edge angle": ("hdir", "h_bar_north_a"),
+                      "head direction VS south barrier edge angle": ("hdir", "h_bar_south_a"),
+                      "head shelter angle VS north barrier edge angle": ("hsa", "h_bar_north_a"),
+                      "head shelter angle VS south barrier edge angle": ("hsa", "h_bar_south_a"),
+                      "north barrier edge angle VS south barrier edge angle": ("h_bar_north_a", "h_bar_south_a")}
+        
+        permutation_tuples = {}
+        for key, value in variable_permutation_dictionary.items():
+            permutation_tuples[key] = (value[0], value[1])
+                
+        return permutation_tuples
+        
+    def extract_xsys(self):
+        dict = {}
+        for key, value in self.variable_permutations.items():
+            dict[key] = self.CleanVideoDf[[value[0], value[1]]]
+        return dict
+                
+    def create_correration_plot(self):
+        total_plots = 0
+        
+        for figure in range(self.num_figures):
+            fig, axs = self.create_figure_with_subplots()
+            x = np.linspace(0, 2 * np.pi, 400)
+            y = np.linspace(0, 3 * np.pi, 400)
+            
+            for ax in axs.flat:
+                if total_plots < self.how_many_plots_you_need:
+                    x = list(self.xsys.values())[total_plots][:, 0]
+                    y = list(self.xsys.values())[total_plots][:, 1]
+                                
+                    ax.scatter(x, y, s = 0.2)
+                    ax.set_title(list(self.variable_permutations.keys())[total_plots], fontsize = 8)
+                    ax.set_xlabel(list(self.variable_permutations.values())[total_plots][0])
+                    ax.set_ylabel(list(self.variable_permutations.values())[total_plots][1])
+                    
+                    total_plots += 1
+                else:
+                    ax.axis('off')  # hide axis if not used
+            
+            fig.subplots_adjust(hspace=1)
+            
+        self.save_plot(self.directoryToSaveTo, self.plotName)
+        plt.show()
+
+
+

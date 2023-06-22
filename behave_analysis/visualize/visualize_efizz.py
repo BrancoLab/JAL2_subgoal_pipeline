@@ -26,7 +26,8 @@ class PreProcess:
         self.filter_spike_data()
         self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(user_wants_to_regenerate_spike_by_frame_count)
-
+        self.clean_behavioural_data = self.behaviourally_pure_tracking_data()
+        
     def load_spike_data(self):
         """
         Loads the csv of aligned data
@@ -75,7 +76,7 @@ class PreProcess:
 
     def track_to_polars(self):
         """
-        Adds all the behavioral variables from track to the polars psike dataframe
+        Adds all the behavioral variables from track to the polars sike dataframe
         """
         OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
             self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
@@ -122,6 +123,17 @@ class PreProcess:
                 "EscapePeriod": EscapePeriod == 1, # frames from 1 second before to 10 seconds after escape
                 "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
                 "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
+
+    def behaviourally_pure_tracking_data(self):
+        """
+        Filter out all the data where the mouse is in the shelter for example
+        """
+        filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) 
+                                                 & (self.Video_df["EscapePeriod"] == False))        
+ 
+        assert len(filtered_video_df) > 0, "No data left after filtering"
+        
+        return filtered_video_df
 
     def count_spikes_and_units_to_frames(self, user_wants_to_regenerate_spike_by_frame_count = False):
         """
@@ -432,8 +444,8 @@ class Visualize_efizz:
 
         # individual figures for each cluster with all polar plots
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
-        for c in number_of_clusters:
-            self.single_cluster_polar_plots(c)
+        for cluster in number_of_clusters:
+            self.single_cluster_polar_plots(cluster)
             
         logger.success("Finished making figures of each individual cluster and all its respective tuning plots")
         
@@ -597,6 +609,7 @@ class Visualize_efizz:
         number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
         logger.info("About to generate plots for {} clusters".format(len(number_of_clusters)))
         for counter,c in enumerate(number_of_clusters):
+            
             # if you have filled a figure with polar plots, move onto next figure
             if counter >= (ncols*nrows)*fnum:
                 figg, axs = plt.subplots(nrows,ncols)
@@ -604,6 +617,7 @@ class Visualize_efizz:
                 figg.set_figheight(15)
                 fnum = fnum + 1
                 axs = axs.ravel()
+                
             ax = plt.subplot(nrows,ncols,1+counter-(nrows*ncols*(fnum-1)),projection = 'polar')
             
             # polar plots!
@@ -640,31 +654,37 @@ class Visualize_efizz:
                 if self.processed_data.Visualize.settings.show_plots: 
                     plt.show()  
 
-    def single_cluster_polar_plots(self,c):
+    def single_cluster_polar_plots(self, cluster):
         """Plots all polar plots for 1 cluster in 1 figure"""
 
         tuning_angles = ['hdir', 'hsa', 'h_bar_south_a', 'h_bar_north_a']
-        figg, _ = plt.subplots(1,len(tuning_angles))
+        figg, _ = plt.subplots(1, len(tuning_angles))
         figg.set_figwidth(30)
 
         for subp, angle in enumerate(tuning_angles):
             ax = plt.subplot(1,4,subp+1,projection = 'polar')
+            
             if str('pre_' + angle) in self.tuning_dict:
-                counter = np.where(self.Rayleigh_cluster[str('pre_' + angle)] == c)[0]
+                counter = np.where(self.Rayleigh_cluster[str('pre_' + angle)] == cluster)[0]
+                
                 if len(counter) > 0:
                     ax.bar(self.tuning_dict['angles'], self.tuning_dict[str('pre_' + angle)][counter,:][0], width=(2*np.pi)/(len(self.tuning_dict['angles'])+1), bottom=0.0, color='red', alpha=0.5)
                     ax.vlines(self.Rayleigh_theta[str('pre_' + angle)][counter][0], 0, self.Rayleigh[str('pre_' + angle)][counter][0]*np.amax(self.tuning_dict[str('pre_' + angle)][counter,:][0]), colors='red')
                     ax.title.set_text(angle + '\n' + 'preRayleigh = ' + str(np.around(self.Rayleigh[str('pre_' + angle)][counter][0],2)) + ', sig = ' + str(np.around(self.Rayleigh_sig[str('pre_' + angle)][counter][0],2))
                                     + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[angle][counter][0],2)) + ', sig = ' + str(np.around(self.Rayleigh_sig[angle][counter][0],2)))
+            
             if angle in self.tuning_dict:
-                counter = np.where(self.Rayleigh_cluster[angle] == c)[0]
+                counter = np.where(self.Rayleigh_cluster[angle] == cluster)[0]
+                
                 if len(counter) > 0:
                     ax.bar(self.tuning_dict['angles'], self.tuning_dict[angle][counter,:][0], width=(2*np.pi)/(len(self.tuning_dict['angles'])+1), bottom=0.0, color='green', alpha=0.5)
                     ax.vlines(self.Rayleigh_theta[angle][counter][0], 0, self.Rayleigh[angle][counter][0]*np.amax(self.tuning_dict[angle][counter,:][0]), colors='green')
+                                        
                     if not(str('pre_' + angle) in self.tuning_dict):
                         ax.title.set_text(angle + '\n' + 'Rayleigh = ' + str(np.around(self.Rayleigh[angle][counter][0],2)) + ', sig = ' + str(np.around(self.Rayleigh_sig[angle][counter][0],2)))
 
         plt.tight_layout()
+
         cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
         if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
         if np.logical_or(self.processed_data.select_clusters == "all", self.processed_data.select_clusters == "synthetic"):
@@ -719,8 +739,7 @@ class Visualize_efizz:
             axs[counter-(nrows*ncols*fnum)].title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' cluster ' + str(cluster))
 
             # save the figure
-            if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1,
-                             counter == len(self.processed_data.spikedataframe["spike_clusters"].unique())-1):
+            if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spikedataframe["spike_clusters"].unique())-1):
                 plt.tight_layout()
                 plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
                 if self.processed_data.Visualize.settings.show_plots: 
