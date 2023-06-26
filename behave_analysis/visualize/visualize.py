@@ -48,7 +48,7 @@ class Visualize:
             #                               select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
             #                               user_wants_to_regenerate_spike_by_frame_count = False)
             
-            preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "good")
+            preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "synthetic") # legancy label filter still saves file name
             visualObject = Visualize_efizz(preprocessObject)
             
             # Test Behaviour correlation plots

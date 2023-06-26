@@ -4,6 +4,7 @@ from settings.settings_analyze_efizz import Settings_analyze_efizz
 # OS Lib
 from loguru import logger
 import polars as pl
+import os
 
 class AnalyzeEfizz:
     """
@@ -13,9 +14,11 @@ class AnalyzeEfizz:
     """
     def __init__(self, session_to_analyze):
         logger.info('Initializing AnalyzeEfizz')
-        self.processed_file_directory = session_to_analyze.file_path / 'processed_data'
-        # self.large_data_file = pl.read_csv(self.processed_file_directory / "_Production_large_dataframe.csv")
-        self.large_data_file = pl.read_csv(self.processed_file_directory / "Test_large_dataframe.csv")
+        self.processed_file_directory = session_to_analyze.file_path / 'processed_data' / 'synthetic_large_dataframe.csv'
+        if os.path.isfile(self.processed_file_directory):
+            self.large_data_file = pl.read_csv(self.processed_file_directory)
+        else:
+            raise FileNotFoundError("Synethic data path doesn't exsist, have you generated it?")
         self.execute_models()
 
     def execute_models(self):

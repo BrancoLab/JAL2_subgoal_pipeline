@@ -149,7 +149,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         else:
             logger.info("Synethic spike data found.")
     
-    def load_spike_data(self):
+    def load_spike_data(self) -> pl.DataFrame:
         spike_data = pl.read_csv(self.csv_path)
         logger.success("Data found ready for preprocessing")
         return spike_data
@@ -165,13 +165,13 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         synth_df = generate_synthetic_dataframe(tuning)
         synth_df.write_csv(self.csv_path)
     
-    def filter_spike_data(self):
+    def filter_spike_data(self) -> NotImplementedError:
         """
         I actually don't think this function is needed for synethic, there was a think called self.clu_label but it wasn't used across the code base so assuming not needed.
         """
         raise NotImplementedError
  
-    def merge_and_save_spike_count_df_with_frame_data(self, expand_behavioural_data = False):
+    def merge_and_save_spike_count_df_with_frame_data(self, expand_behavioural_data = False) -> None:
         if not expand_behavioural_data:
             video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
             large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
