@@ -10,46 +10,77 @@ import dill as pickle
 import numpy as np 
 from loguru import logger
 import matplotlib.pyplot as plt
+from scipy import interpolate
+from typing import Tuple
+
+# Globals
+np.random.seed(42)  # For reproducibility, you can remove this line for true randomnes
 
 # Collect session data currently in the databank
 for session_ID in experiments_objects:
     session = Process(session_ID).load_session()
     break
 
-def synthetic_dataframe(tuning):
+def extract_tuning_request(cell_type_to_generate, tracking_data):
+    """
+    First check that the requested angle is permitted. Then return 
+    the behavioural angles for stimuli of interest.
+    """
+    options = ['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']
+    if cell_type_to_generate not in options:
+        raise ValueError
     
-    np.random.seed(42)  # For reproducibility, you can remove this line for true randomnes
-    cell_num = 37 # how many cells to generate per type
+    if cell_type_to_generate == "hdir": 
+        angles = tracking_data["hdir"]
+    elif cell_type_to_generate == "hsa": 
+        angles = tracking_data["hdir_shelt"]
+    elif cell_type_to_generate == "h_bar_north_a": 
+        angles = tracking_data['hdir_barrier'][:,0]
+    elif cell_type_to_generate == "h_bar_south_a": 
+        angles = tracking_data['hdir_barrier'][:,1]
+    
+    return angles
+    
+def generate_synthetic_dataframe(tuning: list, 
+                                 realistic = False, 
+                                 num_cells_per_type = 37, 
+                                 number_of_spikes_to_gen_per_cluster = 250000) -> pl.DataFrame:
+    """
+    Inputs: 
+    
+    + tuning (type: list) - A list of strings. Each entry contains an angle and can range from a single angle ['hdir] to 4. E.g: ['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']
+    + realistic (flag) - use real firing counts to generate data from efizz stats, or make unrealistic ones for sure bet testing of models
+    + num_cells_per_type - How many different cluusters do you want per tuning category, the more cells the more angles that will be covered / generated for
+    
+    Returns: synth_df (type: pl.DataFrame)
+    Description: Synthetic polars dataframe that attempts to match the real data
+    """
+    
     session, tracking = load_tracking_data()
-    spikes_per_clu = efizz_stats(session)
-
+    if realistic: # NOTE real behavioural data is used regardless, this just controls efizz stats
+        spikes_per_clu = efizz_stats(session)
+        number_of_spikes_to_gen_per_cluster = np.random.choice(spikes_per_clu, size = num_cells_per_type, replace = False)
+        
+    if not realistic:
+        number_of_spikes_to_gen_per_cluster = [number_of_spikes_to_gen_per_cluster] * num_cells_per_type
+    
+    # Init
     all_spikes = []
     all_clu_ID = []
     all_clu_label = []
     clu_offset = 0
 
     for cell_type in tuning:
-        
-        if cell_type == "hdir": 
-            angles = tracking["hdir"]
-        elif cell_type == "hsa": 
-            angles = tracking["hdir_shelt"]
-        elif cell_type == "h_bar_north_a": 
-            angles = tracking['hdir_barrier'][:,0]
-        elif cell_type == "h_bar_south_a": 
-            angles = tracking['hdir_barrier'][:,1]
-        
-        # Generate vectorial cells 
-        spikes, clusters = return_spike_times_locked_to_behavioural_direction(angles, 
-                                                                            number_of_spikes = np.random.choice(spikes_per_clu, size = cell_num, replace = False), 
-                                                                            direction = np.linspace(-np.pi,np.pi,cell_num), 
-                                                                            dir_std = np.random.choice(np.linspace(.1,np.pi/4,50), size = cell_num),
-                                                                            fps = 40,
-                                                                            mean = 0, 
-                                                                            std_dev = 1,
-                                                                            add_noise = False,
-                                                                            noise_scale = 25)
-        
+        angles = extract_tuning_request(cell_type_to_generate = cell_type, tracking_data = tracking)
+        spikes, clusters = return_spike_times_locked_to_behavioural_direction(behavioural_direction = angles, 
+                                                                              number_of_spikes = number_of_spikes_to_gen_per_cluster,
+                                                                              tuned_direction = np.linspace(-np.pi, np.pi, num_cells_per_type), 
+                                                                              dir_std = np.random.choice(np.linspace(.1,np.pi/4,50), size = num_cells_per_type),
+                                                                              fps = 40,
+                                                                              mean = 0, 
+                                                                              std_dev = 1,
+                                                                              add_noise = False,
+                                                                              noise_scale = 25)
         all_spikes.extend(spikes)
         all_clu_ID.extend(clusters + clu_offset)
         clu_offset = clu_offset + np.amax(clusters)
@@ -59,7 +90,7 @@ def synthetic_dataframe(tuning):
     all_clu_ID = np.array(all_clu_ID)
 
     # Create a Polars DataFrame
-    synth_df = pl.DataFrame({"spike_times": [0] * len(all_spikes), # Not used
+    synth_df = pl.DataFrame({"spike_times": [0] * len(all_spikes), # Not used but kept to match production data
                             "spike_clusters": all_clu_ID,
                             "cluster_group": all_clu_label,
                             "aligned_spike_times": all_spikes,
@@ -67,32 +98,43 @@ def synthetic_dataframe(tuning):
                             "spike_aligned_to_frame": np.around((all_spikes * 40))})
     
     synth_df = synth_df.with_columns(synth_df["spike_aligned_to_frame"].cast(pl.Float64))
-
+    
     return synth_df
 
 def return_spike_times_locked_to_behavioural_direction(behavioural_direction, 
                                                        number_of_spikes,
-                                                       direction, 
+                                                       tuned_direction, 
                                                        dir_std = .1,
                                                        fps = 40, 
                                                        mean = 0, 
                                                        std_dev = 1,
                                                        add_noise = False,
-                                                       noise_scale=0.1) -> np.ndarray:
+                                                       noise_scale=0.1) -> Tuple[np.ndarray, np.ndarray]:
     
     """
     Selecting the behavioural direction of interest, this function will gather the samples
-    of when that direction is occuring, convert into time and then generate spikes around that time. 
+    of when that direction is occuring, convert into time and then generate spikes around that time.
+    
+    Inputs:
+    + behavioural_direction: this is the tracking data that has been filtered on either hsa, hdir etc
+    + tuned_drection: this is the set of angles to generate spikes for
+    
+    Returns: (both flat so they can unfold into dataframe)
+    + flat list of spike times
+    + flat list of cluster ids
     """
     all_spike_times = []
     all_cluster_ids = []
     
-    for idx, z in enumerate(zip(direction,number_of_spikes,dir_std), start=1):
-        direction = z[0]
-        spike_num = z[1]
-        dir_std = z[2]
+    for idx, items in enumerate(zip(tuned_direction, number_of_spikes, dir_std)):
         
-        indices = np.where(((direction - dir_std) <= behavioural_direction) & (behavioural_direction <= (direction + dir_std)))[0]
+        # Extract zipped contents 
+        tuned_direction = items[0]
+        spike_num = items[1]
+        dir_std = items[2]
+        
+        # Extract behavioural ranges and generate spikes
+        indices = np.where(((tuned_direction - dir_std) <= behavioural_direction) & (behavioural_direction <= (tuned_direction + dir_std)))[0]
         times = indices / fps
         spike_times = generate_spikes(spike_num, times, mean, std_dev)
     
@@ -103,10 +145,7 @@ def return_spike_times_locked_to_behavioural_direction(behavioural_direction,
         all_spike_times.extend(spike_times)
         all_cluster_ids.extend([idx] * len(spike_times))
     
-    all_spike_times = np.array(all_spike_times)
-    all_cluster_ids = np.array(all_cluster_ids)
-                
-    return all_spike_times, all_cluster_ids
+    return np.array(all_spike_times), np.array(all_cluster_ids)
 
 ## UTIL FUNCTIONS ----------------------------------------------------
 def load_tracking_data():

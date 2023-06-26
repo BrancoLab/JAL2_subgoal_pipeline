@@ -4,7 +4,7 @@ from behave_analysis.track.register import load_fisheye_correction_map, correct_
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
-from behave_analysis.visualize.visualize_efizz import Visualize_efizz, PreProcess
+from behave_analysis.visualize.visualize_efizz import Visualize_efizz, PreProcess, SyntheticDataPreprocessor
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.visualize.visualize_behave import Correlations
 
@@ -43,10 +43,12 @@ class Visualize:
             logger.info(f"Starting to make some efizz overview plots...")
             
             """ Load data into visual object"""
-            preprocessObject = PreProcess(self, 
-                                          run = "Test", # "Test" for synth data, "Production" for mouse brain data
-                                          select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-                                          user_wants_to_regenerate_spike_by_frame_count = False)
+            # preprocessObject = PreProcess(self, 
+            #                               run = "Test", # "Test" for synth data, "Production" for mouse brain data
+            #                               select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+            #                               user_wants_to_regenerate_spike_by_frame_count = False)
+            
+            preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "good")
             visualObject = Visualize_efizz(preprocessObject)
             
             # Test Behaviour correlation plots

@@ -23,7 +23,7 @@ class AnalyzeEfizz:
         
         if Settings_analyze_efizz.run_tunED:
             logger.info('Running TunED')
-            tunED_main(self.large_data_file)
+            tunED_main(self.large_data_file, save_plot_location = self.processed_file_directory / 'TunED')
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:

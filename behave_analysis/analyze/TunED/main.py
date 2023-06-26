@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import polars as pl
 from loguru import logger
+from scipy.spatial import distance
+
 
 # TODO - There should be some quality checks done on the ingested data because I found a spike count at 130 
 # in one frame for one cell which is impossible so data quality is not there yet.
@@ -191,19 +193,22 @@ class TunED:
             # Epislon smoothing to prevent division by zero
             # Could 
             epsilon = 1e-8  # Small constant
+            n_x[cluster, :] = np.nan_to_num(n_x[cluster, :], nan=epsilon, posinf=epsilon, neginf=epsilon)
             tf_x_nh_sem[cluster, :] = np.sqrt(v_nh / n_x[cluster, :])
-            tf_x_nh_sem = np.nan_to_num(tf_x_nh_sem, nan=epsilon, posinf=epsilon, neginf=epsilon)
+            # tf_x_nh_sem = np.nan_to_num(tf_x_nh_sem, nan=epsilon, posinf=epsilon, neginf=epsilon)
             
         return tf_x_nh, tf_x_nh_sem
 
     @staticmethod
-    def boot_strap(Ncells, hdir, hsa, raster, Nbins, Nsamples, iterations = 100):
+    def boot_strap(Ncells, hdir, hsa, raster, Nbins, Nsamples, iterations = 100, cluster_id = None, save_plot_location = None):
         
         # Init
         tuning_function_hdir = np.zeros((iterations, Nbins))
         tuning_function_hsa = np.zeros((iterations, Nbins))
         conditional_of_hdir_driven_by_hsa = np.zeros((iterations, Nbins))
         conditional_of_hsa_driven_by_hdir= np.zeros((iterations, Nbins))
+        
+        print("The number of frames this cluster fired in:", Nsamples)
         
         for sample in range(iterations):
             
@@ -215,11 +220,11 @@ class TunED:
             
             # Compute the tuning functions
             hdirObject = TunED(bootstrap_raster, bootstrap_hdir, Nbins, len(bootstrap_indices)) # V1
-            tuning_function_hdir[sample], _, tf_s2v1, nv1, _ = hdirObject.tuning_function(Ncells, Nbins, raster)
+            tuning_function_hdir[sample], hdir_semv, hdir_s2, nv1, bin_centres_hdir = hdirObject.tuning_function(Ncells, Nbins, raster)
             
             # Compute the second tuning function
             hsaObject = TunED(bootstrap_raster, bootstrap_hsa, Nbins, len(bootstrap_indices)) # V2
-            tuning_function_hsa[sample], _, tf_s2v2, nv2, _ = hsaObject.tuning_function(Ncells, Nbins, raster)
+            tuning_function_hsa[sample], hsa_semv, hsa_s2, nv2, bin_centres_hsa = hsaObject.tuning_function(Ncells, Nbins, raster)
             
             # Compute the joint probability of hdir and hsa
             jointProb_stimuli, _, _ = TunED.compute_joint_prob(bootstrap_hdir, 
@@ -231,22 +236,66 @@ class TunED:
             # Compute the marginal probabilities
             Pv1, Pv2 = TunED.marginalize(jointProb_stimuli)
             
+            # Adding epsilon to prevent division by zero
+            epsilon = 1e-8
+            
             # Compute the conditional prbabilities for the stimulus ---------------------------------------------------
-            Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
+            Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1 + epsilon) # P(v2|v1)
             # Tranpose to ensure broadcasting works correctly row wise instead of column wise
-            Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2)
+            Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2 + epsilon) # P(v1|v2)
             
             # Compute the conditional probability of hdir given hsa
-            conditional_of_hdir_driven_by_hsa[sample], _ = TunED.tuning_function_null_hypothesis_PYX(tuning_function_hdir[sample].reshape(1, Nbins), 
-                                                                                                     tf_s2v1, 
+            conditional_of_hdir_driven_by_hsa[sample], hdir_nh_sem = TunED.tuning_function_null_hypothesis_PYX(tuning_function_hdir[sample].reshape(1, Nbins), 
+                                                                                                     hdir_s2, 
                                                                                                      nv2, 
                                                                                                      Pv1_v2)
             
-            conditional_of_hsa_driven_by_hdir[sample], _ = TunED.tuning_function_null_hypothesis_PYX(tuning_function_hsa[sample].reshape(1, Nbins),
-                                                                                                     tf_s2v2,
+            conditional_of_hsa_driven_by_hdir[sample], hsa_nh_sem = TunED.tuning_function_null_hypothesis_PYX(tuning_function_hsa[sample].reshape(1, Nbins),
+                                                                                                     hsa_s2,
                                                                                                      nv1,
                                                                                                      Pv2_v1)
-            
+    # FIRST PLOT ----------------------------------------------------------------------
+        
+        # variables
+        average_hdir = np.mean(tuning_function_hdir, axis = 0)
+        average_hsa = np.mean(tuning_function_hsa, axis = 0)
+        
+        average_hdir_nh = np.mean(conditional_of_hdir_driven_by_hsa, axis = 0)
+        average_hsa_nh = np.mean(conditional_of_hsa_driven_by_hdir, axis = 0)
+        
+        average_hdir_sem = np.mean(hdir_semv, axis = 0)
+        average_hsa_sem = np.mean(hsa_semv, axis = 0)
+        
+        average_hdir_nh_sem = np.mean(hdir_semv, axis = 0)
+        average_hsa_nh_sem = np.mean(hsa_semv, axis = 0)
+        
+        # First plot the curves
+        # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
+        fig, ax = plt.subplots(1, 3, figsize=(23, 5))
+        
+        ax[0].plot(bin_centres_hdir, average_hdir, '.-', label='Tuning to hdir', color="cornflowerblue")
+        ax[0].fill_between(bin_centres_hdir, average_hdir - average_hdir_sem, average_hdir + average_hdir_sem, alpha=0.1, color="cornflowerblue")
+        
+        ax[0].plot(bin_centres_hdir, average_hdir_nh, '.--', label='Tuning to hdir given NH that driver is hsa', color='darkorchid')
+        ax[0].fill_between(bin_centres_hdir, average_hdir_nh - average_hdir_nh_sem, average_hdir_nh + average_hdir_nh_sem, alpha=0.1, color='darkorchid')
+        
+        ax[0].set_xlabel('hdir')
+        ax[0].set_ylabel('fr')
+        ax[0].legend(loc='upper right')
+        ax[0].set_title("Tuning to hdir", fontweight="bold")
+        
+        ax[1].plot(bin_centres_hsa, average_hsa, '.-', label='Tuning to hsa', color='cornflowerblue')
+        ax[1].fill_between(bin_centres_hsa, average_hsa - average_hsa_sem, average_hsa + average_hsa_sem, color='cornflowerblue', alpha=0.1)
+        
+        ax[1].plot(bin_centres_hsa, average_hsa_nh, '.--', label='Tuning to hsa given NH that driver is hsa', color='darkorchid')
+        ax[1].fill_between(bin_centres_hsa, average_hsa_nh - average_hsa_nh_sem, average_hsa_nh + average_hsa_nh_sem, color='darkorchid', alpha=0.1)
+        
+        ax[1].set_xlabel('hsa')
+        ax[1].set_ylabel('fr')
+        ax[1].legend(loc='upper right')
+        ax[1].set_title("Tuning to hsa", fontweight="bold")
+        
+        # Stop plots to compute Euclidean distance
         # Calculate Euclidean distances between each boostrap iteration
         # (Samples, bin) - Calculate the norm across bins
         # This works because the Euclidean distance is the l2 norm, and the default value of the ord parameter in numpy.linalg.norm is 2
@@ -254,42 +303,68 @@ class TunED:
         # Get rid of Nans
         tuning_function_hdir = np.nan_to_num(tuning_function_hdir, nan=0.0)
         tuning_function_hsa = np.nan_to_num(tuning_function_hsa, nan=0.0)
-                
+        
         euc_dist_hsa = np.linalg.norm(tuning_function_hsa - conditional_of_hsa_driven_by_hdir, axis=1)
         euc_dist_hd = np.linalg.norm(tuning_function_hdir - conditional_of_hdir_driven_by_hsa, axis=1)
+        
+        # Unit
+        assert len(euc_dist_hsa) == iterations, "There should be a l2 norm for each bootstrap"
             
         # compute difference
-        diff_distribution = abs(euc_dist_hsa - euc_dist_hd)
+        diff_distribution = euc_dist_hsa - euc_dist_hd
         
         # # Calculate percentiles
         percentile_2_5 = np.percentile(diff_distribution, 2.5)
         percentile_97_5 = np.percentile(diff_distribution, 97.5)
         
-        # Create the histograms
-        plt.figure(figsize=(10, 6))
+        if percentile_2_5 < 0 and percentile_97_5 < 0:
+            outcome = "hDIR cell"
+        
+        elif percentile_2_5 > 0 and percentile_97_5 > 0:
+            outcome = "hSA cell"
+        
+        else:
+            outcome = "Unsure"
+        
+        # Final distribution plots
+        
+        #...
+        ax[2].axvline(x=percentile_2_5, color='grey', linestyle='--', label='2.5 percentile')
+        ax[2].axvline(x=percentile_97_5, color='grey', linestyle='--', label='97.5 percentile')
 
-        plt.hist(euc_dist_hsa, bins=25, density=True, color='b', label='dHSA')
-        plt.hist(euc_dist_hd, bins=25, density=True, color='r', label='dHD')
-        plt.hist(diff_distribution, bins=25, density=True, color='g', label='dHSA - dHD')
-
-        plt.axvline(x=percentile_2_5, color='purple', linestyle='--', label='2.5 percentile')
-        plt.axvline(x=percentile_97_5, color='orange', linestyle='--', label='97.5 percentile')
-
-        plt.legend()
-        plt.xlabel('Change of eudclid Firing Rate')
-        plt.ylabel('Probability Density')
-        plt.title('Distribution of Firing Rates')
-        plt.grid(True)
+        ax[2].legend()
+        ax[2].set_xlabel('Change of eudclid Firing Rate')
+        ax[2].set_ylabel('Probability Density')
+        ax[2].set_title(f'Distribution of Firing Rates for cluster {cluster_id} with a classification of: {outcome}')
+        
+        ax[2].hist(euc_dist_hsa, bins=20, density=True, color='cornflowerblue', label='dHSA')
+        ax[2].hist(euc_dist_hd, bins=20, density=True, color='orange', label='dHD')
+        ax[2].hist(diff_distribution, bins=20, density=True, color="black", label="dhsa - hdir")
+        
         plt.show()
-            
+        # plt.savefig(f'{save_plot_location}\cluster_{cluster_id}.png')
+
+def replace_nulls(df: pl.DataFrame) -> pl.DataFrame:
+    for col in df.columns:
+        df = df.with_column(df[col].fill_null(1))
+    return df
+  
 # Does everything the below does but now can import it to test module
-def tunED_main(dataframe):
-    
-    for cluster in range(1, 50):
+def tunED_main(dataframe, save_plot_location):
+    df_filled = replace_nulls(dataframe)
+
+    # NOTE - OFF by one error cluster zero doesn't exsist
+    for cluster in range(1, 70):
         
         # Filter by one cluster to test
-        filtered_df = dataframe.filter(pl.col("spike_clusters") == cluster)
+        filtered_df = df_filled.filter(pl.col("spike_clusters") == cluster)
         
+        # print how many spikes that cluster has
+        print("This cluster has this number of spikes", sum(filtered_df["spike_count"]))
+        
+        # # Scale up number of spikes NOTE only decreases liklihood of density because not tuned spikes
+        # filtered_df = filtered_df.with_column(filtered_df["spike_count"] * 10)
+
         # Parameters
         Nsamples = len(filtered_df)
         Ncells = 1
@@ -299,8 +374,11 @@ def tunED_main(dataframe):
         hdir = np.array(filtered_df["hdir"].to_numpy()).reshape(1, Nsamples)
         hsa  = np.array(filtered_df["hsa"].to_numpy()).reshape(1, Nsamples)
         
+        print("The rho for the angles of this cluster is", np.corrcoef(hdir, hsa)[0, 1])
+        
         raster = np.array(filtered_df["spike_count"].to_numpy()).reshape(1, Nsamples)
-        TunED.boot_strap(Ncells, hdir, hsa, raster, Nbins, Nsamples, iterations = 100)
+        TunED.boot_strap(Ncells, hdir, hsa, raster, Nbins, Nsamples, iterations = 1000, cluster_id = cluster, save_plot_location = save_plot_location)
+        break
 
 if __name__ == '__main__':
     """The below should be set up to run as a self contained module so the user can check the module and test it works."""
