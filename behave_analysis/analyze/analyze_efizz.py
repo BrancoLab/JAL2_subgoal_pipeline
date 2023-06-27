@@ -12,9 +12,12 @@ class AnalyzeEfizz:
     of this class is to make it easy to run all of the models on the same data without having to run the preprocessing each time.
     Any processing of the data should be done outside of this module. 
     """
+    
+    # TODO make flag for synth vs production better 
     def __init__(self, session_to_analyze):
         logger.info('Initializing AnalyzeEfizz')
         self.processed_file_directory = session_to_analyze.file_path / 'processed_data' / 'synthetic_large_dataframe.csv'
+        # self.processed_file_directory = session_to_analyze.file_path / 'processed_data' / 'production_large_dataframe.csv'
         if os.path.isfile(self.processed_file_directory):
             self.large_data_file = pl.read_csv(self.processed_file_directory)
         else:

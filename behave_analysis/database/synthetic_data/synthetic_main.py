@@ -33,18 +33,19 @@ def extract_tuning_request(cell_type_to_generate, tracking_data):
     if cell_type_to_generate == "hdir": 
         angles = tracking_data["hdir"]
     elif cell_type_to_generate == "hsa": 
-        angles = tracking_data["hdir_shelt"]
+        angles = tracking_data["hsa"]
     elif cell_type_to_generate == "h_bar_north_a": 
-        angles = tracking_data['hdir_barrier'][:,0]
+        angles = tracking_data['h_bar_north_a']
     elif cell_type_to_generate == "h_bar_south_a": 
-        angles = tracking_data['hdir_barrier'][:,1]
+        angles = tracking_data['h_bar_south_a']
     
     return angles
     
 def generate_synthetic_dataframe(tuning: list, 
                                  realistic = False, 
                                  num_cells_per_type = 37, 
-                                 number_of_spikes_to_gen_per_cluster = 250000) -> pl.DataFrame:
+                                 number_of_spikes_to_gen_per_cluster = 250000,
+                                 pass_video_df = None) -> pl.DataFrame:
     """
     Inputs: 
     
@@ -56,7 +57,9 @@ def generate_synthetic_dataframe(tuning: list,
     Description: Synthetic polars dataframe that attempts to match the real data
     """
     
-    session, tracking = load_tracking_data()
+    tracking = pass_video_df
+    session, _ = load_tracking_data()
+        
     if realistic: # NOTE real behavioural data is used regardless, this just controls efizz stats
         spikes_per_clu = efizz_stats(session)
         number_of_spikes_to_gen_per_cluster = np.random.choice(spikes_per_clu, size = num_cells_per_type, replace = False)
@@ -71,7 +74,7 @@ def generate_synthetic_dataframe(tuning: list,
     clu_offset = 0
 
     for cell_type in tuning:
-        angles = extract_tuning_request(cell_type_to_generate = cell_type, tracking_data = tracking)
+        angles = extract_tuning_request(cell_type_to_generate = cell_type,   tracking_data = tracking)
         spikes, clusters = return_spike_times_locked_to_behavioural_direction(behavioural_direction = angles, 
                                                                               number_of_spikes = number_of_spikes_to_gen_per_cluster,
                                                                               tuned_direction = np.linspace(-np.pi, np.pi, num_cells_per_type), 
@@ -134,7 +137,7 @@ def return_spike_times_locked_to_behavioural_direction(behavioural_direction,
         dir_std = items[2]
         
         # Extract behavioural ranges and generate spikes
-        indices = np.where(((tuned_direction - dir_std) <= behavioural_direction) & (behavioural_direction <= (tuned_direction + dir_std)))[0]
+        indices = np.where(((tuned_direction - dir_std) <= behavioural_direction).cast(bool) & (behavioural_direction <= (tuned_direction + dir_std)).cast(bool))[0]
         times = indices / fps
         spike_times = generate_spikes(spike_num, times, mean, std_dev)
     

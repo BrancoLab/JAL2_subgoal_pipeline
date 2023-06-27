@@ -129,15 +129,17 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
     """
     A child class to support the synthetic data preprocessing pipeline. 
     """
-    def __init__(self, visualize_object, cluster_labels_to_filter):
+    def __init__(self, visualize_object, cluster_labels_to_filter, expand_behavioural_data = False):
         super().__init__(visualize_object, cluster_labels_to_filter)
         self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
         self.select_clusters = "synthetic"
+        self.video_df = self.track_to_polars()
+        if expand_behavioural_data: 
+            self.video_df = self.expand_tracking_data(video_df = self.video_df, new_entries_to_insert = 1000000)
         self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
         self.spike_data = self.load_spike_data()
-        self.video_df = self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
-        self.merge_and_save_spike_count_df_with_frame_data(expand_behavioural_data = False)
+        self.merge_and_save_spike_count_df_with_frame_data()
     
     def check_synthetic_data_exists_if_not_generate_it(self) -> None:
         if not os.path.exists(self.csv_path):
@@ -158,20 +160,32 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         if len(self.Visualize.session.barrier_time) > 0: 
             tuning.append('h_bar_north_a')
             tuning.append('h_bar_south_a') # Adding as seperate line as bug when adding two params at once
-        synth_df = generate_synthetic_dataframe(tuning)
+        synth_df = generate_synthetic_dataframe(tuning, pass_video_df = self.video_df)
         synth_df.write_csv(self.csv_path)
     
-    def merge_and_save_spike_count_df_with_frame_data(self, expand_behavioural_data = False) -> None:
-        if not expand_behavioural_data:
-            video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
-            large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-            large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + "synthetic" + "_large_dataframe.csv")
-            
-        if expand_behavioural_data:
-            self.expanded_tracking_data_for_synethic_tests = self.expand_tracking_data(self.Video_df, new_entries_to_insert = 100000)
-            video_df = self.expanded_tracking_data_for_synethic_tests.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
-            large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-            large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + "synthetic" + "_large_dataframe.csv")
+    def merge_and_save_spike_count_df_with_frame_data(self) -> None:
+        video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
+        large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + "synthetic" + "_large_dataframe.csv")
+
+    def expand_tracking_data(self, video_df: pl.DataFrame, new_entries_to_insert: int) -> pl.DataFrame:
+        """
+        Uniformly expands the tracking data by a specified number of entries.
+        """
+        last_frame_index = video_df['frames'].max() # Get the last frame index to generate frames from there (add to end of dataframe)
+        new_frames = pl.Series('frames', np.arange(last_frame_index+1, last_frame_index+1+new_entries_to_insert).astype(np.int64)) # Generate new frames column
+        angle_columns = ['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']  # Generate random angles in radians for specified columns
+        new_angle_cols = [pl.Series(col, np.random.uniform(-np.pi, np.pi, new_entries_to_insert)) for col in angle_columns]
+        bool_columns = ['OutofshelterIdx', 'EscapePeriod', 'shelter_only', 'barrier_present']
+        bool_values = [True, False, False, True]  # Set your desired True/False values for each column
+        
+        new_bool_cols = [pl.Series(col, np.full(new_entries_to_insert, fill_value=val)) for col, val in zip(bool_columns, bool_values)]
+        
+        new_mouse_x_position = pl.Series('mouse_x_position', np.random.uniform(-1, 1, new_entries_to_insert))
+        new_mouse_y_position = pl.Series('mouse_y_position', np.random.uniform(-1, 1, new_entries_to_insert))
+        df_new = pl.DataFrame([new_frames] + new_angle_cols + [new_mouse_x_position, new_mouse_y_position] + new_bool_cols)
+        expanded_synthetic_tracking_data_by_frame = pl.concat([video_df, df_new])
+        return expanded_synthetic_tracking_data_by_frame
 
     # ----------------------Currently not used ------------------------------
     def filter_spike_data(self) -> NotImplementedError:
@@ -179,38 +193,6 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         I actually don't think this function is needed for synethic, there was a think called self.clu_label but it wasn't used across the code base so assuming not needed.
         """
         raise NotImplementedError
-    
-    def expand_tracking_data(self, video_df: pl.DataFrame, new_entries_to_insert: int) -> pl.DataFrame:
-        """Potentially breaking change. The point of this function is to artifically enhance the video_df that joins with the spike data.
-        Because the video_df holds the tracking data and frame numbers which the synthetic spikes are generated from. If we expand this
-        dataframe we can test the limits of how our analysis models work with different sample sizes. 
-
-        Returns:
-            _type_: _description_
-        """
-        
-        last_frame_index = video_df['frames'].max()
-
-        # Generate new frames column
-        new_frames = pl.Series('frames', np.arange(last_frame_index+1, last_frame_index+1+new_entries_to_insert).astype(np.int64))
-
-        # Generate random angles in radians for specified columns
-        angle_columns = ['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']
-        new_angle_cols = [pl.Series(col, np.random.uniform(-np.pi, np.pi, new_entries_to_insert)) for col in angle_columns]
-
-        # random choice of the boolean values for specified columns would be better to maintain the value
-        bool_columns = ['OutofshelterIdx', 'EscapePeriod', 'shelter_only', 'barrier_present']
-        new_bool_cols = [pl.Series(col, np.random.choice([True, False], new_entries_to_insert)) for col in bool_columns]
-
-        # Generate new mouse position (x and y)
-        new_mouse_x_position = pl.Series('mouse_x_position', np.random.uniform(-1, 1, new_entries_to_insert))
-        new_mouse_y_position = pl.Series('mouse_y_position', np.random.uniform(-1, 1, new_entries_to_insert))
-
-        # Concatenate original dataframe with new entries
-        df_new = pl.DataFrame([new_frames] + new_angle_cols + [new_mouse_x_position, new_mouse_y_position] + new_bool_cols)
-        expanded_synthetic_tracking_data_by_frame = pl.concat([video_df, df_new])
-
-        return expanded_synthetic_tracking_data_by_frame
     
 class DataPreprocessor(BaseDataPreprocessor):
     """
