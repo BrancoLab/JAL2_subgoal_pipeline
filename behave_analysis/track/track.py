@@ -217,7 +217,12 @@ class Track(DLC):
         
         hedDelta_x = self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]
         hedDelta_y = self.region_tracking_data['head_loc'][:, 1] - self.region_tracking_data['upper_body_loc'][:, 1]
-        self.region_tracking_data['hdir'] = np.arctan2(hedDelta_y, hedDelta_x) # Radians
+        self.region_tracking_data['hdir_old'] = np.arctan2(hedDelta_y, hedDelta_x) # Radians
+
+        hedDelta_x = self.lds_tracking_data['left_ear']['x'] - self.lds_tracking_data['right_ear']['x']
+        hedDelta_y = self.lds_tracking_data['left_ear']['y'] - self.lds_tracking_data['right_ear']['y']
+        self.region_tracking_data['hdir'] = - (np.arctan2(hedDelta_y, hedDelta_x) + (np.pi/2)) # Radians
+        self.region_tracking_data['hdir'][self.region_tracking_data['hdir']<-np.pi] = self.region_tracking_data['hdir'][self.region_tracking_data['hdir']<-np.pi] + (2*np.pi)
         
         bodDelta_x = self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]
         bodDelta_y = self.region_tracking_data['upper_body_loc'][:, 1] - self.region_tracking_data['lower_body_loc'][:, 1]
@@ -245,14 +250,17 @@ class Track(DLC):
         self.region_tracking_data['shelter_loc'] = self.clicked_points
 
         # calculate body to shelter angle
-        xdist = -self.region_tracking_data['avg_loc'][:, 0]+int(np.mean([self.region_tracking_data['shelter_loc'][0][0],self.region_tracking_data['shelter_loc'][1][0]]))
-        ydist = -self.region_tracking_data['avg_loc'][:, 1]+int(np.mean([self.region_tracking_data['shelter_loc'][0][1],self.region_tracking_data['shelter_loc'][1][1]]))
-        self.region_tracking_data['bod_shelt_dir'] = -(np.arctan2(ydist, xdist)) # Radians
+        # this used to be calculated with self.region_tracking_data['avg_loc']
+        xdist = -self.region_tracking_data['head_loc'][:, 0]+int(np.mean([self.region_tracking_data['shelter_loc'][0][0],self.region_tracking_data['shelter_loc'][1][0]]))
+        ydist = -self.region_tracking_data['head_loc'][:, 1]+int(np.mean([self.region_tracking_data['shelter_loc'][0][1],self.region_tracking_data['shelter_loc'][1][1]]))
+        self.region_tracking_data['bod_shelt_dir'] = - np.arctan2(ydist, xdist) # Radians
+        bod_shelt_dir = - np.arctan2(ydist, xdist)
+        self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] + np.pi
+        self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] - np.pi
 
         # head shelter angle (from pi to -pi)
-        self.region_tracking_data['hdir_shelt'] = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_shelt_dir'])
+        self.region_tracking_data['hdir_shelt'] = np.pi + (-self.region_tracking_data['hdir'] + self.region_tracking_data['bod_shelt_dir'])
         self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi)
-        self.region_tracking_data['hdir_shelt'] = -self.region_tracking_data['hdir_shelt']
 
         logger.info("Shelter angle computed")
 
@@ -279,13 +287,16 @@ class Track(DLC):
                 
             self.region_tracking_data['barrier_loc'] = self.clicked_points
             for i in np.arange(2): # calculate body to barrier angle for each edge of barrier
-                xdist = -self.region_tracking_data['avg_loc'][:, 0]+self.region_tracking_data['barrier_loc'][i][0]
-                ydist = -self.region_tracking_data['avg_loc'][:, 1]+self.region_tracking_data['barrier_loc'][i][1]
+                xdist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data['barrier_loc'][i][0]
+                ydist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data['barrier_loc'][i][1]
                 self.region_tracking_data['bod_barrier_dir'][:,i] = -(np.arctan2(ydist, xdist)) # Radians
+                bod_barr_dir = - np.arctan2(ydist, xdist)
+                self.region_tracking_data['bod_barrier_dir'][bod_barr_dir<0,i] = self.region_tracking_data['bod_barrier_dir'][bod_barr_dir<0,i] + np.pi
+                self.region_tracking_data['bod_barrier_dir'][bod_barr_dir>0,i] = self.region_tracking_data['bod_barrier_dir'][bod_barr_dir>0,i] - np.pi
                 # head barrier angle (from pi to -pi)
-                hdir = np.pi + (self.region_tracking_data['hdir'] - self.region_tracking_data['bod_barrier_dir'][:,i])
+                hdir = np.pi + (- self.region_tracking_data['hdir'] + self.region_tracking_data['bod_barrier_dir'][:,i])
                 hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
-                self.region_tracking_data['hdir_barrier'][:,i] = - hdir
+                self.region_tracking_data['hdir_barrier'][:,i] = hdir
         else:
             self.region_tracking_data['barrier_loc'] = []
         #     self.region_tracking_data['bod_barrier_dir'] = []
