@@ -138,3 +138,20 @@ seq2_2_002 = Experiment(# Mouse specific
                     shelter_time = [31, -1],
                     barrier_time = [31, 80],
                     experiment_path = Path(r"002_seq2_2_2023_05_11T07_33_35"))
+
+mushy4 = Experiment(# Mouse specific
+                    nick_name = JAL002.nick_name,
+                    total_sessions = JAL002.total_sessions,
+                    mouse_number_pyrat = JAL002.mouse_number_pyrat,
+                    experiment_file_names = JAL002.experiment_file_names,
+                    root_path = JAL002.root_path,
+
+
+                    # Experiment specific
+                    experiment_name = 'mushroom',
+                    experiment_idx = 3,
+                    experiment_date = "2023_05_01",
+                    experiment_time = "08_16_14",
+                    shelter_time = [40, -1],
+                    barrier_time = [],
+                    experiment_path = Path(r"002_mushroom4_2023_05_01T08_16_14"))
