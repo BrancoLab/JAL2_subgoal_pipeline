@@ -1,4 +1,4 @@
-from behave_analysis.analyze.TunED.main import tuned_main
+from behave_analysis.analyze.TunED.working_main import tuned_main
 from settings.settings_analyze_efizz import Settings_analyze_efizz
 
 # OS Lib
@@ -16,6 +16,7 @@ class AnalyzeEfizz:
     # TODO make flag for synth vs production better 
     def __init__(self, session_to_analyze):
         logger.info('Initializing AnalyzeEfizz')
+        self.dir = session_to_analyze.file_path / 'processed_data' / 'models'
         self.processed_file_directory = session_to_analyze.file_path / 'processed_data' / 'synthetic_large_dataframe.csv'
         # self.processed_file_directory = session_to_analyze.file_path / 'processed_data' / 'production_large_dataframe.csv'
         if os.path.isfile(self.processed_file_directory):
@@ -29,7 +30,7 @@ class AnalyzeEfizz:
         
         if Settings_analyze_efizz.run_tunED:
             logger.info('Running TunED')
-            tuned_main(self.large_data_file)
+            tuned_main(self.large_data_file, file_save_location = self.dir  / 'tuned')
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:
