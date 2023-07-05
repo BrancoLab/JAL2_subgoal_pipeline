@@ -4,7 +4,6 @@ from behave_analysis.process.process import Process
 from databank import experiments_objects
 from behave_analysis.visualize.visualize import Visualize
 
-
 def visualize():
     """
     A function that visualising the mouse's behaviour in a session by trial, and looks at how well the efizz has synced.

@@ -213,6 +213,8 @@ class Track(DLC):
     def compute_new_angles(self) -> None:
         """
         A function to compute the angles of the body parts. E.g head direction & body direction
+        
+        TODO: Change head direction to utilize the ears more instead of the upper back, this will be more accurate.
         """
         
         hedDelta_x = self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]

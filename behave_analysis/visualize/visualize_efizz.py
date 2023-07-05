@@ -1,8 +1,6 @@
 # OS libaries
-from behave_analysis.database.synthetic_data.synthetic_main import synthetic_dataframe
 from loguru import logger
 import numpy as np
-from glob import glob
 import polars as pl
 import os
 import matplotlib 
@@ -14,167 +12,6 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.metrics import confusion_matrix
 from sklearn.decomposition import PCA
 
-class PreProcess:
-    """
-    A class that loads the csv of aligned data and processes it into a dataframe that can be used for visualisation
-    """
-    def __init__(self,  visualize_object, run = "Production", select_clusters = "good", user_wants_to_regenerate_spike_by_frame_count = False):
-        logger.info("Preprocessing started")
-        self.Visualize = visualize_object
-        self.select_clusters = select_clusters
-        if run == "Test": self.select_clusters = "synthetic"
-        self.run_type = run
-        
-        self.load_spike_data()
-        self.filter_spike_data()
-        self.track_to_polars()
-        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(user_wants_to_regenerate_spike_by_frame_count)
-        self.clean_behavioural_data = self.behaviourally_pure_tracking_data()
-        
-    def load_spike_data(self):
-        """
-        Loads the csv of aligned data
-        """
-        if self.run_type == "Production":
-            self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
-        
-        elif self.run_type == "Test":
-            self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
-            if not os.path.exists(self.csv_path):
-                logger.warning("Synethic spike data doesn't exist and will now be generated")
-                tuning = ['hdir']
-                if len(self.Visualize.session.shelter_time) > 0: tuning.append('hsa')
-                if len(self.Visualize.session.barrier_time) > 0: tuning.append('h_bar_north_a','h_bar_south_a')
-                synth_df = synthetic_dataframe(tuning)
-                synth_df.write_csv(self.csv_path)
-            else:
-                logger.info("Synethic spike data is being used when visualizing efizz - Real positional data is used from databank")
-    
-        else: 
-            raise ValueError("Run type not recognised")
-
-    def filter_spike_data(self):
-        """
-        Filter the spike data to only include good neurons or good + MUA
-        """
-        # NOTE - This will break if user says yes to both mua and good - too tired to fix 
-        
-        dataFrame = pl.read_csv(self.csv_path)
-        
-        if self.run_type == "Production":
-            if self.select_clusters == 'all':
-                self.spikedataframe = dataFrame.filter((dataFrame['cluster_group'] == "good")
-                                                    | (dataFrame['cluster_group'] == "mua"))
-                logger.info("Loaded good and multi unit clusters")
-            else:
-                self.spikedataframe = dataFrame.filter(dataFrame['cluster_group'] == self.select_clusters)
-                numneurons = len(self.spikedataframe['spike_clusters'].unique())
-                logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
-        elif self.run_type == "Test":
-            self.spikedataframe = dataFrame
-            logger.info("Loaded all clusters")
-        
-        self.clu_label = self.spikedataframe.groupby(["spike_clusters"]).first()
-        self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
-
-    def track_to_polars(self):
-        """
-        Adds all the behavioral variables from track to the polars sike dataframe
-        """
-        OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
-            self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
-            np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
-            self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
-         # is there a time with shelter only?
-        if len(self.Visualize.session.shelter_time) > 0:
-            if not(np.logical_and(self.Visualize.session.shelter_time[0] == 0, self.Visualize.session.shelter_time[1] == -1)):
-                if self.Visualize.session.shelter_time[1] == -1: # shelter only until the end of the session
-                    shelteronly = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
-                else:
-                    shelteronly = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps),
-                                                np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.sheltertime[1]*self.Visualize.session.video.fps))
-            else:
-                shelteronly = np.zeros(len(OutofShelterIdx)) == 0
-                print('shelter always present')
-        else:
-            shelteronly = np.zeros(len(OutofShelterIdx)) == 0
-            print('no shelter in this session')
-         # what period in the recording was there a barrier?
-        if len(self.Visualize.session.barrier_time) > 0:
-            if self.Visualize.session.barrier_time[1] == -1: # shelter only until the end of the session
-                barrier_present = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.barriertime[0]*self.Visualize.session.video.fps)
-            else:
-                barrier_present = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.barriertime[0]*self.Visualize.session.video.fps),
-                                             np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.barriertime[1]*self.Visualize.session.video.fps))
-        else:
-            barrier_present = np.zeros(len(OutofShelterIdx)) == 1
-            print('no barrier in this session')
-        # find the escape periods
-        EscapePeriod = np.zeros_like(OutofShelterIdx)
-        for onsets in self.Visualize.session.audio.onset_frames:
-            EscapePeriod[(onsets[0]-self.Visualize.session.video.fps):(onsets[0]+(10*self.Visualize.session.video.fps))] = 1
-        # make a video dataframe where for each video frame:
-        self.Video_df = pl.DataFrame(
-                {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
-                "hdir": self.Visualize.tracking_data['hdir'],
-                "hsa": self.Visualize.tracking_data['hdir_shelt'],
-                "h_bar_north_a": self.Visualize.tracking_data['hdir_barrier'][:,0],
-                "h_bar_south_a": self.Visualize.tracking_data['hdir_barrier'][:,1],
-                "mouse_x_position": self.Visualize.tracking_data['avg_loc'][:,0],
-                "mouse_y_position": self.Visualize.tracking_data['avg_loc'][:,1],
-                "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
-                "EscapePeriod": EscapePeriod == 1, # frames from 1 second before to 10 seconds after escape
-                "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
-                "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
-
-    def behaviourally_pure_tracking_data(self):
-        """
-        Filter out all the data where the mouse is in the shelter for example
-        """
-        filtered_video_df = self.Video_df.filter((self.Video_df["OutofshelterIdx"] == True) 
-                                                 & (self.Video_df["EscapePeriod"] == False))        
- 
-        assert len(filtered_video_df) > 0, "No data left after filtering"
-        
-        return filtered_video_df
-
-    def count_spikes_and_units_to_frames(self, user_wants_to_regenerate_spike_by_frame_count = False):
-        """
-        Testing the query format of polars. In theory by using the query formation we can speed up the computation of the spike count outside of a loop
-        by using the lazy() function, which means that computations are not immediately executed. This allows the computer to plan the operations before
-        proceeding. Additionally the computational power is not linear, and thread operations are at play. This means outside of a loop should be faster. 
-        """
-        
-        # NOTE - THis will create an arror if the filteer on the cells changes e.g good vs mua as the dataframe will not update
-        # TODO - Fix this
-        
-        if user_wants_to_regenerate_spike_by_frame_count == False:
-            try:
-                with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv", "rb") as file:
-                    spikecountbyframe_neuron = pl.read_csv(file.read())
-                logger.success("Found spike count by frame and cluster dataframe, loading it now")
-                return spikecountbyframe_neuron
-                    
-            except FileNotFoundError:
-                logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
-                logger.info("Commencing long computation to count spikes for each cluster for each frame")
-                query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
-                start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
-                spikecountbyframe_neuron = query.collect()
-                print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-                spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
-                return spikecountbyframe_neuron
-        
-        elif user_wants_to_regenerate_spike_by_frame_count == True:
-            logger.info("recreating the spike count by frame and unit dataframe as requested by user, likely because of changing the filter on cluster type, creating it now")
-            logger.info("Commencing long computation to count spikes for each cluster for each frame")
-            query = (self.spikedataframe.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
-            start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
-            spikecountbyframe_neuron = query.collect()
-            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_clusters +"cluster.csv")
-            return spikecountbyframe_neuron
-        
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters
@@ -689,14 +526,17 @@ class Visualize_efizz:
         plt.tight_layout()
 
         cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
-        if not(os.path.exists(cluster_path)): os.makedirs(cluster_path)
+        
+        if not(os.path.exists(cluster_path)): 
+            os.makedirs(cluster_path)
         if np.logical_or(self.processed_data.select_clusters == "all", self.processed_data.select_clusters == "synthetic"):
             this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [cluster])
             plt.savefig(str(cluster_path + "/" + this_cluster["cluster_group"].to_numpy()[0] + "_cluster" + str(cluster) + "_polar_plots.png"))
         else:
             plt.savefig(str(cluster_path + "/cluster" + str(cluster) + "_polar_plots.png"))
         if self.processed_data.Visualize.settings.show_plots: 
-            plt.show()  
+            plt.show()
+            
         plt.close()
 
     def spatial_position_firing(self):
