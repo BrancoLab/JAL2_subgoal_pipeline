@@ -4,7 +4,8 @@ from behave_analysis.track.register import load_fisheye_correction_map, correct_
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
-from behave_analysis.visualize.visualize_efizz import Visualize_efizz, PreProcess
+from behave_analysis.visualize.visualize_efizz import Visualize_efizz
+from behave_analysis.visualize.preprocess.processing_classes import SyntheticDataPreprocessor, DataPreprocessor
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.visualize.visualize_behave import Correlations
 
@@ -43,23 +44,19 @@ class Visualize:
             logger.info(f"Starting to make some efizz overview plots...")
             
             """ Load data into visual object"""
-            # Production - Run
+            preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "synthetic") # legancy label filter still saves file name
+            # preprocessObject = DataPreprocessor(self,  cluster_labels_to_filter = "good") # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
 
-            preprocessObject = PreProcess(self, 
-                                          run = "Production", # "Test" for synth data, "Production" for mouse brain data
-                                          select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-                                          user_wants_to_regenerate_spike_by_frame_count = True)
             visualObject = Visualize_efizz(preprocessObject)
-
             visualObject.linear_discriminant_analysis('head_shelter_angle')
             
             # Test Behaviour correlation plots
-            # correlationChild = Correlations(MaxPlotsPerFigure = 10, 
-            #                                 how_many_plots_you_need = 6, 
-            #                                 CleanVideoDf = preprocessObject.clean_behavioural_data,
-            #                                 directoryToSaveTo = self.session.processed_path, 
-            #                                 plotName = "Cheese")
-            
+            correlationChild = Correlations(MaxPlotsPerFigure = 10, 
+                                            how_many_plots_you_need = 6, 
+                                            CleanVideoDf = preprocessObject.clean_behavioural_data,
+                                            directoryToSaveTo = self.session.processed_path, 
+                                            plotName = "CorrelationPlots")
+
             # correlationChild.create_correration_plot()
             
             """Make tuning plots"""
