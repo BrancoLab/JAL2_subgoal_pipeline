@@ -18,6 +18,9 @@ from scipy.stats import norm, poisson, binom
 import pickle 
 
 def create_global_bin_edges(v1, v2, Nbins):
+    """
+    Currently not used
+    """
     v1min = np.min(v1)
     v1max = np.max(v1)
     
@@ -184,6 +187,9 @@ class ComputeNullHypothesisTuningFunction:
         Inputs:
             Py_x: <np.ndarray> of size (Nbins, Nbins). The probability of stimulus y given stimulus x. P(y|x)
             ty_y: <np.ndarray> of size (Ncells, Nbins). The mean firing rate of each cell as a function of stimulus y.
+            
+            Outputs:
+            tf_x_nh: <np.ndarray> of size (Ncells, Nbins). The tuning function to stimulus x expected from the null hypothesis.
         """
         assert Py_x.shape[0] == Py_x.shape[1], "Py_x must be square" # Verify that this has to hold true and this isn't just tired logic 
         
@@ -258,6 +264,8 @@ class TunEDModelStats:
     def compute_significance_between_pairs_of_tuning_curves_set(Nbins, observed_tf, expected_tf, observed_sem, expected_sem):
         """
         Computes the significance between pairs of tuning curves.
+        
+        NOTE: ARe the same bins used for both tuning curves? Check this
         """
         alpha = 0.05  # initial significance level
         num_tests = Nbins  # number of bins/tests
@@ -310,7 +318,7 @@ class TunEDModelStats:
         print(f'Minimum number of Trues for significance at the 5% level: {np.ceil(min_successes_significant)}')
         return min_successes_significant
 
-def tuned_main(data, file_save_location):
+def tunED_model_main(data, file_save_location):
     
     # sig_test_chanceofv2 = {}
     # Load chance significance data
@@ -470,27 +478,27 @@ def tuned_main(data, file_save_location):
     
 if __name__ == '__main__':
     """
-    The below should be set up to run as a self contained module so the user can check the module and test it works.
+    The below logic is used to run the module as a standalone module for the purpose of testing toy data. It is currently set up to run on synthetic data that matches the matlab code
+    writen to produce the model from Campagner et al., 2022. Should the functions above be modified, this code will need to be modified to match.
     """
     
-    # # Load chance significance data
-    with open('saved_dictionary.pkl', 'rb') as f:
-        loaded_dict = pickle.load(f)
-        
-    min_successes_significant = TunEDModelStats.compute_binomial_chance_distribution(loaded_dict)
+    # Load chance significance data
+    # with open('saved_dictionary.pkl', 'rb') as f:
+    #     loaded_dict = pickle.load(f)
         
     Ncells = 1
     Nsamples = 10000 # Number of samples to generate, i.e. number of frames
     Nbins = 10 # Number of bins to use to bin up the stimulus variable
+    # min_successes_significant = TunEDModelStats.compute_binomial_chance_distribution(loaded_dict, Nbins = Nbins)
     
     # Generate stimuli
-    stimulusV2 = np.random.randn(1, Nsamples) # Driver stimulus
-    stimulusV1 = stimulusV2 * 0.2 + np.random.randn(1, Nsamples) # Passenger stimulus
+    stimulusV1 = np.random.randn(1, Nsamples) # Driver stimulus
+    stimulusV2 = stimulusV1 * 0.2 + np.random.randn(1, Nsamples) # Passenger stimulus
     
     print(np.corrcoef(stimulusV1, stimulusV2)) # Print the stimulus variables as a correlation matrix, to show variable 2 is correlated with variable 1
 
     # Generate spike trains from a Poisson process with a rate that depends on the stimulus V1
-    frate = 0.1*(stimulusV2[0, :] > 1.0) * stimulusV2[0, :]
+    frate = 0.1*(stimulusV1[0, :] > 1.0) * stimulusV1[0, :]
     frate = np.minimum(1, frate)
     raster = np.zeros((1, Nsamples))
     raster[0, :] = np.random.poisson(frate)
@@ -501,23 +509,23 @@ if __name__ == '__main__':
 
     # Joint probability of the stimuli --------------------------------------------------------
     jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(stimulusV1, 
-                                                                stimulusV2, 
-                                                                stimulusV2edges = v2Object.stimulus_bin_edges, 
-                                                                stimulusV1edges = v1Object.stimulus_bin_edges,
-                                                                Nbins = Nbins)
+                                                                 stimulusV2, 
+                                                                 stimulusV2edges = v2Object.stimulus_bin_edges, 
+                                                                 stimulusV1edges = v1Object.stimulus_bin_edges,
+                                                                 Nbins = Nbins)
     
     Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
     Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
     Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2) # Tranpose to ensure broadcasting works correctly row wise instead of column wise
     
     # ------------------------------- NULL Hypothesis tests ---------------------------------------------------------------------
-    # apparent tuning to 'v2' given NH that cell is driven purely by v1 P(v1|v2):
+    # apparent tuning to 'hdir' given NH that cell is driven purely by hsa:
     hdir_NH_object = ComputeNullHypothesisTuningFunction(v1Object.tuning_func, 
-                                                        v1Object.tuning_func_s2, 
-                                                        v2Object.n, 
-                                                        Pv1_v2)
+                                                         v1Object.tuning_func_s2, 
+                                                         v2Object.n, 
+                                                         Pv1_v2)
     
-    # apparent tuning to 'v1' given NH that cell is driven purely by v2 P(v2|v1):
+    # apparent tuning to 'hsa' given NH that cell is driven purely by hdir:
     hsa_NH_object = ComputeNullHypothesisTuningFunction(v2Object.tuning_func,
                                                         v2Object.tuning_func_s2,
                                                         v1Object.n,
@@ -525,25 +533,25 @@ if __name__ == '__main__':
     
     # Compuete significance of tuning functions --------------------------------------------------------------------------------
     # Computes of the second set 
-    sig1 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
-                                                                                observed_tf = v1Object.tuning_func,
-                                                                                expected_tf = hsa_NH_object.tuning_func_nh,
-                                                                                observed_sem = v1Object.tuning_func_sem, 
-                                                                                expected_sem = hsa_NH_object.tuning_func_nh_sem,)
+    # sig1 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
+    #                                                                                observed_tf = v1Object.tuning_func,
+    #                                                                                expected_tf = hsa_NH_object.tuning_func_nh,
+    #                                                                                observed_sem = v1Object.tuning_func_sem, 
+    #                                                                                expected_sem = hsa_NH_object.tuning_func_nh_sem,)
     
-    if np.sum(sig1) > 3:
-        print("Significant difference in set 1!")
-    print(sig1)
+    # if np.sum(sig1) > 3:
+    #     print("Significant difference in set 1!")
+    # print(sig1)
         
-    sig2 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
-                                                                            observed_tf = v2Object.tuning_func,
-                                                                            expected_tf = hdir_NH_object.tuning_func_nh,
-                                                                            observed_sem = v2Object.tuning_func_sem, 
-                                                                            expected_sem = hdir_NH_object.tuning_func_nh_sem)
+    # sig2 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
+    #                                                                                observed_tf = v2Object.tuning_func,
+    #                                                                                expected_tf = hdir_NH_object.tuning_func_nh,
+    #                                                                                observed_sem = v2Object.tuning_func_sem, 
+    #                                                                                expected_sem = hdir_NH_object.tuning_func_nh_sem)
     
-    if np.sum(sig2) > 3:
-        print("Significant difference in set 2!")
-    print(sig2)
+    # if np.sum(sig2) > 3:
+    #     print("Significant difference in set 2!")
+    # print(sig2)
     
     # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
     fig, ax = plt.subplots(1, 2, figsize=(23, 5))
@@ -609,7 +617,7 @@ if __name__ == '__main__':
     ax[1].set_title("Tuning to V2", fontweight="bold")
     
     plt.suptitle(f"Number of samples: {Nsamples}, V1 is the driving stimulus and V2 is the passenger stimulus.")
-    # plt.show()
+    plt.show()
     
     # with open('saved_dictionary.pkl', 'wb') as f:
     #     pickle.dump(significane, f)

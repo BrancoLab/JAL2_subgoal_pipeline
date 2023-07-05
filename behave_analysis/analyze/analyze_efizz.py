@@ -1,4 +1,4 @@
-from behave_analysis.analyze.TunED.working_main import tuned_main
+from behave_analysis.analyze.TunED.tunED_model import tunED_model_main
 from settings.settings_analyze_efizz import Settings_analyze_efizz
 
 # OS Lib
@@ -30,7 +30,7 @@ class AnalyzeEfizz:
         
         if Settings_analyze_efizz.run_tunED:
             logger.info('Running TunED')
-            tuned_main(self.large_data_file, file_save_location = self.dir  / 'tuned')
+            tunED_model_main(self.large_data_file, file_save_location = self.dir  / 'tuned')
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:
