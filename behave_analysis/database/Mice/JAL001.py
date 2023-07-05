@@ -8,5 +8,5 @@ JAL001 = Mouse(
     mouse_number_pyrat="BAA-1102922",
     experiment_file_names=None,
     # root_path=Path(r"D:\efizz\MouseID_001"),
-    root_path = Path(r"C:\Users\jreggiani\Documents\Experimental_Data")
+    root_path = Path(r"E:\Experimental_Data\JAL001")
 )

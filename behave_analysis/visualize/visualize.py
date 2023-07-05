@@ -44,14 +44,11 @@ class Visualize:
             logger.info(f"Starting to make some efizz overview plots...")
             
             """ Load data into visual object"""
-            # preprocessObject = PreProcess(self, 
-            #                               run = "Test", # "Test" for synth data, "Production" for mouse brain data
-            #                               select_clusters = "good", # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-            #                               user_wants_to_regenerate_spike_by_frame_count = False)
-            
             preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "synthetic") # legancy label filter still saves file name
             # preprocessObject = DataPreprocessor(self,  cluster_labels_to_filter = "good") # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+
             visualObject = Visualize_efizz(preprocessObject)
+            visualObject.linear_discriminant_analysis('head_shelter_angle')
             
             # Test Behaviour correlation plots
             correlationChild = Correlations(MaxPlotsPerFigure = 10, 
@@ -59,15 +56,15 @@ class Visualize:
                                             CleanVideoDf = preprocessObject.clean_behavioural_data,
                                             directoryToSaveTo = self.session.processed_path, 
                                             plotName = "CorrelationPlots")
-            
-            correlationChild.create_correration_plot()
+
+            # correlationChild.create_correration_plot()
             
             """Make tuning plots"""
             # Production of vectorized plots  
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
+            # visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = True)
             # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle',  compute_bootstrap = False, object_present = True)
@@ -76,9 +73,9 @@ class Visualize:
             # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', compute_bootstrap = False, object_present = False)
 
             # make a figure of all tuning polar plots for each cluster
-            visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
+            # visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
 
-            visualObject.spatial_position_firing()
+            # visualObject.spatial_position_firing()
             # TODO: build edge-tuning maps
             # TODO: tuning heatmap
 
@@ -152,15 +149,20 @@ class Visualize:
 
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
             self.body_dir = self.tracking_data["body_dir"][self.frame_num]
+            self.hdir_shelt = self.tracking_data["hdir_shelt"][self.frame_num]
             self.bod_shelt_dir = self.tracking_data["bod_shelt_dir"][self.frame_num]
-            if np.any(self.tracking_data["bod_barrier_dir"]):
-                self.bod_barr_dir = self.tracking_data["bod_barrier_dir"][self.frame_num, :]
+            if np.any(self.tracking_data["hdir_barrier"]):
+                self.hdir_barrier = self.tracking_data["hdir_barrier"][self.frame_num, :]
             else:
-                self.bod_barr_dir = []
+                self.hdir_barrier = []
             self.speed = self.tracking_data["avg_Velocity"][self.frame_num]
             self.avg_loc = (
                 int(self.tracking_data["avg_loc"][self.frame_num][0]),
                 int(self.tracking_data["avg_loc"][self.frame_num][1]),
+            )
+            self.head_loc = (
+                int(self.tracking_data["head_loc"][self.frame_num][0]),
+                int(self.tracking_data["head_loc"][self.frame_num][1]),
             )
             self.hdir = self.tracking_data["hdir"][self.frame_num]
 
@@ -237,26 +239,28 @@ class Visualize:
         direction and one for head direction. Or maybe just head direction.
         """
         magnitudeOfVector = 30  # This is the length of the arrow that will be plotted on the frame
-        self.body_dir = -self.body_dir  # Without this it doesn't work
         heading_dir_x = int(
-            magnitudeOfVector * np.cos(self.body_dir)
+            magnitudeOfVector * np.cos(self.hdir) # self.body_dir
         )  # Convert the angle from radians to an x component
         heading_dir_y = -int(
-            magnitudeOfVector * np.sin(self.body_dir)
+            magnitudeOfVector * np.sin(self.hdir)
         )  # Convert the angle from radians to an y component
 
         # Plot the heading direction on the frame centered at the animal's average location
         cv2.arrowedLine(
             self.actual_frame,
-            self.avg_loc,
-            (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y),
+            self.head_loc, # self.avg_loc
+            (self.head_loc[0] + heading_dir_x, self.head_loc[1] + heading_dir_y),
             (220, 220, 220),
             1,
             16,
         )
 
         # Plot the body direction interger on the frame (for debugging)
-        cv2.putText(self.actual_frame, f"HD: {int(np.rad2deg(self.body_dir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        # cv2.putText(self.actual_frame, f"HD: {int(np.rad2deg(self.hdir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(self.actual_frame, f"HD: {str((self.hdir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(self.actual_frame, f"BS: {str((self.bod_shelt_dir))}deg", (self.actual_frame.shape[1]-200, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(self.actual_frame, f"HS: {str((self.hdir_shelt))}deg", (self.actual_frame.shape[1]-200, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
     def display_goal_dir_on_frame(self):
         """
@@ -264,48 +268,45 @@ class Visualize:
         """
         magnitudeOfVector = 30  # This is the length of the arrow that will be plotted on the frame
 
+        # flip it wround for arrow visualization purposes
+        if self.bod_shelt_dir < 0: bs =  self.bod_shelt_dir + np.pi
+        if self.bod_shelt_dir > 0: bs =  self.bod_shelt_dir - np.pi
+
         # plot a blue arrow in direction of shelter
         heading_dir_x = int(
-            magnitudeOfVector * np.cos(self.bod_shelt_dir)
+            magnitudeOfVector * np.cos(bs) # self.bod_shelt_dir
         )  # Convert the angle from radians to an x component
         heading_dir_y = -int(
-            magnitudeOfVector * np.sin(self.bod_shelt_dir)
+            magnitudeOfVector * np.sin(bs)
         )  # Convert the angle from radians to an y component
         # Plot the heading direction on the frame centered at the animal's average location
         cv2.arrowedLine(
             self.actual_frame,
-            self.avg_loc,
-            (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y),
+            self.head_loc, # self.avg_loc
+            (self.head_loc[0] + heading_dir_x, self.head_loc[1] + heading_dir_y),
             (220, 0, 0),
             1,
             16,
         )
-        # Plot the body direction interger on the frame (for debugging)
-        # cv2.putText(
-        #     self.actual_frame,
-        #     f"{int(np.rad2deg(self.bod_shelt_dir))}deg",
-        #     (self.actual_frame.shape[1] - 200, 200),
-        #     cv2.FONT_HERSHEY_SIMPLEX,
-        #     1,
-        #     (255, 255, 255),
-        #     2,
-        # )
 
         # plot a green and red arrow in direction to two barrier edges (no arrows if no barrier)
-        if np.any(self.bod_barr_dir):
+        if np.any(self.hdir_barrier): # bod_barr_dir
             cmap = [[0, 255, 0], [0, 0, 255]]
             for i in np.arange(2):  # assuming two edges in barrier
+                # flip it wround for arrow visualization purposes
+                if self.hdir_barrier[i] < 0: bs =  self.hdir_barrier[i] + np.pi
+                if self.hdir_barrier[i] > 0: bs =  self.hdir_barrier[i] - np.pi
                 heading_dir_x = int(
-                    magnitudeOfVector * np.cos(self.bod_barr_dir[i])
+                    magnitudeOfVector * np.cos(self.bs) # bod_barr_dir
                 )  # Convert the angle from radians to an x component
                 heading_dir_y = -int(
-                    magnitudeOfVector * np.sin(self.bod_barr_dir[i])
+                    magnitudeOfVector * np.sin(self.bs)
                 )  # Convert the angle from radians to an y component
                 # Plot the heading direction on the frame centered at the animal's average location
                 cv2.arrowedLine(
                     self.actual_frame,
-                    self.avg_loc,
-                    (self.avg_loc[0] + heading_dir_x, self.avg_loc[1] + heading_dir_y),
+                    self.head_loc, # self.avg_loc
+                    (self.head_loc[0] + heading_dir_x, self.head_loc[1] + heading_dir_y),
                     cmap[i],
                     1,
                     16,
@@ -438,3 +439,24 @@ class Visualize:
         self.source_video.release()
         self.trial_video.release()
         cv2.destroyAllWindows()
+
+
+    def get_current_position_and_speed_old(self) -> None:
+        """
+        A function that gets the body direction, speed, and average location of the animal. Under the condition that
+        the tracking data is being displayed, or the trail is displayed, or the stimulus is displayed.
+        """
+
+        if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
+            self.body_dir = self.tracking_data["body_dir"][self.frame_num]
+            self.bod_shelt_dir = self.tracking_data["bod_shelt_dir"][self.frame_num]
+            if np.any(self.tracking_data["bod_barrier_dir"]):
+                self.bod_barr_dir = self.tracking_data["bod_barrier_dir"][self.frame_num, :]
+            else:
+                self.bod_barr_dir = []
+            self.speed = self.tracking_data["avg_Velocity"][self.frame_num]
+            self.avg_loc = (
+                int(self.tracking_data["avg_loc"][self.frame_num][0]),
+                int(self.tracking_data["avg_loc"][self.frame_num][1]),
+            )
+            self.hdir = self.tracking_data["hdir"][self.frame_num]
