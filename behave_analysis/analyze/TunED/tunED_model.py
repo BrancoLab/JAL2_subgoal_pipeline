@@ -1,6 +1,13 @@
 """
-Lingo:
-+ Stimulus means the stimulus variable (e.g. hdir, hsa or other behavioural variables) that are simultaneously recorded with the spikes
+                                                                                            Overview of the TunED model
+
+Tuning function (tf): 
++ Mean firing rate of a neuron to a given stimulus µ(v1) or µ(v2). See class compute_observed_tuning_function for more details.
+
+Null hypothesis (nh): 
++ We set a null hypothesis asking how much of the tuning function of one neuron to stimulus V1 can be explained by a second stimulus variable V2 and its interaction with V1. We compute the expected
+  conditional E[fr(v2)|v1]. And thus the NH is that the tuning function of that neuron is purely driven by V2 and not V1. See class compute_null_hypothesis for more details. If the NH
+  is true then the tuning function of that neuron should be the same as the expected conditional.
 
 TODO:
 + There should be some quality checks done on the ingested data because I found a spike count at 130  in one frame for one cell which is impossible so data quality is not there yet.
@@ -180,9 +187,13 @@ class ComputeNullHypothesisTuningFunction:
 
     def compute_tuning_function(self, tf_y, tf_y_s2, n_x, Py_x):
         """
-        What is the mean firing rate conditioned on another variable?
+        This function computes the NH. Which is the expected tuning function of y given x.
+        Such that:
+        --> NH for X = E[tf_Y|X] = ∫dy tf_y P(y|x)
+        
         Steps:
             1. Convert it into a column vector (i.e., a matrix with one column)
+            2. ∫dy tf_y P(y|x) - this is the expected value of the tuning function of y given x E[tf_y|x]
         
         Inputs:
             Py_x: <np.ndarray> of size (Nbins, Nbins). The probability of stimulus y given stimulus x. P(y|x)
@@ -380,9 +391,9 @@ def tunED_model_main(data, file_save_location):
         # Calculate the tuning curve significance -----------------------------------------------------------------------
         sig_testv2 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
                                                                                             observed_tf = hsa_tuning_object.tuning_func,
-                                                                                                               expected_tf = hdir_NH_object.tuning_func_nh,
-                                                                                                               observed_sem = hsa_tuning_object.tuning_func_sem, 
-                                                                                                               expected_sem = hdir_NH_object.tuning_func_nh_sem)
+                                                                                            expected_tf = hdir_NH_object.tuning_func_nh,
+                                                                                            observed_sem = hsa_tuning_object.tuning_func_sem, 
+                                                                                            expected_sem = hdir_NH_object.tuning_func_nh_sem)
         
         sig_testv1 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins,
                                                                                              observed_tf = hdir_tuning_object.tuning_func,
@@ -480,7 +491,6 @@ if __name__ == '__main__':
     """
     The below logic is used to run the module as a standalone module for the purpose of testing toy data. It is currently set up to run on synthetic data that matches the matlab code
     writen to produce the model from Campagner et al., 2022. Should the functions above be modified, this code will need to be modified to match.
-    
     """
     
     # Load chance significance data
@@ -488,13 +498,13 @@ if __name__ == '__main__':
     #     loaded_dict = pickle.load(f)
         
     Ncells = 1
-    Nsamples = 10000 # Number of samples to generate, i.e. number of frames
+    Nsamples = 100000 # Number of samples to generate, i.e. number of frames
     Nbins = 10 # Number of bins to use to bin up the stimulus variable
     # min_successes_significant = TunEDModelStats.compute_binomial_chance_distribution(loaded_dict, Nbins = Nbins)
     
     # Generate stimuli
     stimulusV1 = np.random.randn(1, Nsamples) # Driver stimulus
-    stimulusV2 = stimulusV1 * 0.2 + np.random.randn(1, Nsamples) # Passenger stimulus
+    stimulusV2 = stimulusV1 * 0.5 + np.random.randn(1, Nsamples) # Passenger stimulus
     
     print(np.corrcoef(stimulusV1, stimulusV2)) # Print the stimulus variables as a correlation matrix, to show variable 2 is correlated with variable 1
 
@@ -520,25 +530,17 @@ if __name__ == '__main__':
     Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2) # Tranpose to ensure broadcasting works correctly row wise instead of column wise
     
     # ------------------------------- NULL Hypothesis tests ---------------------------------------------------------------------
-    # apparent tuning to 'hdir' given NH that cell is driven purely by hsa:
-    hdir_NH_object = ComputeNullHypothesisTuningFunction(v1Object.tuning_func, 
-                                                         v1Object.tuning_func_s2, 
-                                                         v2Object.n, 
-                                                         Pv1_v2)
-    
-    # apparent tuning to 'hsa' given NH that cell is driven purely by hdir:
-    hsa_NH_object = ComputeNullHypothesisTuningFunction(v2Object.tuning_func,
-                                                        v2Object.tuning_func_s2,
-                                                        v1Object.n,
-                                                        Pv2_v1)
+    V1_NH_object = ComputeNullHypothesisTuningFunction(v2Object.tuning_func, v2Object.tuning_func_s2, v1Object.n, Pv2_v1) # E[fr(v2)|v1] given NH that cell is driven purely by V2:
+    V2_NH_object = ComputeNullHypothesisTuningFunction(v1Object.tuning_func, v1Object.tuning_func_s2, v2Object.n, Pv1_v2) # E[fr(v1)|v2] given NH that cell is driven purely by V1:
+    # ---------------------------------------------------------------------------------------------------------------------------
     
     # Compuete significance of tuning functions --------------------------------------------------------------------------------
     # Computes of the second set 
     # sig1 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
     #                                                                                observed_tf = v1Object.tuning_func,
-    #                                                                                expected_tf = hsa_NH_object.tuning_func_nh,
+    #                                                                                expected_tf = V1_NH_object.tuning_func_nh,
     #                                                                                observed_sem = v1Object.tuning_func_sem, 
-    #                                                                                expected_sem = hsa_NH_object.tuning_func_nh_sem,)
+    #                                                                                expected_sem = V1_NH_object.tuning_func_nh_sem,)
     
     # if np.sum(sig1) > 3:
     #     print("Significant difference in set 1!")
@@ -546,16 +548,16 @@ if __name__ == '__main__':
         
     # sig2 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
     #                                                                                observed_tf = v2Object.tuning_func,
-    #                                                                                expected_tf = hdir_NH_object.tuning_func_nh,
+    #                                                                                expected_tf = V2_NH_object.tuning_func_nh,
     #                                                                                observed_sem = v2Object.tuning_func_sem, 
-    #                                                                                expected_sem = hdir_NH_object.tuning_func_nh_sem)
+    #                                                                                expected_sem = V2_NH_object.tuning_func_nh_sem)
     
     # if np.sum(sig2) > 3:
     #     print("Significant difference in set 2!")
     # print(sig2)
     
     # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
-    fig, ax = plt.subplots(1, 2, figsize=(23, 5))
+    fig, ax = plt.subplots(1, 2, figsize=(18, 5))
 
     ax[0].plot(v1Object.bin_centres, 
             v1Object.tuning_func[0, :], 
@@ -570,14 +572,14 @@ if __name__ == '__main__':
                     color="cornflowerblue")
     
     ax[0].plot(v1Object.bin_centres, 
-            hsa_NH_object.tuning_func_nh[0, :], 
+            V1_NH_object.tuning_func_nh[0, :], 
             '.--', 
-            label='Tuning to v1 given NH that driver is v2', 
+            label='Tuning to v1 given NH that driver is v2 E[fr(v2)|v1]', 
             color='darkorchid')
     
     ax[0].fill_between(v1Object.bin_centres, 
-                    hsa_NH_object.tuning_func_nh[0, :] - hsa_NH_object.tuning_func_nh_sem[0, :], 
-                    hsa_NH_object.tuning_func_nh[0, :] + hsa_NH_object.tuning_func_nh_sem[0, :], 
+                    V1_NH_object.tuning_func_nh[0, :] - V1_NH_object.tuning_func_nh_sem[0, :], 
+                    V1_NH_object.tuning_func_nh[0, :] + V1_NH_object.tuning_func_nh_sem[0, :], 
                     alpha=0.1, 
                     color='darkorchid')
     
@@ -601,14 +603,14 @@ if __name__ == '__main__':
                     alpha=0.1)
     
     ax[1].plot(v2Object.bin_centres, 
-            hdir_NH_object.tuning_func_nh[0, :], 
+            V2_NH_object.tuning_func_nh[0, :], 
             '.--', 
-            label='Tuning to v2 given NH that driver is v1', 
+            label='Tuning to v2 given NH that driver is v1 E[fr(v1)|v2]', 
             color='darkorchid')
     
     ax[1].fill_between(v2Object.bin_centres, 
-                    hdir_NH_object.tuning_func_nh[0, :] - hdir_NH_object.tuning_func_nh_sem[0, :], 
-                    hdir_NH_object.tuning_func_nh[0, :] + hdir_NH_object.tuning_func_nh_sem[0, :], 
+                    V2_NH_object.tuning_func_nh[0, :] - V2_NH_object.tuning_func_nh_sem[0, :], 
+                    V2_NH_object.tuning_func_nh[0, :] + V2_NH_object.tuning_func_nh_sem[0, :], 
                     color='darkorchid', 
                     alpha=0.1)
     
