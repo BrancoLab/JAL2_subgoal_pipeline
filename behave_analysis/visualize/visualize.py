@@ -44,18 +44,19 @@ class Visualize:
             logger.info(f"Starting to make some efizz overview plots...")
             
             """ Load data into visual object"""
-            preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "synthetic") # legancy label filter still saves file name
-            # preprocessObject = DataPreprocessor(self,  cluster_labels_to_filter = "good") # select_clusters: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+            if self.settings.cluster_type == 'synthetic':
+                preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "synthetic") # legancy label filter still saves file name
+            else:
+                preprocessObject = DataPreprocessor(self,  cluster_labels_to_filter = self.settings.cluster_type) # cluster_labels_to_filter: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
 
-            visualObject = Visualize_efizz(preprocessObject)
-            visualObject.linear_discriminant_analysis('head_shelter_angle')
+            # visualObject = Visualize_efizz(preprocessObject)
             
             # Test Behaviour correlation plots
-            correlationChild = Correlations(MaxPlotsPerFigure = 10, 
-                                            how_many_plots_you_need = 6, 
-                                            CleanVideoDf = preprocessObject.clean_behavioural_data,
-                                            directoryToSaveTo = self.session.processed_path, 
-                                            plotName = "CorrelationPlots")
+            # correlationChild = Correlations(MaxPlotsPerFigure = 10, 
+            #                                 how_many_plots_you_need = 6, 
+            #                                 CleanVideoDf = preprocessObject.clean_behavioural_data,
+            #                                 directoryToSaveTo = self.session.processed_path, 
+            #                                 plotName = "CorrelationPlots")
 
             # correlationChild.create_correration_plot()
             
@@ -90,11 +91,11 @@ class Visualize:
             # Laser sync test TODO: check if this still works with new polars data organization
             # if self.settings.escape_trials: visualObject.single_cluster_raster_Laser_test()
 
-        # logger.info(f"Starting to make some behaviour ONLY overview plots.")
-        # BehaveObject = Visualize_behave(self)
-        # BehaveObject.position_by_bsa()
-        # BehaveObject.location_occupancy()
-        # BehaveObject.angle_histograms()
+        logger.info(f"Starting to make some behaviour ONLY overview plots.")
+        BehaveObject = Visualize_behave(self)
+        BehaveObject.position_by_bsa()
+        BehaveObject.location_occupancy()
+        BehaveObject.angle_histograms()
 
     def trials(self, stim_type) -> None:
         """

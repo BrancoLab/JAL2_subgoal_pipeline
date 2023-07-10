@@ -81,6 +81,7 @@ class Settings_visualize:
     sessions: list=None
     all_sessions: bool=False
     efizz: bool=False
+    cluster_type: str = ''
     show_plots: bool = True
 
 @dataclass(frozen=True)
@@ -129,3 +130,12 @@ class Settings_analyze_global:
     color_by: str=''
     x_jitter: bool=True
     efiz_file_path: str=""
+
+@dataclass(frozen=True)
+class Settings_analyze_efizz:
+    cluster_type: str = ''
+    show_plots: bool = False
+    run_tunED: bool = False
+    run_LDA: list = None
+    object_present: bool = True
+    run_consink: bool = False

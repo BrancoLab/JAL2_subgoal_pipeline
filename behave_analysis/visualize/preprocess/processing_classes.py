@@ -153,7 +153,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         return spike_data
     
     def activate_synthetic_data_generation(self) -> None:
-        logger.info("Synethic spike data doesn't exist and will now be generated")
+        logger.info("Synthetic spike data doesn't exist and will now be generated")
         tuning = ['hdir']
         if len(self.Visualize.session.shelter_time) > 0: 
             tuning.append('hsa')
@@ -166,7 +166,8 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
     def merge_and_save_spike_count_df_with_frame_data(self) -> None:
         video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
         large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + "synthetic" + "_large_dataframe.csv")
+        large_dataFrame = large_dataFrame.fill_null(strategy="zero")
+        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
 
     def expand_tracking_data(self, video_df: pl.DataFrame, new_entries_to_insert: int) -> pl.DataFrame:
         """
@@ -215,11 +216,23 @@ class DataPreprocessor(BaseDataPreprocessor):
         logger.success("Data found ready for preprocessing")
         return spike_data
 
-    def filter_spike_data(self) -> NotImplementedError:
+    def filter_spike_data(self):
         """
-        I actually don't think this function is needed, there was a thing called self.clu_label but it wasn't used across the code base so assuming not needed.
-        """
-        raise NotImplementedError
+        Filter the spike data to only include good neurons or good + MUA
+        """        
+        
+        if self.select_clusters != "synthetic":
+            if self.select_clusters == 'all':
+                self.spike_data = self.spike_data.filter((self.spike_data['cluster_group'] == "good")
+                                                    | (self.spike_data['cluster_group'] == "mua"))
+                logger.info("Loaded good and multi unit clusters")
+            else:
+                self.spike_data = self.spike_data.filter(self.spike_data['cluster_group'] == self.select_clusters)
+                numneurons = len(self.spike_data['spike_clusters'].unique())
+                logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
+        
+        self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+        self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
     
     def merge_and_save_spike_count_df_with_frame_data(self) -> pl.DataFrame:
         """
@@ -227,7 +240,8 @@ class DataPreprocessor(BaseDataPreprocessor):
         """
         video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
         large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + "production" + "_large_dataframe.csv")
+        large_dataFrame = large_dataFrame.fill_null(strategy="zero")
+        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
         return large_dataFrame
 
 
