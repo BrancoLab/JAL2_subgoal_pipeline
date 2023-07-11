@@ -18,7 +18,7 @@ class AnalyzeEfizz:
         logger.info('Initializing AnalyzeEfizz')
         if not os.path.isdir(session.processed_path + "\\" + 'models'):
             os.mkdir(session.processed_path + "\\" + 'models')
-        self.dir = session.processed_path + "\\" + 'models' + "\\" + "tunED"
+        self.dir = session.processed_path + "\\" + 'models'
         self.cluster_type = Settings_analyze_efizz.cluster_type
         self.show_plots = Settings_analyze_efizz.show_plots
         self.processed_file_directory = session.processed_path + '\\' + str(Settings_analyze_efizz.cluster_type) + '_large_dataframe.csv'
@@ -32,8 +32,11 @@ class AnalyzeEfizz:
         logger.info('Executing models')
         
         if Settings_analyze_efizz.run_tunED:
+            if not os.path.isdir(self.dir + "\\" + "tunED"):
+                os.mkdir(self.dir + "\\" + "tunED")
+            self.dir = os.path.join(self.dir, 'tunED')
             logger.info('Running TunED')
-            TunEdModel(self, Settings_analyze_efizz.object_present)
+            TunEdModel(self, Settings_analyze_efizz.object_present, save_location = self.dir)
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:

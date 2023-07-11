@@ -8,7 +8,7 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     # General settings
     cluster_type = 'good', # Can choose all, good, mua
     show_plots = False,
-    object_present = False, # If True will analyse data only when object present, if false, it will analyze only when object not present 
+    object_present = False, # If True will analyse data only when object present, if false, it will analyze only when object not present
     
     # Tuned model settings
     run_tunED = True,

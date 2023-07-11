@@ -294,9 +294,10 @@ class TunEDModelStats:
         return min_successes_significant
 
 class TunEdModel:
-    def __init__(self, inherited_object, object_present):
+    def __init__(self, inherited_object, object_present, save_location):
         self.object_present = object_present
         self.inherited_object = inherited_object
+        self.directory_location = save_location
         self.data_df = self.filter_data_by_period() # before shelter or after shelter etc
         self.execute_model_per_cluster()
         
@@ -366,7 +367,7 @@ class TunEdModel:
         plt.suptitle(f"Object present {self.object_present} Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus.  \
                        Cluster number {cluster}, spike number: {spikes}, corrcoeff: {np.corrcoef(hdir, hsa)[0, 1]}, is set 1 sig {is_hdir_sig}, is set 2 sig {is_hsa_sig}", 
                        fontweight="bold")    
-        plt.savefig(str(self.inherited_object.dir) + f"cluster_{cluster}.png")
+        plt.savefig(str(self.directory_location) + "\\" + f"istheobjectpresent_{self.object_present}_cluster_{cluster}.png")
     
     def execute_model_per_cluster(self):
         """
