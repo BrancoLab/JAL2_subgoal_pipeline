@@ -17,13 +17,9 @@ TODO:
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.pyplot as plt
-import seaborn as sns
 import polars as pl
 from loguru import logger
-from abc import abstractmethod
-from scipy.stats import norm, poisson, binom
-import pickle
-import time
+from scipy.stats import norm, binom
 
 class ComputeObservedTuningFunction:
     """
@@ -128,22 +124,6 @@ class ComputeObservedTuningFunction:
 
         bin_centres = (self.stimulus_bin_edges[1:] + self.stimulus_bin_edges[:-1]) / 2
         
-        # Adding limit logic to see if thats why the tuning curves dont match darios
-        
-        # Compute limits from input data
-        # limits = np.std(np.vstack((self.behavioural_angle,)), axis=1) * np.array([-3, 3])
-
-        # # Find indices where the bin centers are within the limits
-        # good_indices = (bin_centres > limits[0]) & (bin_centres < limits[1])
-
-        # # Use these indices to select only the valid entries in each array
-        # tf = tf[:, good_indices]
-        # tf_s2 = tf_s2[:, good_indices]
-        # tf_sem = tf_sem[:, good_indices]
-        # n = n[:, good_indices]
-        # bin_centres = bin_centres[good_indices]
-        # std_dev = std_dev[:, good_indices]
-
         return tf, tf_sem, tf_s2, n, bin_centres, std_dev
 
 class ComputeNullHypothesisTuningFunction:
@@ -313,194 +293,150 @@ class TunEDModelStats:
         print(f'Minimum number of Trues for significance at the 5% level: {np.ceil(min_successes_significant)}')
         return min_successes_significant
 
-def tunED_model_main(data, object_present, file_save_location):
-    
-    # sig_test_chanceofv2 = {}
-    # Load chance significance data
-    # with open('saved_dictionary_synthetic_v2chance.pkl', 'rb') as f:
-    #     loaded_dict = pickle.load(f)
-    
-    # min_successes_significant = TunEDModelStats.compute_binomial_chance_distribution(loaded_dict, Nbins=20)
-    
-    data = data.filter((data["OutofshelterIdx"] == True) & (data["EscapePeriod"] == False) & (data["shelter_only"] == object_present))
-    
-    # sig_test_chanceofv1 = {}
-    for cluster in np.unique(data["spike_clusters"]): # NOTE - OFF by one error cluster zero doesn't exsist if running synthetic
+class TunEdModel:
+    def __init__(self, inherited_object, object_present):
+        self.object_present = object_present
+        self.inherited_object = inherited_object
+        self.data_df = self.filter_data_by_period() # before shelter or after shelter etc
+        self.execute_model_per_cluster()
         
-        # setup time
-        setUpTime = time.time()
-        
-        # setup
-        filtered_df = data.filter(pl.col("spike_clusters") == cluster)
-        Nsamples = len(filtered_df)
-        # Ncells = 1
+    def filter_data_by_period(self):
+        """
+        The purpose of this function is to filter the data by the period of interest but also to remove the data that is not relevant to the model such as 
+        escapse periods and periods when the mouse is in the shelter.
+        """
+        filtered_data = self.inherited_object.data_df.filter(
+                                                    (self.inherited_object.data_df["OutofshelterIdx"] == True) & 
+                                                    (self.inherited_object.data_df["EscapePeriod"] == False) & 
+                                                    (self.inherited_object.data_df["shelter_only"] == self.object_present)
+                                                    )
+        return filtered_data
+    
+    def init_model_inputs(self, data_df):
+        Nsamples = len(data_df)
         Nbins = 20 # Number of bins to use to bin up the stimulus variable
-        hdir = np.array(filtered_df["hdir"].to_numpy()).reshape(1, Nsamples)
-        hsa  = np.array(filtered_df["hsa"].to_numpy()).reshape(1, Nsamples)
-        raster = np.array(filtered_df["spike_count"].to_numpy()).reshape(1, Nsamples)
+        hdir = np.array(data_df["hdir"].to_numpy()).reshape(1, Nsamples)
+        hsa  = np.array(data_df["hsa"].to_numpy()).reshape(1, Nsamples)
+        raster = np.array(data_df["spike_count"].to_numpy()).reshape(1, Nsamples)
+        return Nsamples, Nbins, hdir, hsa, raster
+    
+    def produce_bool_of_signifiance(self, hdir_sig, hsa_sig, num_bins_required_to_be_significant):
+        """
+        The purpose of this function is to produce a boolean that indicates whether the tuning functions are significantly different or not.
+        """
+        is_hdir_sig = False
+        if np.sum(hdir_sig) > num_bins_required_to_be_significant - 1:
+            is_hdir_sig = True
         
-        # Log some information about the cluster
-        logger.info(f"Running TunED model on cluster {cluster}")
-        print("The number of frames this cluster fired in:", Nsamples)
-        print("This cluster has this number of spikes", sum(filtered_df["spike_count"]))
-        print("The rho for the angles of this cluster is", np.corrcoef(hdir, hsa)[0, 1])
+        is_hsa_sig = False
+        if np.sum(hsa_sig) > num_bins_required_to_be_significant - 1:
+            is_hsa_sig = True
         
-        # Test time up to here
-        # get the end time
-        endOfSetUpTime = time.time()
-
-        # get the execution time
-        elapsed_time = endOfSetUpTime - setUpTime
-        print('Execution time for set up:', elapsed_time, 'seconds')
-        
-        # Time the model
-        modelUpTime = time.time()
-        
-        # Calculate observed tuning curves --------------------------------------------------------
-        hdir_tuning_object = ComputeObservedTuningFunction(spike_count_matrix = raster, 
-                                                           stimulus_variable = hdir, 
-                                                           Nbins = Nbins, 
-                                                           Nsamples = Nsamples)
-        
-        hsa_tuning_object = ComputeObservedTuningFunction(spike_count_matrix = raster, 
-                                                          stimulus_variable = hsa, 
-                                                          Nbins = Nbins, 
-                                                          Nsamples = Nsamples)
-        
-        # Calculate joint, marginal and conditional probabilities ---------------------------------
-        jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(hdir, 
-                                                                     hsa, 
-                                                                     stimulusV2edges = hsa_tuning_object.stimulus_bin_edges, 
-                                                                     stimulusV1edges = hdir_tuning_object.stimulus_bin_edges, 
-                                                                     Nbins = Nbins)
-        
-        Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
-        Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
-        Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2)
-        
-        # Calculate expected NH tuning curves ------------------------------------------------------
-        hdir_NH_object = ComputeNullHypothesisTuningFunction(observed_tuning_function = hdir_tuning_object.tuning_func, 
-                                                             observed_tuning_function_s2 = hdir_tuning_object.tuning_func_s2, 
-                                                             num_values_for_Px = hsa_tuning_object.n, 
-                                                             conditional_Py_x = Pv1_v2)
-        
-        hsa_NH_object = ComputeNullHypothesisTuningFunction(observed_tuning_function = hsa_tuning_object.tuning_func, 
-                                                             observed_tuning_function_s2 = hsa_tuning_object.tuning_func_s2, 
-                                                             num_values_for_Px = hdir_tuning_object.n, 
-                                                             conditional_Py_x = Pv2_v1)
-        
-        # Calculate the tuning curve significance -----------------------------------------------------------------------
-        sig_testv2 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
-                                                                                            observed_tf = hsa_tuning_object.tuning_func,
-                                                                                            expected_tf = hdir_NH_object.tuning_func_nh,
-                                                                                            observed_sem = hsa_tuning_object.tuning_func_sem, 
-                                                                                            expected_sem = hdir_NH_object.tuning_func_nh_sem)
-        
-        sig_testv1 = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins,
-                                                                                             observed_tf = hdir_tuning_object.tuning_func,
-                                                                                             expected_tf = hsa_NH_object.tuning_func_nh,
-                                                                                             observed_sem = hdir_tuning_object.tuning_func_sem,
-                                                                                             expected_sem = hsa_NH_object.tuning_func_nh_sem)
-        
-        set_1_sig = False
-        if np.sum(sig_testv1) > 11:
-            set_1_sig = True
-        
-        set_2_sig = False
-        if np.sum(sig_testv2) > 11:
-            set_2_sig = True
-            
-            
-        # Test time up to here for model
-        endOfModelTime = time.time()
-        print('Execution time for model:', endOfModelTime - modelUpTime, 'seconds')
-        
-        # Test plotting time
-        plotTime = time.time()
-        
-        # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
+        return is_hdir_sig, is_hsa_sig
+    
+    def plot_and_save_tuning_functions(self, hdir_tuning_object, hsa_NH_object, hsa_tuning_object, hdir_NH_object, filtered_df, cluster, hdir, hsa, is_hdir_sig, is_hsa_sig, Nsamples):
         fig, ax = plt.subplots(1, 2, figsize=(23, 5))
-
-        # Plot the first set of observed vs expected tuning curves
-        ax[0].plot(hdir_tuning_object.bin_centres, 
-                   hdir_tuning_object.tuning_func[0, :], 
-                   '.-', 
-                   label='Tuning to hdir', 
-                   color="cornflowerblue")
         
-        ax[0].fill_between(hdir_tuning_object.bin_centres, 
-                           hdir_tuning_object.tuning_func[0, :] - hdir_tuning_object.tuning_func_sem[0, :], 
-                           hdir_tuning_object.tuning_func[0, :] + hdir_tuning_object.tuning_func_sem[0, :], 
-                           alpha=0.1, 
-                           color="cornflowerblue")
-        
-        ax[0].plot(hdir_tuning_object.bin_centres, 
-                   hsa_NH_object.tuning_func_nh[0, :], 
-                   '.--', 
-                   label='Tuning to hdir given NH that driver is hsa', 
-                   color='darkorchid')
-        
-        ax[0].fill_between(hdir_tuning_object.bin_centres, 
-                           hsa_NH_object.tuning_func_nh[0, :] - hsa_NH_object.tuning_func_nh_sem[0, :], 
-                           hsa_NH_object.tuning_func_nh[0, :] + hsa_NH_object.tuning_func_nh_sem[0, :], 
-                           alpha=0.1, 
-                           color='darkorchid')
-        
-        ax[0].set_xlabel('v1')
+        # Plot hdir observed vs null tuning function
+        ax[0].set_title("Tuning to head direction and the NH that the driver is head shelter angle", fontweight="bold")
+        ax[0].plot(hdir_tuning_object.bin_centres, hdir_tuning_object.tuning_func[0, :], '.-', label='Tuning to hdir', color="cornflowerblue")
+        ax[0].fill_between(hdir_tuning_object.bin_centres, hdir_tuning_object.tuning_func[0, :] - hdir_tuning_object.tuning_func_sem[0, :], 
+                           hdir_tuning_object.tuning_func[0, :] + hdir_tuning_object.tuning_func_sem[0, :], alpha=0.1, color="cornflowerblue")
+        ax[0].plot(hdir_tuning_object.bin_centres, hsa_NH_object.tuning_func_nh[0, :], '.--', label='Tuning to hdir given NH that driver is hsa', color='darkorchid')
+        ax[0].fill_between(hdir_tuning_object.bin_centres, hsa_NH_object.tuning_func_nh[0, :] - hsa_NH_object.tuning_func_nh_sem[0, :], 
+                           hsa_NH_object.tuning_func_nh[0, :] + hsa_NH_object.tuning_func_nh_sem[0, :], alpha=0.1, color='darkorchid')
+        ax[0].set_xlabel('Radians')
         ax[0].set_ylabel('fr')
         ax[0].legend(loc='upper right')
-        ax[0].set_title("Tuning to V1", fontweight="bold")
         
-        # -----------------------------------------------------------------------------------------------
-
-        # Plot the second set of observed vs expected tuning curves
-        ax[1].plot(hsa_tuning_object.bin_centres, 
-                   hsa_tuning_object.tuning_func[0, :], 
-                   '.-', 
-                   label='Tuning to hsa', 
-                   color='cornflowerblue')
-        
-        ax[1].fill_between(hsa_tuning_object.bin_centres, 
-                           hsa_tuning_object.tuning_func[0, :] -  hsa_tuning_object.tuning_func_sem[0, :], 
-                           hsa_tuning_object.tuning_func[0, :] + hsa_tuning_object.tuning_func_sem[0, :], 
-                           color='cornflowerblue', 
-                           alpha=0.1)
-        
-        ax[1].plot(hsa_tuning_object.bin_centres, 
-                   hdir_NH_object.tuning_func_nh[0, :], 
-                   '.--', 
-                   label='Tuning to hsa given NH that driver is hdir', 
-                   color='darkorchid')
-        
-        ax[1].fill_between(hsa_tuning_object.bin_centres, 
-                           hdir_NH_object.tuning_func_nh[0, :] - hdir_NH_object.tuning_func_nh_sem[0, :], 
-                           hdir_NH_object.tuning_func_nh[0, :] + hdir_NH_object.tuning_func_nh_sem[0, :], 
-                           color='darkorchid', alpha=0.1)
-        
-        ax[1].set_xlabel('v2')
+        # Plot hsa observed vs null tuning function
+        ax[1].set_title("Tuning to shelter angle and the NH that the driver is head direction", fontweight="bold")
+        ax[1].plot(hsa_tuning_object.bin_centres, hsa_tuning_object.tuning_func[0, :], '.-', label='Tuning to hsa', color='cornflowerblue')
+        ax[1].fill_between(hsa_tuning_object.bin_centres, hsa_tuning_object.tuning_func[0, :] -  hsa_tuning_object.tuning_func_sem[0, :], 
+                           hsa_tuning_object.tuning_func[0, :] + hsa_tuning_object.tuning_func_sem[0, :], color='cornflowerblue', alpha=0.1)
+        ax[1].plot(hsa_tuning_object.bin_centres, hdir_NH_object.tuning_func_nh[0, :], '.--', label='Tuning to hsa given NH that driver is hdir', color='darkorchid')
+        ax[1].fill_between(hsa_tuning_object.bin_centres, hdir_NH_object.tuning_func_nh[0, :] - hdir_NH_object.tuning_func_nh_sem[0, :], 
+                           hdir_NH_object.tuning_func_nh[0, :] + hdir_NH_object.tuning_func_nh_sem[0, :], color='darkorchid', alpha=0.1)
+        ax[1].set_xlabel('Radians')
         ax[1].set_ylabel('fr')
         ax[1].legend(loc='upper right')
-        ax[1].set_title("Tuning to V2", fontweight="bold")
-        
-        # Test remove for speed
-        # To verify that the data ingested is correct, generate a polar plot
-        # angles must be in radians
-        # ax3 = fig.add_subplot(1, 3, 3, polar=True)
-        # bars = ax3.bar(hdir[0], raster[0]) # index to make into 1d array
-        
-        # Test up to here for plotting the time
-        endOfPlotTime = time.time()
-        print('Execution time for plotting:', endOfPlotTime - plotTime, 'seconds')
         
         # Titles and saving the figure
         spikes = sum(filtered_df["spike_count"])
-        plt.suptitle(f"Object present {object_present} Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus. Cluster number {cluster}, spike number: {spikes}, corrcoeff: {np.corrcoef(hdir, hsa)[0, 1]}, is set 1 sig {set_1_sig}, is set 2 sig {set_2_sig}", fontweight="bold")    
-        plt.savefig(str(file_save_location) + f"cluster_{cluster}.png")
-        # plt.show()
-
-    # with open('saved_dictionary_synthetic_v1chance.pkl', 'wb') as f:
-    #     pickle.dump(sig_test_chanceofv1, f)
+        plt.suptitle(f"Object present {self.object_present} Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus.  \
+                       Cluster number {cluster}, spike number: {spikes}, corrcoeff: {np.corrcoef(hdir, hsa)[0, 1]}, is set 1 sig {is_hdir_sig}, is set 2 sig {is_hsa_sig}", 
+                       fontweight="bold")    
+        plt.savefig(str(self.inherited_object.dir) + f"cluster_{cluster}.png")
     
+    def execute_model_per_cluster(self):
+        """
+        The purpose of this function is to execute the TunEd model for each cluster in the data and thus calls all of the relevant classes and functions to do so.
+        """
+        for cluster in np.unique(self.inherited_object.data_df["spike_clusters"]):
+            
+            # Skip cluster 0 as this has no spikes weird bug 
+            if cluster == 0:
+                continue
+            
+            # Filter data by cluster
+            filtered_df = self.data_df.filter(pl.col("spike_clusters") == cluster)
+            Nsamples, Nbins, hdir, hsa, raster = self.init_model_inputs(filtered_df)
+            logger.info(f"Running TunEd model for cluster {cluster} active for {Nsamples} firing a total of {sum(filtered_df['spike_count'])} spikes, with \
+                          a correlation coefficient of {np.corrcoef(hdir, hsa)[0, 1]}")
+            
+            # Compute observed tuning functions
+            hdir_tuning_object = ComputeObservedTuningFunction(spike_count_matrix = raster, stimulus_variable = hdir, Nbins = Nbins, Nsamples = Nsamples)
+            hsa_tuning_object = ComputeObservedTuningFunction(spike_count_matrix = raster, stimulus_variable = hsa, Nbins = Nbins, Nsamples = Nsamples)
+            
+            # Compute probabilities
+            jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(hdir, 
+                                                                         hsa, 
+                                                                         stimulusV2edges = hsa_tuning_object.stimulus_bin_edges, 
+                                                                         stimulusV1edges = hdir_tuning_object.stimulus_bin_edges, 
+                                                                         Nbins = Nbins)
+            Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
+            Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
+            Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2)
+            
+            # Compute NULL hypothesis tuning functions
+            hdir_NH_object = ComputeNullHypothesisTuningFunction(observed_tuning_function = hdir_tuning_object.tuning_func, 
+                                                                 observed_tuning_function_s2 = hdir_tuning_object.tuning_func_s2, 
+                                                                 num_values_for_Px = hsa_tuning_object.n, 
+                                                                 conditional_Py_x = Pv1_v2)
+            hsa_NH_object = ComputeNullHypothesisTuningFunction(observed_tuning_function = hsa_tuning_object.tuning_func, 
+                                                                observed_tuning_function_s2 = hsa_tuning_object.tuning_func_s2, 
+                                                                num_values_for_Px = hdir_tuning_object.n, 
+                                                                conditional_Py_x = Pv2_v1)
+            
+            # Compute the significance of difference between the observed and expected tuning functions
+            hdir_significance = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins,
+                                                                                                        observed_tf = hdir_tuning_object.tuning_func,
+                                                                                                        expected_tf = hsa_NH_object.tuning_func_nh,
+                                                                                                        observed_sem = hdir_tuning_object.tuning_func_sem,
+                                                                                                        expected_sem = hsa_NH_object.tuning_func_nh_sem)
+            
+            hsa_significance = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
+                                                                                                       observed_tf = hsa_tuning_object.tuning_func,
+                                                                                                       expected_tf = hdir_NH_object.tuning_func_nh,
+                                                                                                       observed_sem = hsa_tuning_object.tuning_func_sem, 
+                                                                                                       expected_sem = hdir_NH_object.tuning_func_nh_sem)
+            
+            # Produce boolean of significance
+            is_hdir_sig, is_hsa_sig = self.produce_bool_of_signifiance(hdir_significance, hsa_significance, num_bins_required_to_be_significant = 11)
+        
+            # Plot the tuning functions and save the figure
+            self.plot_and_save_tuning_functions(hdir_tuning_object, 
+                                                hsa_NH_object, 
+                                                hsa_tuning_object, 
+                                                hdir_NH_object, 
+                                                filtered_df, 
+                                                cluster, 
+                                                hdir, 
+                                                hsa, 
+                                                is_hdir_sig, 
+                                                is_hsa_sig,
+                                                Nsamples)
+
 if __name__ == '__main__':
     """
     The below logic is used to run the module as a standalone module for the purpose of testing toy data. It is currently set up to run on synthetic data that matches the matlab code

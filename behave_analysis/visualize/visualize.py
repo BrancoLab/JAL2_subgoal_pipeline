@@ -49,7 +49,6 @@ class Visualize:
             else:
                 preprocessObject = DataPreprocessor(self,  cluster_labels_to_filter = self.settings.cluster_type) # cluster_labels_to_filter: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
 
-            print(preprocessObject)
             visualObject = Visualize_efizz(preprocessObject)
                         
             """Make tuning plots"""

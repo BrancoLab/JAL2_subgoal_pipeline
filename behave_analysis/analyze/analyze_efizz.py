@@ -1,4 +1,4 @@
-from behave_analysis.analyze.TunED.tunED_model import tunED_model_main
+from behave_analysis.analyze.TunED.tunED_model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
 # from behave_analysis.analyze.ConSink.Consink_model import Consink
 from settings.settings_analyze_efizz import Settings_analyze_efizz
@@ -16,6 +16,8 @@ class AnalyzeEfizz:
     """
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
+        if not os.path.isdir(session.processed_path + "\\" + 'models'):
+            os.mkdir(session.processed_path + "\\" + 'models')
         self.dir = session.processed_path + "\\" + 'models' + "\\" + "tunED"
         self.cluster_type = Settings_analyze_efizz.cluster_type
         self.show_plots = Settings_analyze_efizz.show_plots
@@ -23,18 +25,15 @@ class AnalyzeEfizz:
         if os.path.isfile(self.processed_file_directory):
             self.data_df = pl.read_csv(self.processed_file_directory)
         else:
-            raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
+            raise FileNotFoundError("Data path doesn't exist, have you generated the required data?")
         self.execute_models()
 
     def execute_models(self):
         logger.info('Executing models')
         
-        # Params
-        objectPresent = Settings_analyze_efizz.object_present
-        
         if Settings_analyze_efizz.run_tunED:
             logger.info('Running TunED')
-            tunED_model_main(self.data_df, objectPresent, file_save_location = self.dir)
+            TunEdModel(self, Settings_analyze_efizz.object_present)
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:
