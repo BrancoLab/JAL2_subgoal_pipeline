@@ -40,6 +40,6 @@ settings_visualize = Settings_visualize(
     sessions = [0], # This session must be the one indexed in the databank
     all_sessions = False,
     efizz = True, # if you want to visualize efizz also
-    cluster_type = 'good',
+    cluster_type = 'good', # "synthetic" runs fake data, "good" runs good classifed neurons
     show_plots = False # if this is false, it will make and save the plots without showing them
 )

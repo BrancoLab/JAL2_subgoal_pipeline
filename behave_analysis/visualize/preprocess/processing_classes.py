@@ -201,11 +201,15 @@ class DataPreprocessor(BaseDataPreprocessor):
     """
     def __init__(self, visualize_object, cluster_labels_to_filter):
         super().__init__(visualize_object, cluster_labels_to_filter)
+        
+        assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
+        
         self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         self.spike_data = self.load_spike_data()
+        self.filtered_spike_data, self.clu_label = self.filter_spike_data()
         self.video_df = self.track_to_polars()
-        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
+        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.filtered_spike_data)
         self.merge_and_save_spike_count_df_with_frame_data() # Saves to a csv
         
     def load_spike_data(self) -> pl.DataFrame:
@@ -220,19 +224,19 @@ class DataPreprocessor(BaseDataPreprocessor):
         """
         Filter the spike data to only include good neurons or good + MUA
         """        
+        if self.select_clusters == 'all':
+            filtered_spike_data = self.spike_data.filter((self.spike_data['cluster_group'] == "good") | (self.spike_data['cluster_group'] == "mua"))
+            logger.info("Loaded good and multi unit clusters")
+        else:
+            filtered_spike_data = self.spike_data.filter(self.spike_data['cluster_group'] == self.select_clusters)
+            numNeurons = len(filtered_spike_data['spike_clusters'].unique())
+            logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
         
-        if self.select_clusters != "synthetic":
-            if self.select_clusters == 'all':
-                self.spike_data = self.spike_data.filter((self.spike_data['cluster_group'] == "good")
-                                                    | (self.spike_data['cluster_group'] == "mua"))
-                logger.info("Loaded good and multi unit clusters")
-            else:
-                self.spike_data = self.spike_data.filter(self.spike_data['cluster_group'] == self.select_clusters)
-                numneurons = len(self.spike_data['spike_clusters'].unique())
-                logger.info(f"Loaded {numneurons} {self.select_clusters} clusters")
+        # NOTE - If these two lines are to extract clu_label then can be removed to another function - Check with Jazz
+        clu_label = filtered_spike_data.groupby(["spike_clusters"]).first()
+        clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
         
-        self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
-        self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
+        return filtered_spike_data, clu_label
     
     def merge_and_save_spike_count_df_with_frame_data(self) -> pl.DataFrame:
         """
