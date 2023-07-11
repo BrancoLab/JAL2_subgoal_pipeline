@@ -367,7 +367,7 @@ class TunEdModel:
         plt.suptitle(f"Object present {self.object_present} Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus.  \
                        Cluster number {cluster}, spike number: {spikes}, corrcoeff: {np.corrcoef(hdir, hsa)[0, 1]}, is set 1 sig {is_hdir_sig}, is set 2 sig {is_hsa_sig}", 
                        fontweight="bold")    
-        plt.savefig(str(self.directory_location) + "\\" + f"istheobjectpresent_{self.object_present}_cluster_{cluster}.png")
+        plt.savefig(str(self.directory_location) + "\\" + f"is_the_object_present_{self.object_present}_cluster_{cluster}.png")
     
     def execute_model_per_cluster(self):
         """
