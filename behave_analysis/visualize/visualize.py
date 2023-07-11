@@ -45,27 +45,19 @@ class Visualize:
             
             """ Load data into visual object"""
             if self.settings.cluster_type == 'synthetic':
-                preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = "synthetic") # legancy label filter still saves file name
+                preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = self.settings.cluster_type) # legancy label filter still saves file name
             else:
                 preprocessObject = DataPreprocessor(self,  cluster_labels_to_filter = self.settings.cluster_type) # cluster_labels_to_filter: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
 
-            # visualObject = Visualize_efizz(preprocessObject)
-            
-            # Test Behaviour correlation plots
-            # correlationChild = Correlations(MaxPlotsPerFigure = 10, 
-            #                                 how_many_plots_you_need = 6, 
-            #                                 CleanVideoDf = preprocessObject.clean_behavioural_data,
-            #                                 directoryToSaveTo = self.session.processed_path, 
-            #                                 plotName = "CorrelationPlots")
-
-            # correlationChild.create_correration_plot()
-            
+            print(preprocessObject)
+            visualObject = Visualize_efizz(preprocessObject)
+                        
             """Make tuning plots"""
             # Production of vectorized plots  
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            # visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
+            visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = True)
             # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle',  compute_bootstrap = False, object_present = True)
@@ -74,18 +66,18 @@ class Visualize:
             # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', compute_bootstrap = False, object_present = False)
 
             # make a figure of all tuning polar plots for each cluster
-            # visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
+            visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
 
-            # visualObject.spatial_position_firing()
+            visualObject.spatial_position_firing()
             # TODO: build edge-tuning maps
             # TODO: tuning heatmap
 
             """Make plots of stimulus response"""
-            # logger.info(f"Starting to make some plots of stimulus responses.")
-            # if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
-            # if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
-            # if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
-            # if self.settings.escape_trials: visualObject.single_cluster_raster(stim_type = 'audio')
+            logger.info(f"Starting to make some plots of stimulus responses.")
+            if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
+            if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
+            if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
+            if self.settings.escape_trials: visualObject.single_cluster_raster(stim_type = 'audio')
             
             """Laser sync test"""
             # Laser sync test TODO: check if this still works with new polars data organization
@@ -96,6 +88,14 @@ class Visualize:
         BehaveObject.position_by_bsa()
         BehaveObject.location_occupancy()
         BehaveObject.angle_histograms()
+        # Test Behaviour correlation plots
+        # correlationChild = Correlations(MaxPlotsPerFigure = 10, 
+        #                                 how_many_plots_you_need = 6, 
+        #                                 CleanVideoDf = preprocessObject.clean_behavioural_data,
+        #                                 directoryToSaveTo = os.path.join(self.session.processed_path,'behaviour'), 
+        #                                 plotName = "CorrelationPlots")
+
+        # correlationChild.create_correration_plot()
 
     def trials(self, stim_type) -> None:
         """
@@ -152,8 +152,8 @@ class Visualize:
             self.body_dir = self.tracking_data["body_dir"][self.frame_num]
             self.hdir_shelt = self.tracking_data["hdir_shelt"][self.frame_num]
             self.bod_shelt_dir = self.tracking_data["bod_shelt_dir"][self.frame_num]
-            if np.any(self.tracking_data["hdir_barrier"]):
-                self.hdir_barrier = self.tracking_data["hdir_barrier"][self.frame_num, :]
+            if np.any(self.tracking_data["bod_barrier_dir"]):
+                self.hdir_barrier = self.tracking_data["bod_barrier_dir"][self.frame_num, :]
             else:
                 self.hdir_barrier = []
             self.speed = self.tracking_data["avg_Velocity"][self.frame_num]
@@ -178,13 +178,7 @@ class Visualize:
             else:
                 exclamation_color = (100, 200, 255)
             cv2.putText(
-                self.actual_frame,
-                "!",
-                (self.avg_loc[0] - 100, self.avg_loc[1] - 40),
-                4,
-                1.5,
-                exclamation_color,
-                thickness=6,
+                self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, exclamation_color, thickness=6,
             )
             cv2.putText(
                 self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, (0, 0, 0), thickness=4
@@ -298,10 +292,10 @@ class Visualize:
                 if self.hdir_barrier[i] < 0: bs =  self.hdir_barrier[i] + np.pi
                 if self.hdir_barrier[i] > 0: bs =  self.hdir_barrier[i] - np.pi
                 heading_dir_x = int(
-                    magnitudeOfVector * np.cos(self.bs) # bod_barr_dir
+                    magnitudeOfVector * np.cos(bs) # bod_barr_dir
                 )  # Convert the angle from radians to an x component
                 heading_dir_y = -int(
-                    magnitudeOfVector * np.sin(self.bs)
+                    magnitudeOfVector * np.sin(bs)
                 )  # Convert the angle from radians to an y component
                 # Plot the heading direction on the frame centered at the animal's average location
                 cv2.arrowedLine(
@@ -442,22 +436,22 @@ class Visualize:
         cv2.destroyAllWindows()
 
 
-    def get_current_position_and_speed_old(self) -> None:
+    # def get_current_position_and_speed_old(self) -> None:
         """
         A function that gets the body direction, speed, and average location of the animal. Under the condition that
         the tracking data is being displayed, or the trail is displayed, or the stimulus is displayed.
         """
 
-        if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
-            self.body_dir = self.tracking_data["body_dir"][self.frame_num]
-            self.bod_shelt_dir = self.tracking_data["bod_shelt_dir"][self.frame_num]
-            if np.any(self.tracking_data["bod_barrier_dir"]):
-                self.bod_barr_dir = self.tracking_data["bod_barrier_dir"][self.frame_num, :]
-            else:
-                self.bod_barr_dir = []
-            self.speed = self.tracking_data["avg_Velocity"][self.frame_num]
-            self.avg_loc = (
-                int(self.tracking_data["avg_loc"][self.frame_num][0]),
-                int(self.tracking_data["avg_loc"][self.frame_num][1]),
-            )
-            self.hdir = self.tracking_data["hdir"][self.frame_num]
+        # if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
+        #     self.body_dir = self.tracking_data["body_dir"][self.frame_num]
+        #     self.bod_shelt_dir = self.tracking_data["bod_shelt_dir"][self.frame_num]
+        #     if np.any(self.tracking_data["bod_barrier_dir"]):
+        #         self.bod_barr_dir = self.tracking_data["bod_barrier_dir"][self.frame_num, :]
+        #     else:
+        #         self.bod_barr_dir = []
+        #     self.speed = self.tracking_data["avg_Velocity"][self.frame_num]
+        #     self.avg_loc = (
+        #         int(self.tracking_data["avg_loc"][self.frame_num][0]),
+        #         int(self.tracking_data["avg_loc"][self.frame_num][1]),
+        #     )
+        #     self.hdir = self.tracking_data["hdir"][self.frame_num]

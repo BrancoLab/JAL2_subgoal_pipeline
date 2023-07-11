@@ -62,6 +62,7 @@ def linear_discriminant_analysis(self, variable, object_present = True):
     # make matrix of frames x clusters
     fillMatrix(d_new,X,clu)
     if clu[0] == 0: X = X[:,1:]
+    # X = X[:,np.where(np.sum(X == 0,axis = 0) < np.shape(X)[0])[0]]
     X = X/np.amax(X,axis=0)
 
     # train model
@@ -109,6 +110,7 @@ def linear_discriminant_analysis(self, variable, object_present = True):
     # make matrix of frames x clusters
     fillMatrix(d_new_test,X,clu)
     if clu[0] == 0: X = X[:,1:]
+    # X = X[:,np.where(np.sum(X == 0,axis = 0) < np.shape(X)[0])[0]]
     X = X/np.amax(X,axis=0)
 
     # plot confusion matrix of prediction on test data
@@ -131,7 +133,11 @@ def linear_discriminant_analysis(self, variable, object_present = True):
 
     if not(os.path.exists(str(self.dir) + "/" + "LDA")): 
         os.makedirs(str(self.dir) + "/" + "LDA")
-    plt.savefig(str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + ".png")
+    if object_present == True:
+        filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + ".png"
+    else:
+        filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_noObj.png"
+    plt.savefig(filename)
     if self.show_plots: plt.show()
     plt.close()
 

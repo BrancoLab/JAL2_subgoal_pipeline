@@ -75,7 +75,7 @@ def generate_synthetic_dataframe(tuning: list,
 
     for cell_type in tuning:
         angles = extract_tuning_request(cell_type_to_generate = cell_type,   tracking_data = tracking)
-        spikes, clusters = return_spike_times_locked_to_behavioural_direction(behavioural_direction = angles, 
+        spikes, clusters = return_spike_times_locked_to_behavioural_direction(behavioural_direction = angles.to_numpy(), 
                                                                               number_of_spikes = number_of_spikes_to_gen_per_cluster,
                                                                               tuned_direction = np.linspace(-np.pi, np.pi, num_cells_per_type), 
                                                                               dir_std = np.random.choice(np.linspace(.1,np.pi/4,50), size = num_cells_per_type),
@@ -137,7 +137,7 @@ def return_spike_times_locked_to_behavioural_direction(behavioural_direction,
         dir_std = items[2]
         
         # Extract behavioural ranges and generate spikes
-        indices = np.where(((tuned_direction - dir_std) <= behavioural_direction).cast(bool) & (behavioural_direction <= (tuned_direction + dir_std)).cast(bool))[0]
+        indices = np.where(np.logical_and((behavioural_direction >= (tuned_direction - dir_std)),(behavioural_direction <= (tuned_direction + dir_std))))[0]
         times = indices / fps
         spike_times = generate_spikes(spike_num, times, mean, std_dev)
     

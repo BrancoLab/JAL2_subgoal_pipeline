@@ -16,6 +16,12 @@ class Visualize_efizz:
     def __init__(self,  PreProcessed_data_object):
        logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
        self.processed_data = PreProcessed_data_object
+       self.stim_resp_path = os.path.join(self.processed_data.Visualize.session.processed_path,'stim_resp')
+       if not(os.path.exists(self.stim_resp_path)): 
+            os.makedirs(self.stim_resp_path)
+       self.rayleigh_path = os.path.join(self.processed_data.Visualize.session.processed_path,'rayleigh')
+       if not(os.path.exists(self.rayleigh_path)): 
+            os.makedirs(self.rayleigh_path)
 
 # FUNCTIONS FOR PLOTTING STIM-TRIGGERED RESPONSE --------------------------------------------------------------------------------------------------------------------------------------
 
@@ -35,7 +41,7 @@ class Visualize_efizz:
             time2 = (onset_frames / self.processed_data.Visualize.session.video.fps) + stimulus_durations
             
             # Mask spikes that are within the time window
-            spikes_trial = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1) & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
+            spikes_trial = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1) & (self.processed_data.spike_data['aligned_spike_times'] < time2))
             
             # Bin the spikes
             mult = 10 # binsize for looking at data - 1/10 of a second so 100ms bins 
@@ -57,7 +63,7 @@ class Visualize_efizz:
             plt.legend()
         
         plt.title('Trial by trial response PSTH for stimulus type: ' + stim_type)
-        plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/PSTH_all_neurons_" + str(stim_type) + ".png")
+        plt.savefig(str(self.stim_resp_path) + "/" + self.processed_data.select_clusters + "_clusters_PSTH_all_neurons_" + str(stim_type) + ".png")
         if self.processed_data.Visualize.settings.show_plots: plt.show()
         plt.close()
 
@@ -73,8 +79,8 @@ class Visualize_efizz:
         for trial, onset_frames in enumerate(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames):
             time1 = (onset_frames / self.processed_data.Visualize.session.video.fps) - timeBeforeStim 
             time2 = (onset_frames / self.processed_data.Visualize.session.video.fps) + stimulus_durations
-            filt = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1)
-                                            & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
+            filt = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1)
+                                            & (self.processed_data.spike_data['aligned_spike_times'] < time2))
             filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/self.processed_data.Visualize.session.video.fps)),
                                 pl.col('spike_clusters'),
                                 pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
@@ -82,7 +88,7 @@ class Visualize_efizz:
             else: spikes_trial =spikes_trial.vstack(filt)      
 
         # How many plots do we need?
-        number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
+        number_of_clusters = self.processed_data.spike_data["spike_clusters"].unique()
         number_of_plots = len(number_of_clusters)
         max_plots_per_figure = 20
         
@@ -129,7 +135,7 @@ class Visualize_efizz:
             
             # SAVE FIGURE
             fig.tight_layout()
-            plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(stim_type) + "_single_cluster_PSTH_" + str(figure_idx) + ".png")                
+            plt.savefig(str(self.stim_resp_path) + "/" + str(stim_type) + "_single_" + self.processed_data.select_clusters + "_cluster_PSTH_" + str(figure_idx) + ".png")                
         
         if self.processed_data.Visualize.settings.show_plots: 
             plt.show()
@@ -153,7 +159,7 @@ class Visualize_efizz:
             ax = plt.subplot(nrows, ncols, trial_num + 1)
             time1 = (onset_frames/self.processed_data.Visualize.session.video.fps) - timeBeforeStim
             time2 = (onset_frames/self.processed_data.Visualize.session.video.fps) + all_stimulus_durations
-            spikes_trial = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1) & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
+            spikes_trial = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1) & (self.processed_data.spike_data['aligned_spike_times'] < time2))
             ax.scatter(spikes_trial['aligned_spike_times'].to_numpy()-(onset_frames/self.processed_data.Visualize.session.video.fps),
                        spikes_trial['spike_clusters'].to_numpy(),
                        marker='|', s=5, c='k')
@@ -161,7 +167,7 @@ class Visualize_efizz:
             ax.plot([stim_duration,stim_duration],[0, np.amax(spikes_trial['spike_clusters'].to_numpy())],'r-')
             ax.set_ylabel('clusters')
             ax.set_xlabel('time from stim (s)')
-        plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + "all_cluster_raster_trial_" + str(stim_type) + ".png")
+        plt.savefig(str(self.stim_resp_path) + "/" + self.processed_data.select_clusters + "_cluster_raster_trial_" + str(stim_type) + ".png")
         if self.processed_data.Visualize.settings.show_plots: plt.show()
         plt.close()
 
@@ -177,7 +183,7 @@ class Visualize_efizz:
         for trial, onset_frames in enumerate(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames):
             time1 = (onset_frames / self.processed_data.Visualize.session.video.fps) - timeBeforeStim 
             time2 = (onset_frames / self.processed_data.Visualize.session.video.fps) + stimulus_durations
-            filt = self.processed_data.spikedataframe.filter((self.processed_data.spikedataframe['aligned_spike_times'] > time1) & (self.processed_data.spikedataframe['aligned_spike_times'] < time2))
+            filt = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1) & (self.processed_data.spike_data['aligned_spike_times'] < time2))
             filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/self.processed_data.Visualize.session.video.fps)),
                                 pl.col('spike_clusters'),
                                 pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
@@ -185,7 +191,7 @@ class Visualize_efizz:
             else: spikes_trial = spikes_trial.vstack(filt)      
 
         # How many plots do we need?
-        number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
+        number_of_clusters = self.processed_data.spike_data["spike_clusters"].unique()
         number_of_plots = len(number_of_clusters)
         max_plots_per_figure = 20
         
@@ -224,7 +230,7 @@ class Visualize_efizz:
             
             # SAVE FIGURE
             fig.tight_layout()
-            plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(stim_type) + "_single_cluster_raster_" + str(figure_idx) + ".png")                
+            plt.savefig(str(self.stim_resp_path) + "/" + self.processed_data.select_clusters + "_clusters_" + str(stim_type) + "_single_cluster_raster_" + str(figure_idx) + ".png")                
         
         if self.processed_data.Visualize.settings.show_plots: 
             plt.show()
@@ -247,40 +253,40 @@ class Visualize_efizz:
 
         # head direction
         if run['hdir']:
-            filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'hdir')
+            filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'hdir')
             self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
             
         # head shelter angle
         if len(self.processed_data.Visualize.session.shelter_time) > 0:
             if run['hsa']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle', object_present = True)
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_shelter_angle', object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 if not(np.logical_and(self.processed_data.Visualize.session.shelter_time[0] == 0, self.processed_data.Visualize.session.shelter_time[1] == -1)):
                     if run['pre_hsa']:
-                        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_shelter_angle',object_present = False)
+                        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_shelter_angle',object_present = False)
                         self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                         
         # head barrier angle
         if len(self.processed_data.Visualize.session.barrier_time) > 0:
             if run['h_bar_south_a']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = True)
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_south_barrier_angle',object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if run['h_bar_north_a']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = True)
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_north_barrier_angle',object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if not(np.logical_and(self.processed_data.Visualize.session.barrier_time[0] == 0, self.processed_data.Visualize.session.barrier_time[1] == -1)):
                 if run['pre_h_bar_south_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_south_barrier_angle',object_present = False)
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_south_barrier_angle',object_present = False)
                     self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                     
                 if run['pre_h_bar_north_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, 'head_north_barrier_angle',object_present = False)
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_north_barrier_angle',object_present = False)
                     self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
 
         # individual figures for each cluster with all polar plots
-        number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
+        number_of_clusters = self.processed_data.spike_data["spike_clusters"].unique()
         for cluster in number_of_clusters:
             self.single_cluster_polar_plots(cluster)
             
@@ -297,7 +303,11 @@ class Visualize_efizz:
         # 1. mouse has to be outside shelter
         # 2. for hdir take all time, for hsa take times when only a shelter was present in the arena, for hba take times when barrier was present
         # 3. exclude threat stimuli times and the escape
-        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.Video_df, which_angle, object_present)
+        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, which_angle, object_present)
+        folder_name = str(title) + "_" + self.processed_data.select_clusters + "_cluster_tuning_plots"
+        plot_save_path = os.path.join(self.processed_data.Visualize.session.processed_path, folder_name)
+        if not(os.path.exists(plot_save_path)): 
+            os.makedirs(plot_save_path)
 
         logger.info("Commence making figures of every cluster for a single tuning curve")
         
@@ -306,7 +316,7 @@ class Visualize_efizz:
         self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
         
         logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
-        self.all_clusters_polar_plots(title) 
+        self.all_clusters_polar_plots(title,plot_save_path) 
         
         logger.success("Finished making figures of every cluster for a single tuning curve")
 
@@ -329,7 +339,7 @@ class Visualize_efizz:
             raise ValueError("Video dataframe is empty, bug.")
 
         # initialize variables to compute the Rayleigh vector
-        number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
+        number_of_clusters = self.processed_data.spike_data["spike_clusters"].unique()
         Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(number_of_clusters, bin_angle_center)
         
         # assign spike times of each cluster to the corresponding video frame, then assign HD
@@ -407,7 +417,7 @@ class Visualize_efizz:
         plt.hist(Rayleigh[Rayleigh_sig == 1],np.arange(0,1,.1))
         plt.xlabel('Rayleigh R')
         plt.ylabel('number of clusters')
-        plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title)  + "_" + self.processed_data.select_clusters +  "_Rayleigh_vector_hist.png")
+        plt.savefig(str(self.rayleigh_path) + "/" + str(title)  + "_" + self.processed_data.select_clusters +  "_Rayleigh_vector_hist.png")
         if self.processed_data.Visualize.settings.show_plots: plt.show()
 
         # save all to dict
@@ -424,7 +434,7 @@ class Visualize_efizz:
             self.Rayleigh_sig[title] = Rayleigh_sig
             self.Rayleigh_cluster[title] = Rayleigh_cluster
 
-    def all_clusters_polar_plots(self, title):
+    def all_clusters_polar_plots(self, title, save_path):
         """
         It makes a polar plot of firing at each angle (e.g. HD or HSA) for each cluster.
         self.tuning_dict['angles'] is a binned set of angles and self.tuning_dict[title][0] will give you the firing rates for cluster 0.
@@ -443,7 +453,7 @@ class Visualize_efizz:
 
         # assign spike times of each cluster to the corresponding video frame, then assign HD
         
-        number_of_clusters = self.processed_data.spikedataframe["spike_clusters"].unique()
+        number_of_clusters = self.processed_data.spike_data["spike_clusters"].unique()
         logger.info("About to generate plots for {} clusters".format(len(number_of_clusters)))
         for counter,c in enumerate(number_of_clusters):
             
@@ -487,7 +497,7 @@ class Visualize_efizz:
             # save the whole figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(number_of_clusters)-1):
                 plt.tight_layout()
-                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + str(title) + "_" + self.processed_data.select_clusters + "_cluster_polar_plots_" + str(fnum) + ".png")
+                plt.savefig(str(save_path) + "/" + str(title) + "_" + self.processed_data.select_clusters + "_cluster_polar_plots_" + str(fnum) + ".png")
                 if self.processed_data.Visualize.settings.show_plots: 
                     plt.show()  
 
@@ -522,7 +532,7 @@ class Visualize_efizz:
 
         plt.tight_layout()
 
-        cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_cluster_plots"))
+        cluster_path = os.path.join(self.processed_data.Visualize.session.processed_path, str(self.processed_data.select_clusters + "_individual_cluster_plots"))
         
         if not(os.path.exists(cluster_path)): 
             os.makedirs(cluster_path)
@@ -552,7 +562,7 @@ class Visualize_efizz:
         axs = axs.ravel()
 
         # what is firing rate per frame?
-        for counter,cluster in enumerate(self.processed_data.spikedataframe["spike_clusters"].unique()):
+        for counter,cluster in enumerate(self.processed_data.spike_data["spike_clusters"].unique()):
             if counter >= (ncols*nrows)*fnum:
                 figg, axs = plt.subplots(nrows,ncols)
                 figg.set_figwidth(30)
@@ -560,13 +570,13 @@ class Visualize_efizz:
                 fnum = fnum + 1
                 axs = axs.ravel()
             # filter spikes by cluster
-            # spikes = self.processed_data.spikedataframe.filter(self.processed_data.spikedataframe['spike_clusters'] == cluster)
+            # spikes = self.processed_data.spike_data.filter(self.processed_data.spike_data['spike_clusters'] == cluster)
             # count number of spikes on each video frame, and then turn it into firing rate (Hz)
             # spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
             spikes = self.processed_data.spikeCountByFrameAndCluster.filter(self.processed_data.spikeCountByFrameAndCluster['spike_clusters'] == cluster)
             spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
             # align spike dataframe to video dataframe
-            filtered_video_df = self.processed_data.Video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
+            filtered_video_df = self.processed_data.video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
             spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
             spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
             axs[counter-(nrows*ncols*fnum)].scatter(spike_to_video_df['mouse_x_position'].to_numpy(),
@@ -579,7 +589,7 @@ class Visualize_efizz:
             axs[counter-(nrows*ncols*fnum)].title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' cluster ' + str(cluster))
 
             # save the figure
-            if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spikedataframe["spike_clusters"].unique())-1):
+            if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spike_data["spike_clusters"].unique())-1):
                 plt.tight_layout()
                 plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
                 if self.processed_data.Visualize.settings.show_plots: 

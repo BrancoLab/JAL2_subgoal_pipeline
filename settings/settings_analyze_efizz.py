@@ -6,9 +6,9 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
-    cluster_type = 'good',
+    cluster_type = 'good', # Can choose all, good, mua
     show_plots = False,
-    object_present = False, # if running LDA on times when the object (shelter, barrier) is present
+    object_present = False, # If True will analyse data only when object present, if false, it will analyze only when object not present 
     
     # Tuned model settings
     run_tunED = True,
@@ -17,6 +17,7 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     run_LDA = ['head_shelter_angle','hdir'],
     
     # Consink model settings
-    run_consink = True,
+    run_consink = False,
+
 )
 
