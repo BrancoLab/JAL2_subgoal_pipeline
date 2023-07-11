@@ -16,6 +16,9 @@ class Visualize_behave():
     """
     def __init__(self, Visualize):
         self.Visualize = Visualize
+        self.behave_path = os.path.join(self.Visualize.session.processed_path,'behaviour')
+        if not(os.path.exists(self.behave_path)): 
+            os.makedirs(self.behave_path)
 
     def position_by_bsa(self):
         """
@@ -43,7 +46,7 @@ class Visualize_behave():
         ax = plt.gca()
         ax.invert_yaxis()
         ax.set_aspect('equal')
-        plt.savefig(os.path.join(self.Visualize.session.processed_path, "arena_position.png"))
+        plt.savefig(os.path.join(self.behave_path, "arena_position.png"))
         if self.Visualize.settings.show_plots: plt.show()
         plt.close()
     
@@ -99,7 +102,7 @@ class Visualize_behave():
         axs[2].legend(['left_edge','right_edge'])
         axs[2].title.set_text('Near barrier edge')
 
-        plt.savefig(os.path.join(self.Visualize.session.processed_path, "arena_occupancy_vs_time.png"))
+        plt.savefig(os.path.join(self.behave_path, "arena_occupancy_vs_time.png"))
         if self.Visualize.settings.show_plots: plt.show()
         plt.close()
 
@@ -142,7 +145,7 @@ class Visualize_behave():
                 axs[2].hist(self.Visualize.tracking_data['hdir_barrier'][np.logical_and(OutofShelterIdx,frames_with_shelter == 1),c],np.arange(-np.pi,np.pi,np.pi/10),density = 'stacked')
             axs[2].title.set_text('head barrier-edge angle')
         
-        plt.savefig(os.path.join(self.Visualize.session.processed_path, "distribution_head_angles.png"))
+        plt.savefig(os.path.join(self.behave_path, "distribution_head_angles.png"))
         if self.Visualize.settings.show_plots: plt.show()
         plt.close()
         

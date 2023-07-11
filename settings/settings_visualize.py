@@ -40,6 +40,6 @@ settings_visualize = Settings_visualize(
     sessions = [0], # This session must be the one indexed in the databank
     all_sessions = False,
     efizz = True, # if you want to visualize efizz also
-    cluster_type = 'good',
+    cluster_type = 'all', # cluster_type: "synthetic", "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
     show_plots = False # if this is false, it will make and save the plots without showing them
 )

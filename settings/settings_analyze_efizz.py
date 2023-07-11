@@ -4,11 +4,11 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 
 
 Settings_analyze_efizz = Settings_analyze_efizz(
-    cluster_type = 'synthetic',
+    cluster_type = 'all',
     show_plots = False,
     run_tunED = False,
-    run_LDA = ['head_shelter_angle','hdir'],
+    run_LDA = ['head_shelter_angle','hdir'], # head_south_barrier_angle, head_north_barrier_angle, head_shelter_angle, hdir
     object_present = True, # if running LDA on times when the object (shelter, barrier) is present
-    run_consink = True,
+    run_consink = False,
 )
 

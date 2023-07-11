@@ -138,6 +138,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
             self.video_df = self.expand_tracking_data(video_df = self.video_df, new_entries_to_insert = 1000000)
         self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
         self.spike_data = self.load_spike_data()
+        self.filter_spike_data()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
         self.merge_and_save_spike_count_df_with_frame_data()
     
@@ -189,11 +190,13 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         return expanded_synthetic_tracking_data_by_frame
 
     # ----------------------Currently not used ------------------------------
-    def filter_spike_data(self) -> NotImplementedError:
+    def filter_spike_data(self):
         """
-        I actually don't think this function is needed for synethic, there was a think called self.clu_label but it wasn't used across the code base so assuming not needed.
-        """
-        raise NotImplementedError
+        Filter the spike data to only include good neurons or good + MUA
+        """        
+        self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+        self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
+    
     
 class DataPreprocessor(BaseDataPreprocessor):
     """
@@ -204,6 +207,7 @@ class DataPreprocessor(BaseDataPreprocessor):
         self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         self.spike_data = self.load_spike_data()
+        self.filter_spike_data()
         self.video_df = self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
         self.merge_and_save_spike_count_df_with_frame_data() # Saves to a csv
