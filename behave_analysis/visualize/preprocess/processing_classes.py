@@ -22,10 +22,6 @@ class BaseDataPreprocessor(ABC):
     # --------------- Abstract methods to be implemented by all children ---------------------------------------------
 
     @abstractmethod
-    def filter_spike_data(self):
-        pass
-    
-    @abstractmethod
     def merge_and_save_spike_count_df_with_frame_data(self):
         pass
     
@@ -33,7 +29,16 @@ class BaseDataPreprocessor(ABC):
     def load_spike_data(self):
         pass
     
-    # --------------- Concrete methods implemented ------------------------------------------------
+    # --------------- Concrete methods implemented ----------------------------------------------------------------------
+    
+    def extract_cluster_labels(self):
+        """
+        Extracts the cluster labels from the spike data dataframe and returns them
+        """
+        
+        clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+        clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
+        return clu_label
         
     def behaviourally_pure_tracking_data(self, video_df):
         """
@@ -139,6 +144,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
         self.spike_data = self.load_spike_data()
         self.filter_spike_data()
+        self.clu_label = self.get_clu_label()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
         self.merge_and_save_spike_count_df_with_frame_data()
     
@@ -189,15 +195,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         expanded_synthetic_tracking_data_by_frame = pl.concat([video_df, df_new])
         return expanded_synthetic_tracking_data_by_frame
 
-    # ----------------------Currently not used ------------------------------
-    def filter_spike_data(self):
-        """
-        Filter the spike data to only include good neurons or good + MUA
-        """        
-        self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
-        self.clu_label = self.clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
-    
-    
+
 class DataPreprocessor(BaseDataPreprocessor):
     """
     A child class to support the production data preprocessing pipeline. 
@@ -210,7 +208,8 @@ class DataPreprocessor(BaseDataPreprocessor):
         self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         self.unfiltered_spike_data = self.load_spike_data()
-        self.spike_data, self.clu_label = self.filter_spike_data()
+        self.spike_data = self.filter_spike_data()
+        self.clu_label = self.get_clu_label()
         self.video_df = self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
         self.merge_and_save_spike_count_df_with_frame_data() # Saves to a csv
@@ -235,11 +234,7 @@ class DataPreprocessor(BaseDataPreprocessor):
             numNeurons = len(filtered_spike_data['spike_clusters'].unique())
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
         
-        # NOTE - If these two lines are to extract clu_label then can be removed to another function - Check with Jazz
-        clu_label = filtered_spike_data.groupby(["spike_clusters"]).first()
-        clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
-        
-        return filtered_spike_data, clu_label
+        return filtered_spike_data
     
     def merge_and_save_spike_count_df_with_frame_data(self) -> pl.DataFrame:
         """
