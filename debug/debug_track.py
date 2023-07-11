@@ -4,7 +4,6 @@ from loguru import logger
 from databank import experiments_objects
 from settings.settings_track import settings_track as settings_t
 
-
 def track():
     """
     A function that collects sessions from the databank, puts the sessions through a tracking

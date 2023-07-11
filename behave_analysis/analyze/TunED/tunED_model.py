@@ -1,5 +1,5 @@
 """
-                                                                                            Overview of the TunED model
+####### Overview of the TunED model #######
 
 Tuning function (tf): 
 + Mean firing rate of a neuron to a given stimulus µ(v1) or µ(v2). See class compute_observed_tuning_function for more details.
@@ -22,24 +22,8 @@ import polars as pl
 from loguru import logger
 from abc import abstractmethod
 from scipy.stats import norm, poisson, binom
-import pickle 
-
-def create_global_bin_edges(v1, v2, Nbins):
-    """
-    Currently not used
-    """
-    v1min = np.min(v1)
-    v1max = np.max(v1)
-    
-    v2min = np.min(v2)
-    v2max = np.max(v2)
-    
-    totmin = np.min([v1min, v2min])
-    totmax = np.max([v1max, v2max])
-    
-    stimulus_bin_edges =  np.linspace(np.min(self.behavioural_angle), np.max(self.behavioural_angle) + np.finfo(float).eps, Nbins + 1) # Add one to the number of bins to get the number of bin edges
-    
-    return stimulus_bin_edges
+import pickle
+import time
 
 class ComputeObservedTuningFunction:
     """
@@ -329,7 +313,7 @@ class TunEDModelStats:
         print(f'Minimum number of Trues for significance at the 5% level: {np.ceil(min_successes_significant)}')
         return min_successes_significant
 
-def tunED_model_main(data, file_save_location):
+def tunED_model_main(data, object_present, file_save_location):
     
     # sig_test_chanceofv2 = {}
     # Load chance significance data
@@ -338,8 +322,13 @@ def tunED_model_main(data, file_save_location):
     
     # min_successes_significant = TunEDModelStats.compute_binomial_chance_distribution(loaded_dict, Nbins=20)
     
+    data = data.filter((data["OutofshelterIdx"] == True) & (data["EscapePeriod"] == False) & (data["shelter_only"] == object_present))
+    
     # sig_test_chanceofv1 = {}
-    for cluster in range(37, 71): # NOTE - OFF by one error cluster zero doesn't exsist
+    for cluster in np.unique(data["spike_clusters"]): # NOTE - OFF by one error cluster zero doesn't exsist if running synthetic
+        
+        # setup time
+        setUpTime = time.time()
         
         # setup
         filtered_df = data.filter(pl.col("spike_clusters") == cluster)
@@ -351,9 +340,21 @@ def tunED_model_main(data, file_save_location):
         raster = np.array(filtered_df["spike_count"].to_numpy()).reshape(1, Nsamples)
         
         # Log some information about the cluster
+        logger.info(f"Running TunED model on cluster {cluster}")
         print("The number of frames this cluster fired in:", Nsamples)
         print("This cluster has this number of spikes", sum(filtered_df["spike_count"]))
         print("The rho for the angles of this cluster is", np.corrcoef(hdir, hsa)[0, 1])
+        
+        # Test time up to here
+        # get the end time
+        endOfSetUpTime = time.time()
+
+        # get the execution time
+        elapsed_time = endOfSetUpTime - setUpTime
+        print('Execution time for set up:', elapsed_time, 'seconds')
+        
+        # Time the model
+        modelUpTime = time.time()
         
         # Calculate observed tuning curves --------------------------------------------------------
         hdir_tuning_object = ComputeObservedTuningFunction(spike_count_matrix = raster, 
@@ -402,15 +403,23 @@ def tunED_model_main(data, file_save_location):
                                                                                              expected_sem = hsa_NH_object.tuning_func_nh_sem)
         
         set_1_sig = False
-        if np.sum(sig_testv1) > 13:
+        if np.sum(sig_testv1) > 11:
             set_1_sig = True
         
         set_2_sig = False
-        if np.sum(sig_testv2) > 13:
+        if np.sum(sig_testv2) > 11:
             set_2_sig = True
+            
+            
+        # Test time up to here for model
+        endOfModelTime = time.time()
+        print('Execution time for model:', endOfModelTime - modelUpTime, 'seconds')
+        
+        # Test plotting time
+        plotTime = time.time()
         
         # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
-        fig, ax = plt.subplots(1, 3, figsize=(23, 5))
+        fig, ax = plt.subplots(1, 2, figsize=(23, 5))
 
         # Plot the first set of observed vs expected tuning curves
         ax[0].plot(hdir_tuning_object.bin_centres, 
@@ -473,16 +482,21 @@ def tunED_model_main(data, file_save_location):
         ax[1].legend(loc='upper right')
         ax[1].set_title("Tuning to V2", fontweight="bold")
         
+        # Test remove for speed
         # To verify that the data ingested is correct, generate a polar plot
         # angles must be in radians
-        ax3 = fig.add_subplot(1, 3, 3, polar=True)
-        bars = ax3.bar(hdir[0], raster[0]) # index to make into 1d array
-        spikes = sum(filtered_df["spike_count"])
-        plt.suptitle(f"Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus. Cluster number {cluster}, spike number: {spikes}, corrcoeff: {np.corrcoef(hdir, hsa)[0, 1]}, is set 1 sig {set_1_sig}, is set 2 sig {set_2_sig}", fontweight="bold")
+        # ax3 = fig.add_subplot(1, 3, 3, polar=True)
+        # bars = ax3.bar(hdir[0], raster[0]) # index to make into 1d array
         
+        # Test up to here for plotting the time
+        endOfPlotTime = time.time()
+        print('Execution time for plotting:', endOfPlotTime - plotTime, 'seconds')
+        
+        # Titles and saving the figure
+        spikes = sum(filtered_df["spike_count"])
+        plt.suptitle(f"Object present {object_present} Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus. Cluster number {cluster}, spike number: {spikes}, corrcoeff: {np.corrcoef(hdir, hsa)[0, 1]}, is set 1 sig {set_1_sig}, is set 2 sig {set_2_sig}", fontweight="bold")    
         plt.savefig(str(file_save_location) + f"cluster_{cluster}.png")
         # plt.show()
-
 
     # with open('saved_dictionary_synthetic_v1chance.pkl', 'wb') as f:
     #     pickle.dump(sig_test_chanceofv1, f)
