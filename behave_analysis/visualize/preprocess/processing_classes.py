@@ -91,15 +91,24 @@ class BaseDataPreprocessor(ABC):
                 {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
                 "hdir": self.Visualize.tracking_data['hdir'],
                 "hsa": self.Visualize.tracking_data['hdir_shelt'],
-                "h_bar_north_a": self.Visualize.tracking_data['hdir_barrier'][:,0],
-                "h_bar_south_a": self.Visualize.tracking_data['hdir_barrier'][:,1],
                 "mouse_x_position": self.Visualize.tracking_data['avg_loc'][:,0],
                 "mouse_y_position": self.Visualize.tracking_data['avg_loc'][:,1],
                 "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
                 "EscapePeriod": EscapePeriod == 1, # frames from 1 second before to 10 seconds after escape
                 "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
                 "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
-    
+
+        # if barrier in session, add the angles to video_df
+        if 'hdir_barrier' in self.Visualize.tracking_data:
+            video_df = video_df.hstack([pl.Series("h_bar_north_a",self.Visualize.tracking_data['hdir_barrier'][:,0])])
+            video_df = video_df.hstack([pl.Series("h_bar_south_a",self.Visualize.tracking_data['hdir_barrier'][:,1])])
+            video_df = video_df.hstack([pl.Series("h_bar_centre_a",self.Visualize.tracking_data['hdir_barrier'][:,2])])
+
+        # if random points were included, add the angles to video_df
+        if 'hdir_randP' in self.Visualize.tracking_data:
+            for i in np.arange(np.shape(self.Visualize.tracking_data['hdir_randP'])[1]):
+                video_df = video_df.hstack([pl.Series(str('head_randP_' + str(i)),self.Visualize.tracking_data['hdir_randP'][:,i])])
+
         return video_df
         
     def count_spikes_and_units_to_frames(self, spike_data_frame) -> pl.DataFrame:
