@@ -176,7 +176,8 @@ class Track(DLC):
         self.compute_new_angles()
         self.load_arena(session)
         self.compute_angle_shelter()
-        self.compute_angle_barrier()
+        self.compute_angle_barrier(session)
+        if self.settings.random_points :self.compute_angle_random_points()
         self.compute_new_average_speed(session)
         self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
@@ -266,16 +267,15 @@ class Track(DLC):
 
         logger.info("Shelter angle computed")
 
-    def compute_angle_barrier(self):
+    def compute_angle_barrier(self, session):
         """
         A function to compute the angle between the heading of the mouse and the barrier edges.
         It will ask you to define the barrier edge position"""
 
-        self.region_tracking_data['bod_barrier_dir'] = np.empty((np.shape(self.region_tracking_data['avg_loc'])))
-        self.region_tracking_data['hdir_barrier'] = np.empty((np.shape(self.region_tracking_data['avg_loc'])))
         # ask user if there was a barrier
-        user_input = input('Was there a barrier? y/n: ')
-        if user_input == 'y':
+        # user_input = input('Was there a barrier? y/n: ')
+        # if user_input == 'y':
+        if len(session.barrier_time) > 0:
             print("Where is the barrier? Click first the left, then the right edge of the barrier")
             cv2.namedWindow('where is barrier')
             self.clicked_points = []
@@ -286,9 +286,18 @@ class Track(DLC):
                 key = cv2.waitKey(10)
                 if key == ord('q'): print('quit.'); sys.exit()
             cv2.destroyAllWindows()
-                
+            
+            # calculate center of barrier
+            barrier_center = [np.mean([self.clicked_points[0][0],self.clicked_points[1][0]]).astype(int),
+                                       np.mean([self.clicked_points[0][1],self.clicked_points[1][1]]).astype(int)]
+            self.clicked_points.append(barrier_center)
             self.region_tracking_data['barrier_loc'] = self.clicked_points
-            for i in np.arange(2): # calculate body to barrier angle for each edge of barrier
+
+            # initialize variables
+            self.region_tracking_data['bod_barrier_dir'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
+            self.region_tracking_data['hdir_barrier'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
+
+            for i in np.arange(len(self.clicked_points)): # calculate body to barrier angle for each edge of barrier
                 xdist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data['barrier_loc'][i][0]
                 ydist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data['barrier_loc'][i][1]
                 self.region_tracking_data['bod_barrier_dir'][:,i] = -(np.arctan2(ydist, xdist)) # Radians
@@ -301,8 +310,43 @@ class Track(DLC):
                 self.region_tracking_data['hdir_barrier'][:,i] = hdir
         else:
             self.region_tracking_data['barrier_loc'] = []
-        #     self.region_tracking_data['bod_barrier_dir'] = []
         logger.info("Subgoal angles computed")
+    
+    def compute_angle_random_points(self):
+        """
+        A function to compute the angle between the heading of the mouse and the barrier edges.
+        It will ask you to define the barrier edge position"""
+
+        # ask user to select some extra 'random' points in arena
+        print("Click as many random points as wanted, then space bar when satisfied")
+        cv2.namedWindow('where are random points')
+        self.clicked_points = []
+        cv2.setMouseCallback('where are random points', self.click_click_targets)
+        while True:
+            cv2.imshow('where are random points', self.arena)
+            key = cv2.waitKey(10)
+            if key==ord(' '): break # once both points are clicked
+            if key == ord('q'): print('quit.'); sys.exit()
+        cv2.destroyAllWindows()
+        
+        # initialize variables
+        self.region_tracking_data['bod_randP_dir'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
+        self.region_tracking_data['hdir_randP'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
+
+        self.region_tracking_data['randP_loc'] = self.clicked_points
+        for i in np.arange(len(self.clicked_points)): # calculate body to barrier angle for each edge of barrier
+            xdist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data['randP_loc'][i][0]
+            ydist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data['randP_loc'][i][1]
+            self.region_tracking_data['bod_randP_dir'][:,i] = -(np.arctan2(ydist, xdist)) # Radians
+            bod_barr_dir = - np.arctan2(ydist, xdist)
+            self.region_tracking_data['bod_randP_dir'][bod_barr_dir<0,i] = self.region_tracking_data['bod_randP_dir'][bod_barr_dir<0,i] + np.pi
+            self.region_tracking_data['bod_randP_dir'][bod_barr_dir>0,i] = self.region_tracking_data['bod_randP_dir'][bod_barr_dir>0,i] - np.pi
+            # head barrier angle (from pi to -pi)
+            hdir = np.pi + (- self.region_tracking_data['hdir'] + self.region_tracking_data['bod_randP_dir'][:,i])
+            hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
+            self.region_tracking_data['hdir_randP'][:,i] = hdir
+
+        logger.info("Random point angles computed")
     
     def click_click_targets(self, event,x,y, flags, params):
         if event == cv2.EVENT_LBUTTONDOWN:
