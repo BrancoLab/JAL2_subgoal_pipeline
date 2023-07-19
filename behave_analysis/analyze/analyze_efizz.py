@@ -14,14 +14,12 @@ class AnalyzeEfizz:
     of this class is to make it easy to run all of the models on the same data without having to run the preprocessing each time.
     Any processing of the data should be done outside of this module. 
     """
-    
-    # TODO make flag for synth vs production better 
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
-        self.dir = session.processed_path + '/models'
+        self.dir = session.processed_path + "\\" + 'models' + "\\" + "tunED"
         self.cluster_type = Settings_analyze_efizz.cluster_type
         self.show_plots = Settings_analyze_efizz.show_plots
-        self.processed_file_directory = session.processed_path + '/' + str(Settings_analyze_efizz.cluster_type) + '_large_dataframe.csv'
+        self.processed_file_directory = session.processed_path + '\\' + str(Settings_analyze_efizz.cluster_type) + '_large_dataframe.csv'
         if os.path.isfile(self.processed_file_directory):
             self.data_df = pl.read_csv(self.processed_file_directory)
         else:
@@ -31,9 +29,12 @@ class AnalyzeEfizz:
     def execute_models(self):
         logger.info('Executing models')
         
+        # Params
+        objectPresent = Settings_analyze_efizz.object_present
+        
         if Settings_analyze_efizz.run_tunED:
             logger.info('Running TunED')
-            tunED_model_main(self.data_df, file_save_location = self.dir  / 'tuned')
+            tunED_model_main(self.data_df, objectPresent, file_save_location = self.dir)
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:

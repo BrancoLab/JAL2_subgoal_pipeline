@@ -14,7 +14,6 @@ def analyze():
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         AnalyzeEfizz(session)
-    
     logger.success("Analysis pipeline complete")
     
 analyze()
