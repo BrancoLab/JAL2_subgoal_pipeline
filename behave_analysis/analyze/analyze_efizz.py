@@ -1,5 +1,5 @@
 from behave_analysis.analyze.TunED.tunED_model import tunED_model_main
-from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
+from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
 from behave_analysis.analyze.ConSink.Consink_model import Consink
 from settings.settings_analyze_efizz import Settings_analyze_efizz
 
@@ -36,10 +36,10 @@ class AnalyzeEfizz:
             tunED_model_main(self.data_df, file_save_location = self.dir  / 'tuned')
             logger.success('TunED analysis complete')
             
-        if Settings_analyze_efizz.run_consink:
-            logger.info('Running Consink')
-            Consink(self)
-            logger.success('Consink analysis complete')
+        # if Settings_analyze_efizz.run_consink:
+        #     logger.info('Running Consink')
+        #     Consink(self)
+        #     logger.success('Consink analysis complete')
         
         # if Settings_analyze_efizz.run_pcaGLM:
             # logger.info('Running pcaGLM')
@@ -47,10 +47,8 @@ class AnalyzeEfizz:
             # logger.success('pcaGLM analysis complete')
             
         if len(Settings_analyze_efizz.run_LDA) > 0:
-            for variable in Settings_analyze_efizz.run_LDA:
-                logger.info(f"Running LDA on {variable}")
-                linear_discriminant_analysis(self, variable,Settings_analyze_efizz.object_present)
-                logger.success('LDA analysis complete')
+            run_LDA_model(self,Settings_analyze_efizz)
+            logger.success('LDA analysis complete')
         
         logger.success('All models complete')
             
