@@ -1,7 +1,8 @@
 from behave_analysis.analyze.TunED.tunED_model import TunEdModel
-from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
+# from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
 # from behave_analysis.analyze.ConSink.Consink_model import Consink
 from settings.settings_analyze_efizz import Settings_analyze_efizz
+from behave_analysis.analyze.LDA.simple_LDA_test import main
 
 # OS Lib
 from loguru import logger
@@ -16,27 +17,37 @@ class AnalyzeEfizz:
     """
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
-        if not os.path.isdir(session.processed_path + "\\" + 'models'):
-            os.mkdir(session.processed_path + "\\" + 'models')
-        self.dir = session.processed_path + "\\" + 'models'
+        path = session.processed_path + "\\" + 'models'
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        self.dir = path
         self.cluster_type = Settings_analyze_efizz.cluster_type
+        logger.info(f"Running models on cluster category: {self.cluster_type}")
         self.show_plots = Settings_analyze_efizz.show_plots
         self.processed_file_directory = session.processed_path + '\\' + str(Settings_analyze_efizz.cluster_type) + '_large_dataframe.csv'
         if os.path.isfile(self.processed_file_directory):
             self.data_df = pl.read_csv(self.processed_file_directory)
         else:
-            raise FileNotFoundError("Data path doesn't exist, have you generated the required data?")
+            raise FileNotFoundError("Data path doesn't exist, have you generated the required data? Check settings as well")
         self.execute_models()
 
     def execute_models(self):
         logger.info('Executing models')
         
+        main(self)
+        
         if Settings_analyze_efizz.run_tunED:
             if not os.path.isdir(self.dir + "\\" + "tunED"):
                 os.mkdir(self.dir + "\\" + "tunED")
-            self.dir = os.path.join(self.dir, 'tunED')
+                
+            model_path = os.path.join(self.dir, 'tunED')
             logger.info('Running TunED')
-            TunEdModel(self, Settings_analyze_efizz.object_present, save_location = self.dir)
+            
+            TunEdModel(self, 
+                       analyze_efizz_settings =  Settings_analyze_efizz, 
+                       save_location = model_path, 
+                       init_significance_boundary = True)
+            
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:

@@ -16,7 +16,6 @@ TODO:
 # OS Imports
 import numpy as np
 import matplotlib.pyplot as plt
-import matplotlib.pyplot as plt
 import polars as pl
 from loguru import logger
 from scipy.stats import norm, binom
@@ -110,7 +109,7 @@ class ComputeObservedTuningFunction:
                     tf[cluster_idx, bin_idx] = np.mean(self.spike_count_matrix[cluster_idx, mask]) # For a given cluster and stimulus bin, extract all the spike counts and compute the mean spike count
                     tf_s2[cluster_idx, bin_idx] = np.var(self.spike_count_matrix[cluster_idx, mask]) + tf[cluster_idx, bin_idx]**2
                     tf_sem[cluster_idx, bin_idx] = np.std(self.spike_count_matrix[cluster_idx, mask]) / np.sqrt(np.sum(mask))
-                    n[cluster_idx, bin_idx] = np.sum(mask)
+                    n[cluster_idx, bin_idx] = np.sum(mask) # how many samples are in this bin
                     std_dev[cluster_idx, bin_idx] = np.std(self.spike_count_matrix[cluster_idx, mask])
                 
                 # Else if there are no samples in this bin, set the tuning function to -1
@@ -236,6 +235,25 @@ class TunEDModelStats:
         return marginal_x, marginal_y
     
     @staticmethod
+    def compute_conditional_probabilities(joint, marginal_x, marginal_y):
+        """
+        Compute the conditional probabilities of the joint probability distribution. As a reminder, given the different shapes of the arrays numpy has to broadcast the arrays to the shape of the matrix.
+        Broadcasting rules: https://numpy.org/doc/stable/user/basics.broadcasting.html - Force reshape is required to prevent unwanted broadcasting.
+        
+        So to get the conditional probability P(X|Y) for each cell, you divide the cell's value (P(X, Y)) by the sum of its column (P(Y)). 
+        This is equivalent to dividing the entire 2D histogram (all cells) by the 1D array that represents the sums of columns.
+        
+        # NOTE: Not used, but keeping it here for future reference in case want to figure it out
+        """
+        marginal_x_reshaped = marginal_x[np.newaxis, :] # Turn into a row vector of shape (Nbins, 1)
+        marginal_y_reshaped = marginal_y[np.newaxis, :] #  Turn into a row vector of shape (Nbins, 1)
+        
+        conditional_x_given_y = joint.T / marginal_y_reshaped 
+        conditional_y_given_x = joint / marginal_x_reshaped
+        
+        raise NotImplementedError('Was trying to implement the conditional probabilities but I am not sure if this is correct.')
+    
+    @staticmethod
     def compute_significance_between_pairs_of_tuning_curves_set(Nbins, observed_tf, expected_tf, observed_sem, expected_sem):
         """
         Computes the significance between pairs of tuning curves.
@@ -257,7 +275,9 @@ class TunEDModelStats:
     
     @staticmethod
     def compute_binomial_chance_distribution(dictionary, Nbins):
-        # count the number of successes (Trues) in each experiment
+        # TODO look into the logic of this function
+        
+        # count the number of successes (Trues) in a single experiment
         counts = {k: np.sum(v) for k, v in dictionary.items()}
 
         # calculate proportions
@@ -275,6 +295,7 @@ class TunEDModelStats:
         print(f'95% confidence interval for p: {conf_int}')
 
         # plot the binomial distribution
+        plt.figure(figsize=(10, 5))
         x = np.arange(n_trials + 1)
         pmf = binom.pmf(x, n_trials, p_hat)
         plt.stem(x, pmf, use_line_collection=True, basefmt=' ')
@@ -293,24 +314,92 @@ class TunEDModelStats:
         print(f'Minimum number of Trues for significance at the 5% level: {np.ceil(min_successes_significant)}')
         return min_successes_significant
 
+    @staticmethod 
+    def compute_synthetic_accuracy(dictionary, number_of_cells_produced_per_angle):
+        """
+        Computes the accuracy of the model by computing the percentage of cells that are correctly predicted.
+        """
+        # Extract the different categories of tunned cells 
+        first_set_of_cells = {k: v for k, v in dictionary.items() if k < number_of_cells_produced_per_angle}
+        second_set_of_cells = {k: v for k, v in dictionary.items() if k >= number_of_cells_produced_per_angle if k < number_of_cells_produced_per_angle * 2} # hack
+        
+        # Compute total num samples
+        # first_set_total_samples = np.sum(list(first_set_of_cells.values()))
+        # second_set_total_samples = np.sum(list(second_set_of_cells.values()))
+        
+        first_set_total_samples = 37
+        second_set_total_samples = 72 - 37
+        
+        # First set -----------------------------------------------
+        
+        # Compute accuracy by summing up all the True values
+        setOneCorrectCount = 0
+        for key, value in first_set_of_cells.items():
+          if value == [True, False]:
+            setOneCorrectCount += 1
+        setOneAccuracy = setOneCorrectCount / first_set_total_samples
+        
+        setOneInccorectCount = 0
+        for key, value in first_set_of_cells.items():
+          if value == [False, True]:
+            setOneInccorectCount += 1
+        setOneInaccuracy = setOneInccorectCount / first_set_total_samples
+            
+        # Print accuracies
+        print(f"Accuracy of the first set of cells: {setOneAccuracy}")
+        print(f"Inaccuracy of the first set of cells: {setOneInaccuracy}")
+        
+        # Second set -----------------------------------------------
+        setTwoCorrectCount = 0
+        for key, value in second_set_of_cells.items():
+          if value == [False, True]:
+            setTwoCorrectCount += 1
+        setTwoAccuracy = setTwoCorrectCount / second_set_total_samples
+        
+        setTwoInccorectCount = 0
+        for key, value in second_set_of_cells.items():
+          if value == [True, False]:
+            setTwoInccorectCount += 1
+        setTwoInaccuracy = setTwoInccorectCount / second_set_total_samples
+        
+        # Print accuracies 
+        print(f"Accuracy of the second set of cells: {setTwoAccuracy}")
+        print(f"Inaccuracy of the second set of cells: {setTwoInaccuracy}")
+        
 class TunEdModel:
-    def __init__(self, inherited_object, object_present, save_location):
-        self.object_present = object_present
+    def __init__(self, inherited_object, analyze_efizz_settings, save_location, init_significance_boundary = False, save_plots = False):
+        self.settings = analyze_efizz_settings
         self.inherited_object = inherited_object
         self.directory_location = save_location
         self.data_df = self.filter_data_by_period() # before shelter or after shelter etc
-        self.execute_model_per_cluster()
+        self.accuracy_dic = self.execute_model_per_cluster(init_significance_boundary, save_plots)
+        TunEDModelStats.compute_synthetic_accuracy(self.accuracy_dic, number_of_cells_produced_per_angle = 37)
         
     def filter_data_by_period(self):
         """
         The purpose of this function is to filter the data by the period of interest but also to remove the data that is not relevant to the model such as 
         escapse periods and periods when the mouse is in the shelter.
         """
-        filtered_data = self.inherited_object.data_df.filter(
-                                                    (self.inherited_object.data_df["OutofshelterIdx"] == True) & 
-                                                    (self.inherited_object.data_df["EscapePeriod"] == False) & 
-                                                    (self.inherited_object.data_df["shelter_only"] == self.object_present)
-                                                    )
+        
+        if self.settings.analyze_only_the_period_before_shelter & self.settings.analyze_only_the_period_before_barrier:
+            assert False, "Cannot analyze only the period before the shelter and the period before the barrier at the same time."
+        
+        # Filter out escape, periods when the mouse is in his house and periods when the shelter is not present
+        if self.settings.analyze_only_the_period_before_shelter:
+            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["OutofshelterIdx"] == True) & 
+                                                                 (self.inherited_object.data_df["EscapePeriod"] == False) &
+                                                                 (self.inherited_object.data_df["shelter_only"] == False))
+        
+        # Filter out escape, and periods when the mouse is in his house, and periods when the shelter is and is not present
+        if not self.settings.analyze_only_the_period_before_shelter:
+            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["OutofshelterIdx"] == True) & 
+                                                                 (self.inherited_object.data_df["EscapePeriod"] == False))
+        
+        # Filter on the period just before the barrier
+        if self.settings.analyze_only_the_period_before_barrier:
+            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["barrier_only"] == False))
+        
+        
         return filtered_data
     
     def init_model_inputs(self, data_df):
@@ -321,17 +410,19 @@ class TunEdModel:
         raster = np.array(data_df["spike_count"].to_numpy()).reshape(1, Nsamples)
         return Nsamples, Nbins, hdir, hsa, raster
     
-    def produce_bool_of_signifiance(self, hdir_sig, hsa_sig, num_bins_required_to_be_significant):
+    def produce_bool_of_signifiance(self, hdir_sig, hsa_sig, num_bins_required_to_be_significant = 4):
         """
         The purpose of this function is to produce a boolean that indicates whether the tuning functions are significantly different or not.
         """
         is_hdir_sig = False
-        if np.sum(hdir_sig) > num_bins_required_to_be_significant - 1:
+        if np.sum(hdir_sig) > num_bins_required_to_be_significant:
             is_hdir_sig = True
+            logger.success("The tuning function for head direction is significantly different to the null hypothesis")
         
         is_hsa_sig = False
-        if np.sum(hsa_sig) > num_bins_required_to_be_significant - 1:
+        if np.sum(hsa_sig) > num_bins_required_to_be_significant:
             is_hsa_sig = True
+            logger.success("The tuning function for head shelter angle is significantly different to the null hypothesis")
         
         return is_hdir_sig, is_hsa_sig
     
@@ -364,46 +455,48 @@ class TunEdModel:
         
         # Titles and saving the figure
         spikes = sum(filtered_df["spike_count"])
-        plt.suptitle(f"Object present {self.object_present} Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus.  \
+        plt.suptitle(f" Number of samples: {Nsamples}, V2 is the driving stimulus and V1 is the passenger stimulus. \
                        Cluster number {cluster}, spike number: {spikes}, corrcoeff: {np.corrcoef(hdir, hsa)[0, 1]}, is set 1 sig {is_hdir_sig}, is set 2 sig {is_hsa_sig}", 
-                       fontweight="bold")    
-        plt.savefig(str(self.directory_location) + "\\" + f"is_the_object_present_{self.object_present}_cluster_{cluster}.png")
+                       fontweight="bold")
+        # plt.show()
+        plt.savefig(str(self.directory_location) + "\\" + f"_cluster_{cluster}.png")
     
-    def execute_model_per_cluster(self):
+    def execute_model_per_cluster(self, init_significance_boundary, save_plots):
         """
         The purpose of this function is to execute the TunEd model for each cluster in the data and thus calls all of the relevant classes and functions to do so.
         """
+        
+        # Init params for model
+        accuracy_dic = {} # Dict to store the accuracy of the model for each cluster
+        bool_array_set_1 = {} # An array of bools informing significance of observed to null tuning function for hdir
+        bool_array_set_2 = {} # An array of bools informing significance of observed to null tuning function for hsa
+        
         for cluster in np.unique(self.inherited_object.data_df["spike_clusters"]):
-            
-            # Skip cluster 0 as this has no spikes weird bug 
-            if cluster == 0:
-                continue
-            
-            # Filter data by cluster
             filtered_df = self.data_df.filter(pl.col("spike_clusters") == cluster)
             Nsamples, Nbins, hdir, hsa, raster = self.init_model_inputs(filtered_df)
-            logger.info(f"Running TunEd model for cluster {cluster} active for {Nsamples} firing a total of {sum(filtered_df['spike_count'])} spikes, with \
-                          a correlation coefficient of {np.corrcoef(hdir, hsa)[0, 1]}")
+            logger.info(f"Running TunEd model for cluster {cluster} active for {Nsamples} firing a total of {sum(filtered_df['spike_count'])} spikes, with a correlation coefficient of {np.corrcoef(hdir, hsa)[0, 1]}")
+            
+            if sum(filtered_df['spike_count']) == 0:
+                logger.warning("No spikes in this cluster, skipping, should not be the case")
+                continue
             
             # Compute observed tuning functions
             hdir_tuning_object = ComputeObservedTuningFunction(spike_count_matrix = raster, stimulus_variable = hdir, Nbins = Nbins, Nsamples = Nsamples)
             hsa_tuning_object = ComputeObservedTuningFunction(spike_count_matrix = raster, stimulus_variable = hsa, Nbins = Nbins, Nsamples = Nsamples)
             
             # Compute probabilities
-            jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(hdir, 
-                                                                         hsa, 
-                                                                         stimulusV2edges = hsa_tuning_object.stimulus_bin_edges, 
-                                                                         stimulusV1edges = hdir_tuning_object.stimulus_bin_edges, 
-                                                                         Nbins = Nbins)
+            jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(hdir, hsa, stimulusV2edges = hsa_tuning_object.stimulus_bin_edges, stimulusV1edges = hdir_tuning_object.stimulus_bin_edges, Nbins = Nbins)
             Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
             Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
             Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2)
             
-            # Compute NULL hypothesis tuning functions
+            # Compute NULL hypothesis that the driver is purely V1
             hdir_NH_object = ComputeNullHypothesisTuningFunction(observed_tuning_function = hdir_tuning_object.tuning_func, 
                                                                  observed_tuning_function_s2 = hdir_tuning_object.tuning_func_s2, 
                                                                  num_values_for_Px = hsa_tuning_object.n, 
                                                                  conditional_Py_x = Pv1_v2)
+            
+            # Compute the NULL hypothesis that the driver is purely V2
             hsa_NH_object = ComputeNullHypothesisTuningFunction(observed_tuning_function = hsa_tuning_object.tuning_func, 
                                                                 observed_tuning_function_s2 = hsa_tuning_object.tuning_func_s2, 
                                                                 num_values_for_Px = hdir_tuning_object.n, 
@@ -423,21 +516,46 @@ class TunEdModel:
                                                                                                        expected_sem = hdir_NH_object.tuning_func_nh_sem)
             
             # Produce boolean of significance
-            is_hdir_sig, is_hsa_sig = self.produce_bool_of_signifiance(hdir_significance, hsa_significance, num_bins_required_to_be_significant = 11)
-        
-            # Plot the tuning functions and save the figure
-            self.plot_and_save_tuning_functions(hdir_tuning_object, 
-                                                hsa_NH_object, 
-                                                hsa_tuning_object, 
-                                                hdir_NH_object, 
-                                                filtered_df, 
-                                                cluster, 
-                                                hdir, 
-                                                hsa, 
-                                                is_hdir_sig, 
-                                                is_hsa_sig,
-                                                Nsamples)
+            is_hdir_sig, is_hsa_sig = self.produce_bool_of_signifiance(hdir_significance, hsa_significance)
+            accuracy_dic[cluster] = [is_hdir_sig, is_hsa_sig]
+            
+            # Save the array of boolean significance for each cluster
+            if init_significance_boundary:
+                bool_array_set_1[cluster] = hdir_significance
+                bool_array_set_2[cluster] = hsa_significance
 
+            if save_plots:
+                self.plot_and_save_tuning_functions(hdir_tuning_object, 
+                                                    hsa_NH_object, 
+                                                    hsa_tuning_object, 
+                                                    hdir_NH_object, 
+                                                    filtered_df, 
+                                                    cluster, 
+                                                    hdir, 
+                                                    hsa, 
+                                                    is_hdir_sig, 
+                                                    is_hsa_sig,
+                                                    Nsamples)
+            
+        if init_significance_boundary:
+            min_successes_significant = TunEDModelStats.compute_binomial_chance_distribution(bool_array_set_2, Nbins = Nbins)
+            logger.info(f"Chance significance boundary is {min_successes_significant}")
+            
+        hdir_classified = 0
+        for key, value in accuracy_dic.items(): 
+            if value == [True, False]: 
+                hdir_classified += 1
+        
+        hsa_classified = 0
+        for key, value in accuracy_dic.items():
+          if value == [False, True]:
+            hsa_classified += 1
+            
+        logger.info(f"Number of clusters classified as hdir: {hdir_classified}")
+        logger.info(f"Number of clusters classified as hsa: {hsa_classified}")
+        
+        return accuracy_dic
+        
 if __name__ == '__main__':
     """
     The below logic is used to run the module as a standalone module for the purpose of testing toy data. It is currently set up to run on synthetic data that matches the matlab code
@@ -455,7 +573,7 @@ if __name__ == '__main__':
     
     # Generate stimuli
     stimulusV1 = np.random.randn(1, Nsamples) # Driver stimulus
-    stimulusV2 = stimulusV1 * 0.5 + np.random.randn(1, Nsamples) # Passenger stimulus
+    stimulusV2 = stimulusV1 * 0.6 + np.random.randn(1, Nsamples) # Passenger stimulus
     
     print(np.corrcoef(stimulusV1, stimulusV2)) # Print the stimulus variables as a correlation matrix, to show variable 2 is correlated with variable 1
 
@@ -477,12 +595,13 @@ if __name__ == '__main__':
                                                                  Nbins = Nbins)
     
     Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
-    Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1)
+    
+    Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1) # P(v2|v1) # TODO write a compute conditional probability function with logic i Understand
     Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2) # P(v1|v2) # Tranpose to ensure broadcasting works correctly row wise instead of column wise
     
     # ------------------------------- NULL Hypothesis tests ---------------------------------------------------------------------
-    V1_NH_object = ComputeNullHypothesisTuningFunction(v2Object.tuning_func, v2Object.tuning_func_s2, v1Object.n, Pv2_v1) # E[fr(v2)|v1] given NH that cell is driven purely by V2:
-    V2_NH_object = ComputeNullHypothesisTuningFunction(v1Object.tuning_func, v1Object.tuning_func_s2, v2Object.n, Pv1_v2) # E[fr(v1)|v2] given NH that cell is driven purely by V1:
+    V2_NH_object = ComputeNullHypothesisTuningFunction(v2Object.tuning_func, v2Object.tuning_func_s2, v1Object.n, Pv2_v1) # E[fr(v2)|v1] given NH that cell is driven purely by V2:
+    V1_NH_object = ComputeNullHypothesisTuningFunction(v1Object.tuning_func, v1Object.tuning_func_s2, v2Object.n, Pv1_v2) # E[fr(v1)|v2] given NH that cell is driven purely by V1:
     # ---------------------------------------------------------------------------------------------------------------------------
     
     # Compuete significance of tuning functions --------------------------------------------------------------------------------
@@ -510,61 +629,21 @@ if __name__ == '__main__':
     # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
     fig, ax = plt.subplots(1, 2, figsize=(18, 5))
 
-    ax[0].plot(v1Object.bin_centres, 
-            v1Object.tuning_func[0, :], 
-            '.-', 
-            label='Tuning to v1', 
-            color="cornflowerblue")
-    
-    ax[0].fill_between(v1Object.bin_centres, 
-                    v1Object.tuning_func[0, :] - v1Object.tuning_func_sem[0, :], 
-                    v1Object.tuning_func[0, :] + v1Object.tuning_func_sem[0, :], 
-                    alpha=0.1, 
-                    color="cornflowerblue")
-    
-    ax[0].plot(v1Object.bin_centres, 
-            V1_NH_object.tuning_func_nh[0, :], 
-            '.--', 
-            label='Tuning to v1 given NH that driver is v2 E[fr(v2)|v1]', 
-            color='darkorchid')
-    
-    ax[0].fill_between(v1Object.bin_centres, 
-                    V1_NH_object.tuning_func_nh[0, :] - V1_NH_object.tuning_func_nh_sem[0, :], 
-                    V1_NH_object.tuning_func_nh[0, :] + V1_NH_object.tuning_func_nh_sem[0, :], 
-                    alpha=0.1, 
-                    color='darkorchid')
-    
+    ax[0].plot(v1Object.bin_centres, v1Object.tuning_func[0, :], '.-', label='Tuning to v1', color="cornflowerblue")
+    ax[0].fill_between(v1Object.bin_centres, v1Object.tuning_func[0, :] - v1Object.tuning_func_sem[0, :], v1Object.tuning_func[0, :] + v1Object.tuning_func_sem[0, :], alpha=0.1, color="cornflowerblue")
+    ax[0].plot(v1Object.bin_centres, V2_NH_object.tuning_func_nh[0, :], '.--', label='Tuning to v1 given NH that driver is v2 E[fr(v2)|v1]', color='darkorchid')
+    ax[0].fill_between(v1Object.bin_centres, V2_NH_object.tuning_func_nh[0, :] - V2_NH_object.tuning_func_nh_sem[0, :], V2_NH_object.tuning_func_nh[0, :] + V2_NH_object.tuning_func_nh_sem[0, :], alpha=0.1, color='darkorchid')
     ax[0].set_xlabel('v1')
     ax[0].set_ylabel('fr')
     ax[0].legend(loc='upper right')
     ax[0].set_title("Tuning to V1", fontweight="bold")
     
-    # ------------------------------------------- second chart
+    # ------------------------------------------- second chart ------------------------------------------------------
 
-    ax[1].plot(v2Object.bin_centres, 
-            v2Object.tuning_func[0, :], 
-            '.-', 
-            label='Tuning to v2', 
-            color='cornflowerblue')
-    
-    ax[1].fill_between(v2Object.bin_centres, 
-                    v2Object.tuning_func[0, :] - v2Object.tuning_func_sem[0, :], 
-                    v2Object.tuning_func[0, :] + v2Object.tuning_func_sem[0, :], 
-                    color='cornflowerblue', 
-                    alpha=0.1)
-    
-    ax[1].plot(v2Object.bin_centres, 
-            V2_NH_object.tuning_func_nh[0, :], 
-            '.--', 
-            label='Tuning to v2 given NH that driver is v1 E[fr(v1)|v2]', 
-            color='darkorchid')
-    
-    ax[1].fill_between(v2Object.bin_centres, 
-                    V2_NH_object.tuning_func_nh[0, :] - V2_NH_object.tuning_func_nh_sem[0, :], 
-                    V2_NH_object.tuning_func_nh[0, :] + V2_NH_object.tuning_func_nh_sem[0, :], 
-                    color='darkorchid', 
-                    alpha=0.1)
-    
+    ax[1].plot(v2Object.bin_centres, v2Object.tuning_func[0, :], '.-', label='Tuning to v2', color='cornflowerblue') 
+    ax[1].fill_between(v2Object.bin_centres, v2Object.tuning_func[0, :] - v2Object.tuning_func_sem[0, :], v2Object.tuning_func[0, :] + v2Object.tuning_func_sem[0, :], color='cornflowerblue', alpha=0.1)
+    ax[1].plot(v2Object.bin_centres, V1_NH_object.tuning_func_nh[0, :], '.--', label='Tuning to v2 given NH that driver is v1 E[fr(v1)|v2]', color='darkorchid')
+    ax[1].fill_between(v2Object.bin_centres, V1_NH_object.tuning_func_nh[0, :] - V1_NH_object.tuning_func_nh_sem[0, :], V1_NH_object.tuning_func_nh[0, :] + V1_NH_object.tuning_func_nh_sem[0, :], color='darkorchid', alpha=0.1)
     ax[1].set_xlabel('v2')
     ax[1].set_ylabel('fr')
     ax[1].legend(loc='upper right')

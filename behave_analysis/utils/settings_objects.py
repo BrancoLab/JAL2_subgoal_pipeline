@@ -83,6 +83,8 @@ class Settings_visualize:
     efizz: bool=False
     cluster_type: str = ''
     show_plots: bool = True
+    expand_behaviour: bool = False
+    num_samples_of_expansion: int = 0
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
@@ -139,3 +141,5 @@ class Settings_analyze_efizz:
     run_LDA: list = None
     object_present: bool = True
     run_consink: bool = False
+    analyze_only_the_period_before_shelter: bool = False
+    analyze_only_the_period_before_barrier: bool = False
