@@ -16,7 +16,7 @@ class AnalyzeEfizz:
     """
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
-        self.dir = session.processed_path + "\\" + 'models' + "\\" + "tunED"
+        self.dir = session.processed_path + "\\" + 'models' 
         self.cluster_type = Settings_analyze_efizz.cluster_type
         self.show_plots = Settings_analyze_efizz.show_plots
         self.processed_file_directory = session.processed_path + '\\' + str(Settings_analyze_efizz.cluster_type) + '_large_dataframe.csv'
@@ -34,7 +34,7 @@ class AnalyzeEfizz:
         
         if Settings_analyze_efizz.run_tunED:
             logger.info('Running TunED')
-            tunED_model_main(self.data_df, objectPresent, file_save_location = self.dir)
+            tunED_model_main(self.data_df, objectPresent, file_save_location = self.dir + "\\" + "tunED")
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:

@@ -26,7 +26,7 @@ class Process():
     def __init__(self, session_ID):
         logger.info("Session details: {}".format(session_ID))
         self.session = get_experiment(session_ID) # Retrieve experimental data
-        self.__check_files_exist() # Check that all behavioural files exist
+        # self.__check_files_exist() # Check that all behavioural files exist
         
         # Create processed path if it doesn't exist
         if not(os.path.exists(self.session.processed_path)): 

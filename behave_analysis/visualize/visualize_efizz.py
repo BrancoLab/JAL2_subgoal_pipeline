@@ -633,7 +633,7 @@ def filter_video_dataframe(dataframe, which_angle, object_present):
         filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
                                             (dataframe["EscapePeriod"] == False) & 
                                             (dataframe["shelter_only"] == object_present))
-        angle_filt = 'hsa'
+        angle_filt = which_angle
 
     elif 'bar' in which_angle:
         filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
@@ -655,7 +655,7 @@ def filter_video_dataframe(dataframe, which_angle, object_present):
     elif which_angle == 'hdir':
         filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) &
                                             (dataframe["EscapePeriod"] == False))
-        angle_filt = 'hdir'
+        angle_filt = which_angle
         
     title = angle_filt
     if object_present == False: 
@@ -674,22 +674,3 @@ def generate_bin_angles(number_of_bins):
 #     num_rows = int(np.ceil(max_plots_per_figure / num_cols))
 #     num_figures = int(np.ceil(how_many_plots_you_need / max_plots_per_figure))
 #     return num_cols, num_rows, num_figures
-
-
-    # elif which_angle == 'head_south_barrier_angle':
-    #     filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
-    #                                         (dataframe["EscapePeriod"] == False) & 
-    #                                         (dataframe["barrier_present"] == object_present))
-    #     angle_filt = 'h_bar_south_a'
-
-    # elif which_angle == 'head_north_barrier_angle':
-    #     filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) &
-    #                                         (dataframe["EscapePeriod"] == False) & 
-    #                                         (dataframe["barrier_present"] == object_present))
-    #     angle_filt = 'h_bar_north_a'
-
-    # elif which_angle == 'head_centre_barrier_angle':
-    #     filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) &
-    #                                         (dataframe["EscapePeriod"] == False) & 
-    #                                         (dataframe["barrier_present"] == object_present))
-    #     angle_filt = 'h_bar_centre_a'
