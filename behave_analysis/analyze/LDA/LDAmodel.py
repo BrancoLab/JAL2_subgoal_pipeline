@@ -8,15 +8,19 @@ import matplotlib.pyplot as plt
 # matplotlib.use('TkAgg')
 from loguru import logger
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
 
 # import functions
 from behave_analysis.visualize.visualize_efizz import filter_video_dataframe, generate_bin_angles 
 
 def run_LDA_model(self, settings):
+    """ A function that runs discriminant analysis based on user settings"""
 
     prediction_accuracy = []
     title = []
+    self.savepath = BuildSavingFolder(self.dir, settings)
 
     # run LDA on different angles
     for variable in settings.run_LDA:
@@ -39,6 +43,7 @@ def run_LDA_model(self, settings):
 
 def BinDfbyAngleAndEpoch(self, variable, settings):
     """
+    A function that processes dataframe for discriminant analysis
     variable: what we're trying to predict (e.g. head_shelter_angle), it needs to be one of the columns of video_df
     """
 
@@ -94,6 +99,32 @@ def linear_discriminant_analysis(self, df, title, settings, clu):
     # initialize variables
     conf_matrix_all_train = np.empty((settings.number_of_bins-1,settings.number_of_bins-1,settings.epoch_num))
     conf_matrix_all_test = np.empty((settings.number_of_bins-1,settings.number_of_bins-1,settings.epoch_num))
+    X = np.zeros((int(df['frames'].max()),len(clu)))
+
+    # frames by firing per cluster matrix
+    fillMatrix(df,X,clu)
+    if clu[0] == 0: X = X[:,1:]
+    X = X[df['frames'].unique().to_numpy().astype(int)-1,:]
+
+    # remove NaN columns (empty clusters)
+    nancolumns = np.where(np.sum(X == 0,axis = 0) == np.shape(X)[0])[0]
+    if len(nancolumns) > 0:
+        X = np.delete(X, nancolumns, axis=1)
+
+    # optional: transform to firing rate estimate in Hz
+    if settings.use_firing_rate:
+        for i in np.arange(np.shape(X)[1]):
+            X[:,i] = FiringRateEstimate(X[:,i],sampling_rate = 40, window_size = 100)
+
+    # normalize firing rates
+    # X = X/np.amax(X,axis=0)
+    # z-score firing rates
+    X = (X - np.mean(X,axis=0))/np.std(X,axis=0)
+
+    # optional: run PCA
+    if settings.PCA_process:
+        pca = PCA(n_components = 15)
+        X = pca.fit_transform(X)
 
     # LDA
     for i in np.arange(settings.epoch_num):
@@ -105,40 +136,31 @@ def linear_discriminant_analysis(self, df, title, settings, clu):
         plt.subplots_adjust(hspace=0.3)
         
         # make train matrix of frames x clusters
-        X = np.zeros((len(train_all["frames"].unique()),len(clu)))
-        fillMatrix(train_all,X,clu)
-        if clu[0] == 0: X = X[:,1:]
+        X1 = X[(df['binned_frames'] != (i+1)).to_list(),:]
 
         # make test matrix of frames x clusters
-        X2 = np.zeros((len(test_all["frames"].unique()),len(clu)))
-        fillMatrix(test_all,X2,clu)
-        if clu[0] == 0: X2 = X2[:,1:]
-
-        # remove NaN columns
-        nancolumns = np.concatenate((np.where(np.sum(X == 0,axis = 0) == np.shape(X)[0])[0],np.where(np.sum(X2 == 0,axis = 0) == np.shape(X2)[0])[0]))
-        if len(nancolumns) > 0:
-            X = np.delete(X, nancolumns, axis=1)
-            X2 = np.delete(X2, nancolumns, axis=1)
-        X = X/np.amax(X,axis=0)
-        X2 = X2/np.amax(X2,axis=0)
+        X2 = X[(df['binned_frames'] == (i+1)).to_list(),:]
 
         # train model
         y = train_all["binned_angles"].to_numpy()
-        clf = LinearDiscriminantAnalysis()
-        clf.fit(X, y)
+        if settings.discriminant_type == 'linear':
+            clf = LinearDiscriminantAnalysis()
+        elif settings.discriminant_type == 'quadratic':
+            clf = QuadraticDiscriminantAnalysis()
+        clf.fit(X1, y)
 
         # plot confusion matrix of prediction on training data
-        conf_matrix_all_train[:,:,i] = plotConfusionMatrix(y,clf.predict(X),'training data',plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
+        conf_matrix_all_train[:,:,i] = plotConfusionMatrix(y,clf.predict(X1),'training data',plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
 
         # plot histogram of frames per angle bin
         ax = plt.subplot2grid(shape=(4, 2), loc=(3, 0))
-        ax.hist(clf.predict(X), np.arange(1,settings.number_of_bins+1))
+        ax.hist(clf.predict(X1), np.arange(1,settings.number_of_bins+1))
         ax.hist(y, np.arange(1,settings.number_of_bins+1))
         ax.set_title('training data')
 
         # look at data side-by-side
         ax = plt.subplot2grid(shape=(4, 2), loc=(0, 0), colspan=2)
-        ax.plot(clf.predict(X))
+        ax.plot(clf.predict(X1))
         ax.plot(y)
         ax.legend(["prediction","real"])
         ax.set_title("training data")
@@ -164,12 +186,10 @@ def linear_discriminant_analysis(self, df, title, settings, clu):
         ax.set_ylabel('binned angles')
         ax.set_xlabel('time')
 
-        if not(os.path.exists(str(self.dir) + "/" + "LDA")): 
-            os.makedirs(str(self.dir) + "/" + "LDA")
         if settings.object_present == True:
-            filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + ".png"
+            filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + ".png"
         else:
-            filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + "_noObj.png"
+            filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + "_noObj.png"
         plt.savefig(filename)
         if self.show_plots: plt.show()
         plt.close()
@@ -190,9 +210,9 @@ def linear_discriminant_analysis(self, df, title, settings, clu):
     ax.set_title('test')
 
     if settings.object_present == True:
-        filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
     else:
-        filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + "_noObj.png"
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + "_noObj.png"
     plt.savefig(filename)
     if self.show_plots: plt.show()
     plt.close()
@@ -209,15 +229,49 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
     plt.xticks(rotation = 45)
     plt.ylabel('prediction accuracy')
     if settings.object_present == True:
-        filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + ".png"
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + ".png"
     else:
-        filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + "_noObj.png"
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + "_noObj.png"
     plt.savefig(filename)
     plt.close()
 
 # Utility functions ------------------------------------------------------------------------------------------------
 
+def BuildSavingFolder(basepath, settings):
+    
+    if settings.discriminant_type == 'linear':
+        pathh = str(basepath) + "/" + "LDA"
+    elif settings.discriminant_type == 'quadratic':
+        pathh = str(basepath) + "/" + "QDA"
+    if len(settings.PCA_process) > 0:
+        pathh = str(pathh) + "_PCA"
+    if settings.use_firing_rate:
+        pathh = str(pathh) + "_fr"
+
+    pathh = str(pathh) + "/" + str(settings.cluster_type)
+
+    if not(os.path.exists(pathh)): 
+        os.makedirs(pathh) 
+    
+    return pathh
+
 def fillMatrix(df,matrix,clu_id):
+    for i2 in df["frames"].unique():
+        d = df.filter(df["frames"] == i2).to_dict(as_series=False)
+        spikes = np.array(d.get('spike_count')[0])
+        clusters = np.array(d.get('spike_clusters')[0])
+        spikes = spikes[np.argsort(clusters)]
+        clusters = np.sort(clusters)
+        matrix[int(i2)-1,np.where(np.in1d(clu_id,clusters))[0]] = spikes
+
+def FiringRateEstimate(x,sampling_rate,window_size):
+    # sampling rate in fps
+    # window size in ms
+    nbins = 1000/window_size
+    x2 = np.convolve(x,np.ones(int(sampling_rate/nbins),dtype = int),'same')*nbins
+    return x2
+
+def fillMatrix_small(df,matrix,clu_id):
     for i, i2 in enumerate(df["frames"].unique()):
         d = df.filter(df["frames"] == i2).to_dict(as_series=False)
         spikes = np.array(d.get('spike_count')[0])
@@ -225,11 +279,6 @@ def fillMatrix(df,matrix,clu_id):
         spikes = spikes[np.argsort(clusters)]
         clusters = np.sort(clusters)
         matrix[i,np.where(np.in1d(clu_id,clusters))[0]] = spikes
-
-def fillMatrix_old(df,matrix,clu_id):
-    for i, i2 in enumerate(df["frames"].unique()):
-        d = df.filter(df["frames"] == i2).to_dict(as_series=False)
-        matrix[i,np.where(np.in1d(clu_id, d.get('spike_clusters')))[0]] = d.get('spike_count') 
 
 def plotConfusionMatrix(y,x,title,axy):
     conf = confusion_matrix(y, x)
@@ -271,3 +320,112 @@ def compute_prediction_accuracy(matrixx):
         x = np.roll(matrixx[i.astype(int),:],pos-i)
         pred_acc[i] = np.sum(x[pos-1:pos+2])
     return np.mean(pred_acc)
+
+
+#### ----------------------- old code
+
+# LDA
+    # for i in np.arange(settings.epoch_num):
+    #     test_all = df.filter((df['binned_frames'] == (i+1)))
+    #     train_all = df.filter((df['binned_frames'] != (i+1)))
+
+    #     # figure set up
+    #     plt.figure(figsize=(20, 16))
+    #     plt.subplots_adjust(hspace=0.3)
+        
+    #     # make train matrix of frames x clusters
+    #     X = np.zeros((len(train_all["frames"].unique()),len(clu)))
+    #     fillMatrix(train_all,X,clu)
+    #     if clu[0] == 0: X = X[:,1:]
+
+    #     # make test matrix of frames x clusters
+    #     X2 = np.zeros((len(test_all["frames"].unique()),len(clu)))
+    #     fillMatrix(test_all,X2,clu)
+    #     if clu[0] == 0: X2 = X2[:,1:]
+
+    #     # remove NaN columns
+    #     nancolumns = np.concatenate((np.where(np.sum(X == 0,axis = 0) == np.shape(X)[0])[0],np.where(np.sum(X2 == 0,axis = 0) == np.shape(X2)[0])[0]))
+    #     if len(nancolumns) > 0:
+    #         X = np.delete(X, nancolumns, axis=1)
+    #         X2 = np.delete(X2, nancolumns, axis=1)
+    #     X = X/np.amax(X,axis=0)
+    #     X2 = X2/np.amax(X2,axis=0)
+
+    #     # train model
+    #     y = train_all["binned_angles"].to_numpy()
+    #     clf = LinearDiscriminantAnalysis()
+    #     clf.fit(X, y)
+
+    #     # plot confusion matrix of prediction on training data
+    #     conf_matrix_all_train[:,:,i] = plotConfusionMatrix(y,clf.predict(X),'training data',plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
+
+    #     # plot histogram of frames per angle bin
+    #     ax = plt.subplot2grid(shape=(4, 2), loc=(3, 0))
+    #     ax.hist(clf.predict(X), np.arange(1,settings.number_of_bins+1))
+    #     ax.hist(y, np.arange(1,settings.number_of_bins+1))
+    #     ax.set_title('training data')
+
+    #     # look at data side-by-side
+    #     ax = plt.subplot2grid(shape=(4, 2), loc=(0, 0), colspan=2)
+    #     ax.plot(clf.predict(X))
+    #     ax.plot(y)
+    #     ax.legend(["prediction","real"])
+    #     ax.set_title("training data")
+    #     ax.set_ylabel('binned angles')
+    #     ax.set_xlabel('time')
+
+    #     # plot confusion matrix of prediction on test data
+    #     y = test_all["binned_angles"].to_numpy()
+    #     conf_matrix_all_test[:,:,i] = plotConfusionMatrix(y,clf.predict(X2),'test data',plt.subplot2grid(shape=(4, 2), loc=(2, 1)))
+
+    #     # plot histogram of frames per angle bin
+    #     ax = plt.subplot2grid(shape=(4, 2), loc=(3, 1))
+    #     ax.hist(clf.predict(X2), np.arange(1,settings.number_of_bins+1))
+    #     ax.hist(y, np.arange(1,settings.number_of_bins+1))
+    #     ax.set_title('test data')
+
+    #     # look at data side-by-side
+    #     ax = plt.subplot2grid(shape=(4, 2), loc=(1, 0), colspan=2)
+    #     ax.plot(clf.predict(X2))
+    #     ax.plot(y)
+    #     ax.legend(["prediction","real"])
+    #     ax.set_title("test data")
+    #     ax.set_ylabel('binned angles')
+    #     ax.set_xlabel('time')
+
+    #     if not(os.path.exists(str(self.dir) + "/" + "LDA")): 
+    #         os.makedirs(str(self.dir) + "/" + "LDA")
+    #     if settings.object_present == True:
+    #         filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + ".png"
+    #     else:
+    #         filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + "_noObj.png"
+    #     plt.savefig(filename)
+    #     if self.show_plots: plt.show()
+    #     plt.close()
+    
+    # # plot average confusion matrix
+    # plt.figure(figsize=(20, 16))
+    # plt.subplots_adjust(hspace=0.3)
+    # ax = plt.subplot(1,2,1)
+    # ax.imshow(np.mean(conf_matrix_all_train, axis=2), cmap = "Blues", vmin = 0, vmax = 1)
+    # ax.set_ylabel('real')
+    # ax.set_xlabel('predicted')
+    # ax.set_title('train')
+
+    # ax = plt.subplot(1,2,2)
+    # ax.imshow(np.mean(conf_matrix_all_test, axis=2), cmap = "Blues", vmin = 0, vmax = 1)
+    # ax.set_ylabel('real')
+    # ax.set_xlabel('predicted')
+    # ax.set_title('test')
+
+    # if settings.object_present == True:
+    #     filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
+    # else:
+    #     filename = str(self.dir) + "/" + "LDA" + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + "_noObj.png"
+    # plt.savefig(filename)
+    # if self.show_plots: plt.show()
+    # plt.close()
+
+    # prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))
+
+    # return prediction_accuracy
