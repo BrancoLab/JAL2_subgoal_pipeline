@@ -12,7 +12,7 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     analyze_only_the_period_before_barrier = False, # If True will only analyze the period before the barrier, if false, it will analyze the whole session
     
     # Tuned model settings
-    run_tunED = False,
+    run_tunED = True,
     
     # LDA model settings
     # run_LDA = ['hdir', "head_shelter_angle"],

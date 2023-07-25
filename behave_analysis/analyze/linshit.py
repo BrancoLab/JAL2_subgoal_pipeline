@@ -9,6 +9,7 @@ truely related, then they should be more so when recorded simulatenously rather 
 """
 
 import numpy as np
+from scipy.stats import pearsonr
 
 class LinearShift:
     def __init__(self, X, y, stat_computation_func, size_of_central_chunk=300):
@@ -26,6 +27,7 @@ class LinearShift:
             must have room to shift both right and left: len(y) >= D+2 - I believe this is the
             number of samples for the middle chunk.
         """
+        # print("starting shift")
         self.D = size_of_central_chunk
         self.X = X
         self.y = y
@@ -34,14 +36,15 @@ class LinearShift:
         self.T, self.N, self.shifts = self.init_params()
         self.real_stat = self.compute_V0_statistic()
         self.pseudo_stats = self.compute_shifted_statistics()
-        self.reject_null, self.alpha, self.M = self.compute_significance()
+        self.reject_null, self.alpha, self.M, self.sig_level = self.compute_significance()
+        # print("done with shift")
 
     def __check_inputs(self):
         """
         Check the user defined arguments are valid
         """
         assert len(self.y) >= self.D + 2, f"The combination of data size {len(self.y)} with central chunk size {self.D} is incompatible"
-        assert len(self.y) == 0, "The data provided has no length"
+        assert len(self.y) != 0, "The data provided has no length"
 
     def init_params(self):
         """
@@ -53,14 +56,19 @@ class LinearShift:
         """
         T = len(self.y)
         N = int((T - self.D) / 2)
-        shifts = np.arange(-N, N + 1)
+        shifts = np.arange(-N, N - 400, 400)
         return T, N, shifts
 
     def compute_V0_statistic(self):
         """
         Compute the real statistic for the simulatenously recorded central chunk
         """
-        return self.user_defined_function(self.X[self.N:self.T - self.N], self.y[self.N:self.T - self.N])[0]
+        # return self.user_defined_function(self.X[self.N : self.T - self.N], self.y[self.N:self.T - self.N])[0]
+        # Filtering rows in Polars
+        X_filtered = self.X.slice(self.N, self.T - 2*self.N)  # starts from self.N and takes (self.T - 2*self.N) rows
+        y_filtered = self.y.slice(self.N, self.T - 2*self.N)  # same for y
+
+        return self.user_defined_function(X_filtered, y_filtered)
 
     def compute_shifted_statistics(self):
         """
@@ -70,9 +78,21 @@ class LinearShift:
         pseudo_stats = np.zeros(len(self.shifts)) # How many pseudo statistics to compute
         for shift_idx in range(len(self.shifts)):
             s = self.shifts[shift_idx] # How much to shift the central chunk by
-            pseudo_stats[shift_idx] = self.user_defined_function(np.copy(self.X[self.N:self.T - self.N]),
-                                                                 np.copy(self.y[s + self.N:s + self.T - self.N])
-                                                                 )[0]
+            # print(f"shift {shift_idx} of {len(self.shifts)}")
+             # Remove central chunk
+            if s == 0:
+                continue
+            
+            # pseudo_stats[shift_idx] = self.user_defined_function(np.copy(self.X[self.N : self.T - self.N]),
+            #                                                      np.copy(self.y[s + self.N:s + self.T - self.N])
+            #                                                      )[0]
+            
+            X_filtered = self.X.slice(self.N, self.T - 2*self.N)
+            y_filtered = self.y.slice(s + self.N, self.T - 2*self.N)
+
+            pseudo_stats[shift_idx] = self.user_defined_function(X_filtered, y_filtered)
+
+          
         return pseudo_stats
 
     def compute_significance(self):
@@ -88,5 +108,48 @@ class LinearShift:
         reject_null = False
         if M <= alpha*(self.N + 1): # If true, reject the Null hypothesis. Your data is 'probably' significant. Rejoice.
             reject_null = True
-        return reject_null, alpha, M
+            
+        signifcance_level = alpha*(self.N + 1)    
+        return reject_null, alpha, M, signifcance_level
 
+if __name__ == "__main__":
+
+    def compute_pearson_correlation(X, y):
+        """
+        Compute the Pearson correlation coefficient between X and y.
+        Returns the correlation coefficient and the p-value.
+        """
+        return pearsonr(X.ravel(), y)
+
+    # Set random seed for reproducibility
+    #np.random.seed(0)
+    
+    real_correlation = True # Set to False to see the effect of uncorrelated data
+
+    # Generate two synthetic time series datasets
+    num_samples = 1000
+    noise_level = 0.5
+
+    # First time series: Random noise + trend
+    x = np.linspace(0, 10, num_samples)
+    X = 0.5 * x + noise_level * np.random.randn(num_samples)
+
+    if real_correlation:
+        y2 = X * 0.5 + noise_level * np.random.rand(num_samples) # Use this to see the effect of correlated data
+    
+    elif not real_correlation:
+        y2 = noise_level * np.random.randn(num_samples) #Use this to see the effect of uncorrelated data
+    
+    # Create a LinearShift instance using the Pearson correlation coefficient as the user-defined function
+    ls = LinearShift(X = X.reshape(-1, 1), 
+                     y = y2, 
+                     stat_computation_func = compute_pearson_correlation, 
+                     size_of_central_chunk = 300)
+
+    # Display results
+    print(f"Real Statistic: {ls.real_stat:.4f}")
+    print(f"Pseudo Statistics: {ls.pseudo_stats[:10]} ...")  # Display only the first 10 for brevity
+    print(f"Reject Null: {ls.reject_null}")
+    print(f"Alpha: {ls.alpha:.4f}")
+    print(f"M: {ls.M}")
+    print(f"Significance Level: {ls.sig_level:.4f}")

@@ -2,7 +2,7 @@ from behave_analysis.analyze.TunED.tunED_model import TunEdModel
 # from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
 # from behave_analysis.analyze.ConSink.Consink_model import Consink
 from settings.settings_analyze_efizz import Settings_analyze_efizz
-from behave_analysis.analyze.LDA.simple_LDA_test import main
+from behave_analysis.analyze.linshit import LinearShift
 
 # OS Lib
 from loguru import logger
@@ -34,8 +34,6 @@ class AnalyzeEfizz:
     def execute_models(self):
         logger.info('Executing models')
         
-        main(self)
-        
         if Settings_analyze_efizz.run_tunED:
             if not os.path.isdir(self.dir + "\\" + "tunED"):
                 os.mkdir(self.dir + "\\" + "tunED")
@@ -46,8 +44,9 @@ class AnalyzeEfizz:
             TunEdModel(self, 
                        analyze_efizz_settings =  Settings_analyze_efizz, 
                        save_location = model_path, 
-                       init_significance_boundary = True)
-            
+                       init_significance_boundary = True,
+                       apply_linear_shift = True)
+              
             logger.success('TunED analysis complete')
             
         # if Settings_analyze_efizz.run_consink:
