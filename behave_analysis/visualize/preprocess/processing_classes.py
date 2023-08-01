@@ -139,6 +139,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
         self.select_clusters = "synthetic"
         self.video_df = self.track_to_polars()
+        self.expand_behavioural_data = expand_behavioural_data
         if expand_behavioural_data: 
             self.video_df = self.expand_tracking_data(video_df = self.video_df, 
                                                       new_entries_to_insert = self.Visualize.settings.num_samples_of_expansion)
@@ -146,7 +147,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         self.spike_data = self.load_spike_data()
         self.clu_label = self.extract_cluster_labels()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
-        self.merge_and_save_spike_count_df_with_frame_data()
+        self.merge_and_save_spike_count_df_with_frame_data(expand_behavioural_data)
     
     def check_synthetic_data_exists_if_not_generate_it(self) -> None:
         if not os.path.exists(self.csv_path):
@@ -170,7 +171,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         synth_df = generate_synthetic_dataframe(tuning, pass_video_df = self.video_df)
         synth_df.write_csv(self.csv_path)
     
-    def merge_and_save_spike_count_df_with_frame_data(self) -> None:
+    def merge_and_save_spike_count_df_with_frame_data(self, expand_behavioural_data) -> None:
         video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
         large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
         large_dataFrame = large_dataFrame.fill_null(strategy="zero")

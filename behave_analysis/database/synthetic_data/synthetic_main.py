@@ -42,7 +42,7 @@ def extract_tuning_request(cell_type_to_generate, tracking_data):
     return angles
     
 def generate_synthetic_dataframe(tuning: list, 
-                                 realistic = False, 
+                                 realistic = True,
                                  num_cells_per_type = 37, 
                                  number_of_spikes_to_gen_per_cluster = 250000,
                                  pass_video_df = None) -> pl.DataFrame:

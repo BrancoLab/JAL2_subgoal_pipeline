@@ -11,6 +11,7 @@ Null hypothesis (nh):
 
 TODO:
 + There should be some quality checks done on the ingested data because I found a spike count at 130  in one frame for one cell which is impossible so data quality is not there yet.
++ Bins are not uniformly sampling with some bins empty - this might be causing unknown issues
 """
 
 # OS Imports
@@ -277,45 +278,48 @@ class TunEDModelStats:
         do_not_overlap = (upper_bound_observed < lower_bound_expected) | (lower_bound_observed > upper_bound_expected)
         return do_not_overlap
     
+    
     @staticmethod
-    def compute_binomial_chance_distribution(dictionary, Nbins):
-        # TODO look into the logic of this function
+    def compute_binomial_chance_distribution(dictionary, Nbins = 20):
+              
+        # Sum up the number of significant bins for each cluster
+        significantBins = {cluster: np.sum(v) for cluster, v in dictionary.items()}
         
-        # count the number of successes (Trues) in a single experiment
-        counts = {k: np.sum(v) for k, v in dictionary.items()}
+        # If there are no sinificant bins assume that cluster is noise and exlude it from the analysis
+        significantBins = {key: value for key, value in significantBins.items() if value > 0}
 
-        # calculate proportions
-        n_trials = Nbins  # number of trials in each experiment
-        proportions = {k: v / n_trials for k, v in counts.items()}
+        # For each of those Trues, divided by the total number of bins to get the proportion of significant bins
+        proportions = [count / (len(dictionary[key]) * 20) for key, count in significantBins.items()]
 
-        # estimate p as the mean of the proportions
-        p_hat = np.mean(list(proportions.values()))
+        # Estimate p as the mean of the proportions, which is the probability of bin being significant
+        p_hat = np.mean(proportions)
+        assert 0 <= p_hat <= 1, 'Estimated p is not between 0 and 1'
+        logger.info(f'Estimated p: {p_hat} (probability of a bin being significant by chance')
 
-        # calculate a 95% confidence interval for the proportion
-        z = norm.ppf(0.975)  # 1.96 for a 95% confidence interval
-        conf_int = p_hat - z * np.sqrt((p_hat * (1 - p_hat)) / n_trials), p_hat + z * np.sqrt((p_hat * (1 - p_hat)) / n_trials)
+        # Calculate a 95% confidence interval for the proportion
+        z = norm.ppf(0.975)  # for a 95% confidence interval
+        conf_int = p_hat - z * np.sqrt((p_hat * (1 - p_hat)) / Nbins), p_hat + z * np.sqrt((p_hat * (1 - p_hat)) / Nbins)
 
-        print(f'Estimated p: {p_hat}')
-        print(f'95% confidence interval for p: {conf_int}')
+        logger.info(f'95% confidence interval for p: {conf_int} (ranged probability of a single bin for chance')
 
-        # plot the binomial distribution
+        # Plot the binomial distribution
         plt.figure(figsize=(10, 5))
-        x = np.arange(n_trials + 1)
-        pmf = binom.pmf(x, n_trials, p_hat)
+        x = np.arange(Nbins + 1)
+        pmf = binom.pmf(x, Nbins, p_hat)
         plt.stem(x, pmf, use_line_collection=True, basefmt=' ')
-        plt.xlabel('Number of Trues')
+        plt.xlabel('Number of successes')
         plt.ylabel('Probability')
         plt.title('Binomial Distribution')
 
-        # plot the 95% confidence interval
-        conf_int_scaled = np.array(conf_int) * n_trials  # scale to the number of trials
+        # Plot the 95% confidence interval
+        conf_int_scaled = np.array(conf_int) * Nbins
         plt.axvline(x=conf_int_scaled[1] + 0.5, color='red', linestyle='dashed')
         plt.show()
 
-        # calculate the minimum number of successes needed to be in the upper 5% of the distribution
-        min_successes_significant = binom.ppf(0.95, n_trials, p_hat)
+        # Calculate the minimum number of successes needed to be in the upper 5% of the distribution
+        min_successes_significant = binom.ppf(0.95, Nbins, p_hat)
+        logger.info(f'Minimum number of successes for significance at the 5% level: {np.ceil(min_successes_significant)}')
 
-        print(f'Minimum number of Trues for significance at the 5% level: {np.ceil(min_successes_significant)}')
         return min_successes_significant
 
     @staticmethod 
@@ -375,7 +379,6 @@ class TunEdModel:
                  inherited_object, 
                  analyze_efizz_settings, 
                  save_location, 
-                 init_significance_boundary = False, 
                  save_plots = False, 
                  apply_linear_shift = False):
         
@@ -385,11 +388,12 @@ class TunEdModel:
         self.apply_linear_shift = apply_linear_shift
         self.data_df = self.filter_data_by_period() # before shelter or after shelter etc
         
-        if not LinearShift: 
+        if not self.apply_linear_shift: 
             assert os.path.exists('linear_shift_null_distribution_binomial.pkl'), "File does not exist! You must run with lin shift first to generate the null"
-            self.accuracy_dic = self.execute_model_per_cluster(init_significance_boundary, save_plots)
+            logger.info("Loading the null distribution for a previously computed binomial test")
+            self.accuracy_dic = self.execute_model_per_cluster(save_plots)
         
-        if LinearShift:
+        if self.apply_linear_shift:
             self.accuracy_dic = self.excute_model_per_cluster_with_linear_shift(shifted_variale = "hsa")
         
         # TunEDModelStats.compute_synthetic_accuracy(self.accuracy_dic, number_of_cells_produced_per_angle = 37)
@@ -413,10 +417,11 @@ class TunEdModel:
         if not self.settings.analyze_only_the_period_before_shelter:
             filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["OutofshelterIdx"] == True) & 
                                                                  (self.inherited_object.data_df["EscapePeriod"] == False))
+            logger.info("Analysing the whole session with escapes and periods when the mouse is in his house removed")
         
         # Filter on the period just before the barrier
         if self.settings.analyze_only_the_period_before_barrier:
-            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["barrier_only"] == False))
+            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["barrier_present"] == False))
         
         
         return filtered_data
@@ -480,10 +485,16 @@ class TunEdModel:
         plt.show()
         # plt.savefig(str(self.directory_location) + "\\" + f"_cluster_{cluster}.png")
     
-    def execute_model_per_cluster(self, init_significance_boundary = False, save_plots = True):
+    def execute_model_per_cluster(self, save_plots = True):
         """
         The purpose of this function is to execute the TunEd model for each cluster in the data and thus calls all of the relevant classes and functions to do so.
         """
+        
+        with open("linear_shift_null_distribution_binomial.pkl", 'rb') as f:
+            linear_shift_null_distribution_bionomial = pickle.load(f)
+        
+        min_bins_for_sig = TunEDModelStats.compute_binomial_chance_distribution(linear_shift_null_distribution_bionomial)
+        # min_bins_for_sig = 16 # Overriding the min bins for sig to be 16
         
         # Init params for model
         accuracy_dic = {} # Dict to store the accuracy of the model for each cluster
@@ -537,14 +548,12 @@ class TunEdModel:
                                                                                                        expected_sem = hdir_NH_object.tuning_func_nh_sem)
             
             # Produce boolean of significance
-            is_hdir_sig, is_hsa_sig = self.produce_bool_of_signifiance(hdir_significance, hsa_significance)
+            is_hdir_sig, is_hsa_sig = self.produce_bool_of_signifiance(hdir_significance, 
+                                                                       hsa_significance,
+                                                                       num_bins_required_to_be_significant = min_bins_for_sig)
             accuracy_dic[cluster] = [is_hdir_sig, is_hsa_sig]
             
-            # Save the array of boolean significance for each cluster
-            if init_significance_boundary:
-                bool_array_set_1[cluster] = hdir_significance
-                bool_array_set_2[cluster] = hsa_significance
-
+            # Plot and save tuning functions
             if save_plots:
                 self.plot_and_save_tuning_functions(hdir_tuning_object, 
                                                     hsa_NH_object, 
@@ -558,10 +567,10 @@ class TunEdModel:
                                                     is_hsa_sig,
                                                     Nsamples)
             
-        if init_significance_boundary:
-            min_successes_significant = TunEDModelStats.compute_binomial_chance_distribution(bool_array_set_2, Nbins = Nbins)
-            logger.info(f"Chance significance boundary is {min_successes_significant}")
-            
+       
+        
+        
+        # ------------------------Compute the number of clusters classified as hdir and hsa --------------------------------------
         hdir_classified = 0
         for key, value in accuracy_dic.items(): 
             if value == [True, False]: 
@@ -575,7 +584,7 @@ class TunEdModel:
         logger.info(f"Number of clusters classified as hdir: {hdir_classified}")
         logger.info(f"Number of clusters classified as hsa: {hsa_classified}")
         
-        return sum(hdir_significance)
+        return None
     
     # Linear shift extensions
     
@@ -615,13 +624,13 @@ class TunEdModel:
                                                                                                     observed_sem = hdir_tuning_object.tuning_func_sem,
                                                                                                     expected_sem = hsa_NH_object.tuning_func_nh_sem)
         
-        hsa_significance = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set( Nbins = Nbins, 
+        hsa_significance =  TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
                                                                                                     observed_tf = hsa_tuning_object.tuning_func,
                                                                                                     expected_tf = hdir_NH_object.tuning_func_nh,
                                                                                                     observed_sem = hsa_tuning_object.tuning_func_sem, 
                                                                                                     expected_sem = hdir_NH_object.tuning_func_nh_sem)
-        cluster, is_hdir_sig, is_hsa_sig = None, None, None
-        if 0: # Plotting
+        if 0: # Plotting for debugging
+            cluster, is_hdir_sig, is_hsa_sig = None, None, None
             self.plot_and_save_tuning_functions(hdir_tuning_object, 
                                                 hsa_NH_object, 
                                                 hsa_tuning_object, 

@@ -56,7 +56,9 @@ class LinearShift:
         """
         T = len(self.y)
         N = int((T - self.D) / 2)
-        shifts = np.arange(-N, N - 400, 400)
+        shifts = np.arange(-N, N - 400, 400) # 10 second shifts as camera is 40 Hz
+        # shifts = np.arange(-N, N - 400, 40) # 1 second shifts as camera is 40 Hz
+
         return T, N, shifts
 
     def compute_V0_statistic(self):
@@ -65,8 +67,14 @@ class LinearShift:
         """
         # return self.user_defined_function(self.X[self.N : self.T - self.N], self.y[self.N:self.T - self.N])[0]
         # Filtering rows in Polars
-        X_filtered = self.X.slice(self.N, self.T - 2*self.N)  # starts from self.N and takes (self.T - 2*self.N) rows
-        y_filtered = self.y.slice(self.N, self.T - 2*self.N)  # same for y
+        # X_filtered = self.X.slice(self.N, self.T - 2*self.N)  # starts from self.N and takes (self.T - 2*self.N) rows
+        # y_filtered = self.y.slice(self.N, self.T - 2*self.N)  # same for y
+        
+        X_filtered = self.X[self.N : self.T - self.N] # Take out central chunk
+        y_filtered = self.y[self.N : self.T - self.N] # Take out central chunk
+        
+        # X_filtered = self.X[: self.N] # Take out last chunk
+        # y_filtered = self.y[ : self.N] # Take out last chunk
 
         return self.user_defined_function(X_filtered, y_filtered)
 

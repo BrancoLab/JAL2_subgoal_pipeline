@@ -54,8 +54,8 @@ class Visualize:
                 preprocessObject = DataPreprocessor(self, cluster_labels_to_filter = self.settings.cluster_type)
 
 
-            # Test TODO - remove
-            CoverageStatistics(video_data_frame = preprocessObject.video_df, is_barrier_experiment = True)
+            # Plot the coverage statistics
+            # CoverageStatistics(video_data_frame = preprocessObject.video_df, is_barrier_experiment = False)
 
             visualObject = Visualize_efizz(preprocessObject)
                         

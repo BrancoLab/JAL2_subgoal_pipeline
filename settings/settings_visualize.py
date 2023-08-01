@@ -44,7 +44,7 @@ settings_visualize = Settings_visualize(
     
     # Preprocessing settings
     cluster_type = 'synthetic', # cluster_type: "synthetic", "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-    expand_behaviour = True, # If running sythetic and you want to expand the behaviour to be perfectly sampled
+    expand_behaviour = False, # If running sythetic and you want to expand the behaviour to be perfectly sampled
     num_samples_of_expansion = 100000 # How many samples to use for the expansion, only used if expand_behaviour is True
 
 )
