@@ -13,6 +13,9 @@ import pandas as pd
 
 # TODO: Shape assertions 
 # # TODO: Improve with cross validation
+# Check if the data is in the right format and move to preprocessing class
+# Check if the functions from the neural decoding script are valid
+# Check if preprocessing steps are valid
 
 class LSTMRegression(object):
 
