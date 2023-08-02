@@ -12,6 +12,7 @@ from sklearn.metrics import confusion_matrix
 
 # import functions
 from behave_analysis.visualize.visualize_efizz import filter_video_dataframe, generate_bin_angles 
+# https://github.com/jakeormond/vectorFields/blob/main/calculateMeanDirections_combinedVectors.m
 
 def Consink(self):
     """

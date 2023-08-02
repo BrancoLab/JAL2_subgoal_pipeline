@@ -1,5 +1,6 @@
+
 from behave_analysis.analyze.TunED.tunED_model import TunEdModel
-# from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
+from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
 # from behave_analysis.analyze.ConSink.Consink_model import Consink
 from settings.settings_analyze_efizz import Settings_analyze_efizz
 from behave_analysis.analyze.linshit import LinearShift
@@ -22,6 +23,7 @@ class AnalyzeEfizz:
         if not os.path.isdir(path):
             os.mkdir(path)
         self.dir = path
+
         self.cluster_type = Settings_analyze_efizz.cluster_type
         logger.info(f"Running models on cluster category: {self.cluster_type}")
         self.show_plots = Settings_analyze_efizz.show_plots
@@ -50,15 +52,14 @@ class AnalyzeEfizz:
                        apply_linear_shift = False,
                        save_plots = False)
               
+
             logger.success('TunED analysis complete')
         
         # Run LSTM    
-        if 1:
-            X, y = bin_polars_dataframes(spike_data = pl.read_csv(self.spike_data_frame),
-                                         video_data = self.data_df)
-            
-            X_valid, y_valid, X_train, y_train, y_test = preprocess_data_and_set_up(neural_data = X, y = y)
-            main(X_valid, y_valid, X_train, y_train, y_test)
+#         if 0:
+#             X, y = bin_polars_dataframes(spike_data = pl.read_csv(self.spike_data_frame), video_data = self.data_df)
+#             X_valid, y_valid, X_train, y_train, y_test = preprocess_data_and_set_up(neural_data = X, y = y)
+#             main(X_valid, y_valid, X_train, y_train, y_test)
 
         # if Settings_analyze_efizz.run_consink:
         #     logger.info('Running Consink')
@@ -70,11 +71,9 @@ class AnalyzeEfizz:
             # pcaGLM(self.large_data_file)
             # logger.success('pcaGLM analysis complete')
             
-        # if len(Settings_analyze_efizz.run_LDA) > 0:
-        #     for variable in Settings_analyze_efizz.run_LDA:
-        #         logger.info(f"Running LDA on {variable}")
-        #         linear_discriminant_analysis(self, variable,Settings_analyze_efizz.object_present)
-        #         logger.success('LDA analysis complete')
+        if len(Settings_analyze_efizz.run_LDA) > 0:
+            run_LDA_model(self,Settings_analyze_efizz)
+            logger.success('LDA analysis complete')
         
         logger.success('All models complete')
             

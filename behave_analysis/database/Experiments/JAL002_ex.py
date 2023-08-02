@@ -68,20 +68,20 @@ mushroom4_002 = Experiment(# Mouse specific
                     experiment_path = Path(r"002_mushroom4_2023_05_01T08_16_14"))
 
 seq1_3_002 = Experiment(# Mouse specific
-                        nick_name = JAL002.nick_name,
-                        total_sessions = JAL002.total_sessions,
-                        mouse_number_pyrat = JAL002.mouse_number_pyrat,
-                        experiment_file_names = JAL002.experiment_file_names,
-                        root_path = JAL002.root_path,
-                        
-                         # Experiment specific
-                         experiment_name = 'sequence1_3',
-                         experiment_idx = 0,
-                         experiment_date = "2023_04_28",
-                         experiment_time = "08_31_30",
-                         shelter_time = [0, -1],
-                         barrier_time = [30, -1],
-                         experiment_path = Path(r"002_Sequence1_3_2023_04_28T08_31_30"))
+                    nick_name = JAL002.nick_name,
+                    total_sessions = JAL002.total_sessions,
+                    mouse_number_pyrat = JAL002.mouse_number_pyrat,
+                    experiment_file_names = JAL002.experiment_file_names,
+                    root_path = JAL002.root_path,
+                    
+                    # Experiment specific
+                    experiment_name = 'sequence1_3',
+                    experiment_idx = 0,
+                    experiment_date = "2023_04_28",
+                    experiment_time = "08_31_30",
+                    shelter_time = [0, -1],
+                    barrier_time = [30, -1],
+                    experiment_path = Path(r"002_Sequence1_3_2023_04_28T08_31_30"))
 
 seq1_2_002 = Experiment(# Mouse specific
                     nick_name = JAL002.nick_name,
@@ -147,18 +147,34 @@ mushy4 = Experiment(# Mouse specific
                     barrier_time = [],
                     experiment_path = Path(r"002_mushroom4_2023_05_01T08_16_14"))
 
+seq1_1 = Experiment(# Mouse specific
+                    nick_name = JAL002.nick_name,
+                    total_sessions = JAL002.total_sessions,
+                    mouse_number_pyrat = JAL002.mouse_number_pyrat,
+                    experiment_file_names = JAL002.experiment_file_names,
+                    root_path = JAL002.root_path,
+
+                    # Experiment specific
+                    experiment_name = 'sequence1',
+                    experiment_idx = 1,
+                    experiment_date = "2023_04_22",
+                    experiment_time = "08_38_41",
+                    shelter_time = [0, 30],
+                    barrier_time = [30, -1],
+                    experiment_path = Path(r"002_Sequence1_2023_04_22T08_38_41"))
+
 mushroom_3_002 = Experiment(# Mouse specific
-                            nick_name = JAL002.nick_name,
-                            total_sessions = JAL002.total_sessions,
-                            mouse_number_pyrat = JAL002.mouse_number_pyrat,
-                            experiment_file_names = JAL002.experiment_file_names,
-                            root_path = JAL002.root_path,
-                            
-                            # Experiment specific
-                            experiment_name = 'mushroom',
-                            experiment_idx = 3,
-                            experiment_date = "2023_04_27",
-                            experiment_time = "08_30_15", 
-                            shelter_time = [30, -1],
-                            barrier_time = [],
-                            experiment_path = Path(r"002_mushroom3_2023_04_27T08_30_15"))
+                    nick_name = JAL002.nick_name,
+                    total_sessions = JAL002.total_sessions,
+                    mouse_number_pyrat = JAL002.mouse_number_pyrat,
+                    experiment_file_names = JAL002.experiment_file_names,
+                    root_path = JAL002.root_path,
+                    
+                    # Experiment specific
+                    experiment_name = 'mushroom',
+                    experiment_idx = 3,
+                    experiment_date = "2023_04_27",
+                    experiment_time = "08_30_15", 
+                    shelter_time = [30, -1],
+                    barrier_time = [],
+                    experiment_path = Path(r"002_mushroom3_2023_04_27T08_30_15"))

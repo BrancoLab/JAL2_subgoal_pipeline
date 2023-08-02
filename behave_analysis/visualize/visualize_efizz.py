@@ -242,7 +242,7 @@ class Visualize_efizz:
         A function that computes every single tuning curve for each cell
         """
         logger.info("Commence making figures of each individual cluster and all its respective tuning plots")
-        run = {'hdir': True,'hsa':True, 'pre_hsa': True, 'h_bar_south_a': True, 'pre_h_bar_south_a': True, 'h_bar_north_a': True, 'pre_h_bar_north_a': True}
+        run = {'hdir': True,'hsa':True, 'pre_hsa': True, 'h_bar_south_a': True, 'pre_h_bar_south_a': True, 'h_bar_north_a': True, 'pre_h_bar_north_a': True, 'h_bar_centre_a': False, 'pre_h_bar_centre_a': False,}
         
         # If the tuning dictionary exsits, then run the keys of the above dtionary, and if the key is int the tuning directory, then set it to false
         # What?
@@ -259,30 +259,38 @@ class Visualize_efizz:
         # head shelter angle
         if len(self.processed_data.Visualize.session.shelter_time) > 0:
             if run['hsa']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_shelter_angle', object_present = True)
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'hsa', object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 if not(np.logical_and(self.processed_data.Visualize.session.shelter_time[0] == 0, self.processed_data.Visualize.session.shelter_time[1] == -1)):
                     if run['pre_hsa']:
-                        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_shelter_angle',object_present = False)
+                        filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'hsa',object_present = False)
                         self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                         
         # head barrier angle
         if len(self.processed_data.Visualize.session.barrier_time) > 0:
             if run['h_bar_south_a']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_south_barrier_angle',object_present = True)
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_south_a',object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if run['h_bar_north_a']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_north_barrier_angle',object_present = True)
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_north_a',object_present = True)
+                self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
+
+            if run['h_bar_centre_a']:
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_centre_a',object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if not(np.logical_and(self.processed_data.Visualize.session.barrier_time[0] == 0, self.processed_data.Visualize.session.barrier_time[1] == -1)):
                 if run['pre_h_bar_south_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_south_barrier_angle',object_present = False)
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_south_a',object_present = False)
                     self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                     
                 if run['pre_h_bar_north_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'head_north_barrier_angle',object_present = False)
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_north_a',object_present = False)
+                    self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
+
+                if run['pre_h_bar_centre_a']:
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_centre_a',object_present = False)
                     self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
 
         # individual figures for each cluster with all polar plots
@@ -628,28 +636,33 @@ def filter_video_dataframe(dataframe, which_angle, object_present):
     """
     A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
     """
-    if which_angle == 'head_shelter_angle':
+    if which_angle == 'hsa':
         filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
                                             (dataframe["EscapePeriod"] == False) & 
                                             (dataframe["shelter_only"] == object_present))
-        angle_filt = 'hsa'
+        angle_filt = which_angle
 
-    elif which_angle == 'head_south_barrier_angle':
+    elif 'bar' in which_angle:
         filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
                                             (dataframe["EscapePeriod"] == False) & 
                                             (dataframe["barrier_present"] == object_present))
-        angle_filt = 'h_bar_south_a'
+        angle_filt = which_angle
 
-    elif which_angle == 'head_north_barrier_angle':
-        filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) &
+    elif 'randP' in which_angle:
+        if dataframe.filter(dataframe["barrier_present"] == True).height > 0: # if it is a barrier session
+            filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
+                                                (dataframe["EscapePeriod"] == False) & 
+                                                (dataframe["barrier_present"] == object_present))
+        else:
+            filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
                                             (dataframe["EscapePeriod"] == False) & 
-                                            (dataframe["barrier_present"] == object_present))
-        angle_filt = 'h_bar_north_a'
+                                            (dataframe["shelter_only"] == object_present))
+        angle_filt = which_angle
 
     elif which_angle == 'hdir':
         filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) &
                                             (dataframe["EscapePeriod"] == False))
-        angle_filt = 'hdir'
+        angle_filt = which_angle
         
     title = angle_filt
     if object_present == False: 
@@ -668,4 +681,3 @@ def generate_bin_angles(number_of_bins):
 #     num_rows = int(np.ceil(max_plots_per_figure / num_cols))
 #     num_figures = int(np.ceil(how_many_plots_you_need / max_plots_per_figure))
 #     return num_cols, num_rows, num_figures
-        
