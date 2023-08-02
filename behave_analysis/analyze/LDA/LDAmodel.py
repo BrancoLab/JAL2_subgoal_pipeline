@@ -92,9 +92,9 @@ def BinDfbyAngle(self, variable, settings):
     A function that processes dataframe for discriminant analysis
     variable: what we're trying to predict (e.g. head_shelter_angle), it needs to be one of the columns of video_df
     """
-
     # edges for binning firing rate at different angles
     bin_angles, bin_angle_center = generate_bin_angles(settings.number_of_bins)
+
 
     # subselect relevant times
     filtered_video_df, angle_filt, title = filter_video_dataframe(self.data_df, variable, self.object_present)
@@ -114,6 +114,7 @@ def BinDfbyAngle(self, variable, settings):
     df_all = df_all.sort('frames')
     df_all.replace("binned_angles",df_first['binned_angles'])
     df_all = df_all.sort('frames')
+
 
     # median filter!
     x = sp.medfilt(np.cos(df_all['binned_angles'].to_numpy()),41)

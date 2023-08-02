@@ -9,6 +9,8 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     cluster_type = ['synthetic','synthetichdir'],#,'all','good'], # Can choose all, good, mua
     show_plots = False,
     object_present = [True], # If True will analyse data only when object present, if false, it will analyze only when object not present 
+    analyze_only_the_period_before_shelter = False, # If True will only analyze the period before the shelter, if false, it will analyze after the whole session
+    analyze_only_the_period_before_barrier = False, # If True will only analyze the period before the barrier, if false, it will analyze the whole session
     
     # Tuned model settings
     run_tunED = False,

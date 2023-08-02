@@ -5,7 +5,7 @@ import polars as pl
 import os
 import matplotlib 
 import matplotlib.pyplot as plt
-matplotlib.use('Agg')
+# matplotlib.use('Agg') # Removing agg as it doesnt allow for gui
 from loguru import logger
 import time
 
@@ -389,33 +389,40 @@ class Visualize_efizz:
             angle_firing_hist[counter,:] = all_angles_firing['mean_firing_rate'].to_numpy()
             
             # bootstrap x times with variable shifts in time
+            # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations 
             if compute_bootstrap:
                 x = 100
                 shift_dist = np.empty(x)
                 for it in np.arange(len(shift_dist)): 
-                    # shuffled shifts performed at a random offset between 0 and 100 seconds
-                    shift = int(np.random.uniform(1,100))*self.processed_data.Visualize.session.video.fps # temporal shift in video frames
+                    
+                    # shuffled linear shifts performed at a random offset between 0 and 100 seconds
+                    shift = int(np.random.uniform(1, 100)) * self.processed_data.Visualize.session.video.fps # temporal shift in video frames
                     angles = filtered_video_df[angle_filt].to_numpy()
-                    ang_roll = np.roll(angles,shift)
+                    ang_roll = np.roll(angles, shift)
                     rolled_filtered_video_df = filtered_video_df.select(pl.col('*'),pl.Series(name="rolled_angles", values = ang_roll))
+                    
                     # align spike dataframe to video dataframe
                     spike_to_video_df = rolled_filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+                    
                     # calculate firing rates in angle bins
+                    # TODO - Update variable names to be more descriptive rather than just spike_to_video_df
                     spike_to_video_df = spike_to_video_df.sort('rolled_angles') # polars can be annoying, when using cut it doesn't preserve order :/
                     spike_to_video_df = spike_to_video_df.with_columns(spike_to_video_df['rolled_angles'].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
                     spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
                     spike_to_video_df = spike_to_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) # TODO add this line to rayleigh v function
                     angles_firing = (spike_to_video_df.groupby(by ='binned_angles').agg(pl.col('spike_count').mean().alias('mean_firing_rate')))            
                     angles_firing = angles_firing.sort('binned_angles')
+                    
                     # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
                     all_angles_firing = pl.DataFrame({'all_angles': bin_angle_center[1:-1]})
                     all_angles_firing = all_angles_firing.join(angles_firing, left_on="all_angles", right_on="binned_angles", how="left")
                     all_angles_firing = all_angles_firing.fill_null(strategy="zero")
+                   
                     # compute rayleigh
                     shift_dist[it], _ = compute_rayleigh(all_angles_firing['all_angles'].to_numpy(),all_angles_firing['mean_firing_rate'].to_numpy())
 
                 # significance logical
-                if Rayleigh[counter] > np.percentile(shift_dist,95):
+                if Rayleigh[counter] > np.percentile(shift_dist, 95):
                     Rayleigh_sig[counter] = 1
                     print('yay!')
 
