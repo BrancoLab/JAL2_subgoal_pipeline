@@ -6,9 +6,10 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
-    cluster_type = 'all', # Can choose all, good, mua
+    cluster_type = 'all', # Can choose all, good, mua, synthetic
     show_plots = False,
-    object_present = False, # If True will analyse data only when object present, if false, it will analyze only when object not present 
+    analyze_only_the_period_before_shelter = False, # If True will only analyze the period before the shelter, if false, it will analyze after the whole session
+    analyze_only_the_period_before_barrier = False, # If True will only analyze the period before the barrier, if false, it will analyze the whole session
     
     # Tuned model settings
     run_tunED = False,

@@ -8,6 +8,7 @@ from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.preprocess.processing_classes import SyntheticDataPreprocessor, DataPreprocessor
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.visualize.visualize_behave import Correlations
+from behave_analysis.visualize.coverage_metric import CoverageStatistics
 
 # OS libaries
 from loguru import logger
@@ -45,11 +46,17 @@ class Visualize:
             
             """ Load data into visual object"""
             if self.settings.cluster_type == 'synthetic':
-                preprocessObject = SyntheticDataPreprocessor(self, cluster_labels_to_filter = self.settings.cluster_type) # legancy label filter still saves file name
-            else:
-                preprocessObject = DataPreprocessor(self,  cluster_labels_to_filter = self.settings.cluster_type) # cluster_labels_to_filter: "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+                preprocessObject = SyntheticDataPreprocessor(self, 
+                                                             cluster_labels_to_filter = self.settings.cluster_type,
+                                                             expand_behavioural_data = self.settings.expand_behaviour)
+            
+            elif self.settings.cluster_type in ['all', 'good', 'mua', 'noise']:
+                preprocessObject = DataPreprocessor(self, cluster_labels_to_filter = self.settings.cluster_type)
 
-            print(preprocessObject)
+
+            # Plot the coverage statistics
+            # CoverageStatistics(video_data_frame = preprocessObject.video_df, is_barrier_experiment = False)
+
             visualObject = Visualize_efizz(preprocessObject)
                         
             """Make tuning plots"""
@@ -83,11 +90,13 @@ class Visualize:
             # Laser sync test TODO: check if this still works with new polars data organization
             # if self.settings.escape_trials: visualObject.single_cluster_raster_Laser_test()
 
+
         # logger.info(f"Starting to make some behaviour ONLY overview plots.")
         # BehaveObject = Visualize_behave(self)
         # BehaveObject.position_by_bsa()
         # BehaveObject.location_occupancy()
         # BehaveObject.angle_histograms()
+        
         # Test Behaviour correlation plots
         # correlationChild = Correlations(MaxPlotsPerFigure = 10, 
         #                                 how_many_plots_you_need = 6, 

@@ -40,6 +40,11 @@ settings_visualize = Settings_visualize(
     sessions = [0], # This session must be the one indexed in the databank
     all_sessions = False,
     efizz = True, # if you want to visualize efizz also
+    show_plots = False, # if this is false, it will make and save the plots without showing them
+    
+    # Preprocessing settings
     cluster_type = 'synthetic', # cluster_type: "synthetic", "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-    show_plots = False # if this is false, it will make and save the plots without showing them
+    expand_behaviour = False, # If running sythetic and you want to expand the behaviour to be perfectly sampled
+    num_samples_of_expansion = 100000 # How many samples to use for the expansion, only used if expand_behaviour is True
+
 )

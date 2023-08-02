@@ -1,7 +1,10 @@
-from behave_analysis.analyze.TunED.tunED_model import tunED_model_main
-from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
-from behave_analysis.analyze.ConSink.Consink_model import Consink
+
+from behave_analysis.analyze.TunED.tunED_model import TunEdModel
+from behave_analysis.analyze.LDA.LDAmodel import linear_discriminant_analysis
+# from behave_analysis.analyze.ConSink.Consink_model import Consink
 from settings.settings_analyze_efizz import Settings_analyze_efizz
+from behave_analysis.analyze.linshit import LinearShift
+from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 
 # OS Lib
 from loguru import logger
@@ -16,27 +19,48 @@ class AnalyzeEfizz:
     """
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
-        self.dir = session.processed_path + "\\" + 'models' 
+        path = session.processed_path + "\\" + 'models'
+        if not os.path.isdir(path):
+            os.mkdir(path)
+        self.dir = path
+
         self.cluster_type = Settings_analyze_efizz.cluster_type
+        logger.info(f"Running models on cluster category: {self.cluster_type}")
         self.show_plots = Settings_analyze_efizz.show_plots
         self.processed_file_directory = session.processed_path + '\\' + str(Settings_analyze_efizz.cluster_type) + '_large_dataframe.csv'
+        self.spike_data_frame = session.processed_path + '\\' + "synthetic_efizz_data.csv" # Per spike data not binned - Need to update to be dynamic NOTE
+        self.video_data_frame = pl.read_csv(session.processed_path + '\\' + "spike_count_by_frame_and_syntheticcluster.csv") # video frame NOTE update
         if os.path.isfile(self.processed_file_directory):
             self.data_df = pl.read_csv(self.processed_file_directory)
         else:
-            raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
+            raise FileNotFoundError("Data path doesn't exist, have you generated the required data? Check settings as well")
         self.execute_models()
 
     def execute_models(self):
         logger.info('Executing models')
         
-        # Params
-        objectPresent = Settings_analyze_efizz.object_present
-        
         if Settings_analyze_efizz.run_tunED:
+            if not os.path.isdir(self.dir + "\\" + "tunED"):
+                os.mkdir(self.dir + "\\" + "tunED")
+                
+            model_path = os.path.join(self.dir, 'tunED')
             logger.info('Running TunED')
-            tunED_model_main(self.data_df, objectPresent, file_save_location = self.dir + "\\" + "tunED")
-            logger.success('TunED analysis complete')
             
+            TunEdModel(self, 
+                       analyze_efizz_settings =  Settings_analyze_efizz, 
+                       save_location = model_path, 
+                       apply_linear_shift = False,
+                       save_plots = False)
+              
+
+            logger.success('TunED analysis complete')
+        
+        # Run LSTM    
+#         if 0:
+#             X, y = bin_polars_dataframes(spike_data = pl.read_csv(self.spike_data_frame), video_data = self.data_df)
+#             X_valid, y_valid, X_train, y_train, y_test = preprocess_data_and_set_up(neural_data = X, y = y)
+#             main(X_valid, y_valid, X_train, y_train, y_test)
+
         # if Settings_analyze_efizz.run_consink:
         #     logger.info('Running Consink')
         #     Consink(self)
