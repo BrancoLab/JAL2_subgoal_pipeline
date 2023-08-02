@@ -145,3 +145,4 @@ class Settings_analyze_efizz:
     PCA_process: int = 15
     object_present: bool = True
     run_consink: bool = False
+    linear_shift: bool = True

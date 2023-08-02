@@ -120,6 +120,7 @@ class BaseDataPreprocessor(ABC):
         try:
             logger.info("Attempting to load a previously computed spike frame count")
             with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv", "rb") as file:
+            # with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"hdir_cluster.csv", "rb") as file:
                 spikecountbyframe_neuron = pl.read_csv(file.read())
             logger.success("Found spike count by frame and cluster dataframe, loading it now")
             return spikecountbyframe_neuron
@@ -132,6 +133,7 @@ class BaseDataPreprocessor(ABC):
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
             spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
+            # spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"hdir_cluster.csv")
             return spikecountbyframe_neuron
 
 class SyntheticDataPreprocessor(BaseDataPreprocessor):
@@ -140,6 +142,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
     """
     def __init__(self, visualize_object, cluster_labels_to_filter, expand_behavioural_data = False):
         super().__init__(visualize_object, cluster_labels_to_filter)
+        # self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_hdir_data.csv")
         self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
         self.select_clusters = "synthetic"
         self.video_df = self.track_to_polars()
@@ -178,6 +181,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
         large_dataFrame = large_dataFrame.fill_null(strategy="zero")
         large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
+        # large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "hdir_large_dataframe.csv")
 
     def expand_tracking_data(self, video_df: pl.DataFrame, new_entries_to_insert: int) -> pl.DataFrame:
         """

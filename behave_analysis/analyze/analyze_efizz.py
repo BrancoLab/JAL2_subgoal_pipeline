@@ -17,14 +17,19 @@ class AnalyzeEfizz:
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
         self.dir = session.processed_path + "\\" + 'models' 
-        self.cluster_type = Settings_analyze_efizz.cluster_type
         self.show_plots = Settings_analyze_efizz.show_plots
-        self.processed_file_directory = session.processed_path + '\\' + str(Settings_analyze_efizz.cluster_type) + '_large_dataframe.csv'
-        if os.path.isfile(self.processed_file_directory):
-            self.data_df = pl.read_csv(self.processed_file_directory)
-        else:
-            raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
-        self.execute_models()
+        cluster_type = Settings_analyze_efizz.cluster_type
+        object_present = Settings_analyze_efizz.object_present
+        for c in cluster_type:
+            for o in object_present:
+                self.object_present = o
+                self.cluster_type = c
+                self.processed_file_directory = session.processed_path + '\\' + str(self.cluster_type) + '_large_dataframe.csv'
+                if os.path.isfile(self.processed_file_directory):
+                    self.data_df = pl.read_csv(self.processed_file_directory)
+                else:
+                    raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
+                self.execute_models()
 
     def execute_models(self):
         logger.info('Executing models')
@@ -48,6 +53,7 @@ class AnalyzeEfizz:
             # logger.success('pcaGLM analysis complete')
             
         if len(Settings_analyze_efizz.run_LDA) > 0:
+            logger.info(f"Run LDA on {self.cluster_type} data with object_present: {self.object_present}")
             run_LDA_model(self,Settings_analyze_efizz)
             logger.success('LDA analysis complete')
         
