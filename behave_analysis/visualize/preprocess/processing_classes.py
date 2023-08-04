@@ -58,6 +58,13 @@ class BaseDataPreprocessor(ABC):
 
         Returns: Video_df
         """
+        # if mushroom, estend size to outer circle
+        if np.logical_and(self.Visualize.tracking_data['shelter_loc'][1][0] - self.Visualize.tracking_data['shelter_loc'][0][0]<50,
+                            self.Visualize.tracking_data['shelter_loc'][1][1] - self.Visualize.tracking_data['shelter_loc'][0][1]<50):
+            self.Visualize.tracking_data['shelter_loc'][0] = [x - 35 for x in self.Visualize.tracking_data['shelter_loc'][0]]
+            self.Visualize.tracking_data['shelter_loc'][1] = [x + 35 for x in self.Visualize.tracking_data['shelter_loc'][1]]
+        # if side shelter make sure it goes all the way to the edge of image, mouse can't be 'behind' shelter
+        if self.Visualize.tracking_data['shelter_loc'][1][1] > 900: self.Visualize.tracking_data['shelter_loc'][1][1] = 1024
         OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
             self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
             np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
