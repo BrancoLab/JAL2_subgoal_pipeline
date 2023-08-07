@@ -260,7 +260,6 @@ class Track(DLC):
         bod_shelt_dir = - np.arctan2(ydist, xdist)
         self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] + np.pi
         self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] - np.pi
-
         # head shelter angle (from pi to -pi)
         self.region_tracking_data['hdir_shelt'] = np.pi + (-self.region_tracking_data['hdir'] + self.region_tracking_data['bod_shelt_dir'])
         self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi)
@@ -294,20 +293,10 @@ class Track(DLC):
             self.region_tracking_data['barrier_loc'] = self.clicked_points
 
             # initialize variables
-            self.region_tracking_data['bod_barrier_dir'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
             self.region_tracking_data['hdir_barrier'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
 
             for i in np.arange(len(self.clicked_points)): # calculate body to barrier angle for each edge of barrier
-                xdist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data['barrier_loc'][i][0]
-                ydist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data['barrier_loc'][i][1]
-                self.region_tracking_data['bod_barrier_dir'][:,i] = -(np.arctan2(ydist, xdist)) # Radians
-                bod_barr_dir = - np.arctan2(ydist, xdist)
-                self.region_tracking_data['bod_barrier_dir'][bod_barr_dir<0,i] = self.region_tracking_data['bod_barrier_dir'][bod_barr_dir<0,i] + np.pi
-                self.region_tracking_data['bod_barrier_dir'][bod_barr_dir>0,i] = self.region_tracking_data['bod_barrier_dir'][bod_barr_dir>0,i] - np.pi
-                # head barrier angle (from pi to -pi)
-                hdir = np.pi + (- self.region_tracking_data['hdir'] + self.region_tracking_data['bod_barrier_dir'][:,i])
-                hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
-                self.region_tracking_data['hdir_barrier'][:,i] = hdir
+                self.region_tracking_data['hdir_barrier'][:,i] = compute_angle_head_point(self,'barrier_loc',i)
         else:
             self.region_tracking_data['barrier_loc'] = []
         logger.info("Subgoal angles computed")
@@ -318,36 +307,39 @@ class Track(DLC):
         It will ask you to define the barrier edge position"""
 
         # ask user to select some extra 'random' points in arena
-        print("Click as many random points as wanted, then space bar when satisfied")
-        cv2.namedWindow('where are random points')
-        self.clicked_points = []
-        cv2.setMouseCallback('where are random points', self.click_click_targets)
-        while True:
-            cv2.imshow('where are random points', self.arena)
-            key = cv2.waitKey(10)
-            if key==ord(' '): break # once both points are clicked
-            if key == ord('q'): print('quit.'); sys.exit()
-        cv2.destroyAllWindows()
+        user_input = input('Do you want to manually chose random points? y/n: ')
+        if user_input == 'y':
+            print("Click as many random points as wanted, then space bar when satisfied")
+            cv2.namedWindow('where are random points')
+            self.clicked_points = []
+            cv2.setMouseCallback('where are random points', self.click_click_targets)
+            while True:
+                cv2.imshow('where are random points', self.arena)
+                key = cv2.waitKey(10)
+                if key==ord(' '): break # once both points are clicked
+                if key == ord('q'): print('quit.'); sys.exit()
+            cv2.destroyAllWindows()
+            self.region_tracking_data['randP_loc'] = self.clicked_points
+        else:
+            size = np.shape(self.arena)[0] # assuming a square image
+            all_posX = []
+            all_posY = []
+            for i in np.arange(8,size,16):
+                all_posX = np.append(all_posX,np.arange(8,size,16))
+                all_posY = np.append(all_posY,np.ones(len(np.arange(8,size,16)))*i)
+            dist = np.sqrt(((all_posX - size/2)**2) + ((all_posY - size/2)**2))
+            all_posX = all_posX[dist<460] # size of arena circle, see register
+            all_posY = all_posY[dist<460]
+            self.region_tracking_data['randP_loc'] = np.vstack([all_posX,all_posY]).T
         
         # initialize variables
-        self.region_tracking_data['bod_randP_dir'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
-        self.region_tracking_data['hdir_randP'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.clicked_points)))
+        self.region_tracking_data['hdir_randP'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.region_tracking_data['randP_loc'])))
 
-        self.region_tracking_data['randP_loc'] = self.clicked_points
-        for i in np.arange(len(self.clicked_points)): # calculate body to barrier angle for each edge of barrier
-            xdist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data['randP_loc'][i][0]
-            ydist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data['randP_loc'][i][1]
-            self.region_tracking_data['bod_randP_dir'][:,i] = -(np.arctan2(ydist, xdist)) # Radians
-            bod_barr_dir = - np.arctan2(ydist, xdist)
-            self.region_tracking_data['bod_randP_dir'][bod_barr_dir<0,i] = self.region_tracking_data['bod_randP_dir'][bod_barr_dir<0,i] + np.pi
-            self.region_tracking_data['bod_randP_dir'][bod_barr_dir>0,i] = self.region_tracking_data['bod_randP_dir'][bod_barr_dir>0,i] - np.pi
-            # head barrier angle (from pi to -pi)
-            hdir = np.pi + (- self.region_tracking_data['hdir'] + self.region_tracking_data['bod_randP_dir'][:,i])
-            hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
-            self.region_tracking_data['hdir_randP'][:,i] = hdir
+        for i in np.arange(len(self.region_tracking_data['randP_loc'])): # calculate body to barrier angle for each edge of barrier
+            self.region_tracking_data['hdir_randP'][:,i] = compute_angle_head_point(self,'randP_loc',i)
 
         logger.info("Random point angles computed")
-    
+   
     def click_click_targets(self, event,x,y, flags, params):
         if event == cv2.EVENT_LBUTTONDOWN:
             self.arena = cv2.circle(self.arena, (x, y), 3, 255, -1)
@@ -434,4 +426,17 @@ class Track(DLC):
             plt.title('Histogram of confidence in tracking data')
             plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
             plt.show()
+
+def compute_angle_head_point(self,point_name,idx):
+    xdist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data[point_name][idx][0]
+    ydist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data[point_name][idx][1]
+    bod_barr_dir = - np.arctan2(ydist, xdist)
+    bod_dir_pos = bod_barr_dir>0
+    bod_dir_neg = bod_barr_dir<0
+    bod_barr_dir[bod_dir_neg] = bod_barr_dir[bod_dir_neg] + np.pi
+    bod_barr_dir[bod_dir_pos] = bod_barr_dir[bod_dir_pos] - np.pi
+    # head barrier angle (from pi to -pi)
+    hdir = np.pi + (- self.region_tracking_data['hdir'] + bod_barr_dir)
+    hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
+    return hdir
     
