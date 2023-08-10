@@ -154,9 +154,9 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
     """
     def __init__(self, visualize_object, cluster_labels_to_filter, expand_behavioural_data = False):
         super().__init__(visualize_object, cluster_labels_to_filter)
-        # self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_hdir_data.csv")
-        self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
-        self.select_clusters = "synthetic"
+        # self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetichdir_efizz_data.csv")
+        self.csv_path = os.path.join(self.Visualize.session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
+        self.select_clusters = cluster_labels_to_filter
         self.video_df = self.track_to_polars()
         self.expand_behavioural_data = expand_behavioural_data
         if expand_behavioural_data: 
@@ -182,9 +182,9 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
     def activate_synthetic_data_generation(self) -> None:
         logger.info("Synthetic spike data doesn't exist and will now be generated")
         tuning = ['hdir']
-        if len(self.Visualize.session.shelter_time) > 0: 
+        if np.logical_or(np.logical_and(len(self.Visualize.session.shelter_time) > 0,self.select_clusters == 'synthetic'),'hsa' in self.select_clusters): 
             tuning.append('hsa')
-        if len(self.Visualize.session.barrier_time) > 0: 
+        if np.logical_and(len(self.Visualize.session.barrier_time) > 0,self.select_clusters == 'synthetic'): 
             tuning.append('h_bar_north_a')
             tuning.append('h_bar_south_a')
         synth_df = generate_synthetic_dataframe(tuning, pass_video_df = self.video_df)
