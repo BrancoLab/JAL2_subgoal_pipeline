@@ -324,9 +324,10 @@ class Track(DLC):
             size = np.shape(self.arena)[0] # assuming a square image
             all_posX = []
             all_posY = []
-            for i in np.arange(8,size,16):
-                all_posX = np.append(all_posX,np.arange(8,size,16))
-                all_posY = np.append(all_posY,np.ones(len(np.arange(8,size,16)))*i)
+            numpoints = 64
+            for i in np.arange(numpoints/2,size,numpoints):
+                all_posX = np.append(all_posX,np.arange(numpoints/2,size,numpoints))
+                all_posY = np.append(all_posY,np.ones(len(np.arange(numpoints/2,size,numpoints)))*i)
             dist = np.sqrt(((all_posX - size/2)**2) + ((all_posY - size/2)**2))
             all_posX = all_posX[dist<460] # size of arena circle, see register
             all_posY = all_posY[dist<460]

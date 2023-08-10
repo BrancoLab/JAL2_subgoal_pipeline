@@ -9,6 +9,7 @@ import plotly.graph_objects as go
 from plotly.express.colors import sample_colorscale
 import pickle
 import matplotlib
+import re
 matplotlib.use('Agg')
 from loguru import logger
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
@@ -19,6 +20,7 @@ from sklearn.metrics import confusion_matrix
 # import functions
 from behave_analysis.visualize.visualize_efizz import filter_video_dataframe, generate_bin_angles 
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
+from behave_analysis.utils.open_tracking_data import open_tracking_data
 
 def run_LDA_model(self, settings):
     """ A function that runs discriminant analysis based on user settings"""
@@ -61,7 +63,7 @@ def run_LDA_model(self, settings):
                 pa = linear_discriminant_analysis(X,
                                                   Y = (df['binned_angles'].to_numpy().T), 
                                                   discriminant_type = settings.discriminant_type, 
-                                                  plotting = True,
+                                                  plotting = False,
                                                   settings = settings,
                                                   self = self,
                                                   title = savename)
@@ -77,14 +79,14 @@ def run_LDA_model(self, settings):
                 title = np.append(title,str('randP' + str(j)))
     
     # make a plot of prediction accuracy across variables
-    # TODO: make this prettier!
+    # TODO: if randP > 3.... plot distribution instead!
     PlotPredictionAccuracy(self, prediction_accuracy,title,settings)
     if self.object_present == True:
         filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + ".pkl"
     else:
         filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + "_noObj.pkl"
     with open(filename, 'wb') as fp:
-            pickle.dump(prediction_accuracy, fp) 
+        pickle.dump(prediction_accuracy, fp) 
 
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:
@@ -97,8 +99,8 @@ def run_LDA_model(self, settings):
             pickle.dump(LS_compiled, fp)  
 
     # TODO: random points analysis:
-    # plot distribution of random points PA vs barrier
-    # map random points PA on arena
+    if len(list(filter(lambda x: 'randP' in x, title))) > 10:
+        PredictionAccuracyMapped(self,prediction_accuracy)
     
 def BinDfbyAngle(self, variable, settings):
     """
@@ -301,12 +303,32 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
     fig = go.Figure()
-    colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,len(title))))
-    for i, var in enumerate(title):
+    
+    if len(list(filter(lambda x: 'randP' in x, title))) < 10:
+        colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,len(title))))
+    else:
+        colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,len(list(filter(lambda x: 'randP' not in x, title)))+1)))
+        
+    for i, var in enumerate(list(filter(lambda x: 'randP' not in x, title))):
         fig.add_trace(go.Bar(x = [var],
-                             y = [prediction_accuracy[var]],
-                             width = .5,
-                             marker = dict(color = colorz[i], opacity = .5)))
+                            y = [prediction_accuracy[var]],
+                            width = .5,
+                            marker = dict(color = colorz[i], opacity = .5)))
+    
+    if len(list(filter(lambda x: 'randP' in x, title))) < 10:
+        for j, var in enumerate(list(filter(lambda x: 'randP' in x, title))):
+            fig.add_trace(go.Bar(x = [var],
+                                y = [prediction_accuracy[var]],
+                                width = .5,
+                                marker = dict(color = colorz[i+j], opacity = .5)))
+    else:
+        res = [val for key, val in prediction_accuracy.items() if re.search('randP', key)]
+        var = 'randP'
+        fig.add_trace(go.Violin(x = [var]*len(res), 
+                                y = res,
+                                points = 'all',jitter = .05,
+                                marker = dict(size = 3,color = colorz[i+1])))
+
     fig.update_layout(showlegend=False)
     fig.update_yaxes(range = [0, 1])
     fig.update_yaxes(title_text = 'prediction accuracy')
@@ -319,9 +341,14 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
 
 def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
     fig = go.Figure()
-    colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,len(title))))
+    if len(title) > 10:
+        colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,10)))
+    else:
+        colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,len(title))))
 
     for i, var in enumerate(title):
+        if i >= 10:
+            break
         fig.add_trace(go.Violin(x = [var]*len(LS_compiled[var].pseudo_stats), 
                                 y = LS_compiled[var].pseudo_stats,
                                 points = 'all',jitter = .05,
@@ -347,6 +374,36 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
     else:
         filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_LS_prediction_accuracy" + "_noObj.png"
     fig.write_image(filename)
+
+def PredictionAccuracyMapped(self,prediction_accuracy):
+    open_tracking_data(self)
+    pa = [val for key, val in prediction_accuracy.items() if re.search('randP', key)]
+    plt.figure(figsize=(15, 15))
+    if 'h_bar_north_a' in prediction_accuracy.keys():
+        plt.plot([self.tracking_data["barrier_loc"][0][0],self.tracking_data["barrier_loc"][1][0]],
+                [self.tracking_data["barrier_loc"][0][1],self.tracking_data["barrier_loc"][1][1]],
+                color = [1,0,0])
+    if 'hsa' in prediction_accuracy.keys():
+        for i in [0,1]:
+            plt.plot([self.tracking_data["shelter_loc"][0][0],self.tracking_data["shelter_loc"][1][0]],
+                    [self.tracking_data["shelter_loc"][i][1],self.tracking_data["shelter_loc"][i][1]],
+                    color = [1,0,0])
+            plt.plot([self.tracking_data["shelter_loc"][i][0],self.tracking_data["shelter_loc"][i][0]],
+                    [self.tracking_data["shelter_loc"][0][1],self.tracking_data["shelter_loc"][1][1]],
+                    color = [1,0,0])
+    sc = plt.scatter(self.tracking_data["randP_loc"][:,0],self.tracking_data["randP_loc"][:,1], c = pa, s  =75, cmap = "Blues")
+    plt.colorbar(sc)
+    plt.axis('off')
+    ax = plt.gca()
+    ax.invert_yaxis()
+    ax.set_aspect('equal')
+    if self.object_present == True:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy_map" + ".png"
+    else:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy_map" + "_noObj.png"
+    plt.savefig(filename)
+    if self.show_plots: plt.show()
+    plt.close()
 
 # Utility functions ------------------------------------------------------------------------------------------------
 
