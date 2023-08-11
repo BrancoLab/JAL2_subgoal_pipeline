@@ -8,16 +8,17 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from plotly.express.colors import sample_colorscale
 import pickle
-import re
 import matplotlib
+import re
 matplotlib.use('Agg')
 from loguru import logger
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
 from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
 
 # import functions
-from behave_analysis.visualize.visualize_efizz import generate_bin_angles 
+from behave_analysis.visualize.visualize_efizz import filter_video_dataframe, generate_bin_angles 
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 
@@ -33,11 +34,11 @@ def run_LDA_model(self, settings):
     for variable in settings.run_LDA:
         if variable != 'randP':
             logger.info(f"Processing for LDA on {variable}")
-            vid_df, savename= BinDfbyAngle(self,variable, settings)
-            X = ProcessPredictors(self,vid_df,settings)
+            df, savename, clu = BinDfbyAngle(self,variable, settings)
+            X = ProcessPredictors(df, clu, settings)
             logger.info(f"Running LDA on {variable}")
             pa = linear_discriminant_analysis(X,
-                                              Y = (vid_df['binned_angles'].to_numpy().T), 
+                                              Y = (df['binned_angles'].to_numpy().T), 
                                               discriminant_type = settings.discriminant_type, 
                                               plotting = True, 
                                               settings = settings, 
@@ -47,20 +48,20 @@ def run_LDA_model(self, settings):
             logger.info(f"Running linear shift on LDA on {variable}")
             if settings.linear_shift:
                 LS_output = LinearShift(X, 
-                                        y = (vid_df['binned_angles'].to_numpy().T),
+                                        y = (df['binned_angles'].to_numpy().T),
                                         stat_computation_func = linear_discriminant_analysis,
                                         size_of_central_chunk = np.round(np.shape(X)[0]/3))
                 LS_compiled.update({variable: LS_output})
                 del LS_output
             title = np.append(title,variable)
         else:
-            for j in np.arange(self.video_df.select(pl.col('^head_randP_.*$')).width):
-                logger.info(f"Processing for LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
-                vid_df, savename = BinDfbyAngle(self,str('head_randP_' + str(j)), settings)
-                X = ProcessPredictors(self,vid_df,settings)
-                logger.info(f"Running LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
+            for j in np.arange(self.data_df.select(pl.col('^head_randP_.*$')).width):
+                logger.info(f"Processing for LDA on {variable + str(j)} of {self.data_df.select(pl.col('^head_randP_.*$')).width}")
+                df, savename, clu = BinDfbyAngle(self,str('head_randP_' + str(j)), settings)
+                X = ProcessPredictors(df, clu, settings)
+                logger.info(f"Running LDA on {variable + str(j)} of {self.data_df.select(pl.col('^head_randP_.*$')).width}")
                 pa = linear_discriminant_analysis(X,
-                                                  Y = (vid_df['binned_angles'].to_numpy().T), 
+                                                  Y = (df['binned_angles'].to_numpy().T), 
                                                   discriminant_type = settings.discriminant_type, 
                                                   plotting = False,
                                                   settings = settings,
@@ -70,7 +71,7 @@ def run_LDA_model(self, settings):
                 logger.info(f"Running linear shift on LDA on {variable + str(j)}")
                 if settings.linear_shift:
                     LS_output = LinearShift(X, 
-                                            y = (vid_df['binned_angles'].to_numpy().T),
+                                            y = (df['binned_angles'].to_numpy().T),
                                             stat_computation_func = linear_discriminant_analysis,
                                             size_of_central_chunk = np.round(np.shape(X)[0]/3))
                     LS_compiled.update({str(variable + str(j)): LS_output})
@@ -78,24 +79,29 @@ def run_LDA_model(self, settings):
                 title = np.append(title,str('randP' + str(j)))
     
     # make a plot of prediction accuracy across variables
+    # TODO: if randP > 3.... plot distribution instead!
     PlotPredictionAccuracy(self, prediction_accuracy,title,settings)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
+    if self.object_present == True:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + ".pkl"
+    else:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + "_noObj.pkl"
     with open(filename, 'wb') as fp:
         pickle.dump(prediction_accuracy, fp) 
 
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:
         PlotLSPredictionAccuracy(self,LS_compiled,title,settings)
-        filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
+        if self.object_present == True:
+            filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_LS_prediction_accuracy" + ".pkl"
+        else:
+            filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_LS_prediction_accuracy" + "_noObj.pkl"
         with open(filename, 'wb') as fp:
             pickle.dump(LS_compiled, fp)  
 
-    # map random points on arena:
+    # TODO: random points analysis:
     if len(list(filter(lambda x: 'randP' in x, title))) > 10:
         PredictionAccuracyMapped(self,prediction_accuracy)
-
-#### --------- MAIN LDA FUNCS
-
+    
 def BinDfbyAngle(self, variable, settings):
     """
     A function that processes dataframe for discriminant analysis
@@ -104,24 +110,32 @@ def BinDfbyAngle(self, variable, settings):
     # edges for binning firing rate at different angles
     bin_angles, bin_angle_center = generate_bin_angles(settings.number_of_bins)
 
+
     # subselect relevant times
-    filtered_video_df, title = filter_video_dataframe(self.video_df, variable, self.condition)
-    use_video_df = pl.DataFrame({'frames':filtered_video_df['frames'],
-                                variable:filtered_video_df[variable]})
+    filtered_video_df, angle_filt, title = filter_video_dataframe(self.data_df, variable, self.object_present)
 
     # bin angles
-    use_video_df = use_video_df.sort(variable) # polars can be annoying, when using cut it doesn't preserve order :/
-    use_video_df = use_video_df.with_columns(use_video_df[variable].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
-    use_video_df = use_video_df.fill_null(strategy="zero")
-    use_video_df = use_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) 
-    use_video_df = use_video_df.sort('frames')
+    filtered_video_df = filtered_video_df.sort(angle_filt) # polars can be annoying, when using cut it doesn't preserve order :/
+    filtered_video_df = filtered_video_df.with_columns(filtered_video_df[angle_filt].cut(bins = bin_angles, labels = [str(x) for x in bin_angle_center])['category'].alias('binned_angles'))
+    filtered_video_df = filtered_video_df.fill_null(strategy="zero")
+    filtered_video_df = filtered_video_df.select([pl.col('binned_angles').apply(float),pl.exclude('binned_angles')]) 
+    clu = filtered_video_df["spike_clusters"].unique().to_numpy()
+    # if clu[0] == 0: clu = clu[1:]
+
+    # group the  data
+    df_first = filtered_video_df.groupby(["frames"]).first()
+    df_first = df_first.sort('frames')
+    df_all = filtered_video_df.groupby(["frames"]).all()
+    df_all = df_all.sort('frames')
+    df_all.replace("binned_angles",df_first['binned_angles'])
+    df_all = df_all.sort('frames')
 
     # median filter!
-    x = sp.medfilt(np.cos(use_video_df['binned_angles'].to_numpy()),41)
-    y = sp.medfilt(np.sin(use_video_df['binned_angles'].to_numpy()),41)
-    use_video_df.replace('binned_angles',pl.Series('binned_angles',np.digitize(np.arctan2(y,x),bin_angles[1:-1])))
+    x = sp.medfilt(np.cos(df_all['binned_angles'].to_numpy()),41)
+    y = sp.medfilt(np.sin(df_all['binned_angles'].to_numpy()),41)
+    df_all.replace('binned_angles',pl.Series('binned_angles',np.digitize(np.arctan2(y,x),bin_angles[1:-1])))
 
-    return use_video_df, title
+    return df_all, title, clu
 
 def binDfbyEpoch(matrix, matriy, n_bins, epoch_num):
 
@@ -139,21 +153,27 @@ def binDfbyEpoch(matrix, matriy, n_bins, epoch_num):
     
     return matrix, matriy, epochs
 
-def ProcessPredictors(self,vid_df, settings):
-    
-    # select frames that have been filtered
-    frames = vid_df['frames'].unique().to_numpy() - 1
-    X = self.firing_matrix
-    X = X[frames,:]
+def ProcessPredictors(df, clu, settings):
+    # initialize predictor matrix
+    X = np.zeros((int(df['frames'].max()),len(clu)))
+
+    # frames by firing per cluster matrix
+    fillMatrix(df,X,clu)
+    if clu[0] == 0: X = X[:,1:]
+    X = X[df['frames'].unique().to_numpy().astype(int)-1,:]
 
     # remove NaN columns (empty clusters)
     nancolumns = np.where(np.sum(X == 0,axis = 0) == np.shape(X)[0])[0]
     if len(nancolumns) > 0:
         X = np.delete(X, nancolumns, axis=1)
 
+    # optional: transform to firing rate estimate in Hz
+    if settings.use_firing_rate:
+        for i in np.arange(np.shape(X)[1]):
+            X[:,i] = FiringRateEstimate(X[:,i],sampling_rate = 40, window_size = 100)
+
     # normalize firing rates
     # X = X/np.amax(X,axis=0)
-
     # z-score firing rates
     X = (X - np.mean(X,axis=0))/np.std(X,axis=0)
 
@@ -163,7 +183,7 @@ def ProcessPredictors(self,vid_df, settings):
         X = pca.fit_transform(X)
 
     # first column of X is frame num
-    X = np.c_[frames,X]
+    X = np.c_[df['frames'].unique().to_numpy(),X]
 
     return X
 
@@ -180,7 +200,6 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
 
     # chunk into epochs
     X, Y, epochs = binDfbyEpoch(X, Y, n_bins, epoch_num)
-    X = X[:,1:] # the first column is frame id and you no longer need it
 
     # LDA
     for i in np.arange(epoch_num):
@@ -245,7 +264,10 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
             ax.set_ylabel('binned angles')
             ax.set_xlabel('time')
 
-            filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + ".png"
+            if self.object_present == True:
+                filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + ".png"
+            else:
+                filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i+1) + "_noObj.png"
             plt.savefig(filename)
             if self.show_plots: plt.show()
             plt.close()
@@ -266,7 +288,10 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
         ax.set_xlabel('predicted')
         ax.set_title('test')
 
-        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
+        if self.object_present == True:
+            filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
+        else:
+            filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + "_noObj.png"
         plt.savefig(filename)
         if self.show_plots: plt.show()
         plt.close()
@@ -307,7 +332,10 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
     fig.update_yaxes(range = [0, 1])
     fig.update_yaxes(title_text = 'prediction accuracy')
     fig.update_xaxes(tickangle = -45)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".png"
+    if self.object_present == True:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + ".png"
+    else:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy" + "_noObj.png"
     fig.write_image(filename)
 
 def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
@@ -340,7 +368,10 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
     fig.update_yaxes(range = [0, 1.1])
     fig.update_yaxes(title_text = 'prediction accuracy')
     fig.update_xaxes(tickangle = -45)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".png"
+    if self.object_present == True:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_LS_prediction_accuracy" + ".png"
+    else:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_LS_prediction_accuracy" + "_noObj.png"
     fig.write_image(filename)
 
 def PredictionAccuracyMapped(self,prediction_accuracy):
@@ -365,7 +396,10 @@ def PredictionAccuracyMapped(self,prediction_accuracy):
     ax = plt.gca()
     ax.invert_yaxis()
     ax.set_aspect('equal')
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy_map" + ".png"
+    if self.object_present == True:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy_map" + ".png"
+    else:
+        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_prediction_accuracy_map" + "_noObj.png"
     plt.savefig(filename)
     if self.show_plots: plt.show()
     plt.close()
@@ -389,6 +423,22 @@ def BuildSavingFolder(basepath, settings, cluster_type):
         os.makedirs(pathh) 
     
     return pathh
+
+def fillMatrix(df,matrix,clu_id):
+    for i2 in df["frames"].unique():
+        d = df.filter(df["frames"] == i2).to_dict(as_series=False)
+        spikes = np.array(d.get('spike_count')[0])
+        clusters = np.array(d.get('spike_clusters')[0])
+        spikes = spikes[np.argsort(clusters)]
+        clusters = np.sort(clusters)
+        matrix[int(i2)-1,np.where(np.in1d(clu_id,clusters))[0]] = spikes
+
+def FiringRateEstimate(x,sampling_rate,window_size):
+    # sampling rate in fps
+    # window size in ms
+    nbins = 1000/window_size
+    x2 = np.convolve(x,np.ones(int(sampling_rate/nbins),dtype = int),'same')*nbins
+    return x2
 
 def plotConfusionMatrix(y,x,title,axy):
     conf = confusion_matrix(y, x)
@@ -424,6 +474,15 @@ def data_chunker(x,epoch_num):
     binned_frames = np.digitize(rows,epoch_edge)
     return binned_frames
 
+def df_chunker(df,epoch_num):
+    epoch_df = df.sort("frames")
+    epoch_df = epoch_df.hstack([pl.Series('rows',np.arange(len(epoch_df)))])
+    epoch_edge = np.round(np.linspace(epoch_df["rows"].unique().min()-1,epoch_df["rows"].unique().max(),epoch_num+1))
+    epoch_df = epoch_df.with_columns(epoch_df["rows"].cut(bins = epoch_edge, labels = [str(x) for x in np.arange(epoch_num+2)])['category'].alias('binned_frames'))
+    epoch_df = epoch_df.fill_null(strategy="zero")
+    epoch_df = epoch_df.select([pl.col('binned_frames').apply(float),pl.exclude('binned_frames')]) 
+    return epoch_df
+
 def compute_prediction_accuracy(matrixx):
     pos = np.floor(np.shape(matrixx)[1]/2).astype(int)
     pred_acc = np.zeros(np.shape(matrixx)[0])
@@ -432,26 +491,26 @@ def compute_prediction_accuracy(matrixx):
         pred_acc[i] = np.sum(x[pos-1:pos+2])
     return np.mean(pred_acc)
 
-def filter_video_dataframe(dataframe, which_angle, condition):
-    """
-    A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
-    """
-    filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
-                                        (dataframe["EscapePeriod"] == False))
 
-    if condition == 'pre_shelter':
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == False))
-        if 'barrier_present' in filtered_video_df.columns: 
-            filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
+##----------OLD FUNCS   
+def EqualAngleBins_df(df):
+    df_samples = df.groupby(['binned_angles']).count().min()
+    samples = df_samples['count'].to_numpy()[0]
 
-    elif condition == 'shelter_only':
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == True))
-        if 'barrier_present' in filtered_video_df.columns: 
-            filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
+    for c, i in enumerate(df['binned_angles'].unique()):
+        d_filt = df.filter(df['binned_angles'] == i)
+        d_filt = d_filt.sample(samples)
+        if c == 0: df_new = d_filt
+        if c > 0: df_new = df_new.vstack(d_filt)
+    
+    df_new = df_new.sort('frames')
+    return df_new
 
-    elif condition == 'barrier_present':
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True))
-
-    title = str(which_angle + '_' + condition)
-
-    return filtered_video_df, title
+def fillMatrix_small(df,matrix,clu_id):
+    for i, i2 in enumerate(df["frames"].unique()):
+        d = df.filter(df["frames"] == i2).to_dict(as_series=False)
+        spikes = np.array(d.get('spike_count')[0])
+        clusters = np.array(d.get('spike_clusters')[0])
+        spikes = spikes[np.argsort(clusters)]
+        clusters = np.sort(clusters)
+        matrix[i,np.where(np.in1d(clu_id,clusters))[0]] = spikes

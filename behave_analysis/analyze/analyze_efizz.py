@@ -10,6 +10,7 @@ from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and
 from loguru import logger
 import polars as pl
 import os
+import numpy as np
 
 class AnalyzeEfizz:
     """
@@ -20,23 +21,17 @@ class AnalyzeEfizz:
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
         self.dir = session.processed_path + "\\" + 'models' 
+        self.session = session
         if not os.path.isdir(self.dir):
             os.mkdir(self.dir)
         self.show_plots = Settings_analyze_efizz.show_plots
         cluster_type = Settings_analyze_efizz.cluster_type
-        object_present = Settings_analyze_efizz.object_present
+        condition = Settings_analyze_efizz.condition
         for c in cluster_type:
-            for o in object_present:
-                self.object_present = o
+            for o in condition:
+                self.condition = o
                 self.cluster_type = c
                 logger.info(f"Running models on cluster category: {self.cluster_type}")
-                self.processed_file_directory = session.processed_path + '\\' + str(self.cluster_type) + '_large_dataframe.csv'
-                self.spike_data_frame = session.processed_path + '\\' + "synthetic_efizz_data.csv" # Per spike data not binned - Need to update to be dynamic NOTE
-                self.video_data_frame = pl.read_csv(session.processed_path + '\\' + "spike_count_by_frame_and_syntheticcluster.csv") # video frame NOTE update
-                if os.path.isfile(self.processed_file_directory):
-                    self.data_df = pl.read_csv(self.processed_file_directory)
-                else:
-                    raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
                 self.execute_models()
 
     def execute_models(self):
@@ -48,6 +43,15 @@ class AnalyzeEfizz:
                 
             model_path = os.path.join(self.dir, 'tunED')
             logger.info('Running TunED')
+
+            # load data
+            # self.spike_data_frame = self.session.processed_path + '\\' + "synthetic_efizz_data.csv" # Per spike data not binned - Need to update to be dynamic NOTE
+            # self.video_data_frame = pl.read_csv(self.session.processed_path + '\\' + "spike_count_by_frame_and_syntheticcluster.csv") # video frame NOTE update
+            self.processed_file_directory = self.session.processed_path + '\\' + str(self.cluster_type) + '_large_dataframe.csv'
+            if os.path.isfile(self.processed_file_directory):
+                self.data_df = pl.read_csv(self.processed_file_directory)
+            else:
+                raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
             
             TunEdModel(self, 
                        analyze_efizz_settings =  Settings_analyze_efizz, 
@@ -55,7 +59,6 @@ class AnalyzeEfizz:
                        apply_linear_shift = False,
                        save_plots = False)
               
-
             logger.success('TunED analysis complete')
         
         # Run LSTM    
@@ -75,7 +78,11 @@ class AnalyzeEfizz:
             # logger.success('pcaGLM analysis complete')
             
         if len(Settings_analyze_efizz.run_LDA) > 0:
-            logger.info(f"Run LDA on {self.cluster_type} data with object_present: {self.object_present}")
+            logger.info(f"Run LDA on {self.cluster_type} data with object_present: {self.condition}")
+            # load data
+            self.video_df = pl.read_csv(self.session.processed_path + '\\' 'full_video_dataframe.csv')
+            self.processed_file_directory = self.session.processed_path + '\\' 'frame_by_' + str(self.cluster_type) + '_cluster_matrix.npy'
+            self.firing_matrix = np.load(self.processed_file_directory)
             run_LDA_model(self,Settings_analyze_efizz)
             logger.success('LDA analysis complete')
         
