@@ -1,4 +1,4 @@
-name: JALpipeline
+name: JAL2pipeline
 channels:
   - conda-forge
   - defaults
@@ -83,6 +83,7 @@ dependencies:
     - intel-openmp
     - ipython
     - jdcal
+    - kaleido
     - kiwisolver
     - loguru
     - lml
@@ -98,6 +99,7 @@ dependencies:
     - pandas
     - patsy
     - pillow
+    - plotly
     - pluggy
     - polars
     - prompt-toolkit
