@@ -6,7 +6,7 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
-    cluster_type = ['synthetic','synthetichdir', 'synthetichdirhsa'],#['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
+    cluster_type = ['synthetic'],#['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots = False,
     condition = ['barrier_present'], # possible inputs: 'all_time' (don't filter based on shelter or barrier),'pre_shelter' (empty arena),'shelter_only','barrier_present'
     analyze_only_the_period_before_shelter = False, # If True will only analyze the period before the shelter, if false, it will analyze after the whole session
