@@ -8,7 +8,7 @@ from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.preprocess.processing_classes import SyntheticDataPreprocessor, DataPreprocessor
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.visualize.visualize_behave import Correlations
-from behave_analysis.visualize.coverage_metric import CoverageStatistics
+# from behave_analysis.visualize.coverage_metric import CoverageStatistics
 
 # OS libaries
 from loguru import logger
@@ -42,10 +42,10 @@ class Visualize:
         if len(self.session.barrier_time) > 0: self.barriertime = np.array(self.session.barrier_time)*60 # in seconds
 
         if self.settings.efizz:  # this will only make efizz plots if you want them
-            logger.info(f"Starting to make some efizz overview plots...")
             
             """ Load data into visual object"""
-            if self.settings.cluster_type == 'synthetic':
+            logger.info(f"Preprocessing {self.settings.cluster_type} data")
+            if 'synthetic' in self.settings.cluster_type:
                 preprocessObject = SyntheticDataPreprocessor(self, 
                                                              cluster_labels_to_filter = self.settings.cluster_type,
                                                              expand_behavioural_data = self.settings.expand_behaviour)
@@ -60,6 +60,7 @@ class Visualize:
             visualObject = Visualize_efizz(preprocessObject)
                         
             """Make tuning plots"""
+            logger.info(f"Starting to make some efizz overview plots...")
             # Production of vectorized plots  
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena

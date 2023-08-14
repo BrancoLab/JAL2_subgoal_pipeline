@@ -5,6 +5,6 @@ from behave_analysis.database.Experiments.JAL002_ex import firstConnection, mush
 from behave_analysis.database.Experiments.testymctestface_ex import testbonsaipulse, testbonsaipulse2withefizz, test_NEWgate
 
 # Place all experiments in a list and 
-experiments_objects = [mushy4]
+experiments_objects = [seq1_3_002]
 
 # Adding note to test commit

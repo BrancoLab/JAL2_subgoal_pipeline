@@ -39,6 +39,11 @@ class BaseDataPreprocessor(ABC):
         clu_label = self.spike_data.groupby(["spike_clusters"]).first()
         clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
         return clu_label
+
+    def load_spike_data(self) -> pl.DataFrame:
+        spike_data = pl.read_csv(self.csv_path)
+        logger.success("Data found ready for preprocessing")
+        return spike_data
         
     def behaviourally_pure_tracking_data(self, video_df):
         """
@@ -50,20 +55,24 @@ class BaseDataPreprocessor(ABC):
     
     def track_to_polars(self) -> pl.DataFrame:
         """
-        Adds all the behavioral variables from track to the polars sike dataframe
-
-        # NOTE: Wait does it do that? this function looks like it takes the kalman filter data and creates the video dataframe?
-
-        # It seems the main point of this function is to generate video_df which will later be combined with the spike data
+        Adds all the behavioral variables from track to a polars dataframe, video_df - and saves it
 
         Returns: Video_df
         """
+        # if mushroom, estend size to outer circle
+        if np.logical_and(self.Visualize.tracking_data['shelter_loc'][1][0] - self.Visualize.tracking_data['shelter_loc'][0][0]<50,
+                            self.Visualize.tracking_data['shelter_loc'][1][1] - self.Visualize.tracking_data['shelter_loc'][0][1]<50):
+            self.Visualize.tracking_data['shelter_loc'][0] = [x - 35 for x in self.Visualize.tracking_data['shelter_loc'][0]]
+            self.Visualize.tracking_data['shelter_loc'][1] = [x + 35 for x in self.Visualize.tracking_data['shelter_loc'][1]]
+        
+        # if side shelter make sure it goes all the way to the edge of image, mouse can't be 'behind' shelter
+        if self.Visualize.tracking_data['shelter_loc'][1][1] > 900: self.Visualize.tracking_data['shelter_loc'][1][1] = 1024
         OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
             self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
             np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
             self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
 
-            # is there a time with shelter only?
+        # is there a time with shelter only?
         if len(self.Visualize.session.shelter_time) > 0:
             if not(np.logical_and(self.Visualize.session.shelter_time[0] == 0, self.Visualize.session.shelter_time[1] == -1)):
                 if self.Visualize.session.shelter_time[1] == -1: # shelter only until the end of the session
@@ -77,7 +86,8 @@ class BaseDataPreprocessor(ABC):
         else:
             shelteronly = np.zeros(len(OutofShelterIdx)) == 0
             print('no shelter in this session')
-            # what period in the recording was there a barrier?
+        
+        # what period in the recording was there a barrier?
         if len(self.Visualize.session.barrier_time) > 0:
             if self.Visualize.session.barrier_time[1] == -1: # shelter only until the end of the session
                 barrier_present = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.barriertime[0]*self.Visualize.session.video.fps)
@@ -87,10 +97,12 @@ class BaseDataPreprocessor(ABC):
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
             print('no barrier in this session')
+        
         # find the escape periods
         EscapePeriod = np.zeros_like(OutofShelterIdx)
         for onsets in self.Visualize.session.audio.onset_frames:
             EscapePeriod[(onsets[0]-self.Visualize.session.video.fps):(onsets[0]+(10*self.Visualize.session.video.fps))] = 1
+        
         # make a video dataframe where for each video frame:
         video_df = pl.DataFrame(
                 {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
@@ -114,9 +126,10 @@ class BaseDataPreprocessor(ABC):
             for i in np.arange(np.shape(self.Visualize.tracking_data['hdir_randP'])[1]):
                 video_df = video_df.hstack([pl.Series(str('head_randP_' + str(i)),self.Visualize.tracking_data['hdir_randP'][:,i])])
 
+        video_df.write_csv(self.Visualize.session.processed_path + "/" + "full_video_dataframe.csv")
         return video_df
         
-    def count_spikes_and_units_to_frames(self, spike_data_frame) -> pl.DataFrame:
+    def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
         """
         Uses polars query logic to map each cluster to a frame and count how many times each cluster fired in that frame.
         The lazy() function means that computations are not immediately executed. This allows the computer to plan the operations before
@@ -125,7 +138,6 @@ class BaseDataPreprocessor(ABC):
         try:
             logger.info("Attempting to load a previously computed spike frame count")
             with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv", "rb") as file:
-            # with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"hdir_cluster.csv", "rb") as file:
                 spikecountbyframe_neuron = pl.read_csv(file.read())
             logger.success("Found spike count by frame and cluster dataframe, loading it now")
             return spikecountbyframe_neuron
@@ -133,23 +145,61 @@ class BaseDataPreprocessor(ABC):
         except FileNotFoundError:
             logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
             logger.info("Commencing long computation to count spikes for each cluster for each frame")
-            query = (spike_data_frame.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
+            query = (self.spike_data.lazy().groupby(["spike_aligned_to_frame", "spike_clusters"]).agg([pl.count("spike_aligned_to_frame").alias("spike_count")])) # Lazy query to plan computation
             start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
             spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
-            # spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"hdir_cluster.csv")
             return spikecountbyframe_neuron
 
+    def merge_and_save_spike_count_df_with_frame_data(self):
+        logger.info("merging video df and spike df into a super df")
+        video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
+        large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        large_dataFrame = large_dataFrame.fill_null(strategy="zero")
+        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
+
+    def export_large_df_to_frame_by_cluster_matrix(self):
+        logger.info("building a frame by cluster matrix of firing rates")
+        clu = self.spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
+        # group the  data
+        df = self.spikeCountByFrameAndCluster.groupby(["spike_aligned_to_frame"]).all()
+        df = df.sort('spike_aligned_to_frame')
+
+        # frames by firing per cluster matrix
+        frames = self.video_df['frames'].unique().to_numpy().astype(int)
+
+        X = np.zeros((np.amax(frames),len(clu)))
+
+        for i2 in frames:
+            d = df.filter(df["spike_aligned_to_frame"] == i2).to_dict(as_series=False)
+            if len(d['spike_count']) > 0:
+                spikes = np.array(d.get('spike_count')[0])
+                clusters = np.array(d.get('spike_clusters')[0])
+                spikes = spikes[np.argsort(clusters)]
+                clusters = np.sort(clusters)
+                X[int(i2)-1,np.where(np.in1d(clu,clusters))[0]] = spikes
+            
+        if clu[0] == 0: X = X[:,1:]
+
+        # transform to firing rate estimate in Hz
+        sampling_rate = self.Visualize.session.video.fps # in fps
+        window_size = 100 # in ms
+        nbins = 1000/window_size
+        for i in np.arange(np.shape(X)[1]):
+            X[:,i] = np.convolve(X[:,i],np.ones(int(sampling_rate/nbins),dtype = int),'same')*nbins
+
+        np.save(str(self.Visualize.session.processed_path + "/" + "frame_by_" + self.select_cluster_labels +"_cluster_matrix"),X)
+      
+##### -------- synthetic data processor
 class SyntheticDataPreprocessor(BaseDataPreprocessor):
     """
     A child class to support the synthetic data preprocessing pipeline. 
     """
     def __init__(self, visualize_object, cluster_labels_to_filter, expand_behavioural_data = False):
         super().__init__(visualize_object, cluster_labels_to_filter)
-        # self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_hdir_data.csv")
-        self.csv_path = os.path.join(self.Visualize.session.processed_path, "synthetic_efizz_data.csv")
-        self.select_clusters = "synthetic"
+        self.csv_path = os.path.join(self.Visualize.session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
+        self.select_clusters = cluster_labels_to_filter
         self.video_df = self.track_to_polars()
         self.expand_behavioural_data = expand_behavioural_data
         if expand_behavioural_data: 
@@ -158,37 +208,26 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
         self.spike_data = self.load_spike_data()
         self.clu_label = self.extract_cluster_labels()
-        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
-        self.merge_and_save_spike_count_df_with_frame_data(expand_behavioural_data)
+        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
+        self.merge_and_save_spike_count_df_with_frame_data()
+        self.export_large_df_to_frame_by_cluster_matrix()
     
     def check_synthetic_data_exists_if_not_generate_it(self) -> None:
         if not os.path.exists(self.csv_path):
             self.activate_synthetic_data_generation()
         else:
-            logger.info("Synethic spike data found.")
-    
-    def load_spike_data(self) -> pl.DataFrame:
-        spike_data = pl.read_csv(self.csv_path)
-        logger.success("Data found ready for preprocessing")
-        return spike_data
+            logger.info("Synthetic spike data found")
     
     def activate_synthetic_data_generation(self) -> None:
         logger.info("Synthetic spike data doesn't exist and will now be generated")
         tuning = ['hdir']
-        if len(self.Visualize.session.shelter_time) > 0: 
+        if np.logical_or(np.logical_and(len(self.Visualize.session.shelter_time) > 0,self.select_clusters == 'synthetic'),'hsa' in self.select_clusters): 
             tuning.append('hsa')
-        if len(self.Visualize.session.barrier_time) > 0: 
+        if np.logical_and(len(self.Visualize.session.barrier_time) > 0,self.select_clusters == 'synthetic'): 
             tuning.append('h_bar_north_a')
             tuning.append('h_bar_south_a')
         synth_df = generate_synthetic_dataframe(tuning, pass_video_df = self.video_df)
         synth_df.write_csv(self.csv_path)
-    
-    def merge_and_save_spike_count_df_with_frame_data(self, expand_behavioural_data) -> None:
-        video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
-        large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame = large_dataFrame.fill_null(strategy="zero")
-        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
-        # large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "hdir_large_dataframe.csv")
 
     def expand_tracking_data(self, video_df: pl.DataFrame, new_entries_to_insert: int) -> pl.DataFrame:
         """
@@ -231,6 +270,7 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         
         return expanded_synthetic_tracking_data_by_frame
 
+#### ------------ data processor
 class DataPreprocessor(BaseDataPreprocessor):
     """
     A child class to support the production data preprocessing pipeline. 
@@ -242,41 +282,24 @@ class DataPreprocessor(BaseDataPreprocessor):
         
         self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
-        self.unfiltered_spike_data = self.load_spike_data()
-        self.spike_data = self.filter_spike_data()
+        unfiltered_spike_data = self.load_spike_data()
+        self.spike_data = self.filter_spike_data(unfiltered_spike_data)
         self.clu_label = self.extract_cluster_labels()
         self.video_df = self.track_to_polars()
-        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
+        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
         self.merge_and_save_spike_count_df_with_frame_data() # Saves to a csv
+        self.export_large_df_to_frame_by_cluster_matrix()
         
-    def load_spike_data(self) -> pl.DataFrame:
-        """
-        This function is actually identical but I can't figure out how to get it into the base clase as a concrete object because of it's reliance on self.csv_path
-        """
-        spike_data = pl.read_csv(self.csv_path)
-        logger.success("Data found ready for preprocessing")
-        return spike_data
-
-    def filter_spike_data(self):
+    def filter_spike_data(self,df):
         """
         Filter the spike data to only include good neurons or good + MUA
         """        
         if self.select_clusters == 'all':
-            filtered_spike_data = self.unfiltered_spike_data.filter((self.unfiltered_spike_data['cluster_group'] == "good") | (self.unfiltered_spike_data['cluster_group'] == "mua"))
+            filtered_spike_data = df.filter((df['cluster_group'] == "good") | (df['cluster_group'] == "mua"))
             logger.info("Loaded good and multi unit clusters")
         else:
-            filtered_spike_data = self.unfiltered_spike_data.filter(self.unfiltered_spike_data['cluster_group'] == self.select_clusters)
+            filtered_spike_data = df.filter(df['cluster_group'] == self.select_clusters)
             numNeurons = len(filtered_spike_data['spike_clusters'].unique())
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
         
         return filtered_spike_data
-    
-    def merge_and_save_spike_count_df_with_frame_data(self) -> pl.DataFrame:
-        """
-        Merge and save the spike count dataframe with the video dataframe and save it as a new dataframe for later use in the pipeline in the processed file
-        """
-        video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
-        large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame = large_dataFrame.fill_null(strategy="zero")
-        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
-        return large_dataFrame

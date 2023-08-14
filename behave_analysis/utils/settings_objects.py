@@ -145,8 +145,9 @@ class Settings_analyze_efizz:
     use_firing_rate: bool = True
     discriminant_type: str = ''
     PCA_process: int = 15
-    object_present: bool = True
+    object_present: bool = True # we should delete this
     run_consink: bool = False
     linear_shift: bool = True
+    condition: str = ''
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False
