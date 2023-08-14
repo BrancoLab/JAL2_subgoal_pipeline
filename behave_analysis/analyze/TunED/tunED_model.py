@@ -263,6 +263,13 @@ class TunEDModelStats:
         """
         Computes the significance between pairs of tuning curves.
         
+        Significance computation explained:
+        (1) First correct the alpha using the Bonferroni correction
+        (2) Feed this alpha into the inverse of the guassian CDF to get the z-score, given we care about the central 95% of the distribution
+        and the CDF includes the left side of the distribution, we divide alpha by 2 to get the central 95% of the distribution. 0.05 / 2 = 0.025
+        as we need 2.5% on each side of the distribution. We do 1- alpha to get the right side of the distribution. 1 - 0.025 = 0.975.
+        
+        
         NOTE: ARe the same bins used for both tuning curves? Check this
         """
         alpha = 0.05  # initial significance level
@@ -277,7 +284,6 @@ class TunEDModelStats:
         lower_bound_expected = expected_tf - expected_confidence_interval
         do_not_overlap = (upper_bound_observed < lower_bound_expected) | (lower_bound_observed > upper_bound_expected)
         return do_not_overlap
-    
     
     @staticmethod
     def compute_binomial_chance_distribution(dictionary, Nbins = 20):
