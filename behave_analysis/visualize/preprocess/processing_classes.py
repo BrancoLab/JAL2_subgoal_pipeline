@@ -6,6 +6,7 @@ from glob import glob
 import polars as pl
 import time
 import os
+import matplotlib.pyplot as plt
 
 # Custom libaries sdf dsfgsdf
 from behave_analysis.database.synthetic_data.synthetic_main import generate_synthetic_dataframe
@@ -93,7 +94,7 @@ class BaseDataPreprocessor(ABC):
             EscapePeriod[(onsets[0]-self.Visualize.session.video.fps):(onsets[0]+(10*self.Visualize.session.video.fps))] = 1
         # make a video dataframe where for each video frame:
         video_df = pl.DataFrame(
-                {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
+                {"frames": np.arange(1, len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
                 "hdir": self.Visualize.tracking_data['hdir'],
                 "hsa": self.Visualize.tracking_data['hdir_shelt'],
                 "mouse_x_position": self.Visualize.tracking_data['avg_loc'][:,0],
@@ -107,8 +108,8 @@ class BaseDataPreprocessor(ABC):
         if 'hdir_barrier' in self.Visualize.tracking_data:
             video_df = video_df.hstack([pl.Series("h_bar_north_a",self.Visualize.tracking_data['hdir_barrier'][:,0])])
             video_df = video_df.hstack([pl.Series("h_bar_south_a",self.Visualize.tracking_data['hdir_barrier'][:,1])])
-            video_df = video_df.hstack([pl.Series("h_bar_centre_a",self.Visualize.tracking_data['hdir_barrier'][:,2])])
-
+            # video_df = video_df.hstack([pl.Series("h_bar_centre_a",self.Visualize.tracking_data['hdir_barrier'][:,2])]) # NOTE - commenting this out as seems to be update in tracking logic that I haven't processed yet Laurence 
+            
         # if random points were included, add the angles to video_df
         if 'hdir_randP' in self.Visualize.tracking_data:
             for i in np.arange(np.shape(self.Visualize.tracking_data['hdir_randP'])[1]):
@@ -246,6 +247,12 @@ class DataPreprocessor(BaseDataPreprocessor):
         self.spike_data = self.filter_spike_data()
         self.clu_label = self.extract_cluster_labels()
         self.video_df = self.track_to_polars()
+        
+        # QC checks - NOTE not added to synthetic data class yet
+        QualityChecks.qc_data_contains_no_invalid_values(dataframe = self.video_df)
+        QualityChecks.qc_video_data_frame_schema_is_correct(dataframe = self.video_df, session = self.Visualize.session)
+        QualityChecks.qc_angular_velocity_is_logically_possible(dataframe = self.video_df, session = self.Visualize.session)
+        
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(self.spike_data)
         self.merge_and_save_spike_count_df_with_frame_data() # Saves to a csv
         
@@ -280,3 +287,104 @@ class DataPreprocessor(BaseDataPreprocessor):
         large_dataFrame = large_dataFrame.fill_null(strategy="zero")
         large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
         return large_dataFrame
+    
+class QualityChecks:
+    
+    """
+    
+    The purpose of this class is to provide a set of static methods that can be used to check the quality of the data at various stages of the preprocessing pipeline.
+    A prefix of qc_ is used to denote that a method is a quality check to distinguish it from other methods.
+        
+    """
+    
+    @staticmethod
+    def qc_tracking_is_within_arena_bounds() -> None:
+        raise NotImplementedError
+    
+    @staticmethod
+    def qc_data_contains_no_invalid_values(dataframe: pl.DataFrame) -> None:
+        
+        # Check that the video data frame has no null values, is not empty and has no duplicated values
+        assert False == any(dataframe.null_count().to_numpy()[0] > 0), "The dataframe contains null values."
+        assert False == dataframe.is_empty(), "The dataframe is empty."
+        assert False == any(dataframe.is_duplicated() == True), "The dataframe contains duplicated values."
+    
+        # Check that the video data frame has no values that are equal to zero in the non boolean columns
+        remove_booleans = dataframe.drop("shelter_only", "barrier_present", "EscapePeriod", "OutofshelterIdx")
+        remove_booleans = remove_booleans == 0
+        assert False == any(remove_booleans.select(pl.all().any()).to_numpy()[0]), "There are values in the non boolean columns within the dataframe that are equal to zero."
+
+    @staticmethod
+    def qc_video_data_frame_schema_is_correct(dataframe: pl.DataFrame, session: object) -> None:
+        if "mush" in session.name: 
+            assert dataframe.schema == {'frames': pl.Int64, 
+                                        'hdir': pl.Float64, 
+                                        'hsa': pl.Float64, 
+                                        'mouse_x_position': pl.Float64, 
+                                        'mouse_y_position': pl.Float64, 
+                                        'OutofshelterIdx': pl.Boolean, 
+                                        'EscapePeriod': pl.Boolean, 
+                                        'shelter_only': pl.Boolean, 
+                                        'barrier_present': pl.Boolean}, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
+        elif "seq" in session.name:
+            assert dataframe.schema == {'frames': pl.Int64, 
+                                        'hdir': pl.Float64, 
+                                        'hsa': pl.Float64, 
+                                        'mouse_x_position': pl.Float64, 
+                                        'mouse_y_position': pl.Float64, 
+                                        'OutofshelterIdx': pl.Boolean, 
+                                        'EscapePeriod': pl.Boolean, 
+                                        'shelter_only': pl.Boolean, 
+                                        'barrier_present': pl.Boolean, 
+                                        'h_bar_north_a': pl.Float64, 
+                                        'h_bar_south_a': pl.Float64}, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
+
+    @staticmethod
+    def qc_angular_velocity_is_logically_possible(dataframe: pl.DataFrame, session: object) -> None:
+        
+        """
+        
+        Rough logic - The time it takes me to start a milisecond stop watch and stop it is 0.17 seconds. A frame is 0.025 seconds. It should
+        be impossible for any angular change of a mouse to be 3 radians (171 degrees) in 0.025 seconds, this is a full spin.
+        
+        Emperical logic from .describe() - The mean across hdir, hsa, h_bar_north_a and h_bar_south_a is ┆ 0.012057 ┆ 0.014083 ┆ 0.012175 ┆ 0.012256    
+        highlighting that a delta of 3 radians would be a 300x increase in the mean and thus is unlikely to be a valid value.
+        
+        Angular velocity logic - The formula for angular velocity which is measured in radians per second is: delta radians / delta time
+            + Δ3 radians / Δ0.025 seconds = 120 radians per second
+            + Δ2 radians / Δ0.025 seconds = 80 radians per second
+            + Δ1 radians / Δ0.025 seconds = 40 radians per second
+            + Δ0.5 radians / Δ0.025 seconds = 20 radians per second
+        Given 20 radians per second, that would mean the mouse would spin 10x in a second, which is not possible. So the maximum radial change
+        proposed should be 0.5 radians per frame which is 50x the mean and thus is likely to be a unconvservative upper bound in error checking.
+
+        """
+        
+        if "mush" in session.name:
+            angular_columns = dataframe.select("hdir", "hsa")
+
+        elif "seq" in session.name:
+            angular_columns = dataframe.select("hdir", "hsa", "h_bar_north_a", "h_bar_south_a")
+        
+        # A function to calculate the circular distance between two angles - https://gamedev.stackexchange.com/questions/4467/comparing-angles-and-working-out-the-difference
+        f = lambda circular_angle_delta: np.pi - abs(abs(circular_angle_delta) - np.pi)
+        
+        # For all columns calculate the delta between each frame
+        angular_delta = angular_columns.with_columns(pl.all().diff())
+        circular_dist_delta = angular_delta.with_columns(pl.all().apply(f))
+        logger.info(circular_dist_delta.describe())
+        
+        # Create expectation masks for each column
+        failed_qc_hdir = np.where(circular_dist_delta['hdir'] > 0.5)[0]
+        failed_qc_hsa = np.where(circular_dist_delta['hsa'] > 0.5)[0]
+        failed_qc_north_barrier_edge = np.where(circular_dist_delta['h_bar_north_a'] > 0.5)[0]
+        failed_qc_south_barrier_edge = np.where(circular_dist_delta['h_bar_south_a'] > 0.5)[0]
+        
+        if np.any(failed_qc_hdir) or np.any(failed_qc_hsa) or np.any(failed_qc_north_barrier_edge) or np.any(failed_qc_south_barrier_edge):
+            logger.error(f"There are {len(failed_qc_hdir) + len(failed_qc_hsa) + len(failed_qc_north_barrier_edge) + len(failed_qc_south_barrier_edge)} frames that have a radial delta greater than 0.5 radians per 0.025 milliseconds")
+
+        # assert len(sum(np.where(delta_mask == True))) == 0, "The angular delta  of the mouse is greater than 3 radians in 0.025 seconds."
+        # plt.hist(hdir_dif.to_numpy(), bins=100, log = True)
+        # plt.title("Log hist showing the delta in hdir in radians from frame to frame")
+        
+        raise NotImplementedError
