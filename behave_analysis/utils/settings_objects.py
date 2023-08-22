@@ -129,6 +129,8 @@ class Settings_analyze_global:
     leftside_only: bool=False
     rightside_only: bool=False
     reflect_trajectories: bool=False
+    stim_type: str = None
+    show_plots: bool = False
     save_folder: str=None
     color_by: str=''
     x_jitter: bool=True
