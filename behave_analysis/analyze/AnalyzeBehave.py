@@ -48,7 +48,7 @@ class AnalyzeBehave:
             self.trajectory_length[trial_num] = self.plot_escape_trajectories(onset_frames[0],stimulus_durations[0],ax)
             self.optimal_trajectory_length[trial_num] = self.plot_optimal_trajectories(onset_frames[0],ax)
             self.spatial_efficiency_value[trial_num] = self.optimal_trajectory_length[trial_num]/self.trajectory_length[trial_num]
-            ax.title('spatial efficiency = ' + str(self.spatial_efficiency_value[trial_num]))
+            ax.set_title('spatial efficiency = ' + str(self.spatial_efficiency_value[trial_num]))
         
         # save figure
         filename = str(self.dir) + "/" + "SpatialEfficiency" + ".png"
@@ -85,7 +85,7 @@ class AnalyzeBehave:
         y_loc = self.tracking_data['head_loc'][onset_frames,1]
         c_line = [1,0,0]
         # compute and plot each optimal trajectory to barrier
-        trjectory_to_barrier = []
+        trjectory_to_barrier = 0
         if len(self.tracking_data['barrier_loc']) > 0:
             nearest_barrier_edge = np.argmin([np.sqrt((x_loc - self.tracking_data["barrier_loc"][0][0])**2 +
                                                     (y_loc - self.tracking_data["barrier_loc"][0][1])**2),
