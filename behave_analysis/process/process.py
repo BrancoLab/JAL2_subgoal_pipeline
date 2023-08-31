@@ -26,7 +26,7 @@ class Process():
     def __init__(self, session_ID):
         logger.info("Session details: {}".format(session_ID))
         self.session = get_experiment(session_ID) # Retrieve experimental data
-        # self.__check_files_exist() # Check that all behavioural files exist
+        self.__check_files_exist() # Check that all behavioural files exist
         
         # Create processed path if it doesn't exist
         if not(os.path.exists(self.session.processed_path)): 
@@ -71,7 +71,7 @@ class Process():
         self.session.photo_resistor = get_Photoresistor(self.session)
                         
         if settings_p.efizz:
-            _, slope, intercept, lastPulse = self.quality_check_new_sessions()
+            _, slope, intercept, lastPulse, firstPulse = self.quality_check_new_sessions()
         elif settings_p.efizz == False:
             self.quality_check_new_sessions()
             
@@ -82,7 +82,8 @@ class Process():
                                                              samplingRate = self.session.ttl.sampling_rate,
                                                              filePath = self.session.processed_path,
                                                              camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
-                                                             lastPulse = lastPulse)
+                                                             lastPulse = lastPulse,
+                                                             firstPulse = firstPulse)
             
         self.save_session()
         
@@ -100,12 +101,12 @@ class Process():
             Verifications(self).verify_check_means()
             Verifications(self).verify_onsets_and_offsets()
             Verifications(self).verify_ttl_len_with_frame_duration()
-            (r2_value, slope, intercept), lastPulse = Verifications(self).visulize_sync_output()
+            (r2_value, slope, intercept), lastPulse, firstPulse = Verifications(self).visulize_sync_output()
             Verifications(self).verify_clock_drift(r2_value)
             Verifications(self).plot_residuals(show = False)
             
             logger.success("All verifications steps passed")
-            return r2_value, slope, intercept, lastPulse
+            return r2_value, slope, intercept, lastPulse, firstPulse
         
         return None
 

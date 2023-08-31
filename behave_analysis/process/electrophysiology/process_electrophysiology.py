@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import os
 
 class ProcessedEfizz:
-    def __init__(self, efizzDataLoaded, slope, intercept, samplingRate, filePath, camera_trigger, lastPulse):
+    def __init__(self, efizzDataLoaded, slope, intercept, samplingRate, filePath, camera_trigger, lastPulse, firstPulse):
         logger.info("Processing Efizz Data via alignment to bonsai machine and creating a polars dataframe")
         self.samplingRate = samplingRate
         self.spike_times = efizzDataLoaded.spike_times
@@ -14,6 +14,7 @@ class ProcessedEfizz:
         self.filePath = filePath
         self.camera_trigger = camera_trigger
         self.lastPulse = lastPulse
+        self.firstPulse = firstPulse
         
         initDF = self.generate_polar_dataframe()
         alignedDataFrame = self.align_spike_times(initDF, slope, intercept)
@@ -33,6 +34,11 @@ class ProcessedEfizz:
         """
         assert self.spike_times.shape[0] == self.spike_clusters.shape[0], "Spike times and clusters are not the same shape this can't be"
         
+        # delete all spike times that come before the first pulse or after the last one
+        spike_times_to_delete = np.hstack([np.where(self.spike_times < self.firstPulse)[0],np.where(self.spike_times > self.lastPulse)[0]])
+        self.spike_times = np.delete(self.spike_times,spike_times_to_delete)
+        self.spike_clusters = np.delete(self.spike_clusters,spike_times_to_delete)
+
         # CREATE DATAFRAME of SPIKE TIMES and CLUSTERS ids
         dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(), "spike_clusters": self.spike_clusters})
         

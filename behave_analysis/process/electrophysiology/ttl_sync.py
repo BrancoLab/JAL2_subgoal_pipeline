@@ -290,8 +290,13 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
 
     # If errors remove signals and update signals
     if len(errors_bonsai)>0 or len(imec_errors)>0:
-        imec_TTL = np.delete(imec_TTL, imec_errors)
-        bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
+        imec_TTL = imec_TTL.astype(float)
+        imec_TTL[imec_errors] = np.nan
+        bonsai_ttl = bonsai_ttl.astype(float)
+        bonsai_ttl[errors_bonsai] = np.nan
+        imec_TTL[imec_errors] = [np.nanmean([imec_TTL[i-5:i-1],imec_TTL[i+1:i+5]]) for i in imec_errors]
+        # imec_TTL = np.delete(imec_TTL, imec_errors)
+        # bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
         logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(imec_errors), len(errors_bonsai)))
     
     # Log success
