@@ -22,6 +22,7 @@ class Video:
     registration_type: str
     registration_size: tuple
     pixels_per_cm: int
+    rendered_arena: np.ndarray # Used later in the pipeline to check tracking quality
     
     #! replace these values with your own parameters
     shelter_location: tuple=(512, 921) # CHANGE IF NEEDED (x, y) coordinates of the shelter
@@ -29,7 +30,10 @@ class Video:
     y_offset: int=0   # (this is for the fisheye correction step)
 
 def get_Video(session: NEW_Session, settings: object, registration_transform: object = None) -> Video:
-    """A function that searchs through the directory for a camera avi file and returns a Video object."""
+    
+    """
+    A function that searchs through the directory for a camera avi file and returns a Video object
+    """
     
     try:
         video_file = str(list(session.file_path.glob("*cam.avi"))[0]) # need lst and idx as its a generator
@@ -58,15 +62,17 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
                   registration_transform, 
                   registration_type, 
                   registration_size, 
-                  pixels_per_cm)
-    
+                  pixels_per_cm,
+                  rendered_arena = np.ndarray([]))
+        
     if settings.skip_registration or (isinstance(registration_transform, np.ndarray) and not settings.create_new_registration): 
         return video
 
-    registration_transform = Register(session, video, video_object).transform
+    registerObject = Register(session, video, video_object)
+    registration_transform = registerObject.transform
+    rendered_arena = registerObject.rendered_arena
     
-    # Log the registration transform as if this is None it causing issues downstream at track
-    logger.info(f"Registration transform: {registration_transform}")
+    logger.debug(f"Registration transform: {registration_transform}") # If none will cause issues down the pipeline
     
     video = Video(num_frames, 
                   video_file, 
@@ -77,6 +83,7 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
                   registration_transform, 
                   registration_type, 
                   registration_size, 
-                  pixels_per_cm)
+                  pixels_per_cm,
+                  rendered_arena)
     
     return video
