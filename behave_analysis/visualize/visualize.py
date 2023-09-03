@@ -5,10 +5,10 @@ from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colo
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
-from behave_analysis.visualize.preprocess.processing_classes import SyntheticDataPreprocessor, DataPreprocessor
+from behave_analysis.visualize.preprocess.processing_classes import SyntheticDataPreprocessor, DataPreprocessor, QcPreProcessedData
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.visualize.visualize_behave import Correlations
-from behave_analysis.visualize.coverage_metric import CoverageStatistics
+# from behave_analysis.visualize.coverage_metric import CoverageStatistics
 
 # OS libaries
 from loguru import logger
@@ -53,6 +53,9 @@ class Visualize:
             elif self.settings.cluster_type in ['all', 'good', 'mua', 'noise']:
                 preprocessObject = DataPreprocessor(self, cluster_labels_to_filter = self.settings.cluster_type)
 
+            # Calling the QC class to check the quality of the preprocessed data
+            QcPreProcessedData(preprocessObject, 
+                               rendered_arena = self.session.video.rendered_arena)
 
             # Plot the coverage statistics
             # CoverageStatistics(video_data_frame = preprocessObject.video_df, is_barrier_experiment = False)
