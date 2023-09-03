@@ -8,7 +8,7 @@ import time
 import os
 import matplotlib.pyplot as plt
 
-# Custom libaries sdf dsfgsdf
+# Custom libaries
 from behave_analysis.database.synthetic_data.synthetic_main import generate_synthetic_dataframe
 
 class BaseDataPreprocessor(ABC):
@@ -288,33 +288,43 @@ class DataPreprocessor(BaseDataPreprocessor):
         large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
         return large_dataFrame
     
-class QualityChecks:
+class QcPreProcessedData:
     
     """
     
-    The purpose of this class is to provide a set of static methods that can be used to check the quality of the data at various stages of the preprocessing pipeline.
-    A prefix of qc_ is used to denote that a method is a quality check to distinguish it from other methods.
+    QC stands for quality control. The purpose of this class is to provide a set of methods that 
+    can be used to check the quality of the data produced by the preprocess class. In theory no
+    data augmentation should occur after the preprocess class and thus this class should be the final
+    quality check before any analysis is performed on the data.
         
     """
     
-    @staticmethod
-    def qc_tracking_is_within_arena_bounds() -> None:
+    def __init__(self, PreProcessedDataObject: object, rendered_arena: np.ndarray):
+        self.preprocessed_data = PreProcessedDataObject
+                
+        self._qc_video_data_is_populated()
+        self._qc_tracking_is_within_arena_bounds(rendered_arena)
+    
+    def _qc_video_data_is_populated(self) -> None:
+        
+        """
+        A function that checks the video dataframe for any invalid values or states that could cause problems later in the pipeline.
+        """
+        
+        assert False == any(self.preprocessed_data.video_df.null_count().to_numpy()[0] > 0), "The video dataframe contains null values."
+        assert False == self.preprocessed_data.video_df.is_empty(), "The video dataframe is empty."
+        testOfzeros = self.preprocessed_data.video_df.select(["frames", "hdir", "hsa", "mouse_x_position", "mouse_y_position"])
+        assert False == any(testOfzeros.to_numpy()[0] == 0), "The video dataframe contains values that are equal to zero."
+        
+            
+    def _qc_tracking_is_within_arena_bounds(self, rendered_arena: np.ndarray) -> None:
+        size = np.shape(rendered_arena)[0] # this should be 1024
+        # all_posX and all_posY are the x and y coordinates of all the mouse locations
+        dist = np.sqrt(((all_posX - size/2)**2) + ((all_posY - size/2)**2)) # calculate the distance of mouse from the center
+        all_posX = all_posX[dist<460] # only keep the mouse positions that are within the radius of the arena
+        all_posY = all_posY[dist<460]
         raise NotImplementedError
     
-    @staticmethod
-    def qc_data_contains_no_invalid_values(dataframe: pl.DataFrame) -> None:
-        
-        # Check that the video data frame has no null values, is not empty and has no duplicated values
-        assert False == any(dataframe.null_count().to_numpy()[0] > 0), "The dataframe contains null values."
-        assert False == dataframe.is_empty(), "The dataframe is empty."
-        assert False == any(dataframe.is_duplicated() == True), "The dataframe contains duplicated values."
-    
-        # Check that the video data frame has no values that are equal to zero in the non boolean columns
-        remove_booleans = dataframe.drop("shelter_only", "barrier_present", "EscapePeriod", "OutofshelterIdx")
-        remove_booleans = remove_booleans == 0
-        assert False == any(remove_booleans.select(pl.all().any()).to_numpy()[0]), "There are values in the non boolean columns within the dataframe that are equal to zero."
-
-    @staticmethod
     def qc_video_data_frame_schema_is_correct(dataframe: pl.DataFrame, session: object) -> None:
         if "mush" in session.name: 
             assert dataframe.schema == {'frames': pl.Int64, 
@@ -339,7 +349,6 @@ class QualityChecks:
                                         'h_bar_north_a': pl.Float64, 
                                         'h_bar_south_a': pl.Float64}, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
 
-    @staticmethod
     def qc_angular_velocity_is_logically_possible(dataframe: pl.DataFrame, session: object) -> None:
         
         """
