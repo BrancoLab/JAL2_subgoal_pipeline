@@ -16,6 +16,9 @@ from behave_analysis.database.Experiments.JAL002_ex import (
     seq1_1, 
     mushroom_3_002
 )
+from behave_analysis.database.Experiments.JAL003_ex import (
+    flip1stSept_003,
+)
 from behave_analysis.database.Experiments.testymctestface_ex import (
     testbonsaipulse, 
     testbonsaipulse2withefizz, 
@@ -23,4 +26,4 @@ from behave_analysis.database.Experiments.testymctestface_ex import (
 )
 
 # Currently the code only works with one experiment at a time, so place that experiment in the below list for analysis
-experiments_objects = [seq1_3_002]
+experiments_objects = [flip1stSept_003]
