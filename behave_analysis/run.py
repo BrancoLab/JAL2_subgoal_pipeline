@@ -12,6 +12,7 @@ from behave_analysis.analyze.analyze import Analyze
 from behave_analysis.utils.print_settings import print_settings, print_settings_analysis
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
+from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
 from databank import experiments_objects
 
 # OS Libaries
@@ -72,6 +73,7 @@ def analyze():
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         AnalyzeEfizz(session)
+        AnalyzeBehave(session)
     
     logger.success("Analysis pipeline complete")
         
