@@ -5,6 +5,7 @@ from loguru import logger
 from databank import experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
+from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
 
 def analyze():
     """
@@ -13,6 +14,7 @@ def analyze():
     logger.info("The analysis pipeline has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
+        AnalyzeBehave(session)
         AnalyzeEfizz(session)
     logger.success("Analysis pipeline complete")
     
