@@ -37,6 +37,7 @@ class LoadEfizz():
             assert len(self.filter_by_ending(self.files, "cluster_group.tsv")) == 1, "There should only be one cluster_group.tsv file"
             
             self.spike_times = np.load(self.filter_by_ending(self.files, "spike_times.npy")[0])
+            logger.info(f"The number of spikes is: {len(self.spike_times)}")
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
             self.spike_clusters = np.hstack(self.spike_clusters)
             self.TTL_bin_path = self.filter_by_ending(self.files, "imec0.ap.bin")[0]

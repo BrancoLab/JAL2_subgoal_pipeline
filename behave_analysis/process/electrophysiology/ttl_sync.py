@@ -285,7 +285,7 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
     # check of abberaant signals in bonsai TTL
     errors_bonsai = np.where(bonsai_ttl > 5.1)[0]
     if len(errors_bonsai)>0:
-        logger.warning(f"Found {len(errors_bonsai)} samples with too high values in probe signal")
+        logger.warning(f"Found {len(errors_bonsai)} samples with too high values in bonsai signal")
         assert len(errors_bonsai) < threshold, "There are too many abberant signals in the bonsai TTL"
 
     # If errors remove signals and update signals

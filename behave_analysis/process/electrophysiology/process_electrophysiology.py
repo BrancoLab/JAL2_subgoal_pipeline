@@ -40,7 +40,7 @@ class ProcessedEfizz:
         self.spike_clusters = np.delete(self.spike_clusters,spike_times_to_delete)
 
         # CREATE DATAFRAME of SPIKE TIMES and CLUSTERS ids
-        dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(), "spike_clusters": self.spike_clusters})
+        dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(), "spike_clusters": self.spike_clusters.astype(np.int32)})
         
         # ADD CLUSTER GROUPS labels
         clusterLabelDataFrame = pl.DataFrame({"spike_clusters": self.cluster_group[:,0].astype(np.int32), "cluster_group": self.cluster_group[:,1]})
