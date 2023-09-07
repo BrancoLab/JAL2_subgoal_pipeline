@@ -170,8 +170,15 @@ class CoverageStatistics:
         
         if self.is_barrier_experiment:
             angle_data_frame = video_data_frame.select(['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']).to_pandas()
+            angle_data_frame.rename(columns={'h_bar_north_a': 'North Edge', 
+                                             'h_bar_south_a': 'South Edge', 
+                                             'hdir': 'Head Direction', 
+                                             'hsa': 'Head Shelter'}, inplace=True)
+            
+            sns.set_context("talk", font_scale=1.25)
             sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2},height= 1.5)
             plt.show()
+            x = 10
         
         else:
             angle_data_frame = video_data_frame.select(['hdir', 'hsa']).to_pandas()
