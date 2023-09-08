@@ -17,7 +17,7 @@ settings_track = Settings_track(
     dlc_settings_file = r"C:\Users\jreggiani\Documents\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml", #Change if using a different DLC model, you need the path to include the full yaml such as: r"D:\DLC\NPX_7-Laurence-2022-05-20\config.yaml"
     inverse_fisheye_correction_file = '.\\sample_data\\inverse_fisheye_maps.npy', # remove setting if n/a
     tracking_file_location = None,
-    save_labeled_video = False, # if you want to save the video with the DLC dots plotted on it
+    save_labeled_video = True, # if you want to save the video with the DLC dots plotted on it
     random_points = True # if you want to compute the angle with respect to some extra points in the arena
     
 )
