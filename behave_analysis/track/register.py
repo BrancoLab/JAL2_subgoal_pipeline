@@ -41,10 +41,12 @@ class Register():
     def __init__(self, session: NEW_Session, video: object, video_object: object) -> object:
         self.generate_rendered_arena(session)
         self.add_click_targets()
-        self.get_image_of_actual_arena(video_object, video)
+        self.get_image_of_actual_arena(video_object, (video.num_frames * 2 / 3))
         self.perform_fisheye_correction(video)
         self.initialize_transform()
         self.refine_transform()
+        self.get_shelter_position(session,video_object,video.fps)
+        self.get_barrier_position(session,video_object,video.fps)
 
 # ----MAIN FUNCTIONS--------------------------------------------------------------------
     def generate_rendered_arena(self, session: NEW_Session):
@@ -56,8 +58,8 @@ class Register():
             self.rendered_arena_with_click_targets = cv2.circle(self.rendered_arena, (click_target[0], click_target[1]), 4, 0, 1)
             self.rendered_arena_with_click_targets = cv2.putText(self.rendered_arena, str(i+1), tuple(click_target), 0, 1.0, 100, thickness=2)
 
-    def get_image_of_actual_arena(self, video_object: object, video: object):
-        video_object.set(cv2.CAP_PROP_POS_FRAMES, (video.num_frames * 2 / 3))
+    def get_image_of_actual_arena(self, video_object: object, frame):
+        video_object.set(cv2.CAP_PROP_POS_FRAMES, frame)
         _, self.actual_arena = video_object.read()
 
     def perform_fisheye_correction(self, video: object):
@@ -71,7 +73,7 @@ class Register():
         cv2.startWindowThread()
         cv2.namedWindow('actual arena')
         self.actual_clicked_points = []
-        cv2.setMouseCallback('actual arena', self.click_click_targets)
+        cv2.setMouseCallback('actual arena', self.alignment_click_targets)
         while True:
             cv2.imshow('actual arena', self.actual_arena)
             if len(self.actual_clicked_points) == len(self.click_targets): break # once all points are clicked
@@ -105,14 +107,75 @@ class Register():
             if key==ord(' '): break
         cv2.destroyAllWindows()
 
+    def get_shelter_position(self,session,video_object,fps):
+        """ Ask user where shelter and barrier were positioned"""
+
+        self.actual_arena = []
+        self.get_image_of_actual_arena(video_object, (session.shelter_only_time[0]+10)*60*fps)
+        self.clicked_points = []
+        # ask user where the shelter is
+        print("Where is the shelter? Click first the top left, then the bottom right corner of the shelter")
+        cv2.namedWindow('where is shelter')
+        cv2.setMouseCallback('where is shelter', self.position_click_targets)
+        while True:
+            cv2.imshow('where is shelter', self.actual_arena)
+            if len(self.clicked_points) == 2: break # once both points are clicked
+            key = cv2.waitKey(10)
+            if key == ord('q'): print('quit.'); sys.exit()
+        cv2.destroyAllWindows()
+        
+        session.shelter_location = self.clicked_points
+
+    def get_barrier_position(self,session,video_object,fps):
+        """ Ask user where shelter and barrier were positioned"""
+
+        # ask user where the barrier is
+        if len(session.barrier_time) > 0:
+            self.clicked_points = []
+            self.actual_arena = []
+            self.get_image_of_actual_arena(video_object, (session.barrier_time[0]+10)*60*fps)
+            print("Where is the barrier? Click the first edge")
+            cv2.namedWindow('where is barrier')
+            cv2.setMouseCallback('where is barrier', self.position_click_targets)
+            while True:
+                cv2.imshow('where is barrier', self.actual_arena)
+                if len(self.clicked_points) == 1: break # once both points are clicked
+                key = cv2.waitKey(10)
+                if key == ord('q'): print('quit.'); sys.exit()
+            cv2.destroyAllWindows()
+            
+            # get a different frame if barrier flip
+            if session.barrier_flip_time:
+                self.get_image_of_actual_arena(video_object, (session.barrier_flip_time+10)*60*fps)
+            print("Where is the barrier? Click the second edge")
+            cv2.namedWindow('where is barrier')
+            cv2.setMouseCallback('where is barrier', self.position_click_targets)
+            while True:
+                cv2.imshow('where is barrier', self.actual_arena)
+                if len(self.clicked_points) == 2: break # once both points are clicked
+                key = cv2.waitKey(10)
+                if key == ord('q'): print('quit.'); sys.exit()
+            cv2.destroyAllWindows()
+
+            # calculate center of barrier
+            barrier_center = [np.mean([self.clicked_points[0][0],self.clicked_points[1][0]]).astype(int),
+                                       np.mean([self.clicked_points[0][1],self.clicked_points[1][1]]).astype(int)]
+            self.clicked_points.append(barrier_center)
+            session.barrier_location = self.clicked_points
+
 # ----CLICK CALLBACK FUNCTIONS-------------------------------------------------------------
 
-    def click_click_targets(self, event,x,y, flags, params):
+    def alignment_click_targets(self, event,x,y, flags, params):
         if event == cv2.EVENT_LBUTTONDOWN:
             self.actual_arena = cv2.circle(self.actual_arena, (x, y), 3, 255, -1)
             self.actual_arena = cv2.circle(self.actual_arena, (x, y), 4, 0, 1)
             self.actual_clicked_points.append([x,y])
             self.time_to_update = True
+    
+    def position_click_targets(self, event,x,y, flags, params):
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.actual_arena = cv2.circle(self.actual_arena, (x, y), 3, 255, -1)
+            self.clicked_points.append([x,y])
 
     def click_additional_click_targets(self, event,x,y, flags, params):
         if event == cv2.EVENT_LBUTTONDOWN: # click on the rendered arena within the overlay
