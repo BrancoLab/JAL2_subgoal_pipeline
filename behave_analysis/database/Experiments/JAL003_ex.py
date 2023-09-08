@@ -10,7 +10,7 @@ JAL3_flip_rot = Experiment(# Mouse specific
                     root_path = JAL003.root_path,
 
                     # Experiment specific
-                    experiment_name = 'mushroom',
+                    experiment_name = 'flip_rotated_1',
                     experiment_idx = 0,
                     experiment_date = "2023_08_25",
                     experiment_time = "09_42_06",
