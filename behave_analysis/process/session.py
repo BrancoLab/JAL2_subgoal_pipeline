@@ -13,11 +13,14 @@ class NEW_Session:
     number: int
     mouse: str
     experiment: str
-    shelter_time: None
+    shelter_only_time: None
     barrier_time: None
+    barrier_flip_time: None
     file_path: str
     processed_path: str
     metadata_file: str
+    shelter_location: int = None
+    barrier_location: int = None
     daq_sampling_rate: int = 15000
     camera_trigger: object = None
     audio: object = None
@@ -43,8 +46,9 @@ def get_experiment(experiment_data_class):
                    number = experiment_repeat, # Maybe this is incorrect and the wrong number after the refactor
                    mouse = mouse, 
                    experiment = experiment_type, 
-                   shelter_time = experiment_data_class.shelter_time,
+                   shelter_only_time = experiment_data_class.shelter_only_time,
                    barrier_time = experiment_data_class.barrier_time,
+                   barrier_flip_time = experiment_data_class.barrier_flip_time,
                    file_path = file_path, 
                    processed_path = os.path.join(file_path, "processed_data"),
                    metadata_file = metadata_file)
