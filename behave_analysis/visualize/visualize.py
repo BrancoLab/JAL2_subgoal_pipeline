@@ -40,6 +40,7 @@ class Visualize:
         # get time in minutes of shelter only and when the barrier was introduced
         if len(self.session.shelter_time) > 0: self.sheltertime = np.array(self.session.shelter_time)*60 # in seconds
         if len(self.session.barrier_time) > 0: self.barriertime = np.array(self.session.barrier_time)*60 # in seconds
+        if self.session.barrier_flip_time: self.barrierfliptime = np.array(self.session.barrier_flip_time)*60 # in seconds
 
         if self.settings.efizz:  # this will only make efizz plots if you want them
             

@@ -72,10 +72,10 @@ class BaseDataPreprocessor(ABC):
             np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
             self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
 
-        # is there a time with shelter only?
+        # when was the shelter in the arena?
         if len(self.Visualize.session.shelter_time) > 0:
             if not(np.logical_and(self.Visualize.session.shelter_time[0] == 0, self.Visualize.session.shelter_time[1] == -1)):
-                if self.Visualize.session.shelter_time[1] == -1: # shelter only until the end of the session
+                if self.Visualize.session.shelter_time[1] == -1: # shelter until the end of the session
                     shelteronly = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
                 else:
                     shelteronly = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps),
@@ -84,7 +84,7 @@ class BaseDataPreprocessor(ABC):
                 shelteronly = np.zeros(len(OutofShelterIdx)) == 0
                 print('shelter always present')
         else:
-            shelteronly = np.zeros(len(OutofShelterIdx)) == 0
+            shelteronly = np.zeros(len(OutofShelterIdx)) == 1
             print('no shelter in this session')
         
         # what period in the recording was there a barrier?
@@ -97,6 +97,13 @@ class BaseDataPreprocessor(ABC):
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
             print('no barrier in this session')
+
+        # when was the barrier flipped?
+        if self.Visualize.session.barrier_flip_time:
+            barrier_flipped = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.barrierfliptime*self.Visualize.session.video.fps)
+        else:
+            barrier_flipped = np.zeros(len(OutofShelterIdx)) == 1
+            print('barrier was not flipped in this session')
         
         # find the escape periods
         EscapePeriod = np.zeros_like(OutofShelterIdx)
@@ -112,8 +119,9 @@ class BaseDataPreprocessor(ABC):
                 "mouse_y_position": self.Visualize.tracking_data['avg_loc'][:,1],
                 "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
                 "EscapePeriod": EscapePeriod == 1, # frames from 1 second before to 10 seconds after escape
-                "shelter_only": shelteronly, # was this in a shelter only period? or was there a barrier?
-                "barrier_present": barrier_present,}) # was this in a barrier period? or was there a barrier?
+                "shelter_only": shelteronly, # true when the shelter is in the arena
+                "barrier_present": barrier_present, # true when the barrier is in the arena
+                "barrier_flipped":barrier_flipped}) # true after the shelter was flipped
 
         # if barrier in session, add the angles to video_df
         if 'hdir_barrier' in self.Visualize.tracking_data:

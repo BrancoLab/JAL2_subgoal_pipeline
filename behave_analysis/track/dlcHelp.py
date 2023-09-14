@@ -34,9 +34,9 @@ class DLC:
             analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
             for files in glob.glob(os.path.join(session.file_path, "*resnet*")):
                 os.rename(files,os.path.join(session.processed_path,os.path.basename(files)))
-            if self.settings.save_labeled_video:
-                from deeplabcut import create_labeled_video
-                create_labeled_video(self.settings.dlc_settings_file, session.video.video_file, save_frames = True, keypoints_only=True)
+        if self.settings.save_labeled_video:
+            from deeplabcut import create_labeled_video
+            create_labeled_video(self.settings.dlc_settings_file, session.video.video_file, save_frames = True, keypoints_only=True)
     
     def create_dlc_tracking_array(self, session) -> None:
         """
