@@ -6,9 +6,17 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
-    cluster_type = ['all'],#['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
+    cluster_type = ['synthetichdir'],# ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots = False,
-    condition = ['pre_shelter'], # possible inputs: 'all_time' (don't filter based on shelter or barrier),'pre_shelter' (empty arena),'shelter_only','barrier_present'
+    # possible condition inputs: 'all_time' (don't filter based on shelter or barrier),
+    #                             'pre_shelter' (empty arena),
+    #                             'shelter_present',
+    #                             'barrier_present'
+    #                             'shelter_only',
+    #                             'barrier_pre_flip',
+    #                             'barrier_post_flip',
+    # if condition is empty all possible conditions will be analyzed
+    condition = ['shelter_present'], 
     analyze_only_the_period_before_shelter = False, # If True will only analyze the period before the shelter, if false, it will analyze after the whole session
     analyze_only_the_period_before_barrier = False, # If True will only analyze the period before the barrier, if false, it will analyze the whole session
     
@@ -16,8 +24,9 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     run_tunED = False,
     
     # LDA model settings
-    run_LDA = ['hsa','hdir', 'randP'], # 'head_shelter_angle','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
-    # run_LDA = ['hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'], # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
+    run_LDA = [], 
+    # 'head_shelter_angle','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
+    # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
     epoch_num = 6, # number of epochs for cross validation
     number_of_bins = 19, # number of bins for angles
     use_firing_rate = True,
@@ -25,8 +34,10 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     PCA_process = [], # numnber of PCs to use, if left empty it will run without PCA
     linear_shift = False, # whether to run linear shift!
 
-    # Consink model settings
-    run_consink = False,
+    # Rayleigh model settings
+    run_rayleigh = True,
+    rayleigh_bootstrap = False,
+    single_cluster_plots = False,
 
 )
 

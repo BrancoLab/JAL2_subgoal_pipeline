@@ -14,7 +14,7 @@ def analyze():
     logger.info("The analysis pipeline has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
-        AnalyzeBehave(session)
+        # AnalyzeBehave(session)
         AnalyzeEfizz(session)
     logger.success("Analysis pipeline complete")
     
