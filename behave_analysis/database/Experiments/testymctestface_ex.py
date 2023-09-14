@@ -1,6 +1,6 @@
-from behave_analysis.database.Experiments.experiment_class import Experiment
-from behave_analysis.database.Mice.testMouse import Testy_mctestface
-from pathlib import Path
+# from behave_analysis.database.Experiments.experiment_class import Experiment
+# from behave_analysis.database.Mice.testMouse import Testy_mctestface
+# from pathlib import Path
 
 testbonsaipulse = Experiment(  # Mouse specific
     nick_name=Testy_mctestface.nick_name,
@@ -53,53 +53,54 @@ test_NEWgate = Experiment(  # Mouse specific
     barrier_flip_time = None
 )
 
-laserTestShort = Experiment(# Mouse specific
-                    nick_name = Testy_mctestface.nick_name,
-                    total_sessions = Testy_mctestface.total_sessions,
-                    mouse_number_pyrat = Testy_mctestface.mouse_number_pyrat,
-                    experiment_file_names = Testy_mctestface.experiment_file_names,
-                    root_path = Testy_mctestface.root_path,
+# laserTestShort = Experiment(# Mouse specific
+#                     nick_name = Testy_mctestface.nick_name,
+#                     total_sessions = Testy_mctestface.total_sessions,
+#                     mouse_number_pyrat = Testy_mctestface.mouse_number_pyrat,
+#                     experiment_file_names = Testy_mctestface.experiment_file_names,
+#                     root_path = Testy_mctestface.root_path,
 
-                    # Experiment specific
-                    experiment_name = 'Laser test Jazz',
-                    experiment_idx = 666,
-                    experiment_date = "2023_04_11",
-                    experiment_time = "12_52_28",
-                    experiment_path = Path(r"999_laserTestJAZZ_2023_04_11T12_52_28"),
-                    shelter_time = [],
-                    barrier_time = [],
-                    barrier_flip_time = None)
+#                     # Experiment specific
+#                     experiment_name = 'Laser test Jazz',
+#                     experiment_idx = 666,
+#                     experiment_date = "2023_04_11",
+#                     experiment_time = "12_52_28",
+#                     experiment_path = Path(r"999_laserTestJAZZ_2023_04_11T12_52_28"),
+#                     shelter_time = [],
+#                     barrier_time = [],
+#                     barrier_flip_time = None)
 
-laserTest = Experiment(# Mouse specific
-                    nick_name = Testy_mctestface.nick_name,
-                    total_sessions = Testy_mctestface.total_sessions,
-                    mouse_number_pyrat = Testy_mctestface.mouse_number_pyrat,
-                    experiment_file_names = Testy_mctestface.experiment_file_names,
-                    root_path = Testy_mctestface.root_path,
+# laserTest = Experiment(# Mouse specific
+#                     nick_name = Testy_mctestface.nick_name,
+#                     total_sessions = Testy_mctestface.total_sessions,
+#                     mouse_number_pyrat = Testy_mctestface.mouse_number_pyrat,
+#                     experiment_file_names = Testy_mctestface.experiment_file_names,
+#                     root_path = Testy_mctestface.root_path,
 
-                    # Experiment specific
-                    experiment_name = 'Laser test Jazz Hands 2',
-                    experiment_idx = 999,
-                    experiment_date = "2023_04_11",
-                    experiment_time = "15_51_58",
-                    experiment_path = Path(r"999_laserTestJAZZhands2_2023_04_11T15_51_58"),
-                    shelter_time = [],
-                    barrier_time = [],
-                    barrier_flip_time = None)
+#                     # Experiment specific
+#                     experiment_name = 'Laser test Jazz Hands 2',
+#                     experiment_idx = 999,
+#                     experiment_date = "2023_04_11",
+#                     experiment_time = "15_51_58",
+#                     experiment_path = Path(r"999_laserTestJAZZhands2_2023_04_11T15_51_58"),
+#                     shelter_time = [],
+#                     barrier_time = [],
+#                     barrier_flip_time = None)
 
-test = Experiment(# Mouse specific
-                    nick_name = Testy_mctestface.nick_name,
-                    total_sessions = Testy_mctestface.total_sessions,
-                    mouse_number_pyrat = Testy_mctestface.mouse_number_pyrat,
-                    experiment_file_names = Testy_mctestface.experiment_file_names,
-                    root_path = Testy_mctestface.root_path,
 
-                    # Experiment specific
-                    experiment_name = 'test',
-                    experiment_idx = 4,
-                    experiment_date = "2023_03_22",
-                    experiment_time = "09_58_59",
-                    experiment_path = Path(r"001_synctestmanyaudio_2023_03_22T09_58_59"),
-                    shelter_time = [],
-                    barrier_time = [],
-                    barrier_flip_time = None)
+# test = Experiment(# Mouse specific
+#                     nick_name = Testy_mctestface.nick_name,
+#                     total_sessions = Testy_mctestface.total_sessions,
+#                     mouse_number_pyrat = Testy_mctestface.mouse_number_pyrat,
+#                     experiment_file_names = Testy_mctestface.experiment_file_names,
+#                     root_path = Testy_mctestface.root_path,
+
+#                     # Experiment specific
+#                     experiment_name = 'test',
+#                     experiment_idx = 4,
+#                     experiment_date = "2023_03_22",
+#                     experiment_time = "09_58_59",
+#                     experiment_path = Path(r"001_synctestmanyaudio_2023_03_22T09_58_59"),
+#                     shelter_time = [],
+#                     barrier_time = [],
+#                     barrier_flip_time = None)
