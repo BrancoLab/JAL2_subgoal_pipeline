@@ -13,7 +13,7 @@ class NEW_Session:
     number: int
     mouse: str
     experiment: str
-    shelter_only_time: None
+    shelter_time: None
     barrier_time: None
     barrier_flip_time: None
     file_path: str
@@ -46,7 +46,7 @@ def get_experiment(experiment_data_class):
                    number = experiment_repeat, # Maybe this is incorrect and the wrong number after the refactor
                    mouse = mouse, 
                    experiment = experiment_type, 
-                   shelter_only_time = experiment_data_class.shelter_only_time,
+                   shelter_time = experiment_data_class.shelter_time,
                    barrier_time = experiment_data_class.barrier_time,
                    barrier_flip_time = experiment_data_class.barrier_flip_time,
                    file_path = file_path, 
