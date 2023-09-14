@@ -17,9 +17,9 @@ from sklearn.decomposition import PCA
 from sklearn.metrics import confusion_matrix
 
 # import functions
-from behave_analysis.visualize.visualize_efizz import generate_bin_angles 
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
 from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.visualize.preprocess.filtering_functions  import filter_video_dataframe, generate_bin_angles
 
 def run_LDA_model(self, settings):
     """ A function that runs discriminant analysis based on user settings"""
@@ -105,7 +105,8 @@ def BinDfbyAngle(self, variable, settings):
     bin_angles, bin_angle_center = generate_bin_angles(settings.number_of_bins)
 
     # subselect relevant times
-    filtered_video_df, title = filter_video_dataframe(self.video_df, variable, self.condition)
+    filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
+    title = str(variable + '_' + self.condition)
     use_video_df = pl.DataFrame({'frames':filtered_video_df['frames'],
                                 variable:filtered_video_df[variable]})
 
@@ -431,27 +432,3 @@ def compute_prediction_accuracy(matrixx):
         x = np.roll(matrixx[i.astype(int),:],pos-i)
         pred_acc[i] = np.sum(x[pos-1:pos+2])
     return np.mean(pred_acc)
-
-def filter_video_dataframe(dataframe, which_angle, condition):
-    """
-    A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
-    """
-    filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
-                                        (dataframe["EscapePeriod"] == False))
-
-    if condition == 'pre_shelter':
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == False))
-        if 'barrier_present' in filtered_video_df.columns: 
-            filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
-
-    elif condition == 'shelter_only':
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == True))
-        if 'barrier_present' in filtered_video_df.columns: 
-            filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
-
-    elif condition == 'barrier_present':
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True))
-
-    title = str(which_angle + '_' + condition)
-
-    return filtered_video_df, title
