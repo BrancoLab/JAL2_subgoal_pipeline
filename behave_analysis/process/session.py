@@ -15,9 +15,12 @@ class NEW_Session:
     experiment: str
     shelter_time: None
     barrier_time: None
+    barrier_flip_time: None
     file_path: str
     processed_path: str
     metadata_file: str
+    shelter_location: int = None
+    barrier_location: int = None
     daq_sampling_rate: int = 15000
     camera_trigger: object = None
     audio: object = None

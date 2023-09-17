@@ -148,7 +148,9 @@ class Settings_analyze_efizz:
     discriminant_type: str = ''
     PCA_process: int = 15
     object_present: bool = True # we should delete this
-    run_consink: bool = False
+    run_rayleigh: bool = False
+    rayleigh_bootstrap: bool = False
+    single_cluster_plots: bool =True
     linear_shift: bool = True
     condition: str = ''
     analyze_only_the_period_before_shelter: bool = False
