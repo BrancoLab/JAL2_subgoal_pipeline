@@ -1,3 +1,5 @@
+# Custom libs
+
 from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t
 from settings.settings_visualize import settings_visualize as settings_v
@@ -7,15 +9,17 @@ from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
 from behave_analysis.homings.homings import get_Homings
 from behave_analysis.homings.threshold_crossings import get_Threshold_crossings
-from behave_analysis.visualize.visualize import Visualize
+from behave_analysis.visualize.visualize_main import Visualize
 from behave_analysis.analyze.analyze import Analyze
 from behave_analysis.utils.print_settings import print_settings, print_settings_analysis
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
 from databank import experiments_objects
+from behave_analysis.postprocess.pp_main import Postprocessor
 
 # OS Libaries
+
 from loguru import logger
 
 def process():
@@ -50,6 +54,17 @@ def homings():
         session = Process(session_ID).load_session()
         get_Homings(settings_h, session)
         get_Threshold_crossings(settings_h, session)
+        
+def postprocess():
+    """ 
+    A function that outputs and saves a postprocessed object as a pickle file in the processed data folder.
+    """
+    logger.info("The post processing of the data has started")
+    for session_ID in experiments_objects:
+        session = Process(session_ID).load_session()
+        Postprocessor()
+    logger.success("The post processing of the data has finished and the postprocessed object has been saved to a pickle file")
+
 
 def visualize():
     """
