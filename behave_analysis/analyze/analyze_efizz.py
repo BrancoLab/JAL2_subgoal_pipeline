@@ -5,7 +5,7 @@ from settings.settings_analyze_efizz import Settings_analyze_efizz
 from behave_analysis.analyze.linshit import LinearShift
 from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
-from behave_analysis.visualize.preprocess.filtering_functions  import identify_conditions
+from behave_analysis.analyze.filtering_data.filtering_functions  import identify_conditions
 
 # OS Lib
 from loguru import logger

@@ -5,7 +5,7 @@ import polars as pl
 import os
 import matplotlib 
 import matplotlib.pyplot as plt
-from behave_analysis.visualize.preprocess.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, identify_conditions
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, identify_conditions
 
 
 def compute_all_clusters_rayleigh(self,settings):

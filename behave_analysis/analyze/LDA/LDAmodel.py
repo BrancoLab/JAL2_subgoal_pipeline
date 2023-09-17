@@ -19,7 +19,7 @@ from sklearn.metrics import confusion_matrix
 # import functions
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
 from behave_analysis.utils.open_tracking_data import open_tracking_data
-from behave_analysis.visualize.preprocess.filtering_functions  import filter_video_dataframe, generate_bin_angles
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, generate_bin_angles
 
 def run_LDA_model(self, settings):
     """ A function that runs discriminant analysis based on user settings"""
