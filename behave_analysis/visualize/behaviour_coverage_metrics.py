@@ -174,9 +174,9 @@ class CoverageStatistics:
                                              'h_bar_south_a': 'South Edge', 
                                              'hdir': 'Head Direction', 
                                              'hsa': 'Head Shelter'}, inplace=True)
-            
+            plt.subplots_adjust(wspace=0.1, hspace=0.2)
             sns.set_context("talk", font_scale=1.25)
-            sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2},height= 1.5)
+            sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2}, height= 2)
             plt.show()
             x = 10
         
