@@ -1,16 +1,21 @@
 # Custom classes
-from behave_analysis.utils.open_tracking_data import open_tracking_data
+
 from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
-from behave_analysis.visualize.preprocess.processing_classes import SyntheticDataPreprocessor, DataPreprocessor
 from behave_analysis.visualize.visualize_behave import Visualize_behave
-from behave_analysis.visualize.visualize_behave import Correlations
-# from behave_analysis.visualize.coverage_metric import CoverageStatistics
+# from behave_analysis.visualize.visualize_behave import Correlations
+from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
+
+# Import custom settings
+
+from settings.settings_postprocess import defined_settings_postprocess as pp_settings
+from settings.settings_visualize import defined_settings_visualize as settings_v
 
 # OS libaries
+
 from loguru import logger
 import cv2
 import numpy as np
@@ -19,46 +24,33 @@ import dill as pickle
 
 class Visualize:
     """
-    A class that visualizes the tracking data of a session. Can be used to ensure that the tracking is working.
-    The tracking data is loaded from prior pipeline step into a self.tracking_data
+    A class that visualizes the tracking data of a session used to ensure that the tracking is working. It also does other random shit and needs to be refactored.
+    As it also handles efizz data.
     """
-    def __init__(self, session: object, settings: object):
+    
+    def __init__(self, session: object):
         self.session = session        
-        self.settings = settings
+        self.settings = settings_v
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000 / self.session.video.fps * (not self.settings.rapid) + self.settings.rapid)
-
+        self.kalman = open_kalman_tracking_data(self.session.processed_path)
         self.print_session_details() # let us know which session we're doing
 
-        # Load kalman tracking data
-        file = os.path.join(self.session.processed_path, "kalman_tracking_data.pickle")
-        with open(file, "rb") as dill_file:
-            self.kalman = pickle.load(dill_file)
-
-        open_tracking_data(self)
-
-        # get time in minutes of shelter only and when the barrier was introduced
-        if len(self.session.shelter_time) > 0: self.sheltertime = np.array(self.session.shelter_time)*60 # in seconds
-        if len(self.session.barrier_time) > 0: self.barriertime = np.array(self.session.barrier_time)*60 # in seconds
-        if self.session.barrier_flip_time: self.barrierfliptime = np.array(self.session.barrier_flip_time)*60 # in seconds
-
-        if self.settings.efizz:  # this will only make efizz plots if you want them
-            
-            """ Load data into visual object"""
-            logger.info(f"Preprocessing {self.settings.cluster_type} data")
-            if 'synthetic' in self.settings.cluster_type:
-                preprocessObject = SyntheticDataPreprocessor(self, 
-                                                             cluster_labels_to_filter = self.settings.cluster_type,
-                                                             expand_behavioural_data = self.settings.expand_behaviour)
-            
-            elif self.settings.cluster_type in ['all', 'good', 'mua', 'noise']:
-                preprocessObject = DataPreprocessor(self, cluster_labels_to_filter = self.settings.cluster_type)
-
-
-            # Plot the coverage statistics
-            # CoverageStatistics(video_data_frame = preprocessObject.video_df, is_barrier_experiment = False)
-
-            visualObject = Visualize_efizz(preprocessObject)
+        # NOTE this currently works by reading the cluster type from the post process class, we might want it to be more explicit to be in the settings of
+        # the visualize class however then we have duplicates. 
+        
+        if self.settings.efizz:
+            try:
+                fileObj = open(self.session.processed_path + "\\" + "postprocessclass" + "_" + str(pp_settings.cluster_type), 'rb')
+                self.postprocessObject = pickle.load(fileObj)
+                fileObj.close()
+                
+            except FileNotFoundError:
+                logger.error(f"Synthetic data not found for session: {self.session.name}")
+                raise FileNotFoundError
+                
+            # NOTE - What is the purpose of this now? Are we running visualize efizz from here or analyze 
+            visualObject = Visualize_efizz(self.postprocessObject, session = self.session)
                         
             """Make tuning plots"""
             logger.info(f"Starting to make some efizz overview plots...")
@@ -66,37 +58,38 @@ class Visualize:
             # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
             # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
 
-            visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
+            # BUG - These are not working now there is a new visualize efizz class
+            # visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
             # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = True)
             # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle',  compute_bootstrap = False, object_present = True)
             # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', compute_bootstrap = False, object_present = True)
             # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', compute_bootstrap = False, object_present = False)
             # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', compute_bootstrap = False, object_present = False)
-
             # make a figure of all tuning polar plots for each cluster
-            visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
+            # visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
 
-            visualObject.spatial_position_firing()
-            # TODO: build edge-tuning maps
-            # TODO: tuning heatmap
-
-            """Make plots of stimulus response"""
-            logger.info(f"Starting to make some plots of stimulus responses.")
-            if self.settings.escape_trials: visualObject.rasters(stim_type = 'audio')
-            if self.settings.escape_trials: visualObject.PSTH_all_neurons(stim_type = 'audio')
-            if self.settings.escape_trials: visualObject.PSTH_single_neurons(stim_type = 'audio')
-            if self.settings.escape_trials: visualObject.single_cluster_raster(stim_type = 'audio')
+            # visualObject.spatial_position_firing() - ~ BUG - RuntimeError: main thread is not in main loop
+       
+        #     """Make plots of stimulus response"""
+        #     logger.info(f"Starting to make some plots of stimulus responses.")
+        #     if self.settings.escape_trials: 
+        #         visualObject.rasters(stim_type = 'audio')
+        #         visualObject.PSTH_all_neurons(stim_type = 'audio')
+        #         visualObject.PSTH_single_neurons(stim_type = 'audio')
+        #         visualObject.single_cluster_raster(stim_type = 'audio')
             
-            """Laser sync test"""
-            # Laser sync test TODO: check if this still works with new polars data organization
-            # if self.settings.escape_trials: visualObject.single_cluster_raster_Laser_test()
-
-        logger.info(f"Starting to make some behaviour ONLY overview plots.")
-        BehaveObject = Visualize_behave(self)
-        BehaveObject.position_by_bsa()
-        BehaveObject.location_occupancy()
-        BehaveObject.angle_histograms()
+        # logger.info(f"Starting to make some behaviour ONLY overview plots.")
+        # BehaveObject = Visualize_behave(session = self.session, 
+        #                                 tracking_data = postprocesObject.tracking_data,
+        #                                 postprocessObject = postprocesObject)
+        # BehaveObject.position_by_bsa()
+        # BehaveObject.location_occupancy()
+        # BehaveObject.angle_histograms()
+        
+        # Plot the coverage statistics - NOTE - Laurence to finish this
+        # CoverageStatistics(video_data_frame = postprocesObject.video_df, session = self.session)
+            
         # Test Behaviour correlation plots
         # correlationChild = Correlations(MaxPlotsPerFigure = 10, 
         #                                 how_many_plots_you_need = 6, 
@@ -145,9 +138,9 @@ class Visualize:
         self.successful_read, self.actual_frame = self.source_video.read()
 
     def correct_and_register_frame(self):
-        self.actual_frame = correct_and_register_frame(
-            self.actual_frame[:, :, 0], self.session.video, self.fisheye_correction_map
-        )
+        self.actual_frame = correct_and_register_frame(self.actual_frame[:, :, 0], 
+                                                       self.session.video, 
+                                                       self.fisheye_correction_map)
         if self.settings.display_tracking or self.settings.display_trail:
             self.actual_frame = cv2.cvtColor(self.actual_frame, cv2.COLOR_GRAY2RGB)
 
@@ -158,40 +151,34 @@ class Visualize:
         """
 
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
-            self.body_dir = self.tracking_data["body_dir"][self.frame_num]
-            self.hdir_shelt = self.tracking_data["hdir_shelt"][self.frame_num]
-            self.bod_shelt_dir = self.tracking_data["bod_shelt_dir"][self.frame_num]
-            if 'bod_barrier_dir' in self.tracking_data:
-                self.hdir_barrier = self.tracking_data["bod_barrier_dir"][self.frame_num, :]
+            self.body_dir = self.postprocessObject.tracking_data["body_dir"][self.frame_num]
+            self.hdir_shelt = self.postprocessObject.tracking_data["hdir_shelt"][self.frame_num]
+            self.bod_shelt_dir = self.postprocessObject.tracking_data["bod_shelt_dir"][self.frame_num]
+            if 'bod_barrier_dir' in self.postprocessObject.tracking_data:
+                self.hdir_barrier = self.postprocessObject.tracking_data["bod_barrier_dir"][self.frame_num, :]
             else:
                 self.hdir_barrier = []
-            self.speed = self.tracking_data["avg_Velocity"][self.frame_num]
-            self.avg_loc = (
-                int(self.tracking_data["avg_loc"][self.frame_num][0]),
-                int(self.tracking_data["avg_loc"][self.frame_num][1]),
-            )
-            self.head_loc = (
-                int(self.tracking_data["head_loc"][self.frame_num][0]),
-                int(self.tracking_data["head_loc"][self.frame_num][1]),
-            )
-            self.hdir = self.tracking_data["hdir"][self.frame_num]
+            self.speed = self.postprocessObject.tracking_data["avg_Velocity"][self.frame_num]
+            self.avg_loc = (int(self.postprocessObject.tracking_data["avg_loc"][self.frame_num][0]),
+                            int(self.postprocessObject.tracking_data["avg_loc"][self.frame_num][1]))
+            self.head_loc = (int(self.postprocessObject.tracking_data["head_loc"][self.frame_num][0]),
+                             int(self.postprocessObject.tracking_data["head_loc"][self.frame_num][1]))
+            self.hdir = self.postprocessObject.tracking_data["hdir"][self.frame_num]
 
     def display_stimulus(self, i: int) -> None:
-        if (
-            self.settings.display_stimulus
-            and self.stim_status[i] == 0
-            and (self.stim_type == "audio" or (self.stim_type == "laser" and self.settings.display_tracking))
-        ):
-            if self.stim_type == "laser":
-                exclamation_color = (255, 200, 0)
-            else:
-                exclamation_color = (100, 200, 255)
-            cv2.putText(
-                self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, exclamation_color, thickness=6,
-            )
-            cv2.putText(
-                self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, (0, 0, 0), thickness=4
-            )
+        """ 
+        Display a large exclamation mark on the screen if the stimulus is on
+        """
+        
+        if (self.settings.display_stimulus and 
+            self.stim_status[i] == 0 and 
+            (self.stim_type == "audio" or (self.stim_type == "laser" and self.settings.display_tracking))):
+                if self.stim_type == "laser":
+                    exclamation_color = (255, 200, 0)
+                else:
+                    exclamation_color = (100, 200, 255)
+                cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, exclamation_color, thickness=6)
+                cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, (0, 0, 0), thickness=4)
 
     def display_trail(self, i):
         if self.settings.display_trail:
@@ -347,8 +334,8 @@ class Visualize:
 
         for j, (bodypart, color) in enumerate(zip(test, get_colormap())):
             bodypart_loc = (
-                int(self.tracking_data[bodypart][self.frame_num, 0]),
-                int(self.tracking_data[bodypart][self.frame_num, 1]),
+                int(self.postprocessObject.tracking_data[bodypart][self.frame_num, 0]),
+                int(self.postprocessObject.tracking_data[bodypart][self.frame_num, 1]),
             )
             cv2.circle(self.actual_frame, bodypart_loc, 1, color, -1)
             cv2.putText(
@@ -464,3 +451,17 @@ class Visualize:
         #         int(self.tracking_data["avg_loc"][self.frame_num][1]),
         #     )
         #     self.hdir = self.tracking_data["hdir"][self.frame_num]
+
+
+# ------------------------------------------------------------------Utilities ----------------------------------------------------------------
+# Utiliy functions for visualise class
+def open_kalman_tracking_data(path):
+    try:
+        file = os.path.join(path, "kalman_tracking_data.pickle")
+        with open(file, "rb") as dill_file:
+            kalman = pickle.load(dill_file)
+        return kalman
+            
+    except FileNotFoundError:
+        logger.error(f"Kalman tracking data not found for this session")
+        raise FileNotFoundError
