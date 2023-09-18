@@ -7,7 +7,6 @@ from behave_analysis.utils.directory import Directory
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 # from behave_analysis.visualize.visualize_behave import Correlations
-from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 
 # Import custom settings
 
@@ -86,10 +85,6 @@ class Visualize:
                                                 tracking_data = self.postprocessObject.tracking_data,
                                                 postprocessingObj = self.postprocessObject)
 
-        # Plot the coverage statistics - NOTE - Laurence to finish this
-        CoverageStatistics(video_data_frame = self.postprocessObject.video_df, 
-                           session = self.session)
-            
     def trials(self, stim_type) -> None:
         """
         A function that loops through all of the trials of a given type, and then loops through frame by frame.

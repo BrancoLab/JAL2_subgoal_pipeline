@@ -6,8 +6,6 @@ in other plots so you have to manually figure out which grid is which.
 
 2) Save the plots to a folder
 
-3) remove times in shelter
-
 4) manually define the grid coordinates
 """
 
@@ -18,6 +16,11 @@ import numpy as np
 import polars as pl
 from scipy.stats import entropy
 from loguru import logger
+import os
+
+# Custom libaries
+
+from settings.settings_visualize import defined_settings_visualize as settings_v
 
 # Plotting settings
 sns.set_theme(style="ticks")
@@ -29,21 +32,78 @@ class CoverageStatistics:
     of this class is to inform the user if the mouse has sampled all the areas uniformly or if there are areas that are not being sampled.
     """
     
-    def __init__(self, video_data_frame, session):
+    def __init__(self, video_data_frame, session, behave_path):
+        self.save_path = behave_path
+        self.video_df = self.select_angle_columns(video_data_frame.filter(pl.col("OutofshelterIdx") == True))
         
-        if session.barrier_time:
-            self.is_barrier_experiment = True
+        self.plot_marginals_and_pairwise_correlations()
+        
+        # _, self.xedges, self.yedges = self.divide_arena_into_grid(video_data_frame, grid_number = 3) # 3 creates a 3x3 grid of the arena
+        # self.mapped_coordinates = self.map_bin_edges_to_grid_coordinates()
+        # self.total_samples, self.grid = self.computation_by_grid(video_data_frame, self.xedges, self.yedges, self.is_barrier_experiment)
+        # self.kl_divergences = self.compute_kl_divergences(self.grid)
+        # self.plot_grid_coverage(self.grid)
+        # self.plot_heat_map_of_position()
+        
+    def select_angle_columns(self, video_data_frame) -> pl.DataFrame:
+        """ 
+        Depending on whether it's a mushroom or barrier experiment, filter on the available angles. Will return a data frame
+        of either four or 2 angles.
+        
+        NOTE - This function is duplicated in circular_coeff_of_angles.py and other places. Need to refactor this.
+        """
+        
+        if "h_bar_north_a" and "h_bar_south_a" in video_data_frame.columns:
+            angles = video_data_frame.select(["hdir", "hsa", "h_bar_north_a", "h_bar_south_a"])
+                    
         else:
-            self.is_barrier_experiment = False
+            angles = video_data_frame.select(["hdir", "hsa"])
+            
+        return angles
         
-        self.video_data_frame = video_data_frame
-        _, self.xedges, self.yedges = self.divide_arena_into_grid(video_data_frame, grid_number = 3) # 3 creates a 3x3 grid of the arena
-        self.mapped_coordinates = self.map_bin_edges_to_grid_coordinates()
-        self.total_samples, self.grid = self.computation_by_grid(video_data_frame, self.xedges, self.yedges, self.is_barrier_experiment)
-        self.kl_divergences = self.compute_kl_divergences(self.grid)
-        self.plot_grid_coverage(self.grid)
-        self.plot_whole_arena_coverage_and_correlations(self.video_data_frame)
-        self.plot_heat_map_of_position()
+    def plot_marginals_and_pairwise_correlations(self) -> None:
+        """
+        Plots the marginal distributions of the angles and the pairwise correlations between the angles. I suspect
+        that as the correlation plots are linear and the coeff are circular that this is not the correct way to do this.
+        
+        BUG: Plot circular correlations some how.
+        
+        Input: A video data frame filtered on the out of shelter frames.
+        
+        Output: Saved plot of the marginal distributions and pairwise correlations.
+        """
+        
+        # If it's a barrier experiment
+        if "h_bar_north_a" in self.video_df:
+            angle_data_frame = self.video_df.select(['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']).to_pandas()
+            angle_data_frame.rename(columns={'h_bar_north_a': 'North Edge', 
+                                             'h_bar_south_a': 'South Edge', 
+                                             'hdir': 'Head Direction', 
+                                             'hsa': 'Head Shelter'}, inplace=True)
+            
+            sns.set(rc={'figure.figsize':(20, 8)})
+            sns.set_context("talk", font_scale=1.25)
+            pair_plot = sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2}, height= 2)
+            pair_plot.fig.set_size_inches(20, 8)
+            plt.subplots_adjust(wspace=0.1, hspace=0.2)
+
+            if settings_v.show_plots: plt.show()
+
+        # If it's not a barrier experiment
+        else:
+            angle_data_frame = self.video_df.select(['hdir', 'hsa']).to_pandas()
+            sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2}, height= 1.5)
+            
+            sns.set(rc={'figure.figsize':(20, 8)})
+            sns.set_context("talk", font_scale=1.25)
+            pair_plot = sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2}, height= 2)
+            pair_plot.fig.set_size_inches(20, 8)
+            plt.subplots_adjust(wspace=0.1, hspace=0.2)
+            
+            if settings_v.show_plots: plt.show()
+
+        plt.savefig(os.path.join(self.save_path, "marginal_and_pairwise_correlations.png"))
+        plt.close()
 
     def divide_arena_into_grid(self, video_data_frame, grid_number) -> tuple:
         """
@@ -177,24 +237,6 @@ class CoverageStatistics:
         plt.tight_layout()  # Adjusts subplot params so that subplots fit into the figure area
         plt.show()
 
-    def plot_whole_arena_coverage_and_correlations(self, video_data_frame):
-        
-        if self.is_barrier_experiment:
-            angle_data_frame = video_data_frame.select(['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']).to_pandas()
-            angle_data_frame.rename(columns={'h_bar_north_a': 'North Edge', 
-                                             'h_bar_south_a': 'South Edge', 
-                                             'hdir': 'Head Direction', 
-                                             'hsa': 'Head Shelter'}, inplace=True)
-            plt.subplots_adjust(wspace=0.1, hspace=0.2)
-            sns.set_context("talk", font_scale=1.25)
-            sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2}, height= 2)
-            plt.show()
-        
-        else:
-            angle_data_frame = video_data_frame.select(['hdir', 'hsa']).to_pandas()
-            sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2},height= 1.5)
-            plt.show()
-    
     def plot_heat_map_of_position(self):
         x_coords = self.video_data_frame['mouse_x_position']
         y_coords = self.video_data_frame['mouse_y_position']

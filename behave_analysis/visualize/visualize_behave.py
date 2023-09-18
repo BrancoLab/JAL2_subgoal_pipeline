@@ -13,11 +13,11 @@ import matplotlib.pyplot as plt
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.visualize.behaviour.circular_coeff_of_angles import compute_the_circular_rho
 from loguru import logger
+from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 
 # Import settings
 
 from settings.settings_visualize import defined_settings_visualize as settings_v
-
 
 class Visualize_behave:
     """
@@ -36,9 +36,13 @@ class Visualize_behave:
         self.position_by_bsa()
         self.location_occupancy()
         self.angle_histograms()
-        rhoDict = compute_the_circular_rho(postprocessingObj) # The circular correlation coefficient for all pairwaise combinations of angles
+        rhoDict = compute_the_circular_rho(self.postprocessingObj) # The circular correlation coefficient for all pairwaise combinations of angles
         logger.info(f"The circular correlation coefficient for all pairwaise combinations of angles: {rhoDict}")
         # NOTE - Currently printing the rhoDict to the console, but not saving or plotting it anywhere.
+        
+        CoverageStatistics(video_data_frame = self.postprocessingObj.video_df, 
+                           session = self.session,
+                           behave_path = self.behave_path)
 
     def position_by_bsa(self):
         """

@@ -7,11 +7,13 @@ import polars as pl
 def compute_the_circular_rho(postProcessingObject) -> dict:
     """ 
     Ingests the frame by frame behavioural data, filters on the 
-    available angles and then computes the circular correlation coefficient between the angles
+    available angles when the mouse is out of the shelter and then 
+    computes the circular correlation coefficient between the angles
     """
     
     data = postProcessingObject.video_df
-    angles = select_angle_columns(data)
+    outOfShelterFrames = data.filter(pl.col("OutofshelterIdx") == True)
+    angles = select_angle_columns(outOfShelterFrames)
     combinations = create_all_the_permutations_of_angles(angles.columns)
     rhoDict = loop_through_permutations_of_angles(combinations, angles)
     
