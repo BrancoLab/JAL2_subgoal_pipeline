@@ -1,7 +1,27 @@
+""" 
+This script is used to test and implement a circular correlation coefficient function. The one selected was the one from the Mahmood paper: Mahmood, E.A., 2022. 
+Robust circular-circular correlation coefficient. Communications in Statistics-Theory and Methods, pp.1-9. based on the formula by Pewsey, Neuhäuser, and Ruxton (2013) derived 
+from the Fisher and Lee (1983) formula.
+
+rho = 4[AB - CD] / SQRT([n**2 - E**2 - F**2][n**2 - G**2 - H**2])
+
+where: 
+    A = ∑cosϑicosφi,
+    B = ∑sinϑisinφi,
+    C = ∑cosϑisinφi,
+    D = ∑sinϑicosφi,
+    E = ∑cos**2ϑi,
+    F = ∑sin**2ϑi,
+    G = ∑cos**2φi
+    H = ∑sin**2φi.
+
+"""
+
 import numpy as np
-from astropy.stats import circcorrcoef
 from itertools import combinations
 import polars as pl
+
+# Main function --------------------------------------------------------------------------------------------------------------------------------------------
 
 def compute_the_circular_rho(postProcessingObject) -> dict:
     """ 
@@ -14,9 +34,11 @@ def compute_the_circular_rho(postProcessingObject) -> dict:
     outOfShelterFrames = data.filter(pl.col("OutofshelterIdx") == True)
     angles = select_angle_columns(outOfShelterFrames)
     combinations = create_all_the_permutations_of_angles(angles.columns)
-    rhoDict = loop_through_permutations_of_angles(combinations, angles)
+    rhoDict = loop_through_permutations_of_angles_and_apply_fishers_coeff(combinations, angles)
     
     return rhoDict
+
+# Helper functions -----------------------------------------------------------------------------------------------------------------------------------------
 
 def select_angle_columns(video_df) -> pl.DataFrame:
     """ 
@@ -47,7 +69,49 @@ def loop_through_permutations_of_angles(combinations, videoDf) -> dict:
     for angleSet in combinations:
         alpha = videoDf[angleSet[0]].to_numpy()
         beta = videoDf[angleSet[1]].to_numpy()
-        rho = circcorrcoef(alpha, beta)
+        rho = circular_rho(alpha, beta)
+        rhoDict[angleSet] = rho
+    return rhoDict
+
+def create_all_the_permutations_of_angles(columns) -> list:
+    """ 
+    Given a list of angles, create all the permutations of angles
+    """
+    
+    return list(combinations(columns, 2))
+
+def circular_rho(alpha, beta) -> np.float:
+    """ 
+    Computes the circular correlation coefficient from the Fisher and Lee (1983) formula.
+    
+    Inputs: np.array of angles in radians
+    Output: np.float of the circular correlation coefficient between two angles
+    """
+    
+    assert alpha.shape == beta.shape, "The alpha and beta arrays must be of the same shape"
+    assert np.all(np.abs(alpha) <= np.pi), "The values in the alpha array must be between -pi and pi"
+    assert np.all(np.abs(beta) <= np.pi), "The values in the beta array must be between -pi and pi"
+    assert isinstance(alpha, np.ndarray), "The alpha array must be a numpy array"
+    assert isinstance(beta, np.ndarray), "The beta array must be a numpy array"
+    
+    numerator = 4 * (((np.sum(np.cos(alpha) * np.cos(beta))) * (np.sum(np.sin(alpha) * np.sin(beta)))) - 
+                     ((np.sum(np.cos(alpha) * np.sin(beta))) * (np.sum(np.sin(alpha) * np.cos(beta)))))
+    
+    denumerator = np.sqrt((len(alpha)**2 - np.sum(np.cos(alpha)**2) - np.sum(np.sin(alpha)**2)) *
+                          (len(alpha)**2 - np.sum(np.cos(beta)**2) - np.sum(np.sin(beta)**2)))
+    
+    return numerator / denumerator
+
+def loop_through_permutations_of_angles_and_apply_fishers_coeff(combinations, videoDf) -> dict:
+    """ 
+    Loop through the permutations of angles and compute the circular correlation coefficient
+    """
+    
+    rhoDict = {}
+    for angleSet in combinations:
+        alpha = videoDf[angleSet[0]].to_numpy()
+        beta = videoDf[angleSet[1]].to_numpy()
+        rho = circular_rho(alpha, beta)
         rhoDict[angleSet] = rho
     return rhoDict
 
@@ -71,6 +135,7 @@ if __name__ == "__main__":
     """
     
     import matplotlib.pyplot as plt
+    from astropy.stats import circcorrcoef
     
     # Build toy data -----------------------------------------------------------------------------------------------------------------------------------------
     arrayLength = 100
