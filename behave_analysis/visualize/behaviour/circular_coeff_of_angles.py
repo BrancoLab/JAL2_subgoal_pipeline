@@ -26,16 +26,16 @@ def compute_the_circular_rho(postProcessingObject) -> dict:
 
 # Helper functions -----------------------------------------------------------------------------------------------------------------------------------------
 
-def select_angle_columns(video_df) -> pl.DataFrame:
+def select_angle_columns(videoDf) -> pl.DataFrame:
     """ 
     Depending on whether it's a mushroom or barrier experiment, filter on the available angles.
     """
     
-    if "h_bar_north_a" and "h_bar_south_a" in video_df.columns:
-        angles = video_df.select(["hdir", "hsa", "h_bar_north_a", "h_bar_south_a"])
+    if "h_bar_north_a" and "h_bar_south_a" in videoDf.columns:
+        angles = videoDf.select(["hdir", "hsa", "h_bar_north_a", "h_bar_south_a"])
                 
     else:
-        angles = video_df.select(["hdir", "hsa"])
+        angles = videoDf.select(["hdir", "hsa"])
         
     return angles
 
