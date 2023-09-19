@@ -46,13 +46,6 @@ def create_all_the_permutations_of_angles(columns) -> list:
     
     return list(combinations(columns, 2))
 
-def create_all_the_permutations_of_angles(columns) -> list:
-    """ 
-    Given a list of angles, create all the permutations of angles
-    """
-    
-    return list(combinations(columns, 2))
-
 def loop_through_permutations_of_angles_and_apply_circcoeff(combinations, videoDf) -> dict:
     """ 
     Loop through the permutations of angles and compute the circular correlation coefficient
