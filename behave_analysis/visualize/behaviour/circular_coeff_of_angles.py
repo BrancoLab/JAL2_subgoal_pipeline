@@ -2,6 +2,12 @@
 This script is used to test and implement different circular correlation coefficient functions to see which one is the most accurate. After several tests, the astropy one seems to be the most accurate.
 Though the differences in accuracy could be down to the examples being created from that specific implementation method. The differences in methods and results highlight the need for a clear explanation of the algorithm used.
 And also the robustness of the algorithms. However, this algorithm will not form a central part of the analysis so for now the astropy one will be used.
+
+AstroPy implemnetation:
+- Jammalamadaka and SenGupta (Citation2001)
+
+Jess and Mine implementations:
+- Fisher and Lee (Citation1983) 
 """
 
 import numpy as np
