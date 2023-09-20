@@ -111,7 +111,7 @@ class Register():
         """ Ask user where shelter and barrier were positioned"""
 
         self.actual_arena = []
-        self.get_image_of_actual_arena(video_object, (session.shelter_only_time[0]+10)*60*fps)
+        self.get_image_of_actual_arena(video_object, (session.shelter_time[0]+10)*60*fps)
         self.clicked_points = []
         # ask user where the shelter is
         print("Where is the shelter? Click first the top left, then the bottom right corner of the shelter. ATTENTION: if mushroom mark the base, not the roof")

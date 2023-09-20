@@ -1,4 +1,5 @@
 # OS libaries
+
 from abc import ABC, abstractmethod
 from loguru import logger
 import numpy as np
@@ -7,17 +8,21 @@ import polars as pl
 import time
 import os
 
-# Custom libaries sdf dsfgsdf
+# Custom libaries
 from behave_analysis.database.synthetic_data.synthetic_main import generate_synthetic_dataframe
+from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 
-class BaseDataPreprocessor(ABC):
+class BaseDataPostprocessor(ABC):
     """
-    A parent class to support the real and synthetic data preprocessor children. 
+    A parent class to support the real and synthetic data postprocessing children. 
     """
-    def __init__(self, visualize_object, cluster_labels_to_filter):
-        logger.info("Preprocessing started")
-        self.Visualize = visualize_object
+    
+    def __init__(self, cluster_labels_to_filter, tracking_data, session):
+        logger.info("Postprocessing started")
         self.select_cluster_labels = cluster_labels_to_filter
+        self.tracking_data = tracking_data
+        self.session = session
+        self.sheltertime, self.barriertime, self.barrierfliptime = self.convert_experimental_settings_to_conditon_timings(session)
 
     # --------------- Abstract methods to be implemented by all children ---------------------------------------------
 
@@ -30,6 +35,30 @@ class BaseDataPreprocessor(ABC):
         pass
     
     # --------------- Concrete methods implemented ----------------------------------------------------------------------
+    
+    def convert_experimental_settings_to_conditon_timings(self, session):
+        """ 
+        Take the times inserted into the experimental class and convert them to seconds
+                
+        NOTE: The naming of sheltertime is not great as there is another variable called shelter_time in the session class. This is true for the other variables as well.
+        consider renaming them to something more descriptive.
+        """
+        
+        # Init variables incase they are not defined
+        sheltertime = None
+        barriertime = None
+        barrierfliptime = None
+        
+        if session.shelter_time:
+            sheltertime = np.array(self.session.shelter_time) * 60
+        
+        if session.barrier_time:
+            barriertime = np.array(self.session.barrier_time) * 60
+            
+        if session.barrier_flip_time:
+            barrierfliptime = np.array(self.session.barrier_flip_time) * 60
+            
+        return sheltertime, barriertime, barrierfliptime
     
     def extract_cluster_labels(self):
         """
@@ -60,26 +89,25 @@ class BaseDataPreprocessor(ABC):
         Returns: Video_df
         """
         # if mushroom, estend size to outer circle
-        if np.logical_and(self.Visualize.tracking_data['shelter_loc'][1][0] - self.Visualize.tracking_data['shelter_loc'][0][0]<50,
-                            self.Visualize.tracking_data['shelter_loc'][1][1] - self.Visualize.tracking_data['shelter_loc'][0][1]<50):
-            self.Visualize.tracking_data['shelter_loc'][0] = [x - 35 for x in self.Visualize.tracking_data['shelter_loc'][0]]
-            self.Visualize.tracking_data['shelter_loc'][1] = [x + 35 for x in self.Visualize.tracking_data['shelter_loc'][1]]
+        if np.logical_and(self.tracking_data['shelter_loc'][1][0] - self.tracking_data['shelter_loc'][0][0]<50,
+                          self.tracking_data['shelter_loc'][1][1] - self.tracking_data['shelter_loc'][0][1]<50):
+            self.tracking_data['shelter_loc'][0] = [x - 35 for x in self.tracking_data['shelter_loc'][0]]
+            self.tracking_data['shelter_loc'][1] = [x + 35 for x in self.tracking_data['shelter_loc'][1]]
         
         # if side shelter make sure it goes all the way to the edge of image, mouse can't be 'behind' shelter
-        if self.Visualize.tracking_data['shelter_loc'][1][1] > 900: self.Visualize.tracking_data['shelter_loc'][1][1] = 1024
-        OutofShelterIdx = np.logical_not(np.logical_and(np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 0] > self.Visualize.tracking_data['shelter_loc'][0][0],
-            self.Visualize.tracking_data['avg_loc'][:, 0] < self.Visualize.tracking_data['shelter_loc'][1][0]),
-            np.logical_and(self.Visualize.tracking_data['avg_loc'][:, 1] > self.Visualize.tracking_data['shelter_loc'][0][1],
-            self.Visualize.tracking_data['avg_loc'][:, 1] < self.Visualize.tracking_data['shelter_loc'][1][1])))
+        if self.tracking_data['shelter_loc'][1][1] > 900: 
+            self.tracking_data['shelter_loc'][1][1] = 1024
+        
+        OutofShelterIdx = out_of_shelter_filter(tracking_data = self.tracking_data)
 
         # when was the shelter in the arena?
-        if len(self.Visualize.session.shelter_time) > 0:
-            if not(np.logical_and(self.Visualize.session.shelter_time[0] == 0, self.Visualize.session.shelter_time[1] == -1)):
-                if self.Visualize.session.shelter_time[1] == -1: # shelter until the end of the session
-                    shelteronly = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps)
+        if len(self.session.shelter_time) > 0:
+            if not(np.logical_and(self.session.shelter_time[0] == 0, self.session.shelter_time[1] == -1)):
+                if self.session.shelter_time[1] == -1: # shelter until the end of the session
+                    shelteronly = np.arange(1,len(self.tracking_data['hdir'])+1) > (self.sheltertime[0]*self.session.video.fps)
                 else:
-                    shelteronly = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.sheltertime[0]*self.Visualize.session.video.fps),
-                                                np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.sheltertime[1]*self.Visualize.session.video.fps))
+                    shelteronly = np.logical_and(np.arange(1,len(self.tracking_data['hdir'])+1) > (self.sheltertime[0]*self.session.video.fps),
+                                                np.arange(1,len(self.tracking_data['hdir'])+1) < (self.sheltertime[1]*self.session.video.fps))
             else:
                 shelteronly = np.zeros(len(OutofShelterIdx)) == 0
                 print('shelter always present')
@@ -88,35 +116,35 @@ class BaseDataPreprocessor(ABC):
             print('no shelter in this session')
         
         # what period in the recording was there a barrier?
-        if len(self.Visualize.session.barrier_time) > 0:
-            if self.Visualize.session.barrier_time[1] == -1: # shelter only until the end of the session
-                barrier_present = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.barriertime[0]*self.Visualize.session.video.fps)
+        if len(self.session.barrier_time) > 0:
+            if self.session.barrier_time[1] == -1: # shelter only until the end of the session
+                barrier_present = np.arange(1,len(self.tracking_data['hdir'])+1) > (self.barriertime[0]*self.session.video.fps)
             else:
-                barrier_present = np.logical_and(np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.barriertime[0]*self.Visualize.session.video.fps),
-                                                np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) < (self.Visualize.barriertime[1]*self.Visualize.session.video.fps))
+                barrier_present = np.logical_and(np.arange(1,len(self.tracking_data['hdir'])+1) > (self.barriertime[0]*self.session.video.fps),
+                                                np.arange(1,len(self.tracking_data['hdir'])+1) < (self.barriertime[1]*self.session.video.fps))
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
             print('no barrier in this session')
 
         # when was the barrier flipped?
-        if self.Visualize.session.barrier_flip_time:
-            barrier_flipped = np.arange(1,len(self.Visualize.tracking_data['hdir'])+1) > (self.Visualize.barrierfliptime*self.Visualize.session.video.fps)
+        if self.session.barrier_flip_time:
+            barrier_flipped = np.arange(1,len(self.tracking_data['hdir'])+1) > (self.barrierfliptime*self.session.video.fps)
         else:
             barrier_flipped = np.zeros(len(OutofShelterIdx)) == 1
             print('barrier was not flipped in this session')
         
         # find the escape periods
         EscapePeriod = np.zeros_like(OutofShelterIdx)
-        for onsets in self.Visualize.session.audio.onset_frames:
-            EscapePeriod[(onsets[0]-self.Visualize.session.video.fps):(onsets[0]+(10*self.Visualize.session.video.fps))] = 1
+        for onsets in self.session.audio.onset_frames:
+            EscapePeriod[(onsets[0]-self.session.video.fps):(onsets[0]+(10*self.session.video.fps))] = 1
         
         # make a video dataframe where for each video frame:
         video_df = pl.DataFrame(
-                {"frames": np.arange(1,len(self.Visualize.tracking_data['hdir'])+1).astype(np.int64),
-                "hdir": self.Visualize.tracking_data['hdir'],
-                "hsa": self.Visualize.tracking_data['hdir_shelt'],
-                "mouse_x_position": self.Visualize.tracking_data['avg_loc'][:,0],
-                "mouse_y_position": self.Visualize.tracking_data['avg_loc'][:,1],
+                {"frames": np.arange(1,len(self.tracking_data['hdir'])+1).astype(np.int64),
+                "hdir": self.tracking_data['hdir'],
+                "hsa": self.tracking_data['hdir_shelt'],
+                "mouse_x_position": self.tracking_data['avg_loc'][:,0],
+                "mouse_y_position": self.tracking_data['avg_loc'][:,1],
                 "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
                 "EscapePeriod": EscapePeriod == 1, # frames from 1 second before to 10 seconds after escape
                 "shelter_only": shelteronly, # true when the shelter is in the arena
@@ -124,17 +152,17 @@ class BaseDataPreprocessor(ABC):
                 "barrier_flipped":barrier_flipped}) # true after the shelter was flipped
 
         # if barrier in session, add the angles to video_df
-        if 'hdir_barrier' in self.Visualize.tracking_data:
-            video_df = video_df.hstack([pl.Series("h_bar_north_a",self.Visualize.tracking_data['hdir_barrier'][:,0])])
-            video_df = video_df.hstack([pl.Series("h_bar_south_a",self.Visualize.tracking_data['hdir_barrier'][:,1])])
-            video_df = video_df.hstack([pl.Series("h_bar_centre_a",self.Visualize.tracking_data['hdir_barrier'][:,2])])
+        if 'hdir_barrier' in self.tracking_data:
+            video_df = video_df.hstack([pl.Series("h_bar_north_a",self.tracking_data['hdir_barrier'][:,0])])
+            video_df = video_df.hstack([pl.Series("h_bar_south_a",self.tracking_data['hdir_barrier'][:,1])])
+            video_df = video_df.hstack([pl.Series("h_bar_centre_a",self.tracking_data['hdir_barrier'][:,2])])
 
         # if random points were included, add the angles to video_df
-        if 'hdir_randP' in self.Visualize.tracking_data:
-            for i in np.arange(np.shape(self.Visualize.tracking_data['hdir_randP'])[1]):
-                video_df = video_df.hstack([pl.Series(str('head_randP_' + str(i)),self.Visualize.tracking_data['hdir_randP'][:,i])])
+        if 'hdir_randP' in self.tracking_data:
+            for i in np.arange(np.shape(self.tracking_data['hdir_randP'])[1]):
+                video_df = video_df.hstack([pl.Series(str('head_randP_' + str(i)), self.tracking_data['hdir_randP'][:,i])])
 
-        video_df.write_csv(self.Visualize.session.processed_path + "/" + "full_video_dataframe.csv")
+        video_df.write_csv(self.session.processed_path + "/" + "full_video_dataframe.csv")
         return video_df
         
     def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
@@ -143,9 +171,10 @@ class BaseDataPreprocessor(ABC):
         The lazy() function means that computations are not immediately executed. This allows the computer to plan the operations before
         proceeding. NOTE - if there are changes to the code, ensure to delete any existing CSVs so you can see the changes of the code.
         """
+        
         try:
             logger.info("Attempting to load a previously computed spike frame count")
-            with open(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv", "rb") as file:
+            with open(self.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv", "rb") as file:
                 spikecountbyframe_neuron = pl.read_csv(file.read())
             logger.success("Found spike count by frame and cluster dataframe, loading it now")
             return spikecountbyframe_neuron
@@ -157,7 +186,7 @@ class BaseDataPreprocessor(ABC):
             start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(self.Visualize.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
+            spikecountbyframe_neuron.write_csv(self.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
             return spikecountbyframe_neuron
 
     def merge_and_save_spike_count_df_with_frame_data(self):
@@ -165,9 +194,9 @@ class BaseDataPreprocessor(ABC):
         video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
         large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
         large_dataFrame = large_dataFrame.fill_null(strategy="zero")
-        large_dataFrame.write_csv(self.Visualize.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
+        large_dataFrame.write_csv(self.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
 
-    def export_large_df_to_frame_by_cluster_matrix(self):
+    def export_large_df_to_frame_by_cluster_matrix(self) -> None:
         logger.info("building a frame by cluster matrix of firing rates")
         clu = self.spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
         # group the  data
@@ -188,37 +217,34 @@ class BaseDataPreprocessor(ABC):
                 clusters = np.sort(clusters)
                 X[int(i2)-1,np.where(np.in1d(clu,clusters))[0]] = spikes
             
-        if clu[0] == 0: X = X[:,1:]
+        if clu[0] == 0: 
+            X = X[:,1:]
 
         # transform to firing rate estimate in Hz
-        sampling_rate = self.Visualize.session.video.fps # in fps
+        sampling_rate = self.session.video.fps # in fps
         window_size = 100 # in ms
         nbins = 1000/window_size
         for i in np.arange(np.shape(X)[1]):
             X[:,i] = np.convolve(X[:,i],np.ones(int(sampling_rate/nbins),dtype = int),'same')*nbins
 
-        np.save(str(self.Visualize.session.processed_path + "/" + "frame_by_" + self.select_cluster_labels +"_cluster_matrix"),X)
+        np.save(str(self.session.processed_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"), X)
       
-##### -------- synthetic data processor
-class SyntheticDataPreprocessor(BaseDataPreprocessor):
+class SyntheticDataPostprocessor(BaseDataPostprocessor):
     """
-    A child class to support the synthetic data preprocessing pipeline. 
+    A child class to support the synthetic data postprocessing pipeline. 
     """
-    def __init__(self, visualize_object, cluster_labels_to_filter, expand_behavioural_data = False):
-        super().__init__(visualize_object, cluster_labels_to_filter)
-        self.csv_path = os.path.join(self.Visualize.session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
+    
+    def __init__(self, cluster_labels_to_filter, tracking_data, session):
+        super().__init__(cluster_labels_to_filter, tracking_data, session)
+        self.csv_path = os.path.join(session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
         self.video_df = self.track_to_polars()
-        self.expand_behavioural_data = expand_behavioural_data
-        if expand_behavioural_data: 
-            self.video_df = self.expand_tracking_data(video_df = self.video_df, 
-                                                      new_entries_to_insert = self.Visualize.settings.num_samples_of_expansion)
         self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
         self.spike_data = self.load_spike_data()
         self.clu_label = self.extract_cluster_labels()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
         self.merge_and_save_spike_count_df_with_frame_data()
-        self.export_large_df_to_frame_by_cluster_matrix()
+        # self.export_large_df_to_frame_by_cluster_matrix() # NOTE - Temporary comment out as slow when trying to test pipeline
     
     def check_synthetic_data_exists_if_not_generate_it(self) -> None:
         if not os.path.exists(self.csv_path):
@@ -229,9 +255,9 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
     def activate_synthetic_data_generation(self) -> None:
         logger.info("Synthetic spike data doesn't exist and will now be generated")
         tuning = ['hdir']
-        if np.logical_or(np.logical_and(len(self.Visualize.session.shelter_time) > 0,self.select_clusters == 'synthetic'),'hsa' in self.select_clusters): 
+        if np.logical_or(np.logical_and(len(self.session.shelter_time) > 0,self.select_clusters == 'synthetic'),'hsa' in self.select_clusters): 
             tuning.append('hsa')
-        if np.logical_and(len(self.Visualize.session.barrier_time) > 0,self.select_clusters == 'synthetic'): 
+        if np.logical_and(len(self.session.barrier_time) > 0,self.select_clusters == 'synthetic'): 
             tuning.append('h_bar_north_a')
             tuning.append('h_bar_south_a')
         synth_df = generate_synthetic_dataframe(tuning, pass_video_df = self.video_df)
@@ -278,17 +304,15 @@ class SyntheticDataPreprocessor(BaseDataPreprocessor):
         
         return expanded_synthetic_tracking_data_by_frame
 
-#### ------------ data processor
-class DataPreprocessor(BaseDataPreprocessor):
+class DataPostprocessor(BaseDataPostprocessor):
     """
-    A child class to support the production data preprocessing pipeline. 
+    A child class to support the production data postrocessing pipeline. 
     """
-    def __init__(self, visualize_object, cluster_labels_to_filter):
-        super().__init__(visualize_object, cluster_labels_to_filter)
-        
+    
+    def __init__(self, cluster_labels_to_filter, tracking_data, session):
+        super().__init__(cluster_labels_to_filter, tracking_data, session)
         assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
-        
-        self.csv_path = glob(os.path.join(self.Visualize.session.processed_path, "Processed_efizz_data"))[0]
+        self.csv_path = glob(os.path.join(session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         unfiltered_spike_data = self.load_spike_data()
         self.spike_data = self.filter_spike_data(unfiltered_spike_data)
@@ -296,12 +320,13 @@ class DataPreprocessor(BaseDataPreprocessor):
         self.video_df = self.track_to_polars()
         self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
         self.merge_and_save_spike_count_df_with_frame_data() # Saves to a csv
-        self.export_large_df_to_frame_by_cluster_matrix()
+        # self.export_large_df_to_frame_by_cluster_matrix() # Temporary comment out as slow when trying to test pipeline
         
     def filter_spike_data(self,df):
         """
         Filter the spike data to only include good neurons or good + MUA
-        """        
+        """
+        
         if self.select_clusters == 'all':
             filtered_spike_data = df.filter((df['cluster_group'] == "good") | (df['cluster_group'] == "mua"))
             logger.info("Loaded good and multi unit clusters")

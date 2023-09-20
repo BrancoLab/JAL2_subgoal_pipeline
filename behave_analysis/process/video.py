@@ -66,7 +66,7 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
     registration_transform = Register(session, video, video_object).transform
     
     # Log the registration transform as if this is None it causing issues downstream at track
-    logger.info(f"Registration transform: {registration_transform}")
+    logger.debug(f"Registration transform: {registration_transform}")
     
     video = Video(num_frames, 
                   video_file, 

@@ -8,19 +8,22 @@ import matplotlib.pyplot as plt
 # matplotlib.use('Agg') # Removing agg as it doesnt allow for gui
 import time
 
+# Import custom settings
+from settings.settings_visualize import defined_settings_visualize as settings_v
+
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters
     """
-    def __init__(self,  PreProcessed_data_object):
-       logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
+    
+    def __init__(self,  PreProcessed_data_object, session):
        self.processed_data = PreProcessed_data_object
-       self.stim_resp_path = os.path.join(self.processed_data.Visualize.session.processed_path,'stim_resp')
-       if not(os.path.exists(self.stim_resp_path)): 
-            os.makedirs(self.stim_resp_path)
-       self.rayleigh_path = os.path.join(self.processed_data.Visualize.session.processed_path,'rayleigh')
-       if not(os.path.exists(self.rayleigh_path)): 
-            os.makedirs(self.rayleigh_path)
+       self.session = session
+       self.stim_resp_path = os.path.join(self.session.processed_path, 'stim_resp')
+       if not(os.path.exists(self.stim_resp_path)): os.makedirs(self.stim_resp_path)
+       self.rayleigh_path = os.path.join(self.session.processed_path, 'rayleigh')
+       if not(os.path.exists(self.rayleigh_path)): os.makedirs(self.rayleigh_path)
+       logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
 
 # FUNCTIONS FOR PLOTTING STIM-TRIGGERED RESPONSE --------------------------------------------------------------------------------------------------------------------------------------
 
@@ -30,14 +33,15 @@ class Visualize_efizz:
         - the onset frame of that stimulus
         - the duration of that stimulus
         """
+        
         # Hyperparameters
         timeBeforeStim = 5 # seconds
-        stimulus_durations = np.amax(self.processed_data.Visualize.session.__dict__[stim_type].stimulus_durations)
+        stimulus_durations = np.amax(self.session.__dict__[stim_type].stimulus_durations)
 
         # plot a line of mean activity for each trial
-        for trial_num, onset_frames in enumerate(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames):
-            time1 = (onset_frames / self.processed_data.Visualize.session.video.fps) - timeBeforeStim 
-            time2 = (onset_frames / self.processed_data.Visualize.session.video.fps) + stimulus_durations
+        for trial_num, onset_frames in enumerate(self.session.__dict__[stim_type].onset_frames):
+            time1 = (onset_frames / self.session.video.fps) - timeBeforeStim 
+            time2 = (onset_frames / self.session.video.fps) + stimulus_durations
             
             # Mask spikes that are within the time window
             spikes_trial = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1) & (self.processed_data.spike_data['aligned_spike_times'] < time2))
@@ -63,24 +67,30 @@ class Visualize_efizz:
         
         plt.title('Trial by trial response PSTH for stimulus type: ' + stim_type)
         plt.savefig(str(self.stim_resp_path) + "/" + self.processed_data.select_clusters + "_clusters_PSTH_all_neurons_" + str(stim_type) + ".png")
-        if self.processed_data.Visualize.settings.show_plots: plt.show()
+        
+        if settings_v.show_plots: 
+            plt.show()
+            
         plt.close()
 
     def PSTH_single_neurons(self, stim_type):
         """
         Plot the mean firing rate of each cluster averaged across all trials.
         """
+        
         timeBeforeStim = 5
-        stimulus_durations = np.amax(self.processed_data.Visualize.session.__dict__[stim_type].stimulus_durations) + 2
+        stimulus_durations = np.amax(self.session.__dict__[stim_type].stimulus_durations) + 2
         xlim = [timeBeforeStim * -1,stimulus_durations]
 
         # Mask spikes that are within the time window
-        for trial, onset_frames in enumerate(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames):
-            time1 = (onset_frames / self.processed_data.Visualize.session.video.fps) - timeBeforeStim 
-            time2 = (onset_frames / self.processed_data.Visualize.session.video.fps) + stimulus_durations
-            filt = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1)
-                                            & (self.processed_data.spike_data['aligned_spike_times'] < time2))
-            filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/self.processed_data.Visualize.session.video.fps)),
+        for trial, onset_frames in enumerate(self.session.__dict__[stim_type].onset_frames):
+            time1 = (onset_frames / self.session.video.fps) - timeBeforeStim 
+            time2 = (onset_frames / self.session.video.fps) + stimulus_durations
+            filt = self.processed_data.spike_data.filter(
+                        (self.processed_data.spike_data['aligned_spike_times'] > time1) &
+                        (self.processed_data.spike_data['aligned_spike_times'] < time2)
+            )
+            filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/self.session.video.fps)),
                                 pl.col('spike_clusters'),
                                 pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
             if trial == 0: spikes_trial = filt
@@ -136,15 +146,16 @@ class Visualize_efizz:
             fig.tight_layout()
             plt.savefig(str(self.stim_resp_path) + "/" + str(stim_type) + "_single_" + self.processed_data.select_clusters + "_cluster_PSTH_" + str(figure_idx) + ".png")                
         
-        if self.processed_data.Visualize.settings.show_plots: 
+        if settings_v.show_plots: 
             plt.show()
 
     def rasters(self, stim_type):
         """
         A function that extracts spike times and aligns it to trials as a raster plot
         """
+        
         # make a raster plot for each trial
-        ntrial = len(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames)
+        ntrial = len(self.session.__dict__[stim_type].onset_frames)
         plt.figure(figsize=(15, 12))
         plt.subplots_adjust(hspace=0.2)
 
@@ -152,14 +163,14 @@ class Visualize_efizz:
         nrows = 3
         ncols = ntrial // nrows + (ntrial % nrows > 0)
         timeBeforeStim = 5 # in seconds
-        all_stimulus_durations = np.amax(self.processed_data.Visualize.session.__dict__[stim_type].stimulus_durations)+2
+        all_stimulus_durations = np.amax(self.session.__dict__[stim_type].stimulus_durations)+2
 
-        for trial_num, (onset_frames, stim_duration) in enumerate(zip(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames, self.processed_data.Visualize.session.__dict__[stim_type].stimulus_durations)):
+        for trial_num, (onset_frames, stim_duration) in enumerate(zip(self.session.__dict__[stim_type].onset_frames, self.session.__dict__[stim_type].stimulus_durations)):
             ax = plt.subplot(nrows, ncols, trial_num + 1)
-            time1 = (onset_frames/self.processed_data.Visualize.session.video.fps) - timeBeforeStim
-            time2 = (onset_frames/self.processed_data.Visualize.session.video.fps) + all_stimulus_durations
+            time1 = (onset_frames/self.session.video.fps) - timeBeforeStim
+            time2 = (onset_frames/self.session.video.fps) + all_stimulus_durations
             spikes_trial = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1) & (self.processed_data.spike_data['aligned_spike_times'] < time2))
-            ax.scatter(spikes_trial['aligned_spike_times'].to_numpy()-(onset_frames/self.processed_data.Visualize.session.video.fps),
+            ax.scatter(spikes_trial['aligned_spike_times'].to_numpy()-(onset_frames/self.session.video.fps),
                        spikes_trial['spike_clusters'].to_numpy(),
                        marker='|', s=5, c='k')
             ax.plot([0,0],[0, np.amax(spikes_trial['spike_clusters'].to_numpy())],'r-')
@@ -167,23 +178,27 @@ class Visualize_efizz:
             ax.set_ylabel('clusters')
             ax.set_xlabel('time from stim (s)')
         plt.savefig(str(self.stim_resp_path) + "/" + self.processed_data.select_clusters + "_cluster_raster_trial_" + str(stim_type) + ".png")
-        if self.processed_data.Visualize.settings.show_plots: plt.show()
+        
+        if settings_v.show_plots: 
+            plt.show()
+        
         plt.close()
 
     def single_cluster_raster(self, stim_type):
         """
         A function that extracts spike times for each cluster and aligns it to trials as a raster plot
         """
+        
         timeBeforeStim = 5
-        stimulus_durations = np.amax(self.processed_data.Visualize.session.__dict__[stim_type].stimulus_durations) + 2
+        stimulus_durations = np.amax(self.session.__dict__[stim_type].stimulus_durations) + 2
         xlim = [timeBeforeStim * -1,stimulus_durations]
 
         # Mask spikes that are within the time window
-        for trial, onset_frames in enumerate(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames):
-            time1 = (onset_frames / self.processed_data.Visualize.session.video.fps) - timeBeforeStim 
-            time2 = (onset_frames / self.processed_data.Visualize.session.video.fps) + stimulus_durations
+        for trial, onset_frames in enumerate(self.session.__dict__[stim_type].onset_frames):
+            time1 = (onset_frames / self.session.video.fps) - timeBeforeStim 
+            time2 = (onset_frames / self.session.video.fps) + stimulus_durations
             filt = self.processed_data.spike_data.filter((self.processed_data.spike_data['aligned_spike_times'] > time1) & (self.processed_data.spike_data['aligned_spike_times'] < time2))
-            filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/self.processed_data.Visualize.session.video.fps)),
+            filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/self.session.video.fps)),
                                 pl.col('spike_clusters'),
                                 pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
             if trial == 0: spikes_trial = filt
@@ -218,7 +233,7 @@ class Visualize_efizz:
                                                     spikes_trial_cluster['trial'].to_numpy(),
                                                     marker='|', s=10, c='k')
                         axes[rows, columns].set_title(f"Cluster: {cluster}")
-                        axes[rows, columns].vlines(0, 1, len(self.processed_data.Visualize.session.__dict__[stim_type].onset_frames), colors='r', linestyles='solid')
+                        axes[rows, columns].vlines(0, 1, len(self.session.__dict__[stim_type].onset_frames), colors='r', linestyles='solid')
                         axes[rows, columns].set_xlim(xlim)
                     
                     # Remove the extra axes if there are no more plots
@@ -231,14 +246,15 @@ class Visualize_efizz:
             fig.tight_layout()
             plt.savefig(str(self.stim_resp_path) + "/" + self.processed_data.select_clusters + "_clusters_" + str(stim_type) + "_single_cluster_raster_" + str(figure_idx) + ".png")                
         
-        if self.processed_data.Visualize.settings.show_plots: 
+        if settings_v.show_plots: 
             plt.show()
 
 # FUNCTIONS FOR PLOTTING TUNING ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     def spatial_position_firing(self):
-        """ A function that makes maps of mousie's position in arena
-        and show where each cluster fired"""
+        """ 
+        A function that makes maps of mousie's position in arena and show where each cluster fired
+        """
 
         logger.info("Commence making figures of spatial position firing plots of all clusters")
         cc = matplotlib.cm.Reds # could use Reds or copper
@@ -264,7 +280,7 @@ class Visualize_efizz:
             # count number of spikes on each video frame, and then turn it into firing rate (Hz)
             # spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
             spikes = self.processed_data.spikeCountByFrameAndCluster.filter(self.processed_data.spikeCountByFrameAndCluster['spike_clusters'] == cluster)
-            spikes = spikes.with_columns(pl.col('spike_count')*self.processed_data.Visualize.session.video.fps)
+            spikes = spikes.with_columns(pl.col('spike_count')*self.session.video.fps)
             # align spike dataframe to video dataframe
             filtered_video_df = self.processed_data.video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
             spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
@@ -281,8 +297,10 @@ class Visualize_efizz:
             # save the figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spike_data["spike_clusters"].unique())-1):
                 plt.tight_layout()
-                plt.savefig(str(self.processed_data.Visualize.session.processed_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
-                if self.processed_data.Visualize.settings.show_plots: 
+                plt.savefig(str(self.session.processed_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
+                
+                if settings_v.show_plots: 
                     plt.show()
+                    
                 #plt.close()
     

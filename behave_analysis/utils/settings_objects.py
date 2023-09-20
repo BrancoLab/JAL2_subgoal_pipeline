@@ -82,10 +82,7 @@ class Settings_visualize:
     sessions: list=None
     all_sessions: bool=False
     efizz: bool=False
-    cluster_type: str = ''
-    show_plots: bool = True
-    expand_behaviour: bool = False
-    num_samples_of_expansion: int = 0
+    show_plots: bool=False
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
@@ -155,3 +152,7 @@ class Settings_analyze_efizz:
     condition: str = ''
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False
+    
+@dataclass(frozen=True)
+class Settings_postprocess:
+    cluster_type: str = ''

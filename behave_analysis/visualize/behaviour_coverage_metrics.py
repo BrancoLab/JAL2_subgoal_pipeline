@@ -28,12 +28,18 @@ class CoverageStatistics:
     different segments of the arena. This is done by dividing the arena into a grid and then computing the coverage statistics. The resposbility
     of this class is to inform the user if the mouse has sampled all the areas uniformly or if there are areas that are not being sampled.
     """
-    def __init__(self, video_data_frame, is_barrier_experiment):
-        self.is_barrier_experiment = is_barrier_experiment
+    
+    def __init__(self, video_data_frame, session):
+        
+        if session.barrier_time:
+            self.is_barrier_experiment = True
+        else:
+            self.is_barrier_experiment = False
+        
         self.video_data_frame = video_data_frame
         _, self.xedges, self.yedges = self.divide_arena_into_grid(video_data_frame, grid_number = 3) # 3 creates a 3x3 grid of the arena
         self.mapped_coordinates = self.map_bin_edges_to_grid_coordinates()
-        self.total_samples, self.grid = self.computation_by_grid(video_data_frame, self.xedges, self.yedges, is_barrier_experiment)
+        self.total_samples, self.grid = self.computation_by_grid(video_data_frame, self.xedges, self.yedges, self.is_barrier_experiment)
         self.kl_divergences = self.compute_kl_divergences(self.grid)
         self.plot_grid_coverage(self.grid)
         self.plot_whole_arena_coverage_and_correlations(self.video_data_frame)
@@ -43,6 +49,7 @@ class CoverageStatistics:
         """
         A function that chunks up the arena into grids and imforms the user of the number of samples in each grid.
         """
+        
         # Defining the range for x and y based on their min and max
         x_coords = video_data_frame['mouse_x_position']
         y_coords = video_data_frame['mouse_y_position']
@@ -63,6 +70,7 @@ class CoverageStatistics:
         """
         Goes through the bin edges and maps them to the grid coordinates, produces a flattened list for plotting
         """
+        
         grid_coordinates = []
         for x in range(3):
             for y in range(3):
@@ -73,6 +81,7 @@ class CoverageStatistics:
         """
         For each column / angle and a given set of bins across the range of radians. How many samples fall into each bin?
         """
+        
         bin_edges = np.linspace(-np.pi, np.pi, 20)
         result = {}
         
@@ -92,6 +101,7 @@ class CoverageStatistics:
         Returns a dictionary of dictionaries. The first key is the grid number, the second key is the angle, the value is the number of samples in each bin
         which will be of length 20. And returns the total number of samples in the video data frame.
         """
+        
         total_samples = len(video_data_frame)
         grid = {}
         counter = 0
@@ -146,6 +156,7 @@ class CoverageStatistics:
         """
         Plot the sampling coverage in each grid. 
         """
+        
         fig, axs = plt.subplots(3, 3, figsize=(20, 7))  # Creating a 3x3 grid of Axes
         axs = axs.flatten()  # Flattening the 2D grid of Axes to 1D for easier indexing
         bin_edges = np.linspace(-np.pi, np.pi, 21)
@@ -178,7 +189,6 @@ class CoverageStatistics:
             sns.set_context("talk", font_scale=1.25)
             sns.pairplot(angle_data_frame, diag_kind="kde", corner=True, plot_kws={'s': 2}, height= 2)
             plt.show()
-            x = 10
         
         else:
             angle_data_frame = video_data_frame.select(['hdir', 'hsa']).to_pandas()
