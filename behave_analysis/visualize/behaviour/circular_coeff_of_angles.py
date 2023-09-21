@@ -7,7 +7,10 @@ AstroPy implemnetation:
 - Jammalamadaka and SenGupta (Citation2001)
 
 Jess and Mine implementations:
-- Fisher and Lee (Citation1983) 
+- Fisher and Lee (Citation1983)
+- Implementation can be found from:
+    - p151 6.36 of Statistical Analysis of Circular Data by N. I. Fisher, or
+    - Mahmood paper
 """
 
 import numpy as np
