@@ -12,6 +12,7 @@ import matplotlib
 matplotlib.use('TKAgg')
 import matplotlib.pyplot as plt
 import scipy
+import os
 
 class Verifications():
     def __init__(self, Process):
@@ -143,7 +144,7 @@ class Verifications():
         plt.title('slope = ' + str(slope) + '\n' + ' and intercept = ' + str(intercept))
         plt.xlabel('bonsai onset (s)')
         plt.ylabel('efizz onset (s)')
-        plt.savefig(str(self.Process.session.processed_path) + "/" + "pulse_sync_regression.png")
+        plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_regression.png")
 
         # Plot starting, middle and end samples to check alignment
         fig, axs = plt.subplots(3)
@@ -170,7 +171,7 @@ class Verifications():
         axs[2].plot(bonsai_samples[LastPulsesBon : LastPulsesBon + 500000] / self.Process.session.ttl.sampling_rate, \
                     bonsaiSignal[LastPulsesBon : LastPulsesBon + 500000], color='red', label = 'Bonsai')
                 
-        plt.savefig(str(self.Process.session.processed_path) + "/" + "pulse_sync_visualize.png")
+        plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_visualize.png")
         plt.legend()
         plt.show()
         

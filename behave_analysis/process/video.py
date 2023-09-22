@@ -9,11 +9,12 @@ from glob import glob
 import numpy as np
 import cv2
 import os
+from pathlib import Path
 
 @dataclass(frozen=True)
 class Video:
     num_frames: int
-    video_file: str
+    camFilePath: str
     fps: int
     height: int
     width: int
@@ -32,11 +33,15 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
     """A function that searchs through the directory for a camera avi file and returns a Video object."""
     
     try:
-        video_file = str(list(session.file_path.glob("*cam.avi"))[0]) # need lst and idx as its a generator
+        full_file_path = Path(os.path.join(session.base_path,session.file_path))
+        # video_file = str(list(full_file_path.glob("*cam.avi"))[0]) # need lst and idx as its a generator
+        datapath_parts = (full_file_path / full_file_path.name).parts
+        camFilePath = datapath_parts[-1] + "_cam.avi"
     
     except IndexError:
         raise IndexError(f"No camera video file found with expected name in {session.file_path}")
     
+    video_file = os.path.join(session.base_path,session.file_path,camFilePath)
     video_object = cv2.VideoCapture(video_file)
     num_frames = int(video_object.get(cv2.CAP_PROP_FRAME_COUNT))
     logger.info(f"Number of recorded camera frames : {num_frames}")
@@ -50,7 +55,7 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
     pixels_per_cm = settings.pixels_per_cm
     
     video = Video(num_frames, 
-                  video_file, 
+                  camFilePath, 
                   fps, 
                   height, 
                   width, 
@@ -69,7 +74,7 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
     logger.debug(f"Registration transform: {registration_transform}")
     
     video = Video(num_frames, 
-                  video_file, 
+                  camFilePath, 
                   fps, 
                   height, 
                   width, 

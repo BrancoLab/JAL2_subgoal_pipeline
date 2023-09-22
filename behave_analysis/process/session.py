@@ -19,6 +19,7 @@ class NEW_Session:
     barrier_time: None
     barrier_flip_time: None
     file_path: str
+    base_path: str
     processed_path: str
     metadata_file: str
     shelter_location: int = None
@@ -42,7 +43,7 @@ def get_experiment(experiment_data_class):
     experiment_repeat = experiment_data_class.experiment_idx
     experiment_description = f"Mouse: {mouse}, Experiment: {experiment_type}, Run number: {experiment_repeat}"
     base_path, _ =  get_computer_specific_paths()
-    file_path = os.path.join(base_path, experiment_data_class.root_path,experiment_data_class.experiment_path)
+    file_path = os.path.join(experiment_data_class.root_path,experiment_data_class.experiment_path)
     metadata_file = os.path.join(file_path, "processed_data", "metadata")
         
     return NEW_Session(name = experiment_description, 
@@ -52,6 +53,7 @@ def get_experiment(experiment_data_class):
                        shelter_time = experiment_data_class.shelter_time,
                        barrier_time = experiment_data_class.barrier_time,
                        barrier_flip_time = experiment_data_class.barrier_flip_time,
-                       file_path = Path(file_path), 
+                       base_path = base_path,
+                       file_path = file_path, 
                        processed_path = os.path.join(file_path, "processed_data"),
                        metadata_file = metadata_file)

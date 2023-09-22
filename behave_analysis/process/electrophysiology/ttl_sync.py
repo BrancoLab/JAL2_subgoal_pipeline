@@ -38,6 +38,7 @@ from glob import glob
 import dill as pickle
 from loguru import logger
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 # Globals
 sampling_rate = 30000
@@ -62,7 +63,7 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     # assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
 
     #Check and correct for abberant signals
-    imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
+    # imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
     #Get onset and offsets
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
@@ -117,8 +118,8 @@ def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str):
     - TTL signals from bonsai machine and imec board
     """
     #Retrieve TTL data
-    
-    AI_file = list(session.file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+    full_file_path = Path(os.path.join(session.base_path,session.file_path))
+    AI_file = list(full_file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
 
     if '.bin' in str(AI_file): 
         AI_data = np.fromfile(AI_file)
