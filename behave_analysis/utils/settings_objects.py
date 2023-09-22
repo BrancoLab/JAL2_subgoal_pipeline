@@ -22,7 +22,6 @@ class Settings_process:
 
 @dataclass(frozen=True)
 class Settings_track:
-    dlc_settings_file: str = None
     inverse_fisheye_correction_file: str = None
     redo_processing_step: bool=False
     skip_processing_step: bool=False

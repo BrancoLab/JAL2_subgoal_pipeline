@@ -5,6 +5,7 @@ such as the mouse and experiment dataclasses
 
 # OS Libaries
 from dataclasses import dataclass
+from behave_analysis.database.computer_ID import get_computer_specific_paths
 import os
 
 @dataclass(frozen=False)
@@ -39,7 +40,8 @@ def get_experiment(experiment_data_class):
     mouse = experiment_data_class.nick_name
     experiment_repeat = experiment_data_class.experiment_idx
     experiment_description = f"Mouse: {mouse}, Experiment: {experiment_type}, Run number: {experiment_repeat}"
-    file_path = experiment_data_class.root_path.joinpath(experiment_data_class.experiment_path)
+    base_path, _ =  get_computer_specific_paths()
+    file_path = os.path.join(base_path, experiment_data_class.root_path,experiment_data_class.experiment_path)
     metadata_file = os.path.join(file_path, "processed_data", "metadata")
         
     return NEW_Session(name = experiment_description, 
