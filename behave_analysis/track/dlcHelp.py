@@ -6,6 +6,8 @@ from loguru import logger
 import yaml
 import numpy as np
 
+from behave_analysis.database.computer_ID import get_computer_specific_paths
+
 class DLC:
     """
     A class to handle the DLC tracking data. This class is used to extract the tracking data 
@@ -25,18 +27,20 @@ class DLC:
         """
         dlc_already_run = bool(glob.glob(os.path.join(session.processed_path, "*resnet*"))) # Does a file exist with this token in the name?
         
+        _, dlc_settings_file = get_computer_specific_paths()
+
         if dlc_already_run:
             logger.info("DeepLabCut has already been run for this session: {} - {}".format(session.number, session.name))
             
         else:
             logger.info("Running DeepLabCut tracking for session: {} - {}".format(session.number, session.name))
             from deeplabcut.pose_estimation_tensorflow import analyze_videos
-            analyze_videos(self.settings.dlc_settings_file, session.video.video_file)
+            analyze_videos(dlc_settings_file, session.video.video_file)
             for files in glob.glob(os.path.join(session.file_path, "*resnet*")):
                 os.rename(files,os.path.join(session.processed_path,os.path.basename(files)))
         if self.settings.save_labeled_video:
             from deeplabcut import create_labeled_video
-            create_labeled_video(self.settings.dlc_settings_file, session.video.video_file, save_frames = True, keypoints_only=True)
+            create_labeled_video(dlc_settings_file, session.video.video_file, save_frames = True, keypoints_only=True)
     
     def create_dlc_tracking_array(self, session) -> None:
         """
@@ -64,7 +68,8 @@ class DLC:
         self.dlc_output = pd.read_hdf(dlc_tracking_file) #Converts .h5 to pandas
         
         # Load DLC Config from settings dataclass 
-        with open(self.settings.dlc_settings_file) as file: 
+        _, dlc_settings_file = get_computer_specific_paths()
+        with open(dlc_settings_file) as file: 
             dlc_settings = yaml.safe_load(file)
         
         self.tracking_data_body_parts = {} # init dictionary
