@@ -19,7 +19,7 @@ def correct_and_register_frame(frame: object, video: object, fisheye_correction_
 
 def load_fisheye_correction_map(video: object):
     if video.fisheye_correction_file:
-        fisheye_correction = np.load(video.fisheye_correction_file);
+        fisheye_correction = np.load(video.fisheye_correction_file)
         fisheye_correction_map = (fisheye_correction[:, :, 0:2], fisheye_correction[:, :, 2] * 0)
     else:
         fisheye_correction_map = None
@@ -45,8 +45,8 @@ class Register():
         self.perform_fisheye_correction(video)
         self.initialize_transform()
         self.refine_transform()
-        self.get_shelter_position(session,video_object,video.fps)
-        self.get_barrier_position(session,video_object,video.fps)
+        self.get_shelter_position(session,video, video_object,video.fps)
+        self.get_barrier_position(session,video,video_object,video.fps)
 
 # ----MAIN FUNCTIONS--------------------------------------------------------------------
     def generate_rendered_arena(self, session: NEW_Session):
@@ -59,8 +59,16 @@ class Register():
             self.rendered_arena_with_click_targets = cv2.putText(self.rendered_arena, str(i+1), tuple(click_target), 0, 1.0, 100, thickness=2)
 
     def get_image_of_actual_arena(self, video_object: object, frame):
+        """ Loading arena image for registration!"""
         video_object.set(cv2.CAP_PROP_POS_FRAMES, frame)
         _, self.actual_arena = video_object.read()
+
+    def get_image_of_registered_arena(self, session, video, video_object: object, frame):
+        """ Loading arena image and registering it to get shelter and barrier positions"""
+        fisheye_correction_map = load_fisheye_correction_map(video)
+        video_object.set(cv2.CAP_PROP_POS_FRAMES, frame)
+        _, self.actual_arena = video_object.read()
+        self.actual_arena = correct_and_register_frame(self.actual_arena[:, :, 0], video, fisheye_correction_map)
 
     def perform_fisheye_correction(self, video: object):
         self.fisheye_correction_map = load_fisheye_correction_map(video)
@@ -107,11 +115,11 @@ class Register():
             if key==ord(' '): break
         cv2.destroyAllWindows()
 
-    def get_shelter_position(self,session,video_object,fps):
+    def get_shelter_position(self,session,video,video_object,fps):
         """ Ask user where shelter and barrier were positioned"""
 
         self.actual_arena = []
-        self.get_image_of_actual_arena(video_object, (session.shelter_time[0]+10)*60*fps)
+        self.get_image_of_registered_arena(session, video, video_object, (session.shelter_time[0]+10)*60*fps)
         self.clicked_points = []
         # ask user where the shelter is
         print("Where is the shelter? Click first the top left, then the bottom right corner of the shelter. ATTENTION: if mushroom mark the base, not the roof")
@@ -126,14 +134,14 @@ class Register():
         
         session.shelter_location = self.clicked_points
 
-    def get_barrier_position(self,session,video_object,fps):
+    def get_barrier_position(self,session,video,video_object,fps):
         """ Ask user where shelter and barrier were positioned"""
 
         # ask user where the barrier is
         if len(session.barrier_time) > 0:
             self.clicked_points = []
             self.actual_arena = []
-            self.get_image_of_actual_arena(video_object, (session.barrier_time[0]+10)*60*fps)
+            self.get_image_of_registered_arena(session, video, video_object, (session.barrier_time[0]+10)*60*fps)
             print("Where is the barrier? Click the first edge")
             cv2.namedWindow('where is barrier')
             cv2.setMouseCallback('where is barrier', self.position_click_targets)
@@ -146,7 +154,7 @@ class Register():
             
             # get a different frame if barrier flip
             if session.barrier_flip_time:
-                self.get_image_of_actual_arena(video_object, (session.barrier_flip_time+10)*60*fps)
+                self.get_image_of_registered_arena(session,video,video_object, (session.barrier_flip_time+10)*60*fps)
             print("Where is the barrier? Click the second edge")
             cv2.namedWindow('where is barrier')
             cv2.setMouseCallback('where is barrier', self.position_click_targets)

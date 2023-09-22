@@ -5,6 +5,7 @@ such as the mouse and experiment dataclasses
 
 # OS Libaries
 from dataclasses import dataclass
+from pathlib import Path
 from behave_analysis.database.computer_ID import get_computer_specific_paths
 import os
 
@@ -51,6 +52,6 @@ def get_experiment(experiment_data_class):
                        shelter_time = experiment_data_class.shelter_time,
                        barrier_time = experiment_data_class.barrier_time,
                        barrier_flip_time = experiment_data_class.barrier_flip_time,
-                       file_path = file_path, 
+                       file_path = Path(file_path), 
                        processed_path = os.path.join(file_path, "processed_data"),
                        metadata_file = metadata_file)
