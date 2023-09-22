@@ -5,16 +5,17 @@ import cv2
 import numpy as np
 
 
-def correct_and_register_frame(frame: object, video: object, fisheye_correction_map: tuple, skip_fisheye_correction: bool=False, skip_registration: bool=False) -> object:
+def correct_and_register_frame(frame: object, video: object, fisheye_correction_map: tuple, skip_fisheye_correction: bool=False, skip_registration: bool=False, regTransform: tuple =[]) -> object:
     if fisheye_correction_map and not skip_fisheye_correction:
         frame = cv2.copyMakeBorder(frame, video.y_offset, int((fisheye_correction_map[0].shape[0] - frame.shape[0]) - video.y_offset), video.x_offset, int((fisheye_correction_map[0].shape[1] - frame.shape[1]) - video.x_offset), cv2.BORDER_CONSTANT, value=0)
         frame = cv2.remap(frame, fisheye_correction_map[0], fisheye_correction_map[1], interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
         frame = frame[video.y_offset:video.height + video.y_offset, video.x_offset:video.width + video.x_offset]
-    if isinstance(video.registration_transform, np.ndarray) and not skip_registration:
+    if np.logical_or(isinstance(video.registration_transform, np.ndarray),isinstance(regTransform, np.ndarray)) and not skip_registration:
+        if isinstance(video.registration_transform, np.ndarray): regTransform = video.registration_transform
         if 'affine' in video.registration_type:
-            frame = cv2.warpAffine(frame, video.registration_transform, frame.shape[0:2])
+            frame = cv2.warpAffine(frame, regTransform, frame.shape[0:2])
         if 'homography' in video.registration_type:
-            frame = cv2.warpPerspective(frame, video.registration_transform, frame.shape[0:2])
+            frame = cv2.warpPerspective(frame, regTransform, frame.shape[0:2])
     return frame.astype(np.uint8)
 
 def load_fisheye_correction_map(video: object):
@@ -68,7 +69,7 @@ class Register():
         fisheye_correction_map = load_fisheye_correction_map(video)
         video_object.set(cv2.CAP_PROP_POS_FRAMES, frame)
         _, self.actual_arena = video_object.read()
-        self.actual_arena = correct_and_register_frame(self.actual_arena[:, :, 0], video, fisheye_correction_map)
+        self.actual_arena = correct_and_register_frame(self.actual_arena[:, :, 0], video, fisheye_correction_map, regTransform=self.transform)
 
     def perform_fisheye_correction(self, video: object):
         self.fisheye_correction_map = load_fisheye_correction_map(video)
