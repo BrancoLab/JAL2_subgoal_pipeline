@@ -17,6 +17,13 @@ import numpy as np
 from itertools import combinations
 import polars as pl
 from astropy.stats import circcorrcoef
+import matplotlib.pyplot as plt
+import seaborn as sns
+import os
+
+# Import settings
+
+from settings.settings_visualize import defined_settings_visualize as settings_v
 
 # Main function --------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -35,6 +42,35 @@ def compute_the_circular_rho(postProcessingObject) -> dict:
     
     return rhoDict
 
+def plot_the_circular_rho(postProcessingObject, save_path) -> None:
+    """ 
+    Plots the circular correlation coefficient into a bar chart and saves it to the processed data folder
+    """
+    
+    # Extract the rho values and the pair wise combinations produced by the compute_the_circular_rho function   
+    rhoDict = compute_the_circular_rho(postProcessingObject)
+    rhos = list(rhoDict.values())
+    pairWiseCombinations = list(rhoDict.keys())
+    xlabels = [f"{pairWiseCombinations[i][0]} VS {pairWiseCombinations[i][1]}" for i in range(len(pairWiseCombinations))]
+    
+    # Plot the bar chart
+    fig, ax = plt.subplots()
+    sns.barplot(x=xlabels, y=rhos, ax=ax, color = 'cornflowerblue')
+    plt.axhline(y=0, color='black', linestyle='--')
+    sns.despine(top=True, right=True, left=True, bottom=False, offset=None, trim=True)
+    ax.set(ylim=(-1.1, 1.1))
+    ax.bar_label(ax.containers[0], label_type='center', fmt='%.2f', color='black', fontsize=12)
+    ax.set_yticks(np.arange(-1, 1.1, 0.25))
+    ax.set_ylabel('Rho (ρ)', fontsize=14)
+    plt.title('Circular correlation coefficients', fontsize=20)
+    plt.tick_params(axis='both', which='major', labelsize=14)
+    fig.set_size_inches(20, 8)
+    
+    # Save and show the plot if the user wants to
+    if settings_v.show_plots: plt.show()
+    plt.savefig(os.path.join(save_path, "Circular_coefficient_barplot.png"))
+    plt.close()
+     
 # Helper functions -----------------------------------------------------------------------------------------------------------------------------------------
 
 def select_angle_columns(videoDf) -> pl.DataFrame:
