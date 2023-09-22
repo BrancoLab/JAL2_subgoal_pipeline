@@ -7,7 +7,6 @@ from behave_analysis.utils.directory import Directory
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 # from behave_analysis.visualize.visualize_behave import Correlations
-from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 
 # Import custom settings
 
@@ -78,26 +77,13 @@ class Visualize:
         #         visualObject.PSTH_all_neurons(stim_type = 'audio')
         #         visualObject.PSTH_single_neurons(stim_type = 'audio')
         #         visualObject.single_cluster_raster(stim_type = 'audio')
-            
-        # logger.info(f"Starting to make some behaviour ONLY overview plots.")
-        # BehaveObject = Visualize_behave(session = self.session, 
-        #                                 tracking_data = postprocesObject.tracking_data,
-        #                                 postprocessObject = postprocesObject)
-        # BehaveObject.position_by_bsa()
-        # BehaveObject.location_occupancy()
-        # BehaveObject.angle_histograms()
         
-        # Plot the coverage statistics - NOTE - Laurence to finish this
-        # CoverageStatistics(video_data_frame = postprocesObject.video_df, session = self.session)
-            
-        # Test Behaviour correlation plots
-        # correlationChild = Correlations(MaxPlotsPerFigure = 10, 
-        #                                 how_many_plots_you_need = 6, 
-        #                                 CleanVideoDf = preprocessObject.clean_behavioural_data,
-        #                                 directoryToSaveTo = os.path.join(self.session.processed_path,'behaviour'), 
-        #                                 plotName = "CorrelationPlots")
-
-        # correlationChild.create_correration_plot()
+        # ------------------------------------------------------------------Behave----------------------------------------------------------------
+        logger.info(f"Starting to make some behaviour only overview plots.")
+        
+        behavePlottingObject = Visualize_behave(session = self.session, 
+                                                tracking_data = self.postprocessObject.tracking_data,
+                                                postprocessingObj = self.postprocessObject)
 
     def trials(self, stim_type) -> None:
         """
