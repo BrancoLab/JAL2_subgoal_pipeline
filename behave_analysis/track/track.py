@@ -33,6 +33,7 @@ class Track(DLC):
     """
     def __init__(self, settings, session):
         self.settings = settings
+        self.video_file = []
         self.run_deeplabcut_tracking(session)
         self.process_tracking_data(session)
     
@@ -46,7 +47,7 @@ class Track(DLC):
         """
         
         # Check if processing has FULLY been completed before
-        self.processingExists = os.path.isfile(os.path.join(session.processed_path, "fully_processed_tracking_data.pickle"))
+        self.processingExists = os.path.isfile(os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle"))
 
         # If processing has been done before and you don't want to redo it then log it
         if self.processingExists and not self.settings.redo_processing_step: 
@@ -123,12 +124,12 @@ class Track(DLC):
         + (2, frames)
         The algorithm works on a single body part and thus needs to be called in a recursive manner.
         """
-        if os.path.isfile(os.path.join(session.processed_path, "kalman_tracking_data.pickle")):
+        if os.path.isfile(os.path.join(session.base_path,session.processed_path, "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
             
             # Load the kalman tracking data to speed up development but NOTE remove this code
             
-            path = os.path.join(session.processed_path, "kalman_tracking_data.pickle")
+            path = os.path.join(session.base_path,session.processed_path, "kalman_tracking_data.pickle")
             with open(path, 'rb') as f:
                 # deserialize the data and load it into a Python object
                 self.lds_tracking_data = pickle.load(f)
@@ -163,7 +164,7 @@ class Track(DLC):
         """
         Save the kalman tracking dictionary to a pickle file contained within the session folder. 
         """
-        savePath = os.path.join(session.processed_path, "kalman_tracking_data.pickle")
+        savePath = os.path.join(session.base_path,session.processed_path, "kalman_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
             pickle.dump(dictionary, dill_file)
 
@@ -176,7 +177,7 @@ class Track(DLC):
         self.compute_hdir_bodydir()
         self.compute_angle_shelter(session)
         self.compute_angle_barrier(session)
-        if self.settings.random_points :self.compute_angle_random_points(session)
+        if len(self.settings.random_points) > 0 :self.compute_angle_random_points(session)
         self.compute_new_average_speed(session)
         self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
         # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
@@ -274,8 +275,7 @@ class Track(DLC):
         It will ask you to define the barrier edge position"""
 
         # ask user to select some extra 'random' points in arena
-        user_input = input('Do you want to manually chose random points? y/n: ')
-        if user_input == 'y':
+        if self.settings.random_points == 'manual':
             self.load_arena(session)
             print("Click as many random points as wanted, then space bar when satisfied")
             cv2.namedWindow('where are random points')
@@ -288,7 +288,7 @@ class Track(DLC):
                 if key == ord('q'): print('quit.'); sys.exit()
             cv2.destroyAllWindows()
             self.region_tracking_data['randP_loc'] = self.clicked_points
-        else:
+        elif self.settings.random_points == 'full_arena':
             size = session.video.height # assuming a square image
             all_posX = []
             all_posY = []
@@ -366,7 +366,8 @@ class Track(DLC):
         """
         A little function for loading the first frame of the movie to point to shelter and barrier location"""
         fisheye_correction_map = load_fisheye_correction_map(session.video)
-        source_video = cv2.VideoCapture(session.video.video_file)
+        video_file = os.path.join(session.base_path,session.file_path,session.video.camFilePath)
+        source_video = cv2.VideoCapture(video_file)
         source_video.set(cv2.CAP_PROP_POS_FRAMES, session.video.num_frames-(2*session.video.fps)) # read a frame 2 seconds from the end
         _, self.arena = source_video.read()
         self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map)
@@ -375,7 +376,7 @@ class Track(DLC):
         """
         A function to save the tracking data pickled.
         """
-        savePath = os.path.join(session.processed_path, "fully_processed_tracking_data.pickle")
+        savePath = os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
             pickle.dump(self.region_tracking_data, dill_file)
         

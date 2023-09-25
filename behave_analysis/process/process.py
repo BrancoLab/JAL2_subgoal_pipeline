@@ -104,7 +104,7 @@ class Process():
         is set to skip process. Then an error may occur
         """
         try:
-            with open(self.session.metadata_file, "rb") as dill_file: 
+            with open(os.path.join(self.session.base_path,self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
                 session.base_path, _ = get_computer_specific_paths()
                 

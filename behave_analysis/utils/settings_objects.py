@@ -35,7 +35,7 @@ class Settings_track:
     all_sessions: bool=False
     tracking_file_location: str=None
     save_labeled_video: bool = False
-    random_points: bool = False
+    random_points: str = None
 
 @dataclass(frozen=True)
 class Settings_homings:
