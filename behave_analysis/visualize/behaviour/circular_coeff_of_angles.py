@@ -100,8 +100,8 @@ def loop_through_permutations_of_angles_and_apply_circcoeff(combinations, videoD
     
     rhoDict = {}
     for angleSet in combinations:
-        alpha = videoDf[angleSet[0]].to_numpy()
-        beta = videoDf[angleSet[1]].to_numpy()
+        alpha = np.array(videoDf[angleSet[0]].to_numpy())
+        beta = np.array(videoDf[angleSet[1]].to_numpy())
         rho = circcorrcoef(alpha, beta)
         rhoDict[angleSet] = rho
     return rhoDict
