@@ -10,8 +10,7 @@ from behave_analysis.visualize.visualize_behave import Visualize_behave
 
 # Import custom settings
 
-from settings.settings_postprocess import defined_settings_postprocess as pp_settings
-from settings.settings_visualize import defined_settings_visualize as settings_v
+from settings.settings_visualize import defined_settings_visualize as settings
 
 # OS libaries
 
@@ -29,54 +28,37 @@ class Visualize:
     
     def __init__(self, session: object):
         self.session = session        
-        self.settings = settings_v
+        self.settings = settings
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000 / self.session.video.fps * (not self.settings.rapid) + self.settings.rapid)
-        self.kalman = open_kalman_tracking_data(self.session.processed_path)
+        self.kalman = open_kalman_tracking_data(os.path.join(self.session.base_path,self.session.processed_path))
         self.print_session_details() # let us know which session we're doing
 
-        # NOTE this currently works by reading the cluster type from the post process class, we might want it to be more explicit to be in the settings of
-        # the visualize class however then we have duplicates. 
-        
+        """Load in postprocess object"""
+        try:
+            fileObj = open(os.path.join(self.session.base_path,self.session.processed_path) + "\\" + "postprocessclass" + "_" + str(settings.cluster_type), 'rb')
+            self.postprocessObject = pickle.load(fileObj)
+            fileObj.close()
+            
+        except FileNotFoundError:
+            logger.error(f"Data not found for session: {self.session.name}")
+            raise FileNotFoundError
+        # ------------------------------------------------------------------Efizz----------------------------------------------------------------
         if self.settings.efizz:
-            try:
-                fileObj = open(self.session.processed_path + "\\" + "postprocessclass" + "_" + str(pp_settings.cluster_type), 'rb')
-                self.postprocessObject = pickle.load(fileObj)
-                fileObj.close()
                 
-            except FileNotFoundError:
-                logger.error(f"Synthetic data not found for session: {self.session.name}")
-                raise FileNotFoundError
-                
-            # NOTE - What is the purpose of this now? Are we running visualize efizz from here or analyze 
             visualObject = Visualize_efizz(self.postprocessObject, session = self.session)
                         
             """Make tuning plots"""
             logger.info(f"Starting to make some efizz overview plots...")
-            # Production of vectorized plots  
-            # compute_bootstrap: decide if you want to boostrap the rayleigh vector calculation
-            # object_present: restrict analysis to times when the relevant object (i.e. shelter, barrier) is or is not in the arena
-
-            # BUG - These are not working now there is a new visualize efizz class
-            # visualObject.compute_a_single_tuning_for_all_cells('hdir', compute_bootstrap = False)
-            # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = False) # NOTE - Don't use this one if the shelter is always present
-            # visualObject.compute_a_single_tuning_for_all_cells('head_shelter_angle', compute_bootstrap = False, object_present = True)
-            # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle',  compute_bootstrap = False, object_present = True)
-            # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', compute_bootstrap = False, object_present = True)
-            # visualObject.compute_a_single_tuning_for_all_cells('head_south_barrier_angle', compute_bootstrap = False, object_present = False)
-            # visualObject.compute_a_single_tuning_for_all_cells('head_north_barrier_angle', compute_bootstrap = False, object_present = False)
-            # make a figure of all tuning polar plots for each cluster
-            # visualObject.compute_all_tunings_for_each_cell(compute_bootstrap = False) 
-
-            # visualObject.spatial_position_firing() - ~ BUG - RuntimeError: main thread is not in main loop
+            visualObject.spatial_position_firing() # ~ BUG - RuntimeError: main thread is not in main loop
        
-        #     """Make plots of stimulus response"""
-        #     logger.info(f"Starting to make some plots of stimulus responses.")
-        #     if self.settings.escape_trials: 
-        #         visualObject.rasters(stim_type = 'audio')
-        #         visualObject.PSTH_all_neurons(stim_type = 'audio')
-        #         visualObject.PSTH_single_neurons(stim_type = 'audio')
-        #         visualObject.single_cluster_raster(stim_type = 'audio')
+            """Make plots of stimulus response"""
+            logger.info(f"Starting to make some plots of stimulus responses.")
+            if self.settings.escape_trials: 
+                visualObject.rasters(stim_type = 'audio')
+                visualObject.PSTH_all_neurons(stim_type = 'audio')
+                visualObject.PSTH_single_neurons(stim_type = 'audio')
+                visualObject.single_cluster_raster(stim_type = 'audio')
         
         # ------------------------------------------------------------------Behave----------------------------------------------------------------
         logger.info(f"Starting to make some behaviour only overview plots.")
@@ -367,9 +349,8 @@ class Visualize:
         """
         A function that does a lot of shit
         """
-        self.source_video = cv2.VideoCapture(
-            self.session.video.video_file
-        )  # Read the video file into a cv2 video object
+        video_file = os.path.join(self.session.base_path,self.session.file_path,self.session.video.camFilePath)
+        self.source_video = cv2.VideoCapture(video_file)  # Read the video file into a cv2 video object
         self.fps = self.session.video.fps
 
         self.stimulus_durations = stimulus_durations
@@ -397,7 +378,7 @@ class Visualize:
         # self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 
         trial_video_path = Directory(
-            self.session.processed_path,
+            os.path.join(self.session.base_path,self.session.processed_path),
             experiment=self.session.experiment,
             stim_type=self.stim_type,
             tracking_video=self.settings.display_tracking,
