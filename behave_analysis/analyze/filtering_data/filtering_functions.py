@@ -2,12 +2,14 @@
 import polars as pl
 import numpy as np
 
-def filter_video_dataframe(dataframe, condition):
+def filter_video_dataframe(dataframe, condition, outofshelter = True, exclude_escape = True):
     """
     A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
     """
-    filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == True) & 
-                                        (dataframe["EscapePeriod"] == False))
+    filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == outofshelter))
+    
+    if exclude_escape:
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["EscapePeriod"] == False))
 
     if condition == 'pre_shelter': # empty arena
         filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == False))
@@ -26,10 +28,12 @@ def filter_video_dataframe(dataframe, condition):
         filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True))
 
     elif condition == 'barrier_pre_flip': # the barrier is present, before we flip it
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True))
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True) &
+                                                     (filtered_video_df["barrier_flipped"] == False))
 
     elif condition == 'barrier_post_flip': # the barrier is present, after we flip it
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True))
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True) &
+                                                     (filtered_video_df["barrier_flipped"] == True))
 
     return filtered_video_df
 
