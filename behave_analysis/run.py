@@ -2,7 +2,7 @@
 
 from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t
-from settings.settings_visualize import settings_visualize as settings_v
+from settings.settings_visualize import Settings_visualize as settings_v
 from settings.settings_analyze import settings_analyze as settings_a
 from settings.settings_homings import settings_homings as settings_h
 from behave_analysis.process.process import Process
@@ -49,8 +49,7 @@ def track():
 
 def homings():
     # TODO: Update to new databank
-    session_IDs = collect_session_IDs(settings_h, databank)
-    for session_ID in session_IDs:
+    for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         get_Homings(settings_h, session)
         get_Threshold_crossings(settings_h, session)

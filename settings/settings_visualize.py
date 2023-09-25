@@ -39,7 +39,8 @@ defined_settings_visualize = Settings_visualize(
     by_session = True,
     sessions = [0], # This session must be the one indexed in the databank
     all_sessions = False,
-    efizz = True, # if you want to visualize efizz also
+    efizz = False, # if you want to visualize efizz also
     show_plots = False, # if this is false, it will make and save the plots without showing them
+    cluster_type = 'synthetic'
     
 )

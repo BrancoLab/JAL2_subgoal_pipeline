@@ -82,6 +82,7 @@ class Settings_visualize:
     all_sessions: bool=False
     efizz: bool=False
     show_plots: bool=False
+    cluster_type: str = ''
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
