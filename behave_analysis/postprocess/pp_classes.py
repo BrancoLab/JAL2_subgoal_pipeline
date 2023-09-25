@@ -71,6 +71,8 @@ class BaseDataPostprocessor(ABC):
 
     def load_spike_data(self) -> pl.DataFrame:
         spike_data = pl.read_csv(self.csv_path)
+        if len(spike_data.filter(spike_data['spike_clusters'] == 0)) > 0:
+            spike_data = spike_data.with_column(spike_data['spike_clusters']+1)
         logger.success("Data found ready for preprocessing")
         return spike_data
         
@@ -162,7 +164,7 @@ class BaseDataPostprocessor(ABC):
             for i in np.arange(np.shape(self.tracking_data['hdir_randP'])[1]):
                 video_df = video_df.hstack([pl.Series(str('head_randP_' + str(i)), self.tracking_data['hdir_randP'][:,i])])
 
-        video_df.write_csv(self.session.processed_path + "/" + "full_video_dataframe.csv")
+        video_df.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "full_video_dataframe.csv")
         return video_df
         
     def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
@@ -174,7 +176,7 @@ class BaseDataPostprocessor(ABC):
         
         try:
             logger.info("Attempting to load a previously computed spike frame count")
-            with open(self.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv", "rb") as file:
+            with open(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv", "rb") as file:
                 spikecountbyframe_neuron = pl.read_csv(file.read())
             logger.success("Found spike count by frame and cluster dataframe, loading it now")
             return spikecountbyframe_neuron
@@ -186,15 +188,15 @@ class BaseDataPostprocessor(ABC):
             start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(self.session.processed_path + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
+            spikecountbyframe_neuron.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
             return spikecountbyframe_neuron
 
     def merge_and_save_spike_count_df_with_frame_data(self):
         logger.info("merging video df and spike df into a super df")
         video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
         large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame = large_dataFrame.fill_null(strategy="zero")
-        large_dataFrame.write_csv(self.session.processed_path + "/" + str(self.select_clusters) + "_large_dataframe.csv")
+        # large_dataFrame = large_dataFrame.fill_null(strategy="zero") # this assigns some cluster IDs zero which is invalid!
+        large_dataFrame.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + str(self.select_clusters) + "_large_dataframe.csv")
 
     def export_large_df_to_frame_by_cluster_matrix(self) -> None:
         logger.info("building a frame by cluster matrix of firing rates")
@@ -227,7 +229,7 @@ class BaseDataPostprocessor(ABC):
         for i in np.arange(np.shape(X)[1]):
             X[:,i] = np.convolve(X[:,i],np.ones(int(sampling_rate/nbins),dtype = int),'same')*nbins
 
-        np.save(str(self.session.processed_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"), X)
+        np.save(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"), X)
       
 class SyntheticDataPostprocessor(BaseDataPostprocessor):
     """
@@ -236,7 +238,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
     
     def __init__(self, cluster_labels_to_filter, tracking_data, session):
         super().__init__(cluster_labels_to_filter, tracking_data, session)
-        self.csv_path = os.path.join(session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
+        self.csv_path = os.path.join(session.base_path,session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
         self.video_df = self.track_to_polars()
         self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
@@ -312,7 +314,7 @@ class DataPostprocessor(BaseDataPostprocessor):
     def __init__(self, cluster_labels_to_filter, tracking_data, session):
         super().__init__(cluster_labels_to_filter, tracking_data, session)
         assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
-        self.csv_path = glob(os.path.join(session.processed_path, "Processed_efizz_data"))[0]
+        self.csv_path = glob(os.path.join(session.base_path,session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         unfiltered_spike_data = self.load_spike_data()
         self.spike_data = self.filter_spike_data(unfiltered_spike_data)
