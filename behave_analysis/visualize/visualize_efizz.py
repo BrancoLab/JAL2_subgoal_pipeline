@@ -19,10 +19,10 @@ class Visualize_efizz:
     def __init__(self,  PreProcessed_data_object, session):
        self.processed_data = PreProcessed_data_object
        self.session = session
-       self.stim_resp_path = os.path.join(self.session.processed_path, 'stim_resp')
+       self.stim_resp_path = os.path.join(self.session.base_path,self.session.processed_path, 'stim_resp')
        if not(os.path.exists(self.stim_resp_path)): os.makedirs(self.stim_resp_path)
-       self.rayleigh_path = os.path.join(self.session.processed_path, 'rayleigh')
-       if not(os.path.exists(self.rayleigh_path)): os.makedirs(self.rayleigh_path)
+       self.spatial_path = os.path.join(self.session.base_path,self.session.processed_path, 'spatial_firing')
+       if not(os.path.exists(self.spatial_path)): os.makedirs(self.spatial_path)
        logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
 
 # FUNCTIONS FOR PLOTTING STIM-TRIGGERED RESPONSE --------------------------------------------------------------------------------------------------------------------------------------
@@ -267,6 +267,10 @@ class Visualize_efizz:
         fnum = 1
         axs = axs.ravel()
 
+        video_df = self.processed_data.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
+        large_dataFrame = video_df.join(self.processed_data.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        large_dataFrame = large_dataFrame.select(['frames','spike_clusters','mouse_x_position','mouse_y_position','spike_count'])
+
         # what is firing rate per frame?
         for counter,cluster in enumerate(self.processed_data.spike_data["spike_clusters"].unique()):
             if counter >= (ncols*nrows)*fnum:
@@ -276,18 +280,12 @@ class Visualize_efizz:
                 fnum = fnum + 1
                 axs = axs.ravel()
             # filter spikes by cluster
-            # spikes = self.processed_data.spike_data.filter(self.processed_data.spike_data['spike_clusters'] == cluster)
-            # count number of spikes on each video frame, and then turn it into firing rate (Hz)
-            # spikes = spikes.groupby("spike_aligned_to_frame").agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-            spikes = self.processed_data.spikeCountByFrameAndCluster.filter(self.processed_data.spikeCountByFrameAndCluster['spike_clusters'] == cluster)
-            spikes = spikes.with_columns(pl.col('spike_count')*self.session.video.fps)
-            # align spike dataframe to video dataframe
-            filtered_video_df = self.processed_data.video_df.select([pl.col('frames').apply(float),pl.exclude('frames')])
-            spike_to_video_df = filtered_video_df.join(spikes, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-            spike_to_video_df = spike_to_video_df.fill_null(strategy="zero")
-            axs[counter-(nrows*ncols*fnum)].scatter(spike_to_video_df['mouse_x_position'].to_numpy(),
-                                                    spike_to_video_df['mouse_y_position'].to_numpy(),
-                                                    s=5,c=cc(spike_to_video_df['spike_count'].to_numpy()*2),linewidths=0,marker='.') # srate*2 increase contrast
+            spikes = large_dataFrame.filter(large_dataFrame['spike_clusters'] == cluster)
+            spikes = spikes.fill_null(strategy="zero")
+            
+            axs[counter-(nrows*ncols*fnum)].scatter(spikes['mouse_x_position'].to_numpy(),
+                                                    spikes['mouse_y_position'].to_numpy(),
+                                                    s=5,c=cc(spikes['spike_count'].to_numpy()*50),linewidths=0,marker='.') # srate*2 increase contrast
             axs[counter-(nrows*ncols*fnum)].set_axis_off()
             axs[counter-(nrows*ncols*fnum)].invert_yaxis()
             axs[counter-(nrows*ncols*fnum)].set_aspect('equal')
@@ -297,10 +295,10 @@ class Visualize_efizz:
             # save the figure
             if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spike_data["spike_clusters"].unique())-1):
                 plt.tight_layout()
-                plt.savefig(str(self.session.processed_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
+                plt.savefig(str(self.spatial_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
                 
                 if settings_v.show_plots: 
                     plt.show()
                     
-                #plt.close()
+                plt.close()
     
