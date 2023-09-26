@@ -106,15 +106,15 @@ class BaseDataPostprocessor(ABC):
         if len(self.session.shelter_time) > 0:
             if not(np.logical_and(self.session.shelter_time[0] == 0, self.session.shelter_time[1] == -1)):
                 if self.session.shelter_time[1] == -1: # shelter until the end of the session
-                    shelteronly = np.arange(1,len(self.tracking_data['hdir'])+1) > (self.sheltertime[0]*self.session.video.fps)
+                    shelter = np.arange(1,len(self.tracking_data['hdir'])+1) > (self.sheltertime[0]*self.session.video.fps)
                 else:
-                    shelteronly = np.logical_and(np.arange(1,len(self.tracking_data['hdir'])+1) > (self.sheltertime[0]*self.session.video.fps),
+                    shelter = np.logical_and(np.arange(1,len(self.tracking_data['hdir'])+1) > (self.sheltertime[0]*self.session.video.fps),
                                                 np.arange(1,len(self.tracking_data['hdir'])+1) < (self.sheltertime[1]*self.session.video.fps))
             else:
-                shelteronly = np.zeros(len(OutofShelterIdx)) == 0
+                shelter = np.zeros(len(OutofShelterIdx)) == 0
                 print('shelter always present')
         else:
-            shelteronly = np.zeros(len(OutofShelterIdx)) == 1
+            shelter = np.zeros(len(OutofShelterIdx)) == 1
             print('no shelter in this session')
         
         # what period in the recording was there a barrier?
@@ -149,7 +149,7 @@ class BaseDataPostprocessor(ABC):
                 "mouse_y_position": self.tracking_data['avg_loc'][:,1],
                 "OutofshelterIdx": OutofShelterIdx, # was the mouse in the shelter?
                 "EscapePeriod": EscapePeriod == 1, # frames from 1 second before to 10 seconds after escape
-                "shelter_only": shelteronly, # true when the shelter is in the arena
+                "shelter": shelter, # true when the shelter is in the arena
                 "barrier_present": barrier_present, # true when the barrier is in the arena
                 "barrier_flipped":barrier_flipped}) # true after the shelter was flipped
 
@@ -188,25 +188,26 @@ class BaseDataPostprocessor(ABC):
             start_time = time.time() # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
+            # spikecountbyframe_neuron.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
             return spikecountbyframe_neuron
 
-    def merge_and_save_spike_count_df_with_frame_data(self):
+    def merge_and_save_spike_count_df_with_frame_data(self,spikeCountByFrameAndCluster,video_df):
         logger.info("merging video df and spike df into a super df")
-        video_df = self.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
-        large_dataFrame = video_df.join(self.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        # large_dataFrame = large_dataFrame.fill_null(strategy="zero") # this assigns some cluster IDs zero which is invalid!
-        large_dataFrame.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + str(self.select_clusters) + "_large_dataframe.csv")
+        video_df = video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
+        large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        large_dataFrame = large_dataFrame.fill_null(strategy="zero") # this assigns some cluster IDs zero which is invalid!
+        # large_dataFrame.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + str(self.select_clusters) + "_large_dataframe.csv")
+        return large_dataFrame
 
-    def export_large_df_to_frame_by_cluster_matrix(self) -> None:
+    def export_large_df_to_frame_by_cluster_matrix(self,spikeCountByFrameAndCluster,video_df) -> None:
         logger.info("building a frame by cluster matrix of firing rates")
-        clu = self.spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
+        clu = spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
         # group the  data
-        df = self.spikeCountByFrameAndCluster.groupby(["spike_aligned_to_frame"]).all()
+        df = spikeCountByFrameAndCluster.groupby(["spike_aligned_to_frame"]).all()
         df = df.sort('spike_aligned_to_frame')
 
         # frames by firing per cluster matrix
-        frames = self.video_df['frames'].unique().to_numpy().astype(int)
+        frames = video_df['frames'].unique().to_numpy().astype(int)
 
         X = np.zeros((np.amax(frames),len(clu)))
 
@@ -229,8 +230,8 @@ class BaseDataPostprocessor(ABC):
         for i in np.arange(np.shape(X)[1]):
             X[:,i] = np.convolve(X[:,i],np.ones(int(sampling_rate/nbins),dtype = int),'same')*nbins
 
-        np.save(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"), X)
-      
+        # np.save(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"), X)
+        return X
 class SyntheticDataPostprocessor(BaseDataPostprocessor):
     """
     A child class to support the synthetic data postprocessing pipeline. 
@@ -240,13 +241,13 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         super().__init__(cluster_labels_to_filter, tracking_data, session)
         self.csv_path = os.path.join(session.base_path,session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
-        self.video_df = self.track_to_polars()
+        video_df = self.track_to_polars()
         self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
         self.spike_data = self.load_spike_data()
         self.clu_label = self.extract_cluster_labels()
-        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-        self.merge_and_save_spike_count_df_with_frame_data()
-        # self.export_large_df_to_frame_by_cluster_matrix() # NOTE - Temporary comment out as slow when trying to test pipeline
+        spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
+        self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster,video_df)
+        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df) # NOTE - Temporary comment out as slow when trying to test pipeline
     
     def check_synthetic_data_exists_if_not_generate_it(self) -> None:
         if not os.path.exists(self.csv_path):
@@ -319,11 +320,11 @@ class DataPostprocessor(BaseDataPostprocessor):
         unfiltered_spike_data = self.load_spike_data()
         self.spike_data = self.filter_spike_data(unfiltered_spike_data)
         self.clu_label = self.extract_cluster_labels()
-        self.video_df = self.track_to_polars()
-        self.spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-        self.merge_and_save_spike_count_df_with_frame_data() # Saves to a csv
-        # self.export_large_df_to_frame_by_cluster_matrix() # Temporary comment out as slow when trying to test pipeline
-        
+        video_df = self.track_to_polars()
+        spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
+        self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster,video_df)
+        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df) # NOTE - Temporary comment out as slow when trying to test pipeline
+    
     def filter_spike_data(self,df):
         """
         Filter the spike data to only include good neurons or good + MUA
