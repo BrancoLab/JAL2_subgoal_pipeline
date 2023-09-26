@@ -1,9 +1,12 @@
+import os
+import dill as pickle
 # Custom libs
 
 from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t
 from settings.settings_visualize import Settings_visualize as settings_v
 from settings.settings_analyze import settings_analyze as settings_a
+from settings.settings_analyze_efizz import Settings_analyze_efizz as settings_a_e
 from settings.settings_homings import settings_homings as settings_h
 from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
@@ -61,7 +64,7 @@ def postprocess():
     logger.info("The post processing of the data has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
-        Postprocessor()
+        Postprocessor(session)
     logger.success("The post processing of the data has finished and the postprocessed object has been saved to a pickle file")
 
 
@@ -86,8 +89,8 @@ def analyze():
     logger.info("The analysis pipeline has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
-        AnalyzeEfizz(session)
         AnalyzeBehave(session)
+        AnalyzeEfizz(session)
     
     logger.success("Analysis pipeline complete")
         
