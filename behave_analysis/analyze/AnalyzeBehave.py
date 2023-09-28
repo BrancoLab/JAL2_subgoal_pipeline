@@ -123,9 +123,9 @@ class AnalyzeBehave:
 
 def identify_condition(video_df,session):
     """Which condition did the escape happen in?"""
-    if np.logical_and(video_df['shelter_only'].to_numpy() == True, video_df['barrier_present'].to_numpy() == False):
+    if np.logical_and(video_df['shelter'].to_numpy() == True, video_df['barrier_present'].to_numpy() == False):
         condition = 'shelter_only'
-    elif np.logical_and(video_df['shelter_only'].to_numpy() == True, video_df['barrier_present'].to_numpy() == True):
+    elif np.logical_and(video_df['shelter'].to_numpy() == True, video_df['barrier_present'].to_numpy() == True):
         if session.barrier_flip_time:
             if video_df['barrier_flipped'].to_numpy() == False:
                 condition = 'barrier_pre_flip'

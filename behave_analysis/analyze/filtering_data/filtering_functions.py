@@ -12,17 +12,17 @@ def filter_video_dataframe(dataframe, condition, outofshelter = True, exclude_es
         filtered_video_df = filtered_video_df.filter((filtered_video_df["EscapePeriod"] == False))
 
     if condition == 'pre_shelter': # empty arena
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == False))
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter"] == False))
         if 'barrier_present' in filtered_video_df.columns: 
             filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
 
     elif condition == 'shelter_only': # only the shelter is present
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == True))
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter"] == True))
         if 'barrier_present' in filtered_video_df.columns: 
             filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
 
     elif condition == 'shelter_present': # the whole time the shelter is present, but might include the barrier as well
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter_only"] == True))
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter"] == True))
 
     elif condition == 'barrier_present': # the hwole time the barrier is present
         filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True))
