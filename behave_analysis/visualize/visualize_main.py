@@ -67,6 +67,8 @@ class Visualize:
                                                 tracking_data = self.postprocessObject.tracking_data,
                                                 postprocessingObj = self.postprocessObject)
 
+        # ------------------------------------------------------------------Movies----------------------------------------------------------------
+        
     def trials(self, stim_type) -> None:
         """
         A function that loops through all of the trials of a given type, and then loops through frame by frame.

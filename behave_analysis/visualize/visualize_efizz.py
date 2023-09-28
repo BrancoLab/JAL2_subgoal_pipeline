@@ -267,9 +267,7 @@ class Visualize_efizz:
         fnum = 1
         axs = axs.ravel()
 
-        video_df = self.processed_data.video_df.select([pl.col('frames').apply(float), pl.exclude('frames')]) # Cast frames to float to permit join and remove old frames column with wrong type 
-        large_dataFrame = video_df.join(self.processed_data.spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame = large_dataFrame.select(['frames','spike_clusters','mouse_x_position','mouse_y_position','spike_count'])
+        large_dataFrame = self.processed_data.video_spike_count_df.select(['frames','spike_clusters','mouse_x_position','mouse_y_position','spike_count'])
 
         # what is firing rate per frame?
         for counter,cluster in enumerate(self.processed_data.spike_data["spike_clusters"].unique()):

@@ -27,14 +27,13 @@ from settings.settings_visualize import defined_settings_visualize as settings_v
 
 # Main function --------------------------------------------------------------------------------------------------------------------------------------------
 
-def compute_the_circular_rho(postProcessingObject) -> dict:
+def compute_the_circular_rho(data) -> dict:
     """ 
     Ingests the frame by frame behavioural data, filters on the 
     available angles when the mouse is out of the shelter and then 
     computes the circular correlation coefficient between the angles
     """
     
-    data = postProcessingObject.video_df
     outOfShelterFrames = data.filter(pl.col("OutofshelterIdx") == True)
     angles = select_angle_columns(outOfShelterFrames)
     combinations = create_all_the_permutations_of_angles(angles.columns)
@@ -42,13 +41,13 @@ def compute_the_circular_rho(postProcessingObject) -> dict:
     
     return rhoDict
 
-def plot_the_circular_rho(postProcessingObject, save_path) -> None:
+def plot_the_circular_rho(video_df, save_path) -> None:
     """ 
     Plots the circular correlation coefficient into a bar chart and saves it to the processed data folder
     """
     
     # Extract the rho values and the pair wise combinations produced by the compute_the_circular_rho function   
-    rhoDict = compute_the_circular_rho(postProcessingObject)
+    rhoDict = compute_the_circular_rho(video_df)
     rhos = list(rhoDict.values())
     pairWiseCombinations = list(rhoDict.keys())
     xlabels = [f"{pairWiseCombinations[i][0]} VS {pairWiseCombinations[i][1]}" for i in range(len(pairWiseCombinations))]

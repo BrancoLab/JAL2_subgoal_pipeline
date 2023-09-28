@@ -29,6 +29,7 @@ class Visualize_behave:
         self.session = session
         self.behave_path = os.path.join(self.session.base_path,self.session.processed_path,'behaviour')
         self.tracking_data = tracking_data
+        self.video_df = pl.read_csv(os.path.join(self.session.base_path,self.session.processed_path) + '\\' 'full_video_dataframe.csv')
         self.postprocessingObj = postprocessingObj
         if not(os.path.exists(self.behave_path)): 
             os.makedirs(self.behave_path)
@@ -38,9 +39,9 @@ class Visualize_behave:
         self.location_occupancy()
         self.shelter_occupancy()
         self.angle_histograms()
-        plot_the_circular_rho(self.postprocessingObj, save_path = self.behave_path)
+        plot_the_circular_rho(self.video_df, save_path = self.behave_path)
          
-        CoverageStatistics(video_data_frame = self.postprocessingObj.video_df, 
+        CoverageStatistics(video_data_frame = self.video_df, 
                            session = self.session,
                            behave_path = self.behave_path)
 
@@ -49,7 +50,7 @@ class Visualize_behave:
         Make a scatter plot of position in arena colored by angle between body and shelter
         """
         # remove times when mouse is inside shelter
-        outofShelterIdx = np.array(self.postprocessingObj.video_df['OutofshelterIdx'].to_numpy())
+        outofShelterIdx = np.array(self.video_df['OutofshelterIdx'].to_numpy())
         
         # color position by their shelter angle
         mass = self.tracking_data['avg_loc'][outofShelterIdx,:]
@@ -78,8 +79,8 @@ class Visualize_behave:
         """
         conditions = identify_conditions(self.session)
         for x,c in enumerate(conditions):
-            plt.bar(x+.9,(len(filter_video_dataframe(self.postprocessingObj.video_df,c,outofshelter = True, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'blue')
-            plt.bar(x+1.1,(len(filter_video_dataframe(self.postprocessingObj.video_df,c,outofshelter = False, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'red')
+            plt.bar(x+.9,(len(filter_video_dataframe(self.video_df,c,outofshelter = True, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'blue')
+            plt.bar(x+1.1,(len(filter_video_dataframe(self.video_df,c,outofshelter = False, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'red')
         plt.legend(['out of shelter','in shelter'])
         plt.xticks(np.arange(len(conditions))+1,conditions,rotation = 45)
         plt.tight_layout()

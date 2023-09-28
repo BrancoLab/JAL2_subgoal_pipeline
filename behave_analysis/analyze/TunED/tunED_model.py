@@ -415,19 +415,19 @@ class TunEdModel:
         
         # Filter out escape, periods when the mouse is in his house and periods when the shelter is not present
         if self.settings.analyze_only_the_period_before_shelter:
-            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["OutofshelterIdx"] == True) & 
-                                                                 (self.inherited_object.data_df["EscapePeriod"] == False) &
-                                                                 (self.inherited_object.data_df["shelter_only"] == False))
+            filtered_data = self.inherited_object.postprocessObject.video_spike_count_df.filter((self.inherited_object.postprocessObject.video_spike_count_df["OutofshelterIdx"] == True) & 
+                                                                 (self.inherited_object.postprocessObject.video_spike_count_df["EscapePeriod"] == False) &
+                                                                 (self.inherited_object.postprocessObject.video_spike_count_df["shelter_only"] == False))
         
         # Filter out escape, and periods when the mouse is in his house, and periods when the shelter is and is not present
         if not self.settings.analyze_only_the_period_before_shelter:
-            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["OutofshelterIdx"] == True) & 
-                                                                 (self.inherited_object.data_df["EscapePeriod"] == False))
+            filtered_data = self.inherited_object.postprocessObject.video_spike_count_df.filter((self.inherited_object.postprocessObject.video_spike_count_df["OutofshelterIdx"] == True) & 
+                                                                 (self.inherited_object.postprocessObject.video_spike_count_df["EscapePeriod"] == False))
             logger.info("Analysing the whole session with escapes and periods when the mouse is in his house removed")
         
         # Filter on the period just before the barrier
         if self.settings.analyze_only_the_period_before_barrier:
-            filtered_data = self.inherited_object.data_df.filter((self.inherited_object.data_df["barrier_present"] == False))
+            filtered_data = self.inherited_object.postprocessObject.video_spike_count_df.filter((self.inherited_object.postprocessObject.video_spike_count_df["barrier_present"] == False))
         
         
         return filtered_data
