@@ -114,7 +114,7 @@ def BinDfbyAngle(self, variable, settings):
     binned_angles = np.array(filtered_video_df[variable].to_numpy())
 
     # median filter!
-    binned_angles = np.arctan2(sp.medfilt(np.sin(binned_angles),41),sp.medfilt(np.cos(binned_angles),41))
+    # binned_angles = np.arctan2(sp.medfilt(np.sin(binned_angles),41),sp.medfilt(np.cos(binned_angles),41))
     binned_angles = np.digitize(binned_angles, bin_angles)
 
     return binned_angles, frames, title
