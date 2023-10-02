@@ -242,20 +242,20 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         self.csv_path = os.path.join(session.base_path,session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
-        self.check_synthetic_data_exists_if_not_generate_it() # creates a csv in working dir
+        self.check_synthetic_data_exists_if_not_generate_it(video_df) # creates a csv in working dir
         self.spike_data = self.load_spike_data()
         self.clu_label = self.extract_cluster_labels()
         spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
         self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster,video_df)
         self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df) # NOTE - Temporary comment out as slow when trying to test pipeline
     
-    def check_synthetic_data_exists_if_not_generate_it(self) -> None:
+    def check_synthetic_data_exists_if_not_generate_it(self,video_df) -> None:
         if not os.path.exists(self.csv_path):
-            self.activate_synthetic_data_generation()
+            self.activate_synthetic_data_generation(video_df)
         else:
             logger.info("Synthetic spike data found")
     
-    def activate_synthetic_data_generation(self) -> None:
+    def activate_synthetic_data_generation(self,video_df) -> None:
         logger.info("Synthetic spike data doesn't exist and will now be generated")
         tuning = ['hdir']
         if np.logical_or(np.logical_and(len(self.session.shelter_time) > 0,self.select_clusters == 'synthetic'),'hsa' in self.select_clusters): 
@@ -263,7 +263,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         if np.logical_and(len(self.session.barrier_time) > 0,self.select_clusters == 'synthetic'): 
             tuning.append('h_bar_north_a')
             tuning.append('h_bar_south_a')
-        synth_df = generate_synthetic_dataframe(tuning, pass_video_df = self.video_df)
+        synth_df = generate_synthetic_dataframe(tuning, pass_video_df = video_df)
         synth_df.write_csv(self.csv_path)
 
     def expand_tracking_data(self, video_df: pl.DataFrame, new_entries_to_insert: int) -> pl.DataFrame:
