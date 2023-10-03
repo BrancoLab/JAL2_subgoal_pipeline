@@ -63,7 +63,7 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     # assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
 
     #Check and correct for abberant signals
-    # imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
+    imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
     #Get onset and offsets
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
