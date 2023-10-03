@@ -236,27 +236,3 @@ class CoverageStatistics:
             
         plt.tight_layout()  # Adjusts subplot params so that subplots fit into the figure area
         plt.show()
-
-    def plot_heat_map_of_position(self):
-        x_coords = self.video_data_frame['mouse_x_position']
-        y_coords = self.video_data_frame['mouse_y_position']
-
-        plt.figure(figsize=(10, 8))
-        heatmap, xedges, yedges = np.histogram2d(x_coords, y_coords, bins=(50, 50))
-
-        # Draw heatmap
-        ax = sns.heatmap(heatmap, cmap="crest", robust=True)
-
-        # Remove x and y tick labels
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-
-        # Remove x and y ticks
-        ax.xaxis.set_ticks_position('none')
-        ax.yaxis.set_ticks_position('none')
-        
-        # Plot
-        plt.title('Mouse Position Heatmap')
-        plt.xlabel('Mouse X Position')
-        plt.ylabel('Mouse Y Position')
-        plt.show()
