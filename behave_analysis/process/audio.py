@@ -8,6 +8,7 @@ import os
 import numpy as np
 from glob import glob
 import dill as pickle
+from pathlib import Path
 
 def get_Audio(session: NEW_Session) -> Audio:
     """AI data is a 4 channel interleaved signal. The audio signal is the second channel.
@@ -22,8 +23,8 @@ def get_Audio(session: NEW_Session) -> Audio:
     Returns:
         _type_: _description_
     """
-        
-    AI_file = list(session.file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+    full_file_path = Path(os.path.join(session.base_path,session.file_path))
+    AI_file = list(full_file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
 
     if '.bin' in str(AI_file): 
         AI_data = np.fromfile(AI_file)

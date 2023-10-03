@@ -15,7 +15,7 @@ settings_track = Settings_track(
     all_sessions = False,
     inverse_fisheye_correction_file = '.\\sample_data\\inverse_fisheye_maps.npy', # remove setting if n/a
     tracking_file_location = None,
-    save_labeled_video = True, # if you want to save the video with the DLC dots plotted on it
-    random_points = True # if you want to compute the angle with respect to some extra points in the arena
+    save_labeled_video = False, # if you want to save the video with the DLC dots plotted on it
+    random_points = 'full_arena' # compute the head angle to extra points in the arena, 'manual' makes you input points in gui, 'full_arena' computes a full grid of points in the arena, [] empty if you don't want angle with randompoints
     
 )

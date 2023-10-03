@@ -29,6 +29,6 @@ from behave_analysis.database.Experiments.JAL003_ex import (
 from behave_analysis.database.Experiments.JAL004_ex import JAL4_mush1
 
 # Currently the code only works with one experiment at a time, so place that experiment in the below list for analysis
-experiments_objects = [flip1stSept_003] # Good JAL003 experiment
+experiments_objects = [JAL3_flip_rot] # Good JAL003 experiment
 # experiments_objects = [seq1_3_002] # Good JAL002 experiment
 

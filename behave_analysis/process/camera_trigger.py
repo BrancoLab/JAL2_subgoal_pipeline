@@ -11,13 +11,15 @@ import pandas as pd
 from loguru import logger
 import matplotlib.pyplot as plt
 import datetime as datetime
+from pathlib import Path
 
 def get_Camera_trigger(session: NEW_Session, drop_frames = False):
     """ AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
     AI stands for analog input. However, I believe as this is a pulse, it is digital.
     A pulse generated from the NI box one part goes to the camera and another back to the NI box."""
     
-    AI_file = list(session.file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+    full_file_path = Path(os.path.join(session.base_path,session.file_path))
+    AI_file = list(full_file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
 
     if '.bin' in str(AI_file): 
         AI_data = np.fromfile(AI_file)
@@ -75,7 +77,8 @@ def find_drop_frames(session: NEW_Session, frame_trigger_onsets_idx, for_video_r
     Returns:
         _type_: _description_
     """
-    frames_csv_path = list(session.file_path.glob("*frames.csv"))[0]
+    full_file_path = Path(os.path.join(session.base_path,session.file_path))
+    frames_csv_path = list(full_file_path.glob("*frames.csv"))[0]
   
     # frames_csv_path = glob(os.path.join(session.file_path, "frames*"))[-1]
     

@@ -10,10 +10,10 @@ import matplotlib.pyplot as plt
 
 # Custom libarires
 
-from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
 from loguru import logger
 from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
+from behave_analysis.analyze.filtering_data.filtering_functions  import identify_conditions, filter_video_dataframe
 
 # Import settings
 
@@ -27,19 +27,21 @@ class Visualize_behave:
     
     def __init__(self, session, tracking_data, postprocessingObj):
         self.session = session
-        self.behave_path = os.path.join(self.session.processed_path,'behaviour')
+        self.behave_path = os.path.join(self.session.base_path,self.session.processed_path,'behaviour')
         self.tracking_data = tracking_data
+        self.video_df = pl.read_csv(os.path.join(self.session.base_path,self.session.processed_path) + '\\' 'full_video_dataframe.csv')
         self.postprocessingObj = postprocessingObj
         if not(os.path.exists(self.behave_path)): 
             os.makedirs(self.behave_path)
         
         # Behaviour plots
-        # self.position_by_bsa()
-        # self.location_occupancy()
-        # self.angle_histograms()
-        plot_the_circular_rho(self.postprocessingObj, save_path = self.behave_path)
+        self.position_by_bsa()
+        self.location_occupancy()
+        self.shelter_occupancy()
+        self.angle_histograms()
+        plot_the_circular_rho(self.video_df, save_path = self.behave_path)
          
-        CoverageStatistics(video_data_frame = self.postprocessingObj.video_df, 
+        CoverageStatistics(video_data_frame = self.video_df, 
                            session = self.session,
                            behave_path = self.behave_path)
 
@@ -48,7 +50,7 @@ class Visualize_behave:
         Make a scatter plot of position in arena colored by angle between body and shelter
         """
         # remove times when mouse is inside shelter
-        outofShelterIdx = out_of_shelter_filter(self.tracking_data)
+        outofShelterIdx = np.array(self.video_df['OutofshelterIdx'].to_numpy())
         
         # color position by their shelter angle
         mass = self.tracking_data['avg_loc'][outofShelterIdx,:]
@@ -70,7 +72,22 @@ class Visualize_behave:
         plt.savefig(os.path.join(self.behave_path, "arena_position.png"))
         if settings_v.show_plots: plt.show()
         plt.close()
-    
+
+    def shelter_occupancy(self):
+        """
+        Make a bar plot of minutes in and out of shelter per condition in each session
+        """
+        conditions = identify_conditions(self.session)
+        for x,c in enumerate(conditions):
+            plt.bar(x+.9,(len(filter_video_dataframe(self.video_df,c,outofshelter = True, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'blue')
+            plt.bar(x+1.1,(len(filter_video_dataframe(self.video_df,c,outofshelter = False, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'red')
+        plt.legend(['out of shelter','in shelter'])
+        plt.xticks(np.arange(len(conditions))+1,conditions,rotation = 45)
+        plt.tight_layout()
+        plt.savefig(os.path.join(self.behave_path, "shelter_occupancy.png"))
+        if settings_v.show_plots: plt.show()
+        plt.close()
+
     def location_occupancy(self):
         """
         Make plots showing time in shelter, near barrier edged and in 4 quadrants of arena over the course of the session

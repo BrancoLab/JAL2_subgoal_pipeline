@@ -8,12 +8,14 @@ import os
 import numpy as np
 from glob import glob
 import dill as pickle
+from pathlib import Path
 
 def get_Photoresistor(session: NEW_Session) -> photoresistor_trigger:
     """AI data is a 4 channel interleaved signal. The photoresistor voltage is the third signal.
     AI stands for analog input. This is the voltage recording of the photoresistor. """
     
-    AI_file = list(session.file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+    full_file_path = Path(os.path.join(session.base_path,session.file_path))
+    AI_file = list(full_file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
 
     if '.bin' in str(AI_file): 
             AI_data = np.fromfile(AI_file)

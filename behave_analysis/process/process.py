@@ -9,6 +9,7 @@ from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
 from behave_analysis.process.session import NEW_Session, get_experiment # Testing refactored dataclass structure
+from behave_analysis.database.computer_ID import get_computer_specific_paths
 
 #Import OS libraries
 import os
@@ -26,38 +27,16 @@ class Process():
     def __init__(self, session_ID):
         logger.info("Session details: {}".format(session_ID))
         self.session = get_experiment(session_ID) # Retrieve experimental data
-        self.__check_files_exist() # Check that all behavioural files exist
-        
-        # Create processed path if it doesn't exist
-        if not(os.path.exists(self.session.processed_path)): 
-            os.makedirs(self.session.processed_path)
-
-    def __check_files_exist(self) -> None:
-        """
-        Private method to check that all the files exist for the session.
-        In case of user error where the path has been set up incorrectly. And also to check for missing data.
-        Run checks that all the behavioural files exist that are needed for processing.
-        Check for camera data, frames and analog data. NOTE this was originally introduced
-        because a bug where the path root was incorrect and the program wouldn't inform the user.
-        """
-        datapath_parts = (self.session.file_path / self.session.file_path.name).parts
-        camlastpath = datapath_parts[-1] + "_cam.avi"
-        cam_path = Path(*datapath_parts[:-1]) / camlastpath
-        assert os.path.exists(cam_path), "No camera data found. Check file path"
-        
-        frameslastpath = datapath_parts[-1] + "_frames.csv"
-        frames_path = Path(*datapath_parts[:-1]) / frameslastpath
-        assert os.path.exists(frames_path), "No frames data found. Check file path"
-        
-        analoglastpath = datapath_parts[-1] + "_analog.bin"
-        analog_path = Path(*datapath_parts[:-1]) / analoglastpath
-        assert os.path.exists(analog_path), "No analog data found. Check file path"
         
     def create_session(self, video_settings) -> NEW_Session:
         """
         A function that creates the session, and saves the metadata file. It also runs the quality checks on the session.
         Resamples and aligns signals etc. Need to refactor as a lot is happening.
         """
+        self.__check_files_exist() # Check that all behavioural files exist
+        # Create processed path if it doesn't exist
+        if not(os.path.exists(self.session.processed_path)): 
+            os.makedirs(self.session.processed_path)
         self.load_registration_transform()
         
         if settings_p.efizz:
@@ -80,7 +59,7 @@ class Process():
                                                              slope = slope, 
                                                              intercept = intercept,
                                                              samplingRate = self.session.ttl.sampling_rate,
-                                                             filePath = self.session.processed_path,
+                                                             filePath = os.path.join(self.session.base_path,self.session.processed_path),
                                                              camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
                                                              lastPulse = lastPulse,
                                                              firstPulse = firstPulse)
@@ -114,8 +93,9 @@ class Process():
         """
         A function that saves the processes session to a metadata file
         """
-        assert not os.path.isfile(self.session.metadata_file) or overwrite, "Permission to save not granted"
-        with open(self.session.metadata_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
+        meta_file = os.path.join(self.session.base_path,self.session.metadata_file)
+        assert not os.path.isfile(meta_file) or overwrite, "Permission to save not granted"
+        with open(meta_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
         return None
 
     def load_session(self) -> NEW_Session:
@@ -124,8 +104,9 @@ class Process():
         is set to skip process. Then an error may occur
         """
         try:
-            with open(self.session.metadata_file, "rb") as dill_file: 
+            with open(os.path.join(self.session.base_path,self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
+                session.base_path, _ = get_computer_specific_paths()
                 
         except FileNotFoundError:
             print("Meta data file not found, aborting script")
@@ -141,11 +122,35 @@ class Process():
             
         return session
 
+    def __check_files_exist(self) -> None:
+        """
+        Private method to check that all the files exist for the session.
+        In case of user error where the path has been set up incorrectly. And also to check for missing data.
+        Run checks that all the behavioural files exist that are needed for processing.
+        Check for camera data, frames and analog data. NOTE this was originally introduced
+        because a bug where the path root was incorrect and the program wouldn't inform the user.
+        """
+        full_file_path = Path(os.path.join(self.session.base_path,self.session.file_path))
+        datapath_parts = (full_file_path / full_file_path.name).parts
+
+        camlastpath = datapath_parts[-1] + "_cam.avi"
+        cam_path = Path(*datapath_parts[:-1]) / camlastpath
+        assert os.path.exists(cam_path), "No camera data found. Check file path"
+        
+        frameslastpath = datapath_parts[-1] + "_frames.csv"
+        frames_path = Path(*datapath_parts[:-1]) / frameslastpath
+        assert os.path.exists(frames_path), "No frames data found. Check file path"
+        
+        analoglastpath = datapath_parts[-1] + "_analog.bin"
+        analog_path = Path(*datapath_parts[:-1]) / analoglastpath
+        assert os.path.exists(analog_path), "No analog data found. Check file path"
+
     def load_registration_transform(self) -> None:
         """
         A function that loads the registration transform if it exists, otherwise it sets it to None
         """
-        if os.path.isfile(self.session.metadata_file) and isinstance(self.load_session().video.registration_transform, np.ndarray):
+        meta_file = os.path.join(self.session.base_path,self.session.metadata_file)
+        if os.path.isfile(meta_file) and isinstance(self.load_session().video.registration_transform, np.ndarray):
             self.loaded_registration_transform = self.load_session().video.registration_transform
         else: 
             self.loaded_registration_transform = None

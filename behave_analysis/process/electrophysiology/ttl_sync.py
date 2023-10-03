@@ -38,6 +38,7 @@ from glob import glob
 import dill as pickle
 from loguru import logger
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 # Globals
 sampling_rate = 30000
@@ -117,8 +118,8 @@ def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str):
     - TTL signals from bonsai machine and imec board
     """
     #Retrieve TTL data
-    
-    AI_file = list(session.file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+    full_file_path = Path(os.path.join(session.base_path,session.file_path))
+    AI_file = list(full_file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
 
     if '.bin' in str(AI_file): 
         AI_data = np.fromfile(AI_file)

@@ -24,8 +24,9 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     run_tunED = False,
     
     # LDA model settings
-    run_LDA = [], 
-    # 'head_shelter_angle','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
+    run_LDA = 'all', 
+    # if [] it will not run LDA
+    # if 'all' it will run it for all possible angles - else provide list of angles
     # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
     epoch_num = 6, # number of epochs for cross validation
     number_of_bins = 19, # number of bins for angles
@@ -35,9 +36,9 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     linear_shift = False, # whether to run linear shift!
 
     # Rayleigh model settings
-    run_rayleigh = True,
-    rayleigh_bootstrap = False,
-    single_cluster_plots = False,
+    run_rayleigh = False,
+    rayleigh_bootstrap = False, # TODO: rewrite this with linear shift stats
+    single_cluster_plots = True,
 
 )
 

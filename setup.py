@@ -19,6 +19,7 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "process = behave_analysis.run:process",
+            "postprocess = behave_analysis.run:postprocess",
             "analyze = behave_analysis.run:analyze",
             "track = behave_analysis.run:track",
             "visualize = behave_analysis.run:visualize",    

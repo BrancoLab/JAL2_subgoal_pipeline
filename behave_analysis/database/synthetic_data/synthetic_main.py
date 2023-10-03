@@ -146,7 +146,7 @@ def return_spike_times_locked_to_behavioural_direction(behavioural_direction,
                 spike_times += noise
                 
         all_spike_times.extend(spike_times)
-        all_cluster_ids.extend([idx] * len(spike_times))
+        all_cluster_ids.extend([idx+1] * len(spike_times))
     
     return np.array(all_spike_times), np.array(all_cluster_ids)
 
@@ -156,7 +156,7 @@ def load_tracking_data():
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         break
-    file = os.path.join(session.processed_path, "fully_processed_tracking_data.pickle")
+    file = os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle")
     with open(file, "rb") as dill_file:
         tracking = pickle.load(dill_file)
     return session, tracking

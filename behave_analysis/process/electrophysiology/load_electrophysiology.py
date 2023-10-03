@@ -8,7 +8,7 @@ from loguru import logger
 
 class LoadEfizz():
     def __init__(self, session_ID):
-        self.file_path = session_ID.file_path
+        self.file_path = os.path.join(session_ID.base_path, session_ID.file_path)
         self.files = self.collect_efizz_files()
         self.select_and_load_efizz_files()
         
