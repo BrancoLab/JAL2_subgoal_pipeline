@@ -41,7 +41,8 @@ defined_settings_visualize = Settings_visualize(
     all_sessions = False,
     efizz = False, # if you want to visualize efizz also
     show_plots = False, # if this is false, it will make and save the plots without showing them
-    cluster_type = 'synthetichdir' # cluster_type: "synthetic", "synthetichdir" (only hdir cells in synthetic dataset), "synthetichdirhsa",
-                         #"all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+    cluster_type = 'synthetichdir', # cluster_type: "synthetic", "synthetichdir" (only hdir cells in synthetic dataset), "synthetichdirhsa",
+                                    #"all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+    conditions_to_plot = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"] # Maybe need to find a way to make this automatic
     
 )

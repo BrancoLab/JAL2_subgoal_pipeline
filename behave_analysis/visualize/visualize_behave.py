@@ -28,7 +28,7 @@ class Visualize_behave:
     
     def __init__(self, session, tracking_data, postprocessingObj):
         self.session = session
-        self.behave_path = os.path.join(self.session.base_path,self.session.processed_path,'behaviour')
+        self.behave_path = os.path.join(self.session.base_path, self.session.processed_path,'behaviour')
         self.tracking_data = tracking_data
         self.video_df = pl.read_csv(os.path.join(self.session.base_path,self.session.processed_path) + '\\' 'full_video_dataframe.csv')
         self.postprocessingObj = postprocessingObj
@@ -41,8 +41,9 @@ class Visualize_behave:
         self.shelter_occupancy()
         self.angle_histograms()
         plot_the_circular_rho(self.video_df, save_path = self.behave_path)
-        plot_heat_map_of_position(video_data_frame = self.video_df)
-         
+        plot_heat_map_of_position(video_data_frame = self.video_df, 
+                                  save_path = self.behave_path,
+                                  session_height = self.session.video.height)
         CoverageStatistics(video_data_frame = self.video_df, 
                            session = self.session,
                            behave_path = self.behave_path)

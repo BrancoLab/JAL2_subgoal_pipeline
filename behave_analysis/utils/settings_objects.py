@@ -83,6 +83,7 @@ class Settings_visualize:
     efizz: bool=False
     show_plots: bool=False
     cluster_type: str = ''
+    conditions_to_plot: list = None
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
