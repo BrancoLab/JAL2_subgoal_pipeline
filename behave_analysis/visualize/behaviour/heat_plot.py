@@ -23,6 +23,7 @@ def plot_heat_map_of_position(video_data_frame, session_height, save_path, filte
     # Adjust figsize and number of columns as per your needs
     fig, axs = plt.subplots(nrows=1, ncols=len(settings.conditions_to_plot), figsize=(24, 6), sharey=True, sharex=True)
     cbar_ax = fig.add_axes([.91, .13, .01, .75]) # The list represents [left, bottom, width, height], where all values are in fractional (0-1) coordinates.
+                                                 # Where to plot the colorbar, create new axis object at these coordinates
 
     for idx, condition in enumerate(settings.conditions_to_plot):
         
@@ -32,10 +33,8 @@ def plot_heat_map_of_position(video_data_frame, session_height, save_path, filte
         y_coords = video_data_frame_filtered ['mouse_y_position'].to_numpy()
     
         # Remove all positions outside of the arena - TODO make this function global
-        dist = np.sqrt(((x_coords - session_height/2)**2) + ((y_coords - session_height/2)**2)) # 
-        all_posX = x_coords[dist<460] # 460 is size of arena circle radius, see register
-        all_posY = y_coords[dist<460]
-
+        all_posX, all_posY = remove_points_away_from_center_of_circle(x_coords, y_coords, session_height)
+        
         # Generate heatmap
         heatmap, _, _ = np.histogram2d(all_posX, all_posY, bins=(96, 96)) # [int, int] - number of bins in x and y axis, abitrarily set
         
@@ -58,9 +57,22 @@ def plot_heat_map_of_position(video_data_frame, session_height, save_path, filte
         axs[idx].figure.axes[-1].yaxis.label.set_size(16) # The legend is the last axis so this is a hack to change the font size of the legend
 
     plt.subplots_adjust(wspace=0.05, hspace=0)
-    
-    plt.show()
-    
     if settings.show_plots: plt.show()
     plt.savefig(os.path.join(save_path, "Heat_plots_of_mouse_position_per_condition.png"))
     plt.close()
+
+# Utils for heatplot
+def remove_points_away_from_center_of_circle(x, y, session_height) -> tuple:
+    """ 
+    Ensures there are no positions outside of the areana by removing them from the x and y coordinates based
+    on the fact that the radius of the arena is 460 pixels.
+    
+    TODO:
+    + Make this function global
+    + Make the radius of the arena a variable not hard coded
+    """
+    
+    dist = np.sqrt(((x - session_height/2)**2) + ((y - session_height/2)**2)) # Use the euclidean distance formula to find the distance from the center of the arena
+    filtX = x[dist<460] # 460 is size of arena circle radius, see register
+    filtY = y[dist<460]
+    return filtX, filtY
