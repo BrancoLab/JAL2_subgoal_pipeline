@@ -1,4 +1,25 @@
-# TODO the tracking data is not being pickled. tracking_data needs to be pickled to use for the analysis. 
+""" 
+This module contains the Track class that is used to process the tracking data. Below is a set of 
+points to aid in understanding the logic of the code.
+
+Tracking Logic:
+
+- The basline (inital) vector (0 radians) of head direction is pointing towards the door of the rig
+- Some functions will rotate the coordinate system by 90 degrees to ensure this is the case
+- Positive angles from the x coordinate are in the counter clockwise direction in radians (0 to pi)
+- Negative angles from the x coordinate are in the clockwise direction in radians (0 to -pi)
+- So -3.14 and positive 3.14 are the same angle and are at 180 degrees pointing away from the door of the rig
+
+Open questions:
+- Why is negative archtan2 used? Rather than positive archtan2?
+
+TODO: 
++ Write tests for this module, especially for the compute metrics function
++ Can the old head direction calculation be removed?
++ Revisit Kalman and figure out why velocity and acceleration are not working
++ Do we need the compute body direction function?
+
+"""
 
 # Custom Libaries
 from behave_analysis.track.dlcHelp import DLC
@@ -62,7 +83,7 @@ class Track(DLC):
             
         # If processing has not been done before or you want to redo it then run it
         else:
-            if self.settings.redo_processing_step:
+            if self.settings.redo_processing_step: 
                 logger.info("You have choosen to redo processing step")
                 
             logger.info(f"Processing tracking data for session: {session.number} - {session.name}")
@@ -124,21 +145,13 @@ class Track(DLC):
         + (2, frames)
         The algorithm works on a single body part and thus needs to be called in a recursive manner.
         """
+        
+        # Check if kalman tracking data already exists
         if os.path.isfile(os.path.join(session.base_path,session.processed_path, "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
-            
-            # Load the kalman tracking data to speed up development but NOTE remove this code
-            
-            path = os.path.join(session.base_path,session.processed_path, "kalman_tracking_data.pickle")
-            with open(path, 'rb') as f:
-                # deserialize the data and load it into a Python object
-                self.lds_tracking_data = pickle.load(f)
-            
-            return None
-            
         
+        # Create new kalman tracking data
         logger.info("Creating new kalman tracking data.")
-        
         ldsResults = {}
         
         for i, bodypart in enumerate(self.tracking_data_body_parts['bodyparts']):
@@ -174,7 +187,8 @@ class Track(DLC):
         # Leaving in session as you in this reference location speed computation
         regionsOI = self.map_regions_of_interest()
         self.compute_avg_mouse_location(regionsOI)
-        self.compute_hdir_bodydir()
+        self.region_tracking_data['body_dir'] = self.compute_body_direction()
+        self.region_tracking_data['hdir'] = self.compute_head_direction()
         self.compute_angle_shelter(session)
         self.compute_angle_barrier(session)
         if len(self.settings.random_points) > 0 :self.compute_angle_random_points(session)
@@ -202,6 +216,7 @@ class Track(DLC):
         Compute the average location of the body parts in a region of interest into a dictionary called 
         region tracking data. This is done by taking the mean of the x and y coordinates of the body parts"
         """
+        
         self.region_tracking_data = {}
         
         for region in regionsOI.keys():
@@ -209,34 +224,51 @@ class Track(DLC):
             y = np.mean([self.lds_tracking_data[bodypart]['y'] for bodypart in regionsOI[region]], axis=0)
             self.region_tracking_data[region] = np.array([[x, y] for x, y in zip(x, y)])
         
-        logger.info("Body points averaged and their positions have been averaged and mapped to regions of interest.")       
-    
-    def compute_hdir_bodydir(self) -> None:
-        """
-        A function to compute the angles of the body parts. E.g head direction & body direction
+        logger.info("Body points averaged and their positions have been averaged and mapped to regions of interest.")
         
-        TODO: Change head direction to utilize the ears more instead of the upper back, this will be more accurate.
+        
+    def compute_head_direction(self) -> np.ndarray:
+        """
+        This function computes the head direction of the mouse. It does this by:
+        - taking the difference between the ears
+        - taking the archtan2 to compute the angle of the slope
+        - rotating that vector such that 0 degrees is pointing towards the door of the rig OR because the line connecting the ears is orthogonal to headirection? 
+        - the negative arctan2 is unknown, potentially to do with the origin of the coordinate system?
+        - then normalizing the angle so that it stays within the range (-π, π]. As the rotation creates angles less than -π.
         """
         
+        # Old head direction calculation ------------------------------------------------------------------------------
+        # TODO - Remove this old head direction calculation????
         hedDelta_x = self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]
         hedDelta_y = self.region_tracking_data['head_loc'][:, 1] - self.region_tracking_data['upper_body_loc'][:, 1]
         self.region_tracking_data['hdir_old'] = np.arctan2(hedDelta_y, hedDelta_x) # Radians
 
+        # New head direction calculation -----------------------------------------------------------------------------
         hedDelta_x = self.lds_tracking_data['left_ear']['x'] - self.lds_tracking_data['right_ear']['x']
         hedDelta_y = self.lds_tracking_data['left_ear']['y'] - self.lds_tracking_data['right_ear']['y']
-        self.region_tracking_data['hdir'] = - (np.arctan2(hedDelta_y, hedDelta_x) + (np.pi/2)) # Radians
-        self.region_tracking_data['hdir'][self.region_tracking_data['hdir']<-np.pi] = self.region_tracking_data['hdir'][self.region_tracking_data['hdir']<-np.pi] + (2*np.pi)
+        headDirection = - (np.arctan2(hedDelta_y, hedDelta_x) + (np.pi/2)) # Radians
+        mask = headDirection < -np.pi # A boolean mask to find all the values less than -pi
+        headDirection[mask] = headDirection[mask] + (2*np.pi)
+        return headDirection
+     
+    def compute_body_direction(self) -> np.ndarray:
+        """
+        A function that computes the body direction of the mouse. Is this function even used anywhere? It is also
+        not used in the video visualization function so perhaps it is not working as well.
         
+        TODO: Check if we need this function and if it is working correctly.
+        """
+  
         bodDelta_x = self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]
         bodDelta_y = self.region_tracking_data['upper_body_loc'][:, 1] - self.region_tracking_data['lower_body_loc'][:, 1]
-        self.region_tracking_data['body_dir'] = np.arctan2(bodDelta_y, bodDelta_x) # Radians
+        bodyDirection = np.arctan2(bodDelta_y, bodDelta_x) # Radians
+        return bodyDirection
     
-        logger.info("Head direction and body direction computed")
-
     def compute_angle_shelter(self, session):
         """
         A function to compute the angle between the heading of the mouse and the shelter.
-        It will ask you to define the shelter position"""
+        It will ask you to define the shelter position
+        """
 
         # calculate body to shelter angle
         # this used to be calculated with self.region_tracking_data['avg_loc']
@@ -256,7 +288,8 @@ class Track(DLC):
     def compute_angle_barrier(self, session):
         """
         A function to compute the angle between the heading of the mouse and the barrier edges.
-        It will ask you to define the barrier edge position"""
+        It will ask you to define the barrier edge position
+        """
 
         if len(session.barrier_time) > 0:
             # initialize variables
@@ -272,7 +305,8 @@ class Track(DLC):
     def compute_angle_random_points(self,session):
         """
         A function to compute the angle between the heading of the mouse and the barrier edges.
-        It will ask you to define the barrier edge position"""
+        It will ask you to define the barrier edge position
+        """
 
         # ask user to select some extra 'random' points in arena
         if self.settings.random_points == 'manual':
@@ -364,7 +398,9 @@ class Track(DLC):
 
     def load_arena(self,session):
         """
-        A little function for loading the first frame of the movie to point to shelter and barrier location"""
+        A little function for loading the first frame of the movie to point to shelter and barrier location
+        """
+        
         fisheye_correction_map = load_fisheye_correction_map(session.video)
         video_file = os.path.join(session.base_path,session.file_path,session.video.camFilePath)
         source_video = cv2.VideoCapture(video_file)
@@ -376,6 +412,7 @@ class Track(DLC):
         """
         A function to save the tracking data pickled.
         """
+        
         savePath = os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle")
         with open(savePath, "wb") as dill_file: 
             pickle.dump(self.region_tracking_data, dill_file)
@@ -397,16 +434,32 @@ class Track(DLC):
             plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
             plt.show()
 
-def compute_angle_head_point(self,point_name,idx):
-    xdist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data[point_name][idx][0]
-    ydist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data[point_name][idx][1]
-    bod_barr_dir = - np.arctan2(ydist, xdist)
-    bod_dir_pos = bod_barr_dir>0
-    bod_dir_neg = bod_barr_dir<0
-    bod_barr_dir[bod_dir_neg] = bod_barr_dir[bod_dir_neg] + np.pi
-    bod_barr_dir[bod_dir_pos] = bod_barr_dir[bod_dir_pos] - np.pi
-    # head barrier angle (from pi to -pi)
-    hdir = np.pi + (- self.region_tracking_data['hdir'] + bod_barr_dir)
-    hdir[hdir > np.pi] = (hdir[hdir > np.pi] - (2*np.pi))
-    return hdir
+def compute_angle_head_point(self, point_name, idx):
+    """
+    Generates the angle between the head direction and a point of interest. The point of interest is defined by the user.
+    
+    Input:
+    + pointname: the column name of the point you want to compute the angle to in the tracking data e.g barrier location, etc#
+    + idx: Some of the columns have multiple index points e.g barrier location has many points so you need to index which one you want e.g
+    left edge, center point, right edge
+    
+    TODO: Figure out why negative archtan2 is used? Rather than positive archtan2?
+    """
+    
+    # Calculate the lengths between the points and then compute the angle of the slope
+    xDist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data[point_name][idx][0]
+    yDist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data[point_name][idx][1]
+    angleOfSlope = - np.arctan2(yDist, xDist)
+    
+    # Project the coordinate system to be between -pi and pi (90 degree turn counter clockwise and -90 degree turn clockwise)
+    isAnglePositive = angleOfSlope>0
+    isAngleNegative = angleOfSlope<0
+    angleOfSlope[isAngleNegative] += np.pi
+    angleOfSlope[isAnglePositive] -= np.pi
+    
+    # Rotate the coordinate system by 90degrees and ensure the resutling angles wrap from (from -pi to pi)
+    angleOfInterest = np.pi + (-self.region_tracking_data['hdir'] + angleOfSlope)
+    mask = angleOfInterest > np.pi
+    angleOfInterest[mask] = (angleOfInterest[mask] - (2*np.pi))
+    return angleOfInterest
     

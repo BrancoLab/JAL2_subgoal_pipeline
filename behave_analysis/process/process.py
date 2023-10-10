@@ -104,12 +104,12 @@ class Process():
         is set to skip process. Then an error may occur
         """
         try:
-            with open(os.path.join(self.session.base_path,self.session.metadata_file), "rb") as dill_file: 
+            with open(os.path.join(self.session.base_path, self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
                 session.base_path, _ = get_computer_specific_paths()
                 
         except FileNotFoundError:
-            print("Meta data file not found, aborting script")
+            print(f"Meta data file for path {os.path.join(self.session.base_path, self.session.metadata_file)} not found, aborting script")
             sys.exit()
 
         except EOFError:
