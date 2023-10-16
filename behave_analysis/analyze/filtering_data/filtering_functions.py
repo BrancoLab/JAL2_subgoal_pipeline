@@ -6,6 +6,7 @@ def filter_video_dataframe(dataframe, condition, outofshelter = True, exclude_es
     """
     A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
     """
+    
     filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == outofshelter))
     
     if exclude_escape:
