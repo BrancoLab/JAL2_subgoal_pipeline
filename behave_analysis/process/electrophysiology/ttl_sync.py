@@ -162,6 +162,8 @@ def get_onset_offset(signal, threshold, clean = True):
     
     above = np.zeros_like(signal)
     above[signal >= threshold] = 1 # If the signal is above voltage threshold, set to 1
+    if np.sum(np.isnan(signal)) > 0:
+        above[np.isnan(signal)] = np.nan
     der = np.diff(above, n=1, axis=0) # Create an array of differences 
     starts = np.where(der > .5)[0] # Where does the signal switch from 0 to 1
     ends = np.where(der < -.5)[0] # Where does the signal switch from 1 to 0
@@ -177,71 +179,6 @@ def get_onset_offset(signal, threshold, clean = True):
 
     if not np.any(starts): assert False, "No onsets"
     if not np.any(ends): assert False, "No offsets"
- 
-    return starts, ends
-
-# The OLD version of the get_onset_offset function - this is kept for reference
-def OLD_get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
-    """ 
-    Get onset/offset times when a signal goes below>above and above>below a given threshold.
-
-    Arguments:
-        signal: 1d numpy array
-        thhreshold: float, threshold
-        clean: bool. If true ends before the first start and starts after the last end are removed
-        type: imec or bonsai
-
-    Returns:
-        Starts: Indexes of pulse onsets
-        Ends: Indexes of pulse offsets
-    """
-    above = np.zeros_like(signal) # Creates an array of zeros of length signal
-    above[signal >= threshold] = 1 #If the signal is above voltage threshold, set to 1
-    der = np.diff(above, axis=0, order=1) #Create an array of differences 
-    starts = np.where(der > .5)[0] #Where does the signal switch from 0 to 1
-    ends = np.where(der < -.5)[0] #Where does the signal switch from 1 to 0
-
-    # If the signal starts with a pulse add a zero to the start
-    if above[0] > 0:
-        logger.warning(f"Adding to the start of the {type} signal because it starts with a high pulse")
-        starts = np.concatenate([[0], starts])
-        
-        # Ugly ugly ugly
-        if hack == True:
-            # In the event that the signal starts on a high, remove that first pulse
-            # This is a hacky solution to the problem of the first pulse starting on a high as in for seq1_4
-            # buffering should be fixed to prevent this
-            starts = starts[1:]
-            logger.warning(f"Removing the first onset from the {type} signal as it started high")
-
-    if above[-1] > 0:
-        logger.warning(f"Adding to the end of the {type} signal as it ended high")
-        ends = np.concatenate([ends, [starts[-1]+sampling_rate]]) # make it an artificial normal pulse
-
-        # In the event that the signal ends on a high, remove that last pulse
-        # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1_4
-        # buffering should be fixed to prevent this
-        # Ugly gross ugly
-        if hack == True:
-            starts = starts[:-1]
-            logger.warning(f"Removing the last onset from the {type} signal as it ended high")
-
-    #If clean is true
-    if clean:
-        # offsets before the first onsets are removed
-        ends = np.array([e for e in ends if e > starts[0]])
-
-        # onsets before the last offsets are removed
-        if np.any(ends):
-            starts = np.array([s for s in starts if s < ends[-1]])
-
-    #If there aren't any starts or ends create empty arrays
-    if not np.any(starts):
-        starts = np.array([0])
-        logger.error("No onsets")
-    if not np.any(ends):
-        ends = np.array([len(signal)])
-        logger.error("No offsets")
  
     return starts, ends
 
@@ -290,22 +227,24 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
         assert len(errors_bonsai) < threshold, "There are too many abberant signals in the bonsai TTL"
 
     # If errors remove signals and update signals
-    if len(errors_bonsai)>0 or len(imec_errors)>0:
+    if  len(imec_errors)>0:
         imec_TTL = imec_TTL.astype(float)
         imec_TTL[imec_errors] = np.nan
+        imec_TTL[imec_errors] = [np.nanmean([imec_TTL[i-5:i-1],imec_TTL[i+1:i+5]]) for i in imec_errors]
+        logger.warning("Removing {} abberant signals from imec".format(len(imec_errors)))
+
+    if len(errors_bonsai)>0:
         bonsai_ttl = bonsai_ttl.astype(float)
         bonsai_ttl[errors_bonsai] = np.nan
-        imec_TTL[imec_errors] = [np.nanmean([imec_TTL[i-5:i-1],imec_TTL[i+1:i+5]]) for i in imec_errors]
-        # imec_TTL = np.delete(imec_TTL, imec_errors)
-        # bonsai_ttl = np.delete(bonsai_ttl, errors_bonsai)
-        logger.warning("Removing {} abberant signals from imec and {} from bonsai".format(len(imec_errors), len(errors_bonsai)))
+        bonsai_ttl[errors_bonsai] = [np.nanmean([bonsai_ttl[i-5:i-1],bonsai_ttl[i+1:i+5]]) for i in errors_bonsai]
+        logger.warning("Removing {} abberant signals from bonsai".format(len(errors_bonsai)))
     
     # Log success
     logger.success("Bonsai and Imec TTL are of similar lengths and have passed the abberant signal verification ")
 
     return imec_TTL, bonsai_ttl
 
-#Highlight weird length pulses
+# Highlight weird length pulses
 def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate):
     """A function that checks if the delta between onsets and offsets is not greater or less than 
     what should roughly be expected. Are pulse lengths to be expected?
@@ -343,3 +282,71 @@ def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_ra
 
     if imec_pulse_len_over_errors.any():
         logger.warning("Bonsai pulse greater than 1hz duration")
+
+
+# ----------- OLD FUNCS VERSIONS
+
+# The OLD version of the get_onset_offset function - this is kept for reference
+# def OLD_get_onset_offset(signal, threshold, type=None, clean = True, hack = False):
+#     """ 
+#     Get onset/offset times when a signal goes below>above and above>below a given threshold.
+
+#     Arguments:
+#         signal: 1d numpy array
+#         thhreshold: float, threshold
+#         clean: bool. If true ends before the first start and starts after the last end are removed
+#         type: imec or bonsai
+
+#     Returns:
+#         Starts: Indexes of pulse onsets
+#         Ends: Indexes of pulse offsets
+#     """
+#     above = np.zeros_like(signal) # Creates an array of zeros of length signal
+#     above[signal >= threshold] = 1 #If the signal is above voltage threshold, set to 1
+#     der = np.diff(above, axis=0, order=1) #Create an array of differences 
+#     starts = np.where(der > .5)[0] #Where does the signal switch from 0 to 1
+#     ends = np.where(der < -.5)[0] #Where does the signal switch from 1 to 0
+
+#     # If the signal starts with a pulse add a zero to the start
+#     if above[0] > 0:
+#         logger.warning(f"Adding to the start of the {type} signal because it starts with a high pulse")
+#         starts = np.concatenate([[0], starts])
+        
+#         # Ugly ugly ugly
+#         if hack == True:
+#             # In the event that the signal starts on a high, remove that first pulse
+#             # This is a hacky solution to the problem of the first pulse starting on a high as in for seq1_4
+#             # buffering should be fixed to prevent this
+#             starts = starts[1:]
+#             logger.warning(f"Removing the first onset from the {type} signal as it started high")
+
+#     if above[-1] > 0:
+#         logger.warning(f"Adding to the end of the {type} signal as it ended high")
+#         ends = np.concatenate([ends, [starts[-1]+sampling_rate]]) # make it an artificial normal pulse
+
+#         # In the event that the signal ends on a high, remove that last pulse
+#         # This is a hacky solution to the problem of the last pulse ending on a high as in for seq1_4
+#         # buffering should be fixed to prevent this
+#         # Ugly gross ugly
+#         if hack == True:
+#             starts = starts[:-1]
+#             logger.warning(f"Removing the last onset from the {type} signal as it ended high")
+
+#     #If clean is true
+#     if clean:
+#         # offsets before the first onsets are removed
+#         ends = np.array([e for e in ends if e > starts[0]])
+
+#         # onsets before the last offsets are removed
+#         if np.any(ends):
+#             starts = np.array([s for s in starts if s < ends[-1]])
+
+#     #If there aren't any starts or ends create empty arrays
+#     if not np.any(starts):
+#         starts = np.array([0])
+#         logger.error("No onsets")
+#     if not np.any(ends):
+#         ends = np.array([len(signal)])
+#         logger.error("No offsets")
+ 
+#     return starts, ends
