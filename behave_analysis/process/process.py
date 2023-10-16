@@ -35,8 +35,8 @@ class Process():
         """
         self.__check_files_exist() # Check that all behavioural files exist
         # Create processed path if it doesn't exist
-        if not(os.path.exists(self.session.processed_path)): 
-            os.makedirs(self.session.processed_path)
+        if not(os.path.exists(os.path.join(self.session.base_path,self.session.processed_path))): 
+            os.makedirs(os.path.join(self.session.base_path,self.session.processed_path))
         self.load_registration_transform()
         
         if settings_p.efizz:
