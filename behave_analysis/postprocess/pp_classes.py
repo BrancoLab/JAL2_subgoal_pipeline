@@ -246,9 +246,8 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         self.spike_data = self.load_spike_data()
         self.clu_label = self.extract_cluster_labels()
         spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-        self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster,video_df)
-        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df) # NOTE - Temporary comment out as slow when trying to test pipeline
-    
+        self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
+        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df)
     def check_synthetic_data_exists_if_not_generate_it(self,video_df) -> None:
         if not os.path.exists(self.csv_path):
             self.activate_synthetic_data_generation(video_df)
@@ -323,7 +322,9 @@ class DataPostprocessor(BaseDataPostprocessor):
         video_df = self.track_to_polars()
         spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
         self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster,video_df)
-        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df) # NOTE - Temporary comment out as slow when trying to test pipeline
+        
+        # This is slow can we speed it up?
+        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df)
     
     def filter_spike_data(self,df):
         """
