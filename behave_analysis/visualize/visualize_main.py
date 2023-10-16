@@ -33,16 +33,8 @@ class Visualize:
         self.delay_between_frames = int(1000 / self.session.video.fps * (not self.settings.rapid) + self.settings.rapid)
         self.kalman = open_kalman_tracking_data(os.path.join(self.session.base_path,self.session.processed_path))
         self.print_session_details() # let us know which session we're doing
+        self.postprocessObject = open_postprocess_object(self.session)
 
-        """Load in postprocess object"""
-        try:
-            fileObj = open(os.path.join(self.session.base_path,self.session.processed_path) + "\\" + "postprocessclass" + "_" + str(settings.cluster_type), 'rb')
-            self.postprocessObject = pickle.load(fileObj)
-            fileObj.close()
-            
-        except FileNotFoundError:
-            logger.error(f"Data not found for session: {self.session.name}")
-            raise FileNotFoundError
         # ------------------------------------------------------------------Efizz----------------------------------------------------------------
         if self.settings.efizz:
                 
@@ -63,9 +55,11 @@ class Visualize:
         # ------------------------------------------------------------------Behave----------------------------------------------------------------
         logger.info(f"Starting to make some behaviour only overview plots.")
         
-        behavePlottingObject = Visualize_behave(session = self.session, 
-                                                tracking_data = self.postprocessObject.tracking_data,
-                                                postprocessingObj = self.postprocessObject)
+        Visualize_behave(session = self.session, 
+                         tracking_data = self.postprocessObject.tracking_data,
+                         postprocessingObj = self.postprocessObject)
+        
+        print("hello")
 
         # ------------------------------------------------------------------Movies----------------------------------------------------------------
         
@@ -423,6 +417,9 @@ class Visualize:
 
 
 # ------------------------------------------------------------------Utilities ----------------------------------------------------------------
+
+# TODO: move to new script 
+
 # Utiliy functions for visualise class
 def open_kalman_tracking_data(path):
     try:
@@ -433,4 +430,15 @@ def open_kalman_tracking_data(path):
             
     except FileNotFoundError:
         logger.error(f"Kalman tracking data not found for this session")
+        raise FileNotFoundError
+    
+def open_postprocess_object(session) -> object:
+    try:
+        fileObj = open(os.path.join(session.base_path, session.processed_path) + "\\" + "postprocessclass" + "_" + str(settings.cluster_type), 'rb')
+        postprocessObject = pickle.load(fileObj)
+        fileObj.close()
+        return postprocessObject
+        
+    except FileNotFoundError:
+        logger.error(f"Data not found for session: {session.name} - Check databank and whether you have actually run this configuration of postprocess. ")
         raise FileNotFoundError

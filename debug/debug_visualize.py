@@ -8,6 +8,7 @@ def visualize():
     """
     A function that visualising the mouse's behaviour in a session by trial, and looks at how well the efizz has synced.
     """
+    
     logger.info("Visualisation started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()

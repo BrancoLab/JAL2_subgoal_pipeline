@@ -14,6 +14,7 @@ from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_th
 from loguru import logger
 from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.analyze.filtering_data.filtering_functions  import identify_conditions, filter_video_dataframe
+from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_position
 
 # Import settings
 
@@ -27,7 +28,7 @@ class Visualize_behave:
     
     def __init__(self, session, tracking_data, postprocessingObj):
         self.session = session
-        self.behave_path = os.path.join(self.session.base_path,self.session.processed_path,'behaviour')
+        self.behave_path = os.path.join(self.session.base_path, self.session.processed_path,'behaviour')
         self.tracking_data = tracking_data
         self.video_df = pl.read_csv(os.path.join(self.session.base_path,self.session.processed_path) + '\\' 'full_video_dataframe.csv')
         self.postprocessingObj = postprocessingObj
@@ -40,7 +41,9 @@ class Visualize_behave:
         self.shelter_occupancy()
         self.angle_histograms()
         plot_the_circular_rho(self.video_df, save_path = self.behave_path)
-         
+        plot_heat_map_of_position(video_data_frame = self.video_df, 
+                                  save_path = self.behave_path,
+                                  session_height = self.session.video.height)
         CoverageStatistics(video_data_frame = self.video_df, 
                            session = self.session,
                            behave_path = self.behave_path)
