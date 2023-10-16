@@ -1,5 +1,5 @@
 from behave_analysis.database.Experiments.experiment_class import Experiment
-from behave_analysis.database.Mice.JAL003 import JAL003
+from behave_analysis.database.Mice.AllMouses import JAL003
 from pathlib import Path
 
 JAL3_flip_rot = Experiment(# Mouse specific

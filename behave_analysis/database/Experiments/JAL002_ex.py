@@ -1,5 +1,5 @@
 from behave_analysis.database.Experiments.experiment_class import Experiment
-from behave_analysis.database.Mice.JAL002 import JAL002
+from behave_analysis.database.Mice.AllMouses import JAL002
 from pathlib import Path
 
 firstConnection = Experiment(# Mouse specific

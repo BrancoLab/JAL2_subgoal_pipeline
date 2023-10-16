@@ -1,5 +1,5 @@
 from behave_analysis.database.Experiments.experiment_class import Experiment
-from behave_analysis.database.Mice.JAL004 import JAL004
+from behave_analysis.database.Mice.AllMouses import JAL004
 from pathlib import Path
 
 JAL4_mush1 = Experiment(# Mouse specific

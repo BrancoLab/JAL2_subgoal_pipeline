@@ -237,12 +237,6 @@ class Track(DLC):
         - then normalizing the angle so that it stays within the range (-π, π]. As the rotation creates angles less than -π.
         """
         
-        # Old head direction calculation ------------------------------------------------------------------------------
-        # TODO - Remove this old head direction calculation????
-        hedDelta_x = self.region_tracking_data['head_loc'][:, 0] - self.region_tracking_data['upper_body_loc'][:, 0]
-        hedDelta_y = self.region_tracking_data['head_loc'][:, 1] - self.region_tracking_data['upper_body_loc'][:, 1]
-        self.region_tracking_data['hdir_old'] = np.arctan2(hedDelta_y, hedDelta_x) # Radians
-
         # New head direction calculation -----------------------------------------------------------------------------
         hedDelta_x = self.lds_tracking_data['left_ear']['x'] - self.lds_tracking_data['right_ear']['x']
         hedDelta_y = self.lds_tracking_data['left_ear']['y'] - self.lds_tracking_data['right_ear']['y']
@@ -250,24 +244,10 @@ class Track(DLC):
         mask = headDirection < -np.pi # A boolean mask to find all the values less than -pi
         headDirection[mask] = headDirection[mask] + (2*np.pi)
         return headDirection
-     
-    def compute_body_direction(self) -> np.ndarray:
-        """
-        A function that computes the body direction of the mouse. Is this function even used anywhere? It is also
-        not used in the video visualization function so perhaps it is not working as well.
-        
-        TODO: Check if we need this function and if it is working correctly.
-        """
-  
-        bodDelta_x = self.region_tracking_data['upper_body_loc'][:, 0] - self.region_tracking_data['lower_body_loc'][:, 0]
-        bodDelta_y = self.region_tracking_data['upper_body_loc'][:, 1] - self.region_tracking_data['lower_body_loc'][:, 1]
-        bodyDirection = np.arctan2(bodDelta_y, bodDelta_x) # Radians
-        return bodyDirection
     
     def compute_angle_shelter(self, session):
         """
         A function to compute the angle between the heading of the mouse and the shelter.
-        It will ask you to define the shelter position
         """
 
         # calculate body to shelter angle
@@ -288,7 +268,6 @@ class Track(DLC):
     def compute_angle_barrier(self, session):
         """
         A function to compute the angle between the heading of the mouse and the barrier edges.
-        It will ask you to define the barrier edge position
         """
 
         if len(session.barrier_time) > 0:
@@ -305,7 +284,7 @@ class Track(DLC):
     def compute_angle_random_points(self,session):
         """
         A function to compute the angle between the heading of the mouse and the barrier edges.
-        It will ask you to define the barrier edge position
+        If settings.random_points == 'manual' it will ask you to define random points in the arena
         """
 
         # ask user to select some extra 'random' points in arena

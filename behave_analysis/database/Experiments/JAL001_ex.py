@@ -1,6 +1,6 @@
 from behave_analysis.database.Experiments.experiment_class import Experiment
 from pathlib import Path
-from behave_analysis.database.Mice.JAL001 import JAL001
+from behave_analysis.database.Mice.AllMouses import JAL001
 
 seq1 = Experiment(# Mouse specific
                     nick_name = JAL001.nick_name,
