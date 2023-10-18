@@ -83,25 +83,21 @@ class LinearShift:
         Shift the central chunk and compute the user defined statistic on non simulatenously recorded segments of X and y.
         Hold X stationary.
         """
-        pseudo_stats = np.zeros(len(self.shifts)) # How many pseudo statistics to compute
+        
+        pseudoStats = np.zeros(len(self.shifts)) # How many pseudo statistics to compute
         for shift_idx in range(len(self.shifts)):
             s = self.shifts[shift_idx] # How much to shift the central chunk by
             # print(f"shift {shift_idx} of {len(self.shifts)}")
-             # Remove central chunk
+            
+            # Remove central chunk
             if s == 0:
                 continue
             
-            # pseudo_stats[shift_idx] = self.user_defined_function(np.copy(self.X[self.N : self.T - self.N]),
-            #                                                      np.copy(self.y[s + self.N:s + self.T - self.N])
-            #                                                      )[0]
-            
-            X_filtered = self.X.slice(self.N, self.T - 2*self.N)
-            y_filtered = self.y.slice(s + self.N, self.T - 2*self.N)
+            xFiltered = self.X.slice(self.N, self.T - 2*self.N)
+            yFiltered = self.y.slice(s + self.N, self.T - 2*self.N)
+            pseudoStats[shift_idx] = self.user_defined_function(xFiltered, yFiltered)
 
-            pseudo_stats[shift_idx] = self.user_defined_function(X_filtered, y_filtered)
-
-          
-        return pseudo_stats
+        return pseudoStats
 
     def compute_significance(self):
         """
