@@ -6,7 +6,7 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
-    cluster_type = ['synthetichdir'],# ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
+    cluster_type = ['good'],# ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots = False,
     # possible condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                             'pre_shelter' (empty arena),
@@ -16,7 +16,7 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     #                             'barrier_pre_flip',
     #                             'barrier_post_flip',
     # if condition is empty all possible conditions will be analyzed
-    condition = ['shelter_present'], 
+    condition = [], 
     analyze_only_the_period_before_shelter = False, # If True will only analyze the period before the shelter, if false, it will analyze after the whole session
     analyze_only_the_period_before_barrier = False, # If True will only analyze the period before the barrier, if false, it will analyze the whole session
     
@@ -36,9 +36,10 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     linear_shift = False, # whether to run linear shift!
 
     # Rayleigh model settings
-    run_rayleigh = False,
+    run_rayleigh = True,
     rayleigh_bootstrap = False, # TODO: rewrite this with linear shift stats
     single_cluster_plots = True,
+    multi_cluster_plots = False, # if you want to make the plots for each angle and condition with multiple clusters 
 
 )
 

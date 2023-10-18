@@ -149,6 +149,7 @@ class Settings_analyze_efizz:
     run_rayleigh: bool = False
     rayleigh_bootstrap: bool = False
     single_cluster_plots: bool =True
+    multi_cluster_plots: bool = False
     linear_shift: bool = True
     condition: str = ''
     analyze_only_the_period_before_shelter: bool = False

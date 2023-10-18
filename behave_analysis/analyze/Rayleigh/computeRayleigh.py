@@ -183,9 +183,10 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     rayleigh_results.write_ipc(plot_save_path + "/" + str(angle_filt) +  "_Rayleigh.arrow")
 
     logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
-    folder_name = os.path.join(plot_save_path,str(angle_filt) + "_cluster_tuning_plots")
-    if not(os.path.exists(folder_name)): os.makedirs(folder_name)
-    all_clusters_polar_plots(rayleigh_results,folder_name,settings.show_plots)
+    if settings.multi_cluster_plots:
+        folder_name = os.path.join(plot_save_path,str(angle_filt) + "_cluster_tuning_plots")
+        if not(os.path.exists(folder_name)): os.makedirs(folder_name)
+        all_clusters_polar_plots(rayleigh_results,folder_name,settings.show_plots)
 
 def all_clusters_polar_plots(rayleigh_results, save_path,show_plots):
     """
