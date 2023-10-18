@@ -1,3 +1,4 @@
+# Custom libaries
 
 from behave_analysis.analyze.TunED.tunED_model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
@@ -8,6 +9,7 @@ from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_cluster
 from behave_analysis.analyze.filtering_data.filtering_functions  import identify_conditions, identify_angles
 
 # OS Lib
+
 from loguru import logger
 import polars as pl
 import os
@@ -20,6 +22,7 @@ class AnalyzeEfizz:
     of this class is to make it easy to run all of the models on the same data without having to run the preprocessing each time.
     Any processing of the data should be done outside of this module. 
     """
+    
     def __init__(self, session):
         logger.info('Initializing AnalyzeEfizz')
         self.dir = os.path.join(session.base_path,session.processed_path) + "\\" + 'models' 
@@ -30,14 +33,18 @@ class AnalyzeEfizz:
         self.settings = Settings_analyze_efizz
         # cluster_type = Settings_analyze_efizz.cluster_type
         # check which conditions the user wants us to use
+        
         if len(Settings_analyze_efizz.condition) == 0:
             self.all_conditions = identify_conditions(session)
         else:
             self.all_conditions = Settings_analyze_efizz.condition
+            
         for c in Settings_analyze_efizz.cluster_type:
             self.cluster_type = c
             self.video_df = pl.read_csv(os.path.join(self.session.base_path,self.session.processed_path) + '\\' 'full_video_dataframe.csv')
-            """Load in postprocess object"""
+            
+            #Load in postprocess object
+            
             try:
                 fileObj = open(os.path.join(self.session.base_path,self.session.processed_path) + "\\" + "postprocessclass" + "_" + str(self.cluster_type), 'rb')
                 self.postprocessObject = pickle.load(fileObj)
@@ -45,12 +52,13 @@ class AnalyzeEfizz:
             except FileNotFoundError:
                 logger.error(f"Data not found for session: {self.session.name}")
                 raise FileNotFoundError
+            
             self.execute_models()
 
     def execute_models(self):
         logger.info('Executing models')
         
-        """ Compute TunED """
+        #Compute TunED
         if Settings_analyze_efizz.run_tunED:
             if not os.path.isdir(self.dir + "\\" + "tunED"):
                 os.mkdir(self.dir + "\\" + "tunED")
@@ -58,20 +66,11 @@ class AnalyzeEfizz:
             model_path = os.path.join(self.dir, 'tunED')
             logger.info('Running TunED')
 
-            # load data
-            # self.spike_data_frame = self.session.processed_path + '\\' + "synthetic_efizz_data.csv" # Per spike data not binned - Need to update to be dynamic NOTE
-            # self.video_data_frame = pl.read_csv(self.session.processed_path + '\\' + "spike_count_by_frame_and_syntheticcluster.csv") # video frame NOTE update
-            # self.processed_file_directory = os.path.join(self.session.base_path,self.session.processed_path) + '\\' + str(self.cluster_type) + '_large_dataframe.csv'
-            # if os.path.isfile(self.processed_file_directory):
-            #     self.data_df = pl.read_csv(self.processed_file_directory)
-            # else:
-            #     raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
             
             TunEdModel(self, 
                        analyze_efizz_settings =  Settings_analyze_efizz, 
                        save_location = model_path, 
-                       apply_linear_shift = False,
-                       save_plots = False)
+                       apply_linear_shift = Settings_analyze_efizz.linear_shift)
               
             logger.success('TunED analysis complete')
         
