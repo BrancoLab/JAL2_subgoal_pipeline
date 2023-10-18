@@ -35,7 +35,8 @@ class DLC:
         else:
             logger.info("Running DeepLabCut tracking for session: {} - {}".format(session.number, session.name))
             from deeplabcut.pose_estimation_tensorflow import analyze_videos
-            analyze_videos(dlc_settings_file, session.video.video_file)
+            video_file = os.path.join(session.base_path,session.file_path,session.video.camFilePath)
+            analyze_videos(dlc_settings_file, video_file)
             for files in glob.glob(os.path.join(session.base_path,session.file_path, "*resnet*")):
                 os.rename(files,os.path.join(session.base_path,session.processed_path,os.path.basename(files)))
         if self.settings.save_labeled_video:
