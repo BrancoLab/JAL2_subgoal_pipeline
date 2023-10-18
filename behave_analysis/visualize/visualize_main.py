@@ -60,6 +60,7 @@ class Visualize:
                          postprocessingObj = self.postprocessObject)
         
         print("hello")
+        print("greetings Laurence")
 
         # ------------------------------------------------------------------Movies----------------------------------------------------------------
         
@@ -115,7 +116,6 @@ class Visualize:
         """
 
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
-            self.body_dir = self.postprocessObject.tracking_data["body_dir"][self.frame_num]
             self.hdir_shelt = self.postprocessObject.tracking_data["hdir_shelt"][self.frame_num]
             self.bod_shelt_dir = self.postprocessObject.tracking_data["bod_shelt_dir"][self.frame_num]
             if 'bod_barrier_dir' in self.postprocessObject.tracking_data:
