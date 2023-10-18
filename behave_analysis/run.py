@@ -75,11 +75,11 @@ def visualize():
     logger.info("Visualisation started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
-        if settings_v.laser_trials:  Visualize(session, settings_v).trials(stim_type = 'laser')
-        if settings_v.escape_trials: Visualize(session, settings_v).trials(stim_type = 'audio')
-        if settings_v.homing_trials: Visualize(session, settings_v).trials(stim_type = 'homing')
-        if settings_v.t_xing_trials: Visualize(session, settings_v).trials(stim_type = 'threshold_crossing')
-        if settings_v.explore_trial: Visualize(session, settings_v).trials(stim_type = 'audio')
+        if settings_v.laser_trials:  Visualize(session).trials(stim_type = 'laser')
+        if settings_v.escape_trials: Visualize(session).trials(stim_type = 'audio')
+        if settings_v.homing_trials: Visualize(session).trials(stim_type = 'homing')
+        if settings_v.t_xing_trials: Visualize(session).trials(stim_type = 'threshold_crossing')
+        if settings_v.explore_trial: Visualize(session).trials(stim_type = 'audio')
     logger.success("Visualisation complete")
 
 def analyze():
