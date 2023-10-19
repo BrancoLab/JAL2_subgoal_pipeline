@@ -36,6 +36,7 @@ def compute_all_clusters_rayleigh(self,settings):
 
 def compute_single_cluster_tuning(self,settings):
     """Compute rayleigh and polar plots for all angles in all conditions for a single cluster"""
+    
     # Initialize variables
     all_angles = identify_angles(self.session)
     all_conditions = identify_conditions(self.session)
@@ -63,9 +64,11 @@ def compute_single_cluster_tuning(self,settings):
                 logger.info("Calculating Rayleigh vectors for " + str(a) + " in condition: " + str(c))
                 rayleigh_vector(self, settings, filtered_video_df, X, a, data_path, settings.rayleigh_bootstrap)
     
-    # TODO: Is it possible to make above this line into another function and refactor the code
-    # below into a separate function that calls the above function?
-    # -----------------------------------------------------------------------------------------------------
+    single_cluster_plots(self,settings, all_angles, all_conditions, base_path, plot_save_path)
+
+
+def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, plot_save_path):
+    """ Make a figure for each cluster with polar plots for all angles in all conditions of interest"""
 
     logger.info("Making individual cluster polar plots")
     clusters = self.postprocessObject.video_spike_count_df["spike_clusters"].unique()
