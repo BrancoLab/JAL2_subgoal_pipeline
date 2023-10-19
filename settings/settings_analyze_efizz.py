@@ -2,7 +2,6 @@
 
 from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 
-
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
@@ -24,8 +23,7 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     run_tunED = False,
     
     # LDA model settings
-    run_LDA = [], 
-    # if [] it will not run LDA
+    run_LDA = [], # if [] it will not run LDA
     # if 'all' it will run it for all possible angles - else provide list of angles
     # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
     epoch_num = 6, # number of epochs for cross validation
@@ -37,9 +35,10 @@ Settings_analyze_efizz = Settings_analyze_efizz(
 
     # Rayleigh model settings
     run_rayleigh = True,
-    rayleigh_bootstrap = False, # TODO: rewrite this with linear shift stats
-    single_cluster_plots = True,
-    multi_cluster_plots = False, # if you want to make the plots for each angle and condition with multiple clusters 
+    rayleigh_bootstrap = False, #TODO: rewrite this with linear shift stats
+    single_cluster_plots = True, # True: Plot every condition in one figure
+                                 # False: Do not plot every condition in one figure
+    multi_cluster_plots = False, # True: Plot every cluster in one figure
+                                 # False: Do not plot every cluster in one figure
 
 )
-
