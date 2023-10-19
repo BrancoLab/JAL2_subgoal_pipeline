@@ -94,7 +94,8 @@ def compute_single_cluster_tuning(self,settings):
                     ax = plt.subplot(nrows,ncols,counter,projection = 'polar')
                     rayleigh_results = pl.read_ipc(data_path + "/" + str(a) +  "_Rayleigh.arrow")
                     # make actual polar plot for a given angle in a given condition
-                    polar_plot(rayleigh_results,clu,ax, cluster_title = False)
+                    clucounter = np.where(rayleigh_results['clusterID'].to_numpy() == clu)[0]
+                    polar_plot(rayleigh_results,clucounter[0],ax, cluster_title = False) 
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
             if settings.show_plots: plt.show() 
@@ -120,47 +121,46 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     binned_angles = np.digitize(binned_angles, bin_angles) - 1
 
     # initialize variables to compute the Rayleigh vector
-    cluster_Ids = self.postprocessObject.video_spike_count_df["spike_clusters"].unique()
+    cluster_Ids = self.postprocessObject.video_spike_count_df["spike_clusters"].unique().to_numpy()
+    cluster_Ids = np.delete(cluster_Ids,0)
     Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(cluster_Ids, bin_angle_center)
     
     # assign spike times of each cluster to the corresponding video frame, then assign HD
     for counter,c in enumerate(cluster_Ids):
-        if c > 0:   
-            counter = counter - 1       
-            
-            # Check for empoty cluster dataframes
-            # if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
-            #     logger.info(f"Cluster {c} had no spikes, skipping this cluster and no Rayleigh vector will be computed for it nor will it be plotted")
-            #     continue
-            
-            # calculate firing rates in angle bins
-            # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
-            # angles_firing = np.zeros(len(bin_angles)-1)
-            # for b in np.arange(1,len(bin_angles)-1):
-            #     if len(X[binned_angles == b,counter]) > 0:
-            #         if not(np.sum(np.isnan(X[binned_angles == b,counter])) == len(X[binned_angles == b,counter])):
-            #             angles_firing[b-1] = np.nanmean(X[binned_angles == b,counter])
+        
+        # Check for empty cluster dataframes
+        # if spike_to_video_df.select(pl.col('spike_count').is_null().sum()).item() == len(spike_to_video_df):
+        #     logger.info(f"Cluster {c} had no spikes, skipping this cluster and no Rayleigh vector will be computed for it nor will it be plotted")
+        #     continue
+        
+        # calculate firing rates in angle bins
+        # make sure that if any angles returned empty sets of spikes, they are registered as zeros and are not missing
+        # angles_firing = np.zeros(len(bin_angles)-1)
+        # for b in np.arange(1,len(bin_angles)-1):
+        #     if len(X[binned_angles == b,counter]) > 0:
+        #         if not(np.sum(np.isnan(X[binned_angles == b,counter])) == len(X[binned_angles == b,counter])):
+        #             angles_firing[b-1] = np.nanmean(X[binned_angles == b,counter])
 
-            angles_firing = np.zeros(len(bin_angles)-1)
-            unique_groups, group_counts = np.unique(binned_angles, return_counts=True)
-            group_sums = np.bincount(binned_angles, weights = X[:,counter])
-            angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
+        angles_firing = np.zeros(len(bin_angles)-1)
+        unique_groups, group_counts = np.unique(binned_angles, return_counts=True)
+        group_sums = np.bincount(binned_angles, weights = X[:,counter])
+        angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
 
-            # compute rayleigh
-            Rayleigh[counter], Rayleigh_theta[counter] = rayleigh(bin_angle_center[1:-1],angles_firing)
-            Rayleigh_cluster[counter] = c
-            angle_firing_hist[counter,:] = angles_firing
-            
-            # TODO: bootstrap x times with variable shifts in time
-            # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations 
-            # if compute_bootstrap:
-            #     x = 100
-            #     shift_dist = np.empty(x)
-                    
-            #     # significance logical
-            #     if Rayleigh[counter] > np.percentile(shift_dist, 95):
-            #         Rayleigh_sig[counter] = 1
-            #         print('yay! ' + str(c) + ' is significant')
+        # compute rayleigh
+        Rayleigh[counter], Rayleigh_theta[counter] = rayleigh(bin_angle_center[1:-1],angles_firing)
+        Rayleigh_cluster[counter] = c
+        angle_firing_hist[counter,:] = angles_firing
+        
+        # TODO: bootstrap x times with variable shifts in time
+        # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations 
+        # if compute_bootstrap:
+        #     x = 100
+        #     shift_dist = np.empty(x)
+                
+        #     # significance logical
+        #     if Rayleigh[counter] > np.percentile(shift_dist, 95):
+        #         Rayleigh_sig[counter] = 1
+        #         print('yay! ' + str(c) + ' is significant')
 
     # histogram of rayleighs
     plt.figure()

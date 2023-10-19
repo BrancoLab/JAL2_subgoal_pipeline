@@ -24,7 +24,7 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     run_tunED = False,
     
     # LDA model settings
-    run_LDA = 'all', 
+    run_LDA = [], 
     # if [] it will not run LDA
     # if 'all' it will run it for all possible angles - else provide list of angles
     # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
