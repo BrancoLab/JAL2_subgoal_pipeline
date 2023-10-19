@@ -108,8 +108,8 @@ def compute_single_cluster_tuning(self,settings):
                     # make actual polar plot for a given angle in a given condition
                     clucounter = np.where(rayleigh_results['clusterID'].to_numpy() == clu)[0]
                     polar_plot(rayleigh_results, clucounter[0], ax, cluster_title = False)
-
             # Save and close the figure
+            plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
             if settings.show_plots:
                 plt.show()
@@ -136,11 +136,8 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
 
     # initialize variables to compute the Rayleigh vector
     cluster_Ids = self.postprocessObject.video_spike_count_df["spike_clusters"].unique().to_numpy()
-    
     # Remove cluster 0 from ks only - synthetic starts at cluster id 1
-    if 0 in cluster_Ids:
-        cluster_Ids = np.delete(cluster_Ids, 0)
-        
+    cluster_Ids = clusterIds[clusterIds > 0]
     Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(cluster_Ids, bin_angle_center)
     
     # assign spike times of each cluster to the corresponding video frame, then assign HD
