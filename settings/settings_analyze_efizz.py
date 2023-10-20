@@ -5,7 +5,8 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
-    cluster_type = ['good'],# ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
+    redo_compute = False, # if True it will force recompute any pre-saved analyses (e.g. Rayleigh)
+    cluster_type = ['synthetic'],# ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots = False,
     # possible condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                             'pre_shelter' (empty arena),
@@ -38,7 +39,7 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     rayleigh_bootstrap = False, #TODO: rewrite this with linear shift stats
     single_cluster_plots = True, # True: Plot every condition in one figure
                                  # False: Do not plot every condition in one figure
-    multi_cluster_plots = False, # True: Plot every cluster in one figure
+    multi_cluster_plots = False,  # True: Plot every cluster in one figure
                                  # False: Do not plot every cluster in one figure
 
 )
