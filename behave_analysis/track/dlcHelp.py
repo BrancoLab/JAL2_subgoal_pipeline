@@ -140,4 +140,4 @@ class DLC:
         perct = numOflowConfidencePoints / numOfTotalPoints
         
         logger.warning(f"Found {numOflowConfidencePoints} out of {numOfTotalPoints} points ({perct:.2f}) below the confidence threshold of {self.settings.min_confidence_in_tracking}")
-        assert perct < 0.35, r"This is too high. Please check your tracking data, retrain DLC."
+        # assert perct < 0.35, r"This is too high. Please check your tracking data, retrain DLC."

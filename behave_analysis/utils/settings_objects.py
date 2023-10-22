@@ -158,3 +158,4 @@ class Settings_analyze_efizz:
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ''
+    no_efizz: bool = False

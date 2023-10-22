@@ -17,7 +17,7 @@ class BaseDataPostprocessor(ABC):
     A parent class to support the real and synthetic data postprocessing children. 
     """
     
-    def __init__(self, cluster_labels_to_filter, tracking_data, session):
+    def __init__(self, cluster_labels_to_filter, tracking_data, session,settings):
         logger.info("Postprocessing started")
         self.select_cluster_labels = cluster_labels_to_filter
         self.tracking_data = tracking_data
@@ -237,17 +237,19 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
     A child class to support the synthetic data postprocessing pipeline. 
     """
     
-    def __init__(self, cluster_labels_to_filter, tracking_data, session):
-        super().__init__(cluster_labels_to_filter, tracking_data, session)
+    def __init__(self, cluster_labels_to_filter, tracking_data, session,settings):
+        super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         self.csv_path = os.path.join(session.base_path,session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
-        self.check_synthetic_data_exists_if_not_generate_it(video_df) # creates a csv in working dir
-        self.spike_data = self.load_spike_data()
-        self.clu_label = self.extract_cluster_labels()
-        spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-        self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
-        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df)
+        if not settings.no_efizz:
+            self.check_synthetic_data_exists_if_not_generate_it(video_df) # creates a csv in working dir
+            self.spike_data = self.load_spike_data()
+            self.clu_label = self.extract_cluster_labels()
+            spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
+            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
+            self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df)
+
     def check_synthetic_data_exists_if_not_generate_it(self,video_df) -> None:
         if not os.path.exists(self.csv_path):
             self.activate_synthetic_data_generation(video_df)
@@ -311,17 +313,18 @@ class DataPostprocessor(BaseDataPostprocessor):
     A child class to support the production data postrocessing pipeline. 
     """
     
-    def __init__(self, cluster_labels_to_filter, tracking_data, session):
-        super().__init__(cluster_labels_to_filter, tracking_data, session)
+    def __init__(self, cluster_labels_to_filter, tracking_data, session,settings):
+        super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
         self.csv_path = glob(os.path.join(session.base_path,session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
-        unfiltered_spike_data = self.load_spike_data()
-        self.spike_data = self.filter_spike_data(unfiltered_spike_data)
-        self.clu_label = self.extract_cluster_labels()
         video_df = self.track_to_polars()
-        spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-        self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster,video_df)
+        if not settings.no_efizz:
+            unfiltered_spike_data = self.load_spike_data()
+            self.spike_data = self.filter_spike_data(unfiltered_spike_data)
+            self.clu_label = self.extract_cluster_labels()
+            spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
+            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster,video_df)
         
         # This is slow can we speed it up?
         self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster,video_df)

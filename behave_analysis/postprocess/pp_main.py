@@ -57,12 +57,14 @@ class Postprocessor:
         if 'synthetic' in settings.cluster_type:
             postprocessObject = SyntheticDataPostprocessor(cluster_labels_to_filter = settings.cluster_type,
                                                           tracking_data = self.tracking_data,
-                                                          session = self.session)
+                                                          session = self.session,
+                                                          settings = settings)
                     
         elif settings.cluster_type in ['all', 'good', 'mua', 'noise']:
             postprocessObject = DataPostprocessor(cluster_labels_to_filter = settings.cluster_type,
                                                  tracking_data = self.tracking_data,
-                                                 session = self.session)
+                                                 session = self.session,
+                                                 settings = settings)
         
         return postprocessObject
             
