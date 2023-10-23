@@ -1,25 +1,24 @@
-# OS libaries
+"""A module that organizes the visualization of the behavior data"""
+# Standard Libaries
 
-import numpy as np
-from glob import glob
-import polars as pl
 import os
-import matplotlib
-matplotlib.use('TKAgg')
-import matplotlib.pyplot as plt
 
 # Custom libarires
 
-from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
-from loguru import logger
-from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.analyze.filtering_data.filtering_functions  import identify_conditions, filter_video_dataframe
+from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
+from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_position
-from behave_analysis.visualize.behaviour.marginals import plot_all_marginal_dists
-
-# Import settings
-
+from behave_analysis.visualize.behaviour.angle_distributions import plot_angle_distributions
 from settings.settings_visualize import defined_settings_visualize as settings_v
+
+# 3rd party libaries
+
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
+matplotlib.use('TKAgg')
 
 class Visualize_behave:
     """
@@ -29,11 +28,13 @@ class Visualize_behave:
     
     def __init__(self, session, tracking_data, postprocessingObj):
         self.session = session
-        self.behave_path = os.path.join(self.session.base_path, self.session.processed_path,'behaviour')
+        self.behave_path = os.path.join(self.session.base_path, 
+                                        self.session.processed_path,'behaviour')
         self.tracking_data = tracking_data
-        self.videoDf = pl.read_csv(os.path.join(self.session.base_path,self.session.processed_path) + '\\' 'full_video_dataframe.csv')
+        self.videoDf = pl.read_csv(os.path.join(self.session.base_path, 
+                                                self.session.processed_path) + '\\' 'full_video_dataframe.csv')
         self.postprocessingObj = postprocessingObj
-        if not(os.path.exists(self.behave_path)): 
+        if not os.path.exists(self.behave_path):
             os.makedirs(self.behave_path)
         
         # Behaviour plots
@@ -42,10 +43,11 @@ class Visualize_behave:
         self.shelter_occupancy()
         # self.angle_histograms() - Is this needed anymore? Seem to have duplicated with the new marginal vs optimal plot
         
-        plot_all_marginal_dists(trackingData = self.tracking_data,
-                                videoDf = self.videoDf,
-                                sessionHeight = self.session.video.height,
-                                save_path = self.behave_path)
+        plot_angle_distributions(session = self.session,
+                                 trackingData = self.tracking_data,
+                                 videoDf = self.videoDf,
+                                 sessionHeight = self.session.video.height,
+                                 save_path = self.behave_path)
         
         plot_the_circular_rho(self.videoDf, save_path = self.behave_path)
         
