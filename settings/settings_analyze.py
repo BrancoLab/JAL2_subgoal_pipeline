@@ -24,7 +24,8 @@ color_by = 'session', # What should the trajectory color be?
 # Note default caused a bug need to fix
     
 save_folder = Path('data'),
-efiz_file_path = "D:/Electrophysiology_data/1677_NoShelterThenShelter_22MAY31_g0/1677_NoShelterThenShelter_22MAY31_g0_imec0/"
+efiz_file_path = "D:/Electrophysiology_data/1677_NoShelterThenShelter_22MAY31_g0/1677_NoShelterThenShelter_22MAY31_g0_imec0/",
+efizz = True
 
 )
 

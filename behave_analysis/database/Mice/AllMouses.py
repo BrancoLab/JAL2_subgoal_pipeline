@@ -42,3 +42,27 @@ JAL005 = Mouse(
     experiment_file_names=None,
     root_path = Path(r"JAL005")
 )
+
+
+## -------------JR BEHAVIOR MICE
+
+JR3440 = Mouse(
+    nick_name="JR3440",
+    total_sessions=1,
+    mouse_number_pyrat="BAA-3440",
+    experiment_file_names=None,
+    root_path = Path(r"Burrow_test\JR3440"))
+
+JR3456 = Mouse(
+    nick_name="JR3456",
+    total_sessions=1,
+    mouse_number_pyrat="BAA-3456",
+    experiment_file_names=None,
+    root_path = Path(r"Burrow_test\JR3456"))
+
+JR3457 = Mouse(
+    nick_name="JR3457",
+    total_sessions=1,
+    mouse_number_pyrat="BAA-3457",
+    experiment_file_names=None,
+    root_path = Path(r"Burrow_test\JR3457"))

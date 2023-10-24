@@ -5,5 +5,6 @@ defined_settings_postprocess = Settings_postprocess(
     
     cluster_type = 'synthetic', # cluster_type: "synthetic", "synthetichdir" (only hdir cells in synthetic dataset), "synthetichdirhsa", 
                                 #"all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+    efizz = True, # false for behavior only sessions
      
 ) 
