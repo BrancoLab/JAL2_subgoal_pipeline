@@ -136,6 +136,7 @@ class Settings_analyze_global:
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
+    redo_compute: bool = False
     cluster_type: str = ''
     show_plots: bool = False
     run_tunED: bool = False
