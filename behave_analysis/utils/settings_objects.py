@@ -133,6 +133,7 @@ class Settings_analyze_global:
     color_by: str=''
     x_jitter: bool=True
     efiz_file_path: str=""
+    efizz: bool =  True
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
@@ -158,4 +159,4 @@ class Settings_analyze_efizz:
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ''
-    no_efizz: bool = False
+    efizz: bool = False

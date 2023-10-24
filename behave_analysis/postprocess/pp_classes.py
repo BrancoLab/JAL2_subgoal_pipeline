@@ -242,7 +242,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         self.csv_path = os.path.join(session.base_path,session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
-        if not settings.no_efizz:
+        if settings.efizz:
             self.check_synthetic_data_exists_if_not_generate_it(video_df) # creates a csv in working dir
             self.spike_data = self.load_spike_data()
             self.clu_label = self.extract_cluster_labels()
@@ -319,7 +319,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path,session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
-        if not settings.no_efizz:
+        if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
             self.clu_label = self.extract_cluster_labels()

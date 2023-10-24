@@ -90,7 +90,8 @@ def analyze():
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         AnalyzeBehave(session)
-        AnalyzeEfizz(session)
+        if settings_a.efizz:
+            AnalyzeEfizz(session)
     
     logger.success("Analysis pipeline complete")
         
