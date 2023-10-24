@@ -72,7 +72,7 @@ def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, p
     # Add one index for the titles
     nrows = len(all_conditions) + 1
     ncols = len(all_angles) + 1
-
+    
     for clu in clusters:
         if clu > 0:
             
@@ -110,15 +110,21 @@ def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, p
                     counter = counter + 1
                     ax = plt.subplot(nrows, ncols, counter, projection = 'polar')
                     rayleigh_results = pl.read_ipc(data_path + "/" + str(a) +  "_Rayleigh.arrow")
+                    pcentile = compute_95th_percentile_rayleigh(rayleigh_results)
                     # make actual polar plot for a given angle in a given condition
-                    polar_plot(rayleigh_results.filter(rayleigh_results['clusterID'] == clu), ax, cluster_title = False)
+                    polar_plot(rayleigh_results.filter(rayleigh_results['clusterID'] == clu), ax, fig, pcentile=pcentile, cluster_title = False)
             # Save and close the figure
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
             if settings.show_plots:
                 plt.show()
             plt.close()
- 
+
+def compute_95th_percentile_rayleigh(rayleigh_results):
+    """Compute the 95th percentile of the rayleigh distribution for each angle and condition"""
+    flat_list = [item for sublist in rayleigh_results["Rayleigh"].to_list() for item in sublist] # unpack a series of lists into a single list
+    return np.percentile(flat_list, 95)
+
 def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_path, compartment, compute_bootstrap = False):
     """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
     It only considers times when the mouse was outside the shelter
@@ -262,7 +268,7 @@ def rayleigh(angles,firing) -> tuple:
 
 ## ---------------------PLOTTING -----------------------------
 
-def polar_plot(df, ax, cluster_title = True, plot_type = "line") -> None:
+def polar_plot(df, ax, fig, pcentile, cluster_title = True, plot_type = "line") -> None:
     """Creates a polar plot for a single cluster in a single condition
     
     Visulises the firing rate at each angle (e.g. HD or HSA) for different
@@ -354,5 +360,7 @@ def polar_plot(df, ax, cluster_title = True, plot_type = "line") -> None:
         clutitle = clutitle + '\n' + 'Rayleigh = ' + str(np.around(df['Rayleigh'][0][int(compartment)],2))
         if df['Rayleigh_sig'][0][int(compartment)] == 1: 
             clutitle = clutitle + ' (sig.)'
+        if df['Rayleigh'][0][int(compartment)] > pcentile:
+            fig.suptitle('This cluster is worth a check', fontsize=30)
     ax.title.set_text(clutitle)
 
