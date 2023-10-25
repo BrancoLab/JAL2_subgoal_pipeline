@@ -3,7 +3,8 @@ from loguru import logger
 import numpy as np
 import polars as pl
 import os
-import matplotlib 
+import matplotlib
+from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, identify_conditions
 import matplotlib.gridspec as gridspec
@@ -49,6 +50,7 @@ def compute_single_cluster_tuning(self,settings):
     # Initialize variables
     all_angles = identify_angles(self.session)
     all_conditions = identify_conditions(self.session)
+    # all_conditions = ['shelter_only', 'barrier_pre_flip', 'barrier_post_flip']
     base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type)
     plot_save_path = os.path.join(base_path, 'single_cluster_plots')
 
@@ -57,10 +59,9 @@ def compute_single_cluster_tuning(self,settings):
         os.makedirs(plot_save_path)
 
     # check that Rayleigh has been computed and saved for all conditions and if not compute it
-    compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_path)
+    compute_all_clusters_rayleigh(self,settings,all_angles, all_conditions,base_path)
 
     single_cluster_plots(self,settings, all_angles, all_conditions, base_path, plot_save_path)
-
 
 def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, plot_save_path):
     """ Make a figure for each cluster with polar plots for all angles in all conditions of interest"""
@@ -71,15 +72,21 @@ def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, p
     # Add one index for the titles
     nrows = len(all_conditions) + 1
     ncols = len(all_angles) + 1
-
+    
     for clu in clusters:
         if clu > 0:
+            
+            # Plot settings
             gs = gridspec.GridSpec(nrows, ncols, width_ratios = [1] + [3] * (ncols-1),
                                   height_ratios = [1] + [3] * (nrows-1),
                                   wspace=0, hspace=0.4)
             # gridspec sets ratios such titles are narrower than plots
-            _ = plt.figure(figsize=(30, 30)) # width, height
+            fig = plt.figure(figsize=(30, 30)) # width, height
             axs_fontsize = 23
+            labels = ['Shelter compartment', 'Threat zone compartment']
+            col = ['cornflowerblue','darkorchid']
+            legend_elements = [Line2D([0], [0], color=color, lw=4, label=label) for color, label in zip(col, labels)]
+            fig.legend(handles=legend_elements, loc='upper right', fontsize=axs_fontsize, handlelength=4)
 
             # Add subtitles for each angle in first row
             for a_counter, a in enumerate(all_angles):
@@ -103,15 +110,21 @@ def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, p
                     counter = counter + 1
                     ax = plt.subplot(nrows, ncols, counter, projection = 'polar')
                     rayleigh_results = pl.read_ipc(data_path + "/" + str(a) +  "_Rayleigh.arrow")
+                    pcentile = compute_95th_percentile_rayleigh(rayleigh_results)
                     # make actual polar plot for a given angle in a given condition
-                    polar_plot(rayleigh_results.filter(rayleigh_results['clusterID'] == clu), ax, cluster_title = False)
+                    polar_plot(rayleigh_results.filter(rayleigh_results['clusterID'] == clu), ax, fig, pcentile=pcentile, cluster_title = False)
             # Save and close the figure
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
             if settings.show_plots:
                 plt.show()
             plt.close()
- 
+
+def compute_95th_percentile_rayleigh(rayleigh_results):
+    """Compute the 95th percentile of the rayleigh distribution for each angle and condition"""
+    flat_list = [item for sublist in rayleigh_results["Rayleigh"].to_list() for item in sublist] # unpack a series of lists into a single list
+    return np.percentile(flat_list, 95)
+
 def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_path, compartment, compute_bootstrap = False):
     """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
     It only considers times when the mouse was outside the shelter
@@ -255,10 +268,11 @@ def rayleigh(angles,firing) -> tuple:
 
 ## ---------------------PLOTTING -----------------------------
 
-def polar_plot(df, ax, cluster_title = True) -> None:
-    """Creates a polar plot
+def polar_plot(df, ax, fig, pcentile, cluster_title = True, plot_type = "line") -> None:
+    """Creates a polar plot for a single cluster in a single condition
     
-    Visulises the firing rate at each angle (e.g. HD or HSA) for a single cluster
+    Visulises the firing rate at each angle (e.g. HD or HSA) for different
+    compartments of the arena (e.g. shelter or threat zone).
     
     Arguments:
     df -- a dataframe with the following columns: 
@@ -270,33 +284,54 @@ def polar_plot(df, ax, cluster_title = True) -> None:
         angles
     counter -- the index of the cluster you want to plot
     ax -- the axis index of the subplot
+    plot_type - line, bar, fill
     """
-    if len(df['angle_firing_hist'].to_list()) == 0: return
+    
+    # Check if the dataframe is empty
+    if len(df['angle_firing_hist'].to_list()) == 0: 
+        return
 
+    # Plot settings
     col = ['cornflowerblue','darkorchid']
-
     angle_firing = df['angle_firing_hist'].to_list()
+    
     if np.shape(angle_firing)[1] > np.shape(df['angles'].to_list())[1]:
         angle_firing = np.reshape(angle_firing,[int(np.shape(df['angles'].to_list())[1]),int(np.shape(angle_firing)[1]/np.shape(df['angles'].to_list())[1])])
         angle_firing = angle_firing.T
 
-    for comp in np.arange(len(df['Rayleigh'][0])):
+    for compartment in np.arange(len(df['Rayleigh'][0])):
         # Plot the rayleigh vector magnitude and angle
-        ax.vlines(x = df['Rayleigh_theta'][0][int(comp)],
-                ymin = 0,
-                ymax = df['Rayleigh'][0][int(comp)] * np.amax(angle_firing[comp]),
-                # ymax is rayleigh vector amplitude * max firing rate
-                colors=col[comp])
+        ax.vlines(x=df['Rayleigh_theta'][0][int(compartment)],
+                  ymin=0,
+                  ymax=df['Rayleigh'][0][int(compartment)] * np.amax(angle_firing[compartment]),
+                  # ymax is rayleigh vector amplitude * max firing rate
+                  colors=col[compartment])
 
         # Plot the firing rate at each angle this is the actual polar plot code
 
         # Settings for the polar plot bars
-        ax.bar(x = df['angles'].to_list()[0],
-            height = angle_firing[comp],
-            width = (2*np.pi) / (len(angle_firing[comp])+1),
-            bottom = 0.0,
-            color = col[comp],
-            alpha = 0.5)
+        if plot_type == "bar":
+            ax.bar(x = df['angles'].to_list()[0],
+                height = angle_firing[compartment],
+                width = (2*np.pi) / (len(angle_firing[compartment])+1),
+                bottom = 0.0,
+                color = col[compartment],
+                alpha = 0.5)
+        
+        # Testing out a different way to plot the polar plot bars with area filled in
+        # Plot the firing rate at each angle this is the actual polar plot code
+        else: 
+            angles = np.concatenate([df['angles'].to_list()[0], [df['angles'].to_list()[0][0]]])
+            values = np.concatenate([angle_firing[compartment], [angle_firing[compartment][0]]])
+        
+            # Polar plot area with fill
+            if plot_type == "fill":
+                ax.fill(angles, values, color=col[compartment], alpha=0.5)
+            
+            # Polar plot area with no fill, just outline
+            elif plot_type == "line":
+                ax.plot(angles, values, color=col[compartment], linewidth=1.5)
+
 
     # Settings for the polar plot grid
     ax.grid(True,
@@ -321,7 +356,11 @@ def polar_plot(df, ax, cluster_title = True) -> None:
         clutitle = 'clu' + str(int(df['clusterID'][0])) 
     else:
         clutitle = ' '
-    for comp in np.arange(len(df['Rayleigh'][0])):
-        clutitle = clutitle + '\n' + 'Rayleigh = ' + str(np.around(df['Rayleigh'][0][int(comp)],2))
-        if df['Rayleigh_sig'][0][int(comp)] == 1: clutitle = clutitle + ' (sig.)'
+    for compartment in np.arange(len(df['Rayleigh'][0])):
+        clutitle = clutitle + '\n' + 'Rayleigh = ' + str(np.around(df['Rayleigh'][0][int(compartment)],2))
+        if df['Rayleigh_sig'][0][int(compartment)] == 1: 
+            clutitle = clutitle + ' (sig.)'
+        if df['Rayleigh'][0][int(compartment)] > pcentile:
+            fig.suptitle('This cluster is worth a check', fontsize=30)
     ax.title.set_text(clutitle)
+
