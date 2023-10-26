@@ -40,14 +40,20 @@ def generate_rendered_arena(session: NEW_Session, size: int) -> object:
 
 class Register():
     def __init__(self, session: NEW_Session, video: object, video_object: object) -> object:
-        self.generate_rendered_arena(session)
+        self.session = session
+        self.video = video
+        self.video_object = video_object
+
+    def user_input_registration(self):
+        self.get_image_of_actual_arena(self.video_object, (self.video.num_frames * 2 / 3))
+        self.generate_rendered_arena(self.session)
         self.add_click_targets()
-        self.get_image_of_actual_arena(video_object, (video.num_frames * 2 / 3))
-        self.perform_fisheye_correction(video)
+        self.perform_fisheye_correction(self.video)
         self.initialize_transform()
         self.refine_transform()
-        self.get_shelter_position(session,video, video_object,video.fps)
-        self.get_barrier_position(session,video,video_object,video.fps)
+        self.get_shelter_position(self.session,self.video, self.video_object,self.video.fps)
+        self.get_barrier_position(self.session,self.video,self.video_object,self.video.fps)
+        return self
 
 # ----MAIN FUNCTIONS--------------------------------------------------------------------
     def generate_rendered_arena(self, session: NEW_Session):
