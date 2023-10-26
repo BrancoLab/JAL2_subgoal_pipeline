@@ -8,7 +8,6 @@ from databank import experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
-from settings.settings_analyze_efizz import Settings_analyze_efizz as settings
 from settings.settings_analyze import Settings_analyze as settings_a
 
 def analyze():
@@ -18,7 +17,7 @@ def analyze():
     logger.info("The analysis pipeline has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
-        AnalyzeBehave(session)
+        # AnalyzeBehave(session)
         if settings_a.efizz:
             AnalyzeEfizz(session)
     logger.success("Analysis pipeline complete")

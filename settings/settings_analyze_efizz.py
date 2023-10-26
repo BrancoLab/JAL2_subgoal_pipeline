@@ -5,8 +5,10 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_analyze_efizz = Settings_analyze_efizz(
     
     # General settings
+    linear_shift = False, # whether to run linear shift!
+    # This does not effect Tuned, this model needs linear shift to work
     redo_compute = False, # if True it will force recompute any pre-saved analyses (e.g. Rayleigh)
-    cluster_type = ['synthetic'],# ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
+    cluster_type = ['synthetic'], # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots = False,
     # possible condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                             'pre_shelter' (empty arena),
@@ -15,15 +17,12 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     #                             'shelter_only',
     #                             'barrier_pre_flip',
     #                             'barrier_post_flip',
-    # if condition is empty all possible conditions will be analyzed
-    condition = [], 
-    analyze_only_the_period_before_shelter = False, # If True will only analyze the period before the shelter, if false, it will analyze after the whole session
-    analyze_only_the_period_before_barrier = False, # If True will only analyze the period before the barrier, if false, it will analyze the whole session
+    condition = [], # if condition is empty all possible conditions will be analyzed
     
-    # Tuned model settings
-    run_tunED = False,
+    # ------------- Tuned model settings -----------------------
+    run_tunED = True,
     
-    # LDA model settings
+    # ------------- LDA model settings --------------------------
     run_LDA = [], # if [] it will not run LDA
     # if 'all' it will run it for all possible angles - else provide list of angles
     # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
@@ -32,10 +31,9 @@ Settings_analyze_efizz = Settings_analyze_efizz(
     use_firing_rate = True,
     discriminant_type = 'linear', # 'linear' or 'quadratic'
     PCA_process = [], # numnber of PCs to use, if left empty it will run without PCA
-    linear_shift = False, # whether to run linear shift!
 
     # Rayleigh model settings
-    run_rayleigh = True,
+    run_rayleigh = False,
     rayleigh_bootstrap = False, #TODO: rewrite this with linear shift stats
     single_cluster_plots = True, # True: Plot every condition in one figure
                                  # False: Do not plot every condition in one figure

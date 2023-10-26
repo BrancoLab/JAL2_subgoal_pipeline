@@ -133,19 +133,20 @@ class TunEDModelStats:
 
         logger.info(f'95% confidence interval for p: {conf_int} (ranged probability of a single bin for chance')
 
-        # Plot the binomial distribution
-        plt.figure(figsize=(10, 5))
-        x = np.arange(Nbins + 1)
-        pmf = binom.pmf(x, Nbins, p_hat)
-        plt.stem(x, pmf, use_line_collection=True, basefmt=' ')
-        plt.xlabel('Number of successes')
-        plt.ylabel('Probability')
-        plt.title('Binomial Distribution')
+        # Plot the binomial distribution for debugging purposes
+        if 0:
+            plt.figure(figsize=(10, 5))
+            x = np.arange(Nbins + 1)
+            pmf = binom.pmf(x, Nbins, p_hat)
+            plt.stem(x, pmf, use_line_collection=True, basefmt=' ')
+            plt.xlabel('Number of successes')
+            plt.ylabel('Probability')
+            plt.title('Binomial Distribution')
 
-        # Plot the 95% confidence interval
-        conf_int_scaled = np.array(conf_int) * Nbins
-        plt.axvline(x=conf_int_scaled[1] + 0.5, color='red', linestyle='dashed')
-        plt.show()
+            # Plot the 95% confidence interval
+            conf_int_scaled = np.array(conf_int) * Nbins
+            plt.axvline(x=conf_int_scaled[1] + 0.5, color='red', linestyle='dashed')
+            plt.show()
 
         # Calculate the minimum number of successes needed to be in the upper 5% of the distribution
         min_successes_significant = binom.ppf(0.95, Nbins, p_hat)
