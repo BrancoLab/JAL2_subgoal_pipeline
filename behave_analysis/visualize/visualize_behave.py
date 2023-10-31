@@ -98,7 +98,7 @@ class Visualize_behave:
         
         sns.set()
         plt.legend(['out of shelter','in shelter'])
-        plt.xticks(np.arange(len(conditions))+1 ,conditions, rotation = 0)
+        plt.xticks(np.arange(len(conditions))+1 ,conditions, rotation = 35)
         plt.ylabel('time (mins)')
         plt.tight_layout()
         plt.savefig(os.path.join(self.behave_path, "shelter_occupancy.png"))
