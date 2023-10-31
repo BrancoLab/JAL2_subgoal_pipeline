@@ -1,24 +1,24 @@
-# OS libaries
+"""A module that organizes the visualization of the behavior data"""
+# Standard Libaries
 
-import numpy as np
-from glob import glob
-import polars as pl
 import os
-import matplotlib
-matplotlib.use('TKAgg')
-import matplotlib.pyplot as plt
 
 # Custom libarires
 
-from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
-from loguru import logger
-from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.analyze.filtering_data.filtering_functions  import identify_conditions, filter_video_dataframe
+from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
+from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_position
-
-# Import settings
-
+from behave_analysis.visualize.behaviour.angle_distributions import plot_angle_distributions
 from settings.settings_visualize import defined_settings_visualize as settings_v
+
+# 3rd party libaries
+
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import polars as pl
+matplotlib.use('TKAgg')
 
 class Visualize_behave:
     """
@@ -28,23 +28,34 @@ class Visualize_behave:
     
     def __init__(self, session, tracking_data, postprocessingObj):
         self.session = session
-        self.behave_path = os.path.join(self.session.base_path, self.session.processed_path,'behaviour')
+        self.behave_path = os.path.join(self.session.base_path, 
+                                        self.session.processed_path,'behaviour')
         self.tracking_data = tracking_data
-        self.video_df = pl.read_csv(os.path.join(self.session.base_path,self.session.processed_path) + '\\' 'full_video_dataframe.csv')
+        self.videoDf = pl.read_csv(os.path.join(self.session.base_path, 
+                                                self.session.processed_path) + '\\' 'full_video_dataframe.csv')
         self.postprocessingObj = postprocessingObj
-        if not(os.path.exists(self.behave_path)): 
+        if not os.path.exists(self.behave_path):
             os.makedirs(self.behave_path)
         
         # Behaviour plots
         self.position_by_bsa()
         self.location_occupancy()
         self.shelter_occupancy()
-        self.angle_histograms()
-        plot_the_circular_rho(self.video_df, save_path = self.behave_path)
-        plot_heat_map_of_position(video_data_frame = self.video_df, 
+        # self.angle_histograms() - Is this needed anymore? Seem to have duplicated with the new marginal vs optimal plot
+        
+        plot_angle_distributions(session = self.session,
+                                 trackingData = self.tracking_data,
+                                 videoDf = self.videoDf,
+                                 sessionHeight = self.session.video.height,
+                                 save_path = self.behave_path)
+        
+        plot_the_circular_rho(self.videoDf, save_path = self.behave_path)
+        
+        plot_heat_map_of_position(video_data_frame = self.videoDf, 
                                   save_path = self.behave_path,
                                   session_height = self.session.video.height)
-        CoverageStatistics(video_data_frame = self.video_df, 
+        
+        CoverageStatistics(video_data_frame = self.videoDf, 
                            session = self.session,
                            behave_path = self.behave_path)
 
@@ -53,7 +64,7 @@ class Visualize_behave:
         Make a scatter plot of position in arena colored by angle between body and shelter
         """
         # remove times when mouse is inside shelter
-        outofShelterIdx = np.array(self.video_df['OutofshelterIdx'].to_numpy())
+        outofShelterIdx = np.array(self.videoDf['OutofshelterIdx'].to_numpy())
         
         # color position by their shelter angle
         mass = self.tracking_data['avg_loc'][outofShelterIdx,:]
@@ -82,8 +93,8 @@ class Visualize_behave:
         """
         conditions = identify_conditions(self.session)
         for x,c in enumerate(conditions):
-            plt.bar(x+.9,(len(filter_video_dataframe(self.video_df,c,outofshelter = True, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'blue')
-            plt.bar(x+1.1,(len(filter_video_dataframe(self.video_df,c,outofshelter = False, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'red')
+            plt.bar(x+.9,(len(filter_video_dataframe(self.videoDf,c,outofshelter = True, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'blue')
+            plt.bar(x+1.1,(len(filter_video_dataframe(self.videoDf,c,outofshelter = False, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'red')
         plt.legend(['out of shelter','in shelter'])
         plt.xticks(np.arange(len(conditions))+1,conditions,rotation = 45)
         plt.tight_layout()
@@ -189,92 +200,5 @@ class Visualize_behave:
         plt.savefig(os.path.join(self.behave_path, "distribution_head_angles.png"))
         if settings_v.show_plots: plt.show()
         plt.close()
-        
-# class GraphingBase:
-#     """
-#     A base parent class for all graphing functions
-#     """
-#     def __init__(self, MaxPlotsPerFigure, how_many_plots_you_need):
-#         self.num_cols = int(np.ceil(np.sqrt(MaxPlotsPerFigure)))
-#         self.num_rows = int(np.ceil(MaxPlotsPerFigure / self.num_cols))
-#         self.num_figures = int(np.ceil(how_many_plots_you_need / MaxPlotsPerFigure))
-#         self.how_many_plots_you_need = how_many_plots_you_need
-        
-#         print(f"The number of figures created will be: {self.num_figures}")
-                
-#     def create_figure_with_subplots(self):
-#         fig, axs = plt.subplots(self.num_rows, self.num_cols)
-#         fig.set_figwidth(15)
-#         fig.set_figheight(8)
-#         return fig, axs
-    
-#     def save_plot(self, directoryToSaveTo, plotName):
-#         plt.savefig(directoryToSaveTo + "/" + plotName + ".png", dpi = 300)
-         
-# class Correlations(GraphingBase):
-#     """
-#     A class for plotting correlations between different angle variables
-#     """
-#     def __init__(self, MaxPlotsPerFigure, how_many_plots_you_need, CleanVideoDf, directoryToSaveTo, plotName):
-#         super().__init__(MaxPlotsPerFigure, how_many_plots_you_need)
-#         self.CleanVideoDf = CleanVideoDf
-#         self.variable_permutations = self.extract_correlation_permutations()
-#         self.xsys = self.extract_xsys()
-#         self.directoryToSaveTo = directoryToSaveTo
-#         self.plotName = plotName
-                
-#     def extract_correlation_permutations(self):
-#         """
-#         A function to extract all possible permutations of the correlation variables for plotting. There should be six permutations:
-#         1. head direction vs head shelter angle, south, north
-#         2. head shelter angl vs head barrier angle south, north
-#         3. north barrier vs south barrier
-#         """
-#         variable_permutation_dictionary = {"head direction VS head shelter angle": ("hdir", "hsa"),
-#                       "head direction VS north barrier edge angle": ("hdir", "h_bar_north_a"),
-#                       "head direction VS south barrier edge angle": ("hdir", "h_bar_south_a"),
-#                       "head shelter angle VS north barrier edge angle": ("hsa", "h_bar_north_a"),
-#                       "head shelter angle VS south barrier edge angle": ("hsa", "h_bar_south_a"),
-#                       "north barrier edge angle VS south barrier edge angle": ("h_bar_north_a", "h_bar_south_a")}
-        
-#         permutation_tuples = {}
-#         for key, value in variable_permutation_dictionary.items():
-#             permutation_tuples[key] = (value[0], value[1])
-                
-#         return permutation_tuples
-        
-#     def extract_xsys(self):
-#         dict = {}
-#         for key, value in self.variable_permutations.items():
-#             dict[key] = self.CleanVideoDf[[value[0], value[1]]]
-#         return dict
-                
-#     def create_correration_plot(self):
-#         total_plots = 0
-        
-#         for figure in range(self.num_figures):
-#             fig, axs = self.create_figure_with_subplots()
-#             x = np.linspace(0, 2 * np.pi, 400)
-#             y = np.linspace(0, 3 * np.pi, 400)
-            
-#             for ax in axs.flat:
-#                 if total_plots < self.how_many_plots_you_need:
-#                     x = list(self.xsys.values())[total_plots][:, 0]
-#                     y = list(self.xsys.values())[total_plots][:, 1]
-                                
-#                     ax.scatter(x, y, s = 0.2)
-#                     ax.set_title(list(self.variable_permutations.keys())[total_plots], fontsize = 8)
-#                     ax.set_xlabel(list(self.variable_permutations.values())[total_plots][0])
-#                     ax.set_ylabel(list(self.variable_permutations.values())[total_plots][1])
-                    
-#                     total_plots += 1
-#                 else:
-#                     ax.axis('off')  # hide axis if not used
-            
-#             fig.subplots_adjust(hspace=1)
-            
-#         self.save_plot(self.directoryToSaveTo, self.plotName)
-#         plt.show()
-
 
 
