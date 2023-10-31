@@ -1,19 +1,19 @@
 """
-                                                     Overview of the TunED model
+TunED model: disentangles the tuning of a neuron to two simultaneously recorded stimulus variables using coniditional independence tests.
 
 Tuning function (tf): 
-+ Mean firing rate of a neuron to a given stimulus µ(v1) or µ(v2). See class compute_observed_tuning_function for more details.
+- Mean firing rate of a neuron to a given stimulus µ(v1) or µ(v2). See class compute_observed_tuning_function for more details.
 
 Null hypothesis (nh): 
-+ We set a null hypothesis asking how much of the tuning function of one neuron to stimulus V1 can be explained by a second stimulus variable V2 and 
+- We set a null hypothesis asking how much of the tuning function of one neuron to stimulus V1 can be explained by a second stimulus variable V2 and 
 its interaction with V1. We compute the expected conditional E[fr(v2)|v1]. And thus the NH is that the tuning function of that neuron is purely driven 
 by V2 and not V1. See class compute_null_hypothesis for more details. If the NH is true then the tuning function of that neuron should be the 
 same as the expected conditional.
 
 TODO:
-+ There should be some quality checks done on the ingested data because I found a spike count at 130  in one frame for one cell which is impossible so data quality is not there yet.
-+ Bins are not uniformly sampling with some bins empty - this might be causing unknown issues
-+ make coeff circular coeff 
+- There should be some quality checks done on the ingested data because I found a spike count at 130  in one frame for one cell which is impossible so data quality is not there yet.
+- Bins are not uniformly sampling with some bins empty - this might be causing unknown issues
+- make coeff circular coeff 
 """
 
 # Custom imports
@@ -69,7 +69,7 @@ class TunEdModel:
             logger.info("No null distribution found, computing a new one")
             self.accuracy_dic = self.excute_model_per_cluster_with_linear_shift(shifted_variale = "hsa")
     
-    def execute_model_per_cluster(self, numBinsRequired4Significance) -> dict:
+    def execute_model_per_cluster(self, nbins4sig) -> dict:
         """
         For each neuron, across all conditions, run the TunED model to determine if the neuron is tuned to hdir or hsa.
         
@@ -84,12 +84,12 @@ class TunEdModel:
             
             # Plotting params
             nrows = len(self.conditions)
-            _, ax = plt.subplots(nrows, 3, figsize=(20, 5 * nrows)) # Add one index columns for the titles
-            self.remove_axes_from_column_titles_subplots(self.conditions, nrows) # Add subtitles for each condition in first column NOTE almost identical to another component could make reusable
+            _, _ = plt.subplots(nrows, 3, figsize=(20, 5 * nrows)) # Add one index columns for the titles
+            self.plot_condition_titles(self.conditions, nrows) # Add subtitles for each condition in first column NOTE almost identical to another component could make reusable
 
             # Plot for each condition
             for conIdx, condition in enumerate(self.conditions):                
-                filtered_df = filter_video_dataframe(dataframe = cluster_data, condition = condition)
+                filtered_df = filter_video_dataframe(dataframe = cluster_data, condition = condition) # TODO spike video dataframe, filter function works on differnt dfs and needs to be renamed
                 Nsamples, Nbins, hdir, hsa, raster = self.init_model_inputs(filtered_df)
                 if self.skip_cluster_if_no_or_too_few_spikes(cluster, filtered_df, Nsamples): 
                     continue
@@ -104,11 +104,8 @@ class TunEdModel:
                 Pv1_v2, Pv2_v1 = self.compute_conditionals(hdir, hsa, hdir_tuning_object, hsa_tuning_object, Nbins)
                 hdir_NH_object, hsa_NH_object = self.compute_NH_tuning(hdir_tuning_object, hsa_tuning_object, Pv1_v2, Pv2_v1)
                 hdir_significance, hdirObservedCI, hdirExpectedCI, hsa_significance, hsaObservedCI, hsaExpectedCI = self.compute_sig_array_between_curves_and_produce_CIs(Nbins, hdir_tuning_object, hsa_NH_object, hsa_tuning_object, hdir_NH_object)
-                hdirCI = {"observedCI": hdirObservedCI, "expectedCI": hdirExpectedCI} # Needed to plot MOE on tuning functions
-                hsaCI = {"observedCI": hsaObservedCI, "expectedCI": hsaExpectedCI}
-                is_hdir_sig, is_hsa_sig = self.check_if_tuning_funcs_are_sig(hdir_significance, 
-                                                                             hsa_significance,
-                                                                             num_bins_required_to_be_significant = numBinsRequired4Significance)
+                hdirCI, hsaCI = self.convert_CIs_to_dict(hdirObservedCI, hdirExpectedCI, hsaObservedCI, hsaExpectedCI)
+                is_hdir_sig, is_hsa_sig = self.check_if_tuning_funcs_are_sig(hdir_significance, hsa_significance, num_bins_required_to_be_significant=nbins4sig)
                 accuracy_dic[cluster] = [is_hdir_sig, is_hsa_sig]
             
                 # Plot and save tuning functions
@@ -140,6 +137,8 @@ class TunEdModel:
         self.sum_and_print_number_of_classified_cells(accuracy_dic)
         
         return accuracy_dic
+    
+    # ---------------------------- Linear shift functions ----------------------------------------------
     
     def excute_model_per_cluster_with_linear_shift(self, shifted_variale = "hsa") -> dict:
         """
@@ -242,36 +241,15 @@ class TunEdModel:
         elif y.name == "hsa":
             return np.sum(hdir_significance[0])
     
-    # ---------------------------- Low level functions ----------------------------------------------
-    
     def load_linear_shift_null_distribution(self):
         """Loads the null distribution for the linear shift method"""
         path = str(self.directory_location) + "\\" + "linear_shift_null_distribution_binomial.pkl"
         with open(path, 'rb') as f:
             null_distribution = pickle.load(f)
         return null_distribution
-        
-    def init_model_inputs(self, data_df):
-        """Init the inputs for the TunEd model"""
-        Nsamples = len(data_df)
-        Nbins = 20 # Number of bins to use to bin up the stimulus variable
-        hdir = np.array(data_df["hdir"].to_numpy()).reshape(1, Nsamples)
-        hsa  = np.array(data_df["hsa"].to_numpy()).reshape(1, Nsamples)
-        raster = np.array(data_df["spike_count"].to_numpy()).reshape(1, Nsamples)
-        return Nsamples, Nbins, hdir, hsa, raster
     
-    def check_if_tuning_funcs_are_sig(self, hdir_sig, hsa_sig, num_bins_required_to_be_significant) -> tuple:
-        """Check if the tuning function is significantly different to the null hypothesis by summing the number of bins that are significant"""
-        is_hdir_sig = False
-        is_hsa_sig = False
-        if np.sum(hdir_sig) > num_bins_required_to_be_significant:
-            is_hdir_sig = True
-            logger.success("The tuning function for head direction is significantly different to the null hypothesis")
-        if np.sum(hsa_sig) > num_bins_required_to_be_significant:
-            is_hsa_sig = True
-            logger.success("The tuning function for head shelter angle is significantly different to the null hypothesis")
-        return is_hdir_sig, is_hsa_sig
-    
+    # ---------------------------- Plotting functions ----------------------------------------------
+
     def plot_tuning_functions(self,
                                 num_conditions,
                                 condition_indx,
@@ -324,6 +302,21 @@ class TunEdModel:
         #     f"is set 1 sig {is_hdir_sig}, is set 2 sig {is_hsa_sig}", 
         #     fontweight="bold")
     
+    def plot_condition_titles(self, conditions, nrows) -> None:
+        """Plot titles and eemove the axes from the first column of subplots that act as sub titles"""
+        for c_counter, c in enumerate(conditions):
+            ax = plt.subplot(nrows, 3, c_counter * 3 + 1)
+            ax.text(1, 0.5, c, rotation='horizontal', va='center', ha='center', fontsize=25)
+            ax.set_axis_off()
+    
+    # ----------------------------- Helper functions to check data ----------------------------------- 
+    
+    def check_if_any_bins_are_empty(self, hdir_tuning_object, hsa_tuning_object) -> bool:
+        """If bins are empty then skip the cluster, not sure if this is the best approach"""
+        if hdir_tuning_object.skipCluster or hsa_tuning_object.skipCluster:
+            logger.warning("Skipping cluster as it has zero samples in one of the bins, this can be revisted but for now it is a conservative approach")
+            return True 
+    
     def skip_cluster_if_no_or_too_few_spikes(self, cluster, filtered_df, Nsamples):
         """Don't plot or process clusters with no spikes or less than 2k (abitrary) spikes"""
         if sum(filtered_df['spike_count']) == 0:
@@ -333,13 +326,16 @@ class TunEdModel:
             logger.warning(f"Cluster {cluster} has less than 2000 samples, skipping. Abitary cut off.")
             return True
     
-    def remove_axes_from_column_titles_subplots(self, conditions, nrows) -> None:
-        """Remove the axes from the first column of subplots that act as sub titles"""
-        for c_counter, c in enumerate(conditions):
-            ax = plt.subplot(nrows, 3, c_counter * 3 + 1)
-            ax.text(0, 0.5, c, rotation='horizontal',
-                    va='center', ha='center', fontsize=21)
-            ax.set_axis_off()
+    # ----------------------------- TunED model functions --------------------------------------------
+    
+    def init_model_inputs(self, data_df):
+        """Init the inputs for the TunEd model"""
+        Nsamples = len(data_df)
+        Nbins = 20 # Number of bins to use to bin up the stimulus variable
+        hdir = np.array(data_df["hdir"].to_numpy()).reshape(1, Nsamples)
+        hsa  = np.array(data_df["hsa"].to_numpy()).reshape(1, Nsamples)
+        raster = np.array(data_df["spike_count"].to_numpy()).reshape(1, Nsamples)
+        return Nsamples, Nbins, hdir, hsa, raster
     
     def compute_mean_firing_curves(self, raster, hdir, hsa, Nbins, Nsamples):
         """Compute the mean firing curves for hdir and hsa"""
@@ -369,40 +365,55 @@ class TunEdModel:
                                                             num_values_for_Px = hdir_tuning_object.n, 
                                                             conditional_Py_x = Pv2_v1)
         return hdir_NH_object, hsa_NH_object
-
+    
+    # ----------------------------- Sig related functions --------------------------------------------
+    def convert_CIs_to_dict(self, hdirObservedCI, hdirExpectedCI, hsaObservedCI, hsaExpectedCI):
+        """Convert confidence intervals to a dictionary"""
+        hdirCI = {"observedCI": hdirObservedCI, "expectedCI": hdirExpectedCI} # Needed to plot MOE on tuning functions
+        hsaCI = {"observedCI": hsaObservedCI, "expectedCI": hsaExpectedCI}
+        return hdirCI, hsaCI
+    
     def compute_sig_array_between_curves_and_produce_CIs(self, Nbins, hdir_tuning_object, hsa_NH_object, hsa_tuning_object, hdir_NH_object):
         """Test whether the tuning functions are significantly different and produce the Confidence intervals"""
-        hdir_significance, hdirObservedCI, hdirExpectedCI = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins,
-                                                                                                            observed_tf = hdir_tuning_object.tuning_func,
-                                                                                                            expected_tf = hsa_NH_object.tuning_func_nh,
-                                                                                                            observed_sem = hdir_tuning_object.tuning_func_sem,
-                                                                                                            expected_sem = hsa_NH_object.tuning_func_nh_sem)
-        
-        hsa_significance, hsaObservedCI, hsaExpectedCI = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(Nbins = Nbins, 
-                                                                                                        observed_tf = hsa_tuning_object.tuning_func,
-                                                                                                        expected_tf = hdir_NH_object.tuning_func_nh,
-                                                                                                        observed_sem = hsa_tuning_object.tuning_func_sem, 
-                                                                                                        expected_sem = hdir_NH_object.tuning_func_nh_sem)
-        
+        # NOTE should probable shorten the name of these functions
+        hdir_significance, hdirObservedCI, hdirExpectedCI = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(
+            Nbins = Nbins,
+            observed_tf = hdir_tuning_object.tuning_func,
+            expected_tf = hsa_NH_object.tuning_func_nh,
+            observed_sem = hdir_tuning_object.tuning_func_sem,
+            expected_sem = hsa_NH_object.tuning_func_nh_sem
+        )
+        hsa_significance, hsaObservedCI, hsaExpectedCI = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(
+            Nbins = Nbins, 
+            observed_tf = hsa_tuning_object.tuning_func,
+            expected_tf = hdir_NH_object.tuning_func_nh,
+            observed_sem = hsa_tuning_object.tuning_func_sem, 
+            expected_sem = hdir_NH_object.tuning_func_nh_sem)
         return hdir_significance, hdirObservedCI, hdirExpectedCI, hsa_significance, hsaObservedCI, hsaExpectedCI
     
-    def check_if_any_bins_are_empty(self, hdir_tuning_object, hsa_tuning_object) -> bool:
-        """If bins are empty then skip the cluster, not sure if this is the best approach"""
-        if hdir_tuning_object.skipCluster or hsa_tuning_object.skipCluster:
-            logger.warning("Skipping cluster as it has zero samples in one of the bins, this can be revisted but for now it is a conservative approach")
-            return True 
-            
     def sum_and_print_number_of_classified_cells(self, accuracy_dic):
         """Inform users how many cells are classified as hdir and hsa"""
         hdir_classified, hsa_classified = 0, 0
-        for key, value in accuracy_dic.items(): 
+        for _, value in accuracy_dic.items(): 
             if value == [True, False]: 
                 hdir_classified += 1
             if value == [False, True]:
                 hsa_classified += 1
         logger.info(f"Number of clusters classified as hdir: {hdir_classified}")
         logger.info(f"Number of clusters classified as hsa: {hsa_classified}")
-                   
+     
+    def check_if_tuning_funcs_are_sig(self, hdir_sig, hsa_sig, num_bins_required_to_be_significant) -> tuple:
+        """Check if the tuning function is significantly different to the null hypothesis by summing the number of bins that are significant"""
+        is_hdir_sig = False
+        is_hsa_sig = False
+        if np.sum(hdir_sig) > num_bins_required_to_be_significant:
+            is_hdir_sig = True
+            logger.success("The tuning function for head direction is significantly different to the null hypothesis")
+        if np.sum(hsa_sig) > num_bins_required_to_be_significant:
+            is_hsa_sig = True
+            logger.success("The tuning function for head shelter angle is significantly different to the null hypothesis")
+        return is_hdir_sig, is_hsa_sig
+              
 if __name__ == '__main__':
     """
     The below logic is used to run the module as a standalone module for the purpose of testing toy data. It is currently set up to run on synthetic data that matches the matlab code
