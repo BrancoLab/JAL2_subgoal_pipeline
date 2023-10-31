@@ -10,22 +10,22 @@ import os
 
 from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
 from settings.settings_visualize import defined_settings_visualize as settings
+from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
 
-def plot_heat_map_of_position(video_data_frame, session_height, save_path, filter_out_shelter_time = True) -> None:
+def plot_heat_map_of_position(session, video_data_frame, session_height, save_path, filter_out_shelter_time = True) -> None:
     """ 
     Plot a heatmap of the mouse position, behaviour only. With an option to filter out the time the mouse is in the shelter and
     focus on the time the mouse is in the arena. Plots for each of the conditions placed in the settings file.
     """
     
-    if filter_out_shelter_time: 
-        video_data_frame = video_data_frame.filter(pl.col("OutofshelterIdx") == True)
-        
+    conditions = identify_conditions(session)
+    
     # Adjust figsize and number of columns as per your needs
-    fig, axs = plt.subplots(nrows=1, ncols=len(settings.conditions_to_plot), figsize=(24, 6), sharey=True, sharex=True)
+    fig, axs = plt.subplots(nrows=1, ncols=len(conditions), figsize=(24, 6), sharey=True, sharex=True)
     cbar_ax = fig.add_axes([.91, .13, .01, .75]) # The list represents [left, bottom, width, height], where all values are in fractional (0-1) coordinates.
                                                  # Where to plot the colorbar, create new axis object at these coordinates
 
-    for idx, condition in enumerate(settings.conditions_to_plot):
+    for idx, condition in enumerate(conditions):
         
         # Extract condition specific section of the tracking data
         video_data_frame_filtered  = filter_video_dataframe(video_data_frame, condition)

@@ -14,6 +14,7 @@ from settings.settings_visualize import defined_settings_visualize as settings_v
 
 # 3rd party libaries
 
+import seaborn as sns
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -51,7 +52,8 @@ class Visualize_behave:
         
         plot_the_circular_rho(self.videoDf, save_path = self.behave_path)
         
-        plot_heat_map_of_position(video_data_frame = self.videoDf, 
+        plot_heat_map_of_position(session = self.session,
+                                  video_data_frame = self.videoDf, 
                                   save_path = self.behave_path,
                                   session_height = self.session.video.height)
         
@@ -88,18 +90,22 @@ class Visualize_behave:
         plt.close()
 
     def shelter_occupancy(self):
-        """
-        Make a bar plot of minutes in and out of shelter per condition in each session
-        """
+        """Make a bar plot of minutes in and out of shelter per condition in each session"""
         conditions = identify_conditions(self.session)
-        for x,c in enumerate(conditions):
-            plt.bar(x+.9,(len(filter_video_dataframe(self.videoDf,c,outofshelter = True, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'blue')
-            plt.bar(x+1.1,(len(filter_video_dataframe(self.videoDf,c,outofshelter = False, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'red')
+        for x, c in enumerate(conditions):
+            plt.bar(x+.9,(len(filter_video_dataframe(self.videoDf,c,outofshelter = True, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'cornflowerblue')
+            plt.bar(x+1.1,(len(filter_video_dataframe(self.videoDf,c,outofshelter = False, exclude_escape = False))/self.session.video.fps)/60, width = .2,color = 'darkorchid')
+        
+        sns.set()
         plt.legend(['out of shelter','in shelter'])
-        plt.xticks(np.arange(len(conditions))+1,conditions,rotation = 45)
+        plt.xticks(np.arange(len(conditions))+1 ,conditions, rotation = 0)
+        plt.ylabel('time (mins)')
         plt.tight_layout()
         plt.savefig(os.path.join(self.behave_path, "shelter_occupancy.png"))
-        if settings_v.show_plots: plt.show()
+        
+        if settings_v.show_plots: 
+            plt.show()
+            
         plt.close()
 
     def location_occupancy(self):
