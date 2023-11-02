@@ -11,10 +11,12 @@ from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatist
 from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_position
 from behave_analysis.visualize.behaviour.angle_distributions import plot_angle_distributions
 from settings.settings_visualize import defined_settings_visualize as settings_v
+from behave_analysis.analyze.AnalyzeBehave import identify_condition, base_plotting
 
 # 3rd party libaries
 
 import seaborn as sns
+from loguru import logger
 import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,18 +29,20 @@ class Visualize_behave:
     to get a sense for what the mouse was doing in the session
     """
     
-    def __init__(self, session, tracking_data, postprocessingObj):
+    def __init__(self, session, postprocessingObj):
         self.session = session
         self.behave_path = os.path.join(self.session.base_path, 
                                         self.session.processed_path,'behaviour')
-        self.tracking_data = tracking_data
+        self.tracking_data = postprocessingObj.tracking_data
         self.videoDf = pl.read_csv(os.path.join(self.session.base_path, 
                                                 self.session.processed_path) + '\\' 'full_video_dataframe.csv')
         self.postprocessingObj = postprocessingObj
         if not os.path.exists(self.behave_path):
             os.makedirs(self.behave_path)
         
+    def plot_behavioral_stats(self):    
         # Behaviour plots
+        logger.info("Making plots summarizing the exploratory behavior of the mouse ")
         self.position_by_bsa()
         self.location_occupancy()
         self.shelter_occupancy()
@@ -60,7 +64,12 @@ class Visualize_behave:
         CoverageStatistics(video_data_frame = self.videoDf, 
                            session = self.session,
                            behave_path = self.behave_path)
+        
+    def escape_plotting(self):
+        logger.info("Making plots of mouse escape trajectories")
+        self.escape_trajectory_and_shelter_exits()
 
+## ------------- PLOTTING FUNCTIONS
     def position_by_bsa(self):
         """
         Make a scatter plot of position in arena colored by angle between body and shelter
@@ -207,4 +216,43 @@ class Visualize_behave:
         if settings_v.show_plots: plt.show()
         plt.close()
 
+    def escape_trajectory_and_shelter_exits(self):
+        """
+        Plot escape trajectories as well as the path by which the mouse last left the shelter
+        """
+       
+        # set up figure and number of rows and calculate number of columns
+        plt.figure(figsize=(20, 16))
+        plt.subplots_adjust(hspace=0.3)
+        ntrial = len(self.session.__dict__[settings_v.stim_type].onset_frames)
+        nrows = 3
+        ncols = ntrial // nrows + (ntrial % nrows > 0)
 
+        for trial_num, (onset_frames, stimulus_durations) in enumerate(
+            zip(self.session.__dict__[settings_v.stim_type].onset_frames,
+                self.session.__dict__[settings_v.stim_type].stimulus_durations)):
+            ax = plt.subplot(nrows, ncols, trial_num + 1)
+            # set up axes with shelt and barrier locations
+            condition = identify_condition(self.videoDf.filter(self.videoDf['frames'] == onset_frames),self.session)
+            base_plotting(ax,self.tracking_data,condition)
+            # plot escape trajectory
+            plot_trajectories(self.tracking_data['head_loc'],self.tracking_data["avg_Velocity"], onset_frames[0],stimulus_durations[0],ax)
+            # plot shelter exit trajectory
+            exits=np.where(np.diff(self.videoDf['OutofshelterIdx'].to_numpy().astype(int)) == 1)[0]
+            exits = exits[exits < onset_frames[0]]
+            plot_trajectories(self.tracking_data['head_loc'],self.tracking_data["avg_Velocity"], exits[-1]-self.session.video.fps,3,ax,colors = 'Blues')
+           
+        filename = str(self.behave_path) + "/" + "Escape_and_Exit" + ".png"
+        plt.savefig(filename)
+        if settings_v.show_plots: plt.show()
+        plt.close()
+
+def plot_trajectories(head_loc,velocity,onset_frames,stimulus_durations,ax,colors = 'Reds'):
+    """
+    Plot escape trajectories
+    """
+    # compute and plot each trajectory
+    x_loc = head_loc[onset_frames:onset_frames + int(stimulus_durations*40),0]
+    y_loc = head_loc[onset_frames:onset_frames + int(stimulus_durations*40),1]
+    speed = velocity[onset_frames:onset_frames + int(stimulus_durations*40)]
+    ax.scatter(x_loc,y_loc,s=5,c=speed,cmap=colors)

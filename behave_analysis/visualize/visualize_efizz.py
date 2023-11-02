@@ -25,6 +25,19 @@ class Visualize_efizz:
        if not(os.path.exists(self.spatial_path)): os.makedirs(self.spatial_path)
        logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
 
+    def run_tuning_functions(self):
+        """Make tuning plots"""
+        logger.info(f"Starting to make some efizz tuning plots...")
+        self.spatial_position_firing() # ~ BUG - RuntimeError: main thread is not in main loop
+
+    def run_stim_resp_plotting(self):
+        """Make plots of stimulus response"""
+        logger.info(f"Starting to make some plots of threat stimulus responses.")
+        self.rasters(settings_v.stim_type)
+        self.PSTH_all_neurons(settings_v.stim_type)
+        self.PSTH_single_neurons(settings_v.stim_type)
+        self.single_cluster_raster(settings_v.stim_type)
+
 # FUNCTIONS FOR PLOTTING STIM-TRIGGERED RESPONSE --------------------------------------------------------------------------------------------------------------------------------------
 
     def PSTH_all_neurons(self, stim_type):
