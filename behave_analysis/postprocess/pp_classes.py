@@ -172,6 +172,8 @@ class BaseDataPostprocessor(ABC):
         Uses polars query logic to map each cluster to a frame and count how many times each cluster fired in that frame.
         The lazy() function means that computations are not immediately executed. This allows the computer to plan the operations before
         proceeding. NOTE - if there are changes to the code, ensure to delete any existing CSVs so you can see the changes of the code.
+        
+        #NOTE - This logic seems suspciious, doesn't delete exsisting files when running the code again
         """
         
         try:
