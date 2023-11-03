@@ -167,7 +167,7 @@ class TunEdModel:
         
         # For each cluster, compute the null distribution using linear shift
         for cluster in tqdm(clusters, desc="Genereating null distribution for linear shift per cluster"):
-            X = self.dataDataFrame.filter(pl.col("spike_clusters") == cluster)
+            X = self.post_process_object.video_spike_count_df.filter(pl.col("spike_clusters") == cluster)
             
             # Adding a check to see if the cluster has spikes or not as came across a cluster that did not exist in the synthetic data
             if len(X) == 0:
