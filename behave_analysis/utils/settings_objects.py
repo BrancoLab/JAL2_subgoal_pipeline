@@ -56,11 +56,11 @@ class Settings_homings:
 
 @dataclass(frozen=True)
 class Settings_visualize:
-    laser_trials: bool=True
-    escape_trials: bool=True
-    homing_trials: bool=False
-    t_xing_trials: bool=True
-    explore_trial: bool=False
+    # laser_trials: bool=True
+    # escape_trials: bool=True
+    # homing_trials: bool=False
+    # t_xing_trials: bool=True
+    # explore_trial: bool=False
     display_tracking:bool=False
     display_trail:bool=True
     rapid: bool=True
@@ -76,7 +76,7 @@ class Settings_visualize:
     save_folder: str = None
     fisheye_correction_file: str = None
     by_experiment: bool=False
-    experiments: list=None
+    # experiments: list=None
     by_session: bool=False
     sessions: list=None
     all_sessions: bool=False
@@ -84,6 +84,7 @@ class Settings_visualize:
     show_plots: bool=False
     cluster_type: str = ''
     conditions_to_plot: list = None
+    stim_type: str = ''
 
 @dataclass(frozen=True)
 class Settings_analyze_local:

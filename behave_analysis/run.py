@@ -13,6 +13,8 @@ from behave_analysis.track.track import Track
 from behave_analysis.homings.homings import get_Homings
 from behave_analysis.homings.threshold_crossings import get_Threshold_crossings
 from behave_analysis.visualize.visualize_main import Visualize
+from behave_analysis.visualize.visualize_efizz import Visualize_efizz
+from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.analyze.analyze import Analyze
 from behave_analysis.utils.print_settings import print_settings, print_settings_analysis
 from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
@@ -75,11 +77,15 @@ def visualize():
     logger.info("Visualisation started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
-        if settings_v.laser_trials:  Visualize(session).trials(stim_type = 'laser')
-        if settings_v.escape_trials: Visualize(session).trials(stim_type = 'audio')
-        if settings_v.homing_trials: Visualize(session).trials(stim_type = 'homing')
-        if settings_v.t_xing_trials: Visualize(session).trials(stim_type = 'threshold_crossing')
-        if settings_v.explore_trial: Visualize(session).trials(stim_type = 'audio')
+        visual_object = Visualize(session)
+        Visualize_behave(session,visual_object.postprocessObject).plot_behavioral_stats()
+        if settings_v.stim_type != '':
+            visual_object.trial_movies(settings_v.stim_type)
+            Visualize_behave(session,visual_object.postprocessObject).escape_plotting()
+        if settings_v.efizz:
+            Visualize_efizz(visual_object.postprocessObject, session).run_tuning_functions()
+            if settings_v.stim_type != '':
+                Visualize_efizz(visual_object.postprocessObject, session).run_stim_resp_plotting()
     logger.success("Visualisation complete")
 
 def analyze():

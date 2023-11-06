@@ -4,8 +4,6 @@ from behave_analysis.track.register import load_fisheye_correction_map, correct_
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
 from behave_analysis.utils.directory import Directory
-from behave_analysis.visualize.visualize_efizz import Visualize_efizz
-from behave_analysis.visualize.visualize_behave import Visualize_behave
 # from behave_analysis.visualize.visualize_behave import Correlations
 
 # Import custom settings
@@ -34,41 +32,12 @@ class Visualize:
         self.kalman = open_kalman_tracking_data(os.path.join(self.session.base_path,self.session.processed_path))
         self.print_session_details() # let us know which session we're doing
         self.postprocessObject = open_postprocess_object(self.session)
-
-        # ------------------------------------------------------------------Efizz----------------------------------------------------------------
-        if self.settings.efizz:
-                
-            visualObject = Visualize_efizz(self.postprocessObject, session = self.session)
-                        
-            """Make tuning plots"""
-            logger.info(f"Starting to make some efizz overview plots...")
-            visualObject.spatial_position_firing() # ~ BUG - RuntimeError: main thread is not in main loop
-       
-            """Make plots of stimulus response"""
-            logger.info(f"Starting to make some plots of stimulus responses.")
-            if self.settings.escape_trials: 
-                visualObject.rasters(stim_type = 'audio')
-                visualObject.PSTH_all_neurons(stim_type = 'audio')
-                visualObject.PSTH_single_neurons(stim_type = 'audio')
-                visualObject.single_cluster_raster(stim_type = 'audio')
-        
-        # ------------------------------------------------------------------Behave----------------------------------------------------------------
-        logger.info(f"Starting to make some behaviour only overview plots.")
-        
-        Visualize_behave(session = self.session, 
-                         tracking_data = self.postprocessObject.tracking_data,
-                         postprocessingObj = self.postprocessObject)
-        
-        print("hello")
-        print("greetings Laurence")
-
-        # ------------------------------------------------------------------Movies----------------------------------------------------------------
-        
-    def trials(self, stim_type) -> None:
+ 
+    def trial_movies(self, stim_type) -> None:
         """
         A function that loops through all of the trials of a given type, and then loops through frame by frame.
         """
-
+        logger.info(f"Starting to make movies of mousie escape")
         print("\nPress 'q' to quit and 'n' to move to the next video")
 
         for trial_num, (onset_frames, stimulus_durations) in enumerate(
@@ -212,7 +181,6 @@ class Visualize:
         )
 
         # Plot the body direction interger on the frame (for debugging)
-        # cv2.putText(self.actual_frame, f"HD: {int(np.rad2deg(self.hdir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.putText(self.actual_frame, f"HD: {str((self.hdir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.putText(self.actual_frame, f"BS: {str((self.bod_shelt_dir))}deg", (self.actual_frame.shape[1]-200, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.putText(self.actual_frame, f"HS: {str((self.hdir_shelt))}deg", (self.actual_frame.shape[1]-200, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
