@@ -14,10 +14,11 @@ from pathlib import Path
 
 defined_settings_visualize = Settings_visualize(
 
-    laser_trials = False,
-    escape_trials = True,
-    homing_trials = False,
-    t_xing_trials = False, # Threshold crossing trials
+    # laser_trials = False,
+    # escape_trials = True,
+    # homing_trials = False,
+    # t_xing_trials = False, # Threshold crossing trials
+    stim_type = 'audio', # leave as '' if no stims were delivered
     
     display_trail = True,
     display_tracking = True,
@@ -35,7 +36,7 @@ defined_settings_visualize = Settings_visualize(
     
     save_folder = Path.cwd(),
     by_experiment = False,
-    experiments = ['no laser'],
+    # experiments = ['no laser'],
     by_session = True,
     sessions = [0], # This session must be the one indexed in the databank
     all_sessions = False,
