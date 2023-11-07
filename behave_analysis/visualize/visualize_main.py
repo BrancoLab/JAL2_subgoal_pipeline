@@ -1,38 +1,35 @@
-# Custom classes
+# Standard libraries
+import os
 
-from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
-from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
-from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
-from behave_analysis.utils.directory import Directory
-# from behave_analysis.visualize.visualize_behave import Correlations
-
-# Import custom settings
-
-from settings.settings_visualize import defined_settings_visualize as settings
-
-# OS libaries
+# Third party libaries
 
 from loguru import logger
 import cv2
 import numpy as np
-import os
 import dill as pickle
 
+# Custom classes
+from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
+from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
+from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
+from behave_analysis.utils.directory import Directory
+from settings.settings_visualize import defined_settings_visualize as settings
+
+
 class Visualize:
-    """
-    A class that visualizes the tracking data of a session used to ensure that the tracking is working. It also does other random shit and needs to be refactored.
-    As it also handles efizz data.
-    """
-    
+    """Visualise escape trials AND open postprocess object
+
+    #TODO: Make this class have one responsbiility"""
+
     def __init__(self, session: object):
-        self.session = session        
+        self.session = session
         self.settings = settings
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000 / self.session.video.fps * (not self.settings.rapid) + self.settings.rapid)
-        self.kalman = open_kalman_tracking_data(os.path.join(self.session.base_path,self.session.processed_path))
-        self.print_session_details() # let us know which session we're doing
+        self.kalman = open_kalman_tracking_data(os.path.join(self.session.base_path, self.session.processed_path))
+        self.print_session_details()  # let us know which session we're doing
         self.postprocessObject = open_postprocess_object(self.session)
- 
+
     def trial_movies(self, stim_type) -> None:
         """
         A function that loops through all of the trials of a given type, and then loops through frame by frame.
@@ -72,9 +69,9 @@ class Visualize:
         self.successful_read, self.actual_frame = self.source_video.read()
 
     def correct_and_register_frame(self):
-        self.actual_frame = correct_and_register_frame(self.actual_frame[:, :, 0], 
-                                                       self.session.video, 
-                                                       self.fisheye_correction_map)
+        self.actual_frame = correct_and_register_frame(
+            self.actual_frame[:, :, 0], self.session.video, self.fisheye_correction_map
+        )
         if self.settings.display_tracking or self.settings.display_trail:
             self.actual_frame = cv2.cvtColor(self.actual_frame, cv2.COLOR_GRAY2RGB)
 
@@ -87,31 +84,47 @@ class Visualize:
         if self.settings.display_tracking or self.settings.display_trail or self.settings.display_stimulus:
             self.hdir_shelt = self.postprocessObject.tracking_data["hdir_shelt"][self.frame_num]
             self.bod_shelt_dir = self.postprocessObject.tracking_data["bod_shelt_dir"][self.frame_num]
-            if 'bod_barrier_dir' in self.postprocessObject.tracking_data:
+            if "bod_barrier_dir" in self.postprocessObject.tracking_data:
                 self.hdir_barrier = self.postprocessObject.tracking_data["bod_barrier_dir"][self.frame_num, :]
             else:
                 self.hdir_barrier = []
             self.speed = self.postprocessObject.tracking_data["avg_Velocity"][self.frame_num]
-            self.avg_loc = (int(self.postprocessObject.tracking_data["avg_loc"][self.frame_num][0]),
-                            int(self.postprocessObject.tracking_data["avg_loc"][self.frame_num][1]))
-            self.head_loc = (int(self.postprocessObject.tracking_data["head_loc"][self.frame_num][0]),
-                             int(self.postprocessObject.tracking_data["head_loc"][self.frame_num][1]))
+            self.avg_loc = (
+                int(self.postprocessObject.tracking_data["avg_loc"][self.frame_num][0]),
+                int(self.postprocessObject.tracking_data["avg_loc"][self.frame_num][1]),
+            )
+            self.head_loc = (
+                int(self.postprocessObject.tracking_data["head_loc"][self.frame_num][0]),
+                int(self.postprocessObject.tracking_data["head_loc"][self.frame_num][1]),
+            )
             self.hdir = self.postprocessObject.tracking_data["hdir"][self.frame_num]
 
     def display_stimulus(self, i: int) -> None:
-        """ 
+        """
         Display a large exclamation mark on the screen if the stimulus is on
         """
-        
-        if (self.settings.display_stimulus and 
-            self.stim_status[i] == 0 and 
-            (self.stim_type == "audio" or (self.stim_type == "laser" and self.settings.display_tracking))):
-                if self.stim_type == "laser":
-                    exclamation_color = (255, 200, 0)
-                else:
-                    exclamation_color = (100, 200, 255)
-                cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, exclamation_color, thickness=6)
-                cv2.putText(self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, (0, 0, 0), thickness=4)
+
+        if (
+            self.settings.display_stimulus
+            and self.stim_status[i] == 0
+            and (self.stim_type == "audio" or (self.stim_type == "laser" and self.settings.display_tracking))
+        ):
+            if self.stim_type == "laser":
+                exclamation_color = (255, 200, 0)
+            else:
+                exclamation_color = (100, 200, 255)
+            cv2.putText(
+                self.actual_frame,
+                "!",
+                (self.avg_loc[0] - 100, self.avg_loc[1] - 40),
+                4,
+                1.5,
+                exclamation_color,
+                thickness=6,
+            )
+            cv2.putText(
+                self.actual_frame, "!", (self.avg_loc[0] - 100, self.avg_loc[1] - 40), 4, 1.5, (0, 0, 0), thickness=4
+            )
 
     def display_trail(self, i):
         if self.settings.display_trail:
@@ -164,16 +177,14 @@ class Visualize:
         """
         magnitudeOfVector = 30  # This is the length of the arrow that will be plotted on the frame
         heading_dir_x = int(
-            magnitudeOfVector * np.cos(self.hdir) # self.body_dir
+            magnitudeOfVector * np.cos(self.hdir)  # self.body_dir
         )  # Convert the angle from radians to an x component
-        heading_dir_y = -int(
-            magnitudeOfVector * np.sin(self.hdir)
-        )  # Convert the angle from radians to an y component
+        heading_dir_y = -int(magnitudeOfVector * np.sin(self.hdir))  # Convert the angle from radians to an y component
 
         # Plot the heading direction on the frame centered at the animal's average location
         cv2.arrowedLine(
             self.actual_frame,
-            self.head_loc, # self.avg_loc
+            self.head_loc,  # self.avg_loc
             (self.head_loc[0] + heading_dir_x, self.head_loc[1] + heading_dir_y),
             (220, 220, 220),
             1,
@@ -181,9 +192,33 @@ class Visualize:
         )
 
         # Plot the body direction interger on the frame (for debugging)
-        cv2.putText(self.actual_frame, f"HD: {str((self.hdir))}deg", (self.actual_frame.shape[1]-200, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        cv2.putText(self.actual_frame, f"BS: {str((self.bod_shelt_dir))}deg", (self.actual_frame.shape[1]-200, 150), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        cv2.putText(self.actual_frame, f"HS: {str((self.hdir_shelt))}deg", (self.actual_frame.shape[1]-200, 200), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        cv2.putText(
+            self.actual_frame,
+            f"HD: {str((self.hdir))}deg",
+            (self.actual_frame.shape[1] - 200, 100),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 255),
+            2,
+        )
+        cv2.putText(
+            self.actual_frame,
+            f"BS: {str((self.bod_shelt_dir))}deg",
+            (self.actual_frame.shape[1] - 200, 150),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 255),
+            2,
+        )
+        cv2.putText(
+            self.actual_frame,
+            f"HS: {str((self.hdir_shelt))}deg",
+            (self.actual_frame.shape[1] - 200, 200),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1,
+            (255, 255, 255),
+            2,
+        )
 
     def display_goal_dir_on_frame(self):
         """
@@ -192,20 +227,20 @@ class Visualize:
         magnitudeOfVector = 30  # This is the length of the arrow that will be plotted on the frame
 
         # flip it around for arrow visualization purposes
-        if self.bod_shelt_dir < 0: bs =  self.bod_shelt_dir + np.pi
-        if self.bod_shelt_dir > 0: bs =  self.bod_shelt_dir - np.pi
+        if self.bod_shelt_dir < 0:
+            bs = self.bod_shelt_dir + np.pi
+        if self.bod_shelt_dir > 0:
+            bs = self.bod_shelt_dir - np.pi
 
         # plot a blue arrow in direction of shelter
         heading_dir_x = int(
-            magnitudeOfVector * np.cos(bs) # self.bod_shelt_dir
+            magnitudeOfVector * np.cos(bs)  # self.bod_shelt_dir
         )  # Convert the angle from radians to an x component
-        heading_dir_y = -int(
-            magnitudeOfVector * np.sin(bs)
-        )  # Convert the angle from radians to an y component
+        heading_dir_y = -int(magnitudeOfVector * np.sin(bs))  # Convert the angle from radians to an y component
         # Plot the heading direction on the frame centered at the animal's average location
         cv2.arrowedLine(
             self.actual_frame,
-            self.head_loc, # self.avg_loc
+            self.head_loc,  # self.avg_loc
             (self.head_loc[0] + heading_dir_x, self.head_loc[1] + heading_dir_y),
             (220, 0, 0),
             1,
@@ -213,22 +248,24 @@ class Visualize:
         )
 
         # plot a green and red arrow in direction to two barrier edges (no arrows if no barrier)
-        if np.any(self.hdir_barrier): # bod_barr_dir
+        if np.any(self.hdir_barrier):  # bod_barr_dir
             cmap = [[0, 255, 0], [0, 0, 255]]
-            for i in np.arange(2):  # assuming two edges in barrier (we're not plotting the arrow to the center of the barrier)
+            for i in np.arange(
+                2
+            ):  # assuming two edges in barrier (we're not plotting the arrow to the center of the barrier)
                 # flip it wround for arrow visualization purposes
-                if self.hdir_barrier[i] < 0: bs =  self.hdir_barrier[i] + np.pi
-                if self.hdir_barrier[i] > 0: bs =  self.hdir_barrier[i] - np.pi
+                if self.hdir_barrier[i] < 0:
+                    bs = self.hdir_barrier[i] + np.pi
+                if self.hdir_barrier[i] > 0:
+                    bs = self.hdir_barrier[i] - np.pi
                 heading_dir_x = int(
-                    magnitudeOfVector * np.cos(bs) # bod_barr_dir
+                    magnitudeOfVector * np.cos(bs)  # bod_barr_dir
                 )  # Convert the angle from radians to an x component
-                heading_dir_y = -int(
-                    magnitudeOfVector * np.sin(bs)
-                )  # Convert the angle from radians to an y component
+                heading_dir_y = -int(magnitudeOfVector * np.sin(bs))  # Convert the angle from radians to an y component
                 # Plot the heading direction on the frame centered at the animal's average location
                 cv2.arrowedLine(
                     self.actual_frame,
-                    self.head_loc, # self.avg_loc
+                    self.head_loc,  # self.avg_loc
                     (self.head_loc[0] + heading_dir_x, self.head_loc[1] + heading_dir_y),
                     cmap[i],
                     1,
@@ -304,7 +341,7 @@ class Visualize:
     def print_session_details(self) -> None:
         logger.info("Commencing processing of sessions")
         for key in self.session.__dict__.keys():
-            if key in ['name']:
+            if key in ["name"]:
                 logger.info(" {}: {}".format(key, self.session.__dict__[key]))
         return None
 
@@ -313,7 +350,7 @@ class Visualize:
         """
         A function that does a lot of shit
         """
-        video_file = os.path.join(self.session.base_path,self.session.file_path,self.session.video.camFilePath)
+        video_file = os.path.join(self.session.base_path, self.session.file_path, self.session.video.camFilePath)
         self.source_video = cv2.VideoCapture(video_file)  # Read the video file into a cv2 video object
         self.fps = self.session.video.fps
 
@@ -342,7 +379,7 @@ class Visualize:
         # self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 
         trial_video_path = Directory(
-            os.path.join(self.session.base_path,self.session.processed_path),
+            os.path.join(self.session.base_path, self.session.processed_path),
             experiment=self.session.experiment,
             stim_type=self.stim_type,
             tracking_video=self.settings.display_tracking,
@@ -362,8 +399,7 @@ class Visualize:
         self.trial_video.release()
         cv2.destroyAllWindows()
 
-
-    # def get_current_position_and_speed_old(self) -> None:
+        # def get_current_position_and_speed_old(self) -> None:
         """
         A function that gets the body direction, speed, and average location of the animal. Under the condition that
         the tracking data is being displayed, or the trail is displayed, or the stimulus is displayed.
@@ -386,7 +422,8 @@ class Visualize:
 
 # ------------------------------------------------------------------Utilities ----------------------------------------------------------------
 
-# TODO: move to new script 
+# TODO: move to new script
+
 
 # Utiliy functions for visualise class
 def open_kalman_tracking_data(path):
@@ -395,18 +432,28 @@ def open_kalman_tracking_data(path):
         with open(file, "rb") as dill_file:
             kalman = pickle.load(dill_file)
         return kalman
-            
+
     except FileNotFoundError:
         logger.error(f"Kalman tracking data not found for this session")
         raise FileNotFoundError
-    
+
+
 def open_postprocess_object(session) -> object:
     try:
-        fileObj = open(os.path.join(session.base_path, session.processed_path) + "\\" + "postprocessclass" + "_" + str(settings.cluster_type), 'rb')
+        fileObj = open(
+            os.path.join(session.base_path, session.processed_path)
+            + "\\"
+            + "postprocessclass"
+            + "_"
+            + str(settings.cluster_type),
+            "rb",
+        )
         postprocessObject = pickle.load(fileObj)
         fileObj.close()
         return postprocessObject
-        
+
     except FileNotFoundError:
-        logger.error(f"Data not found for session: {session.name} - Check databank and whether you have actually run this configuration of postprocess. ")
+        logger.error(
+            f"Data not found for session: {session.name} - Check databank and whether you have actually run this configuration of postprocess. "
+        )
         raise FileNotFoundError
