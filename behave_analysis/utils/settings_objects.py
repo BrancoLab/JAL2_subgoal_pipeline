@@ -85,6 +85,8 @@ class Settings_visualize:
     cluster_type: str = ''
     conditions_to_plot: list = None
     stim_type: str = ''
+    over_ride_conditions: list = None
+    over_ride_conditions_bool: bool = False
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
