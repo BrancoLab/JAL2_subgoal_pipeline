@@ -1,6 +1,5 @@
 import os
 import dill as pickle
-# Custom libs
 
 from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t

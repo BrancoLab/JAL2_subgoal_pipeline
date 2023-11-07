@@ -1,14 +1,10 @@
-# Standard libraries
 import os
-
-# Third party libaries
 
 from loguru import logger
 import cv2
 import numpy as np
 import dill as pickle
 
-# Custom classes
 from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
@@ -27,7 +23,6 @@ class Visualize:
         self.fisheye_correction_map = load_fisheye_correction_map(session.video)
         self.delay_between_frames = int(1000 / self.session.video.fps * (not self.settings.rapid) + self.settings.rapid)
         self.kalman = open_kalman_tracking_data(os.path.join(self.session.base_path, self.session.processed_path))
-        self.print_session_details()  # let us know which session we're doing
         self.postprocessObject = open_postprocess_object(self.session)
 
     def trial_movies(self, stim_type) -> None:
@@ -337,13 +332,6 @@ class Visualize:
             self.trail_colors.append(trail_color)
             self.trail.append(self.avg_loc)
             self.trail_thicknesses.append(int(self.stim_status[i] != 0) + int(self.stim_type == "audio") + 1)
-
-    def print_session_details(self) -> None:
-        logger.info("Commencing processing of sessions")
-        for key in self.session.__dict__.keys():
-            if key in ["name"]:
-                logger.info(" {}: {}".format(key, self.session.__dict__[key]))
-        return None
 
     # ----SETUP FUNCTIONS-----------------------------------------------------------------------------------------------
     def set_up_videos(self, stim_type: str, trial_num: int, onset_frames: object, stimulus_durations: object):

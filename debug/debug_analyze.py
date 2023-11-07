@@ -15,9 +15,10 @@ def analyze():
     A function that calls all the analysis modules and is designed to be run last and for the whole dataset.
     """
     logger.info("The analysis pipeline has started")
-    for session_ID in experiments_objects:
-        session = Process(session_ID).load_session()
-        # AnalyzeBehave(session)
+    for session_id in experiments_objects:
+        session = Process(session_id).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_id))
+        AnalyzeBehave(session)
         if settings_a.efizz:
             AnalyzeEfizz(session)
     logger.success("Analysis pipeline complete")

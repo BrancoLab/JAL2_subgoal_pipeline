@@ -15,6 +15,7 @@ def visualize():
     logger.info("Visualisation started")
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_id))
         visual_object = Visualize(session)
         Visualize_behave(session, visual_object.postprocessObject).plot_behavioral_stats()
         if settings_v.stim_type != "None":
