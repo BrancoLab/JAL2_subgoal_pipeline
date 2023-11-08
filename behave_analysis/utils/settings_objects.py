@@ -152,7 +152,7 @@ class Settings_analyze_efizz:
     PCA_process: int = 15
     object_present: bool = True # we should delete this
     run_rayleigh: bool = False
-    rayleigh_bootstrap: bool = False
+    rayleigh_significance: str = ''
     single_cluster_plots: bool =True
     multi_cluster_plots: bool = False
     linear_shift: bool = True

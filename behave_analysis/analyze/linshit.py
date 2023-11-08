@@ -1,11 +1,17 @@
 """
-Author chain of code: Brandon Benson & Guido Meijer.
-
 Uses a conservative Linear Shift technique (Harris, Kenneth Arxiv 2021, https://arxiv.org/ftp/arxiv/papers/2012/2012.06862.pdf)
 to estimate significance level of a statistical measure. stat_computation_func computes a scalar statistical measure (e.g. R^2)
 from the data matrix, X, and the variable, y. A central window of X and y of size, D, is linearly shifted to generate a null distribution
 of statistical measures. Significance level is reported relative to this null distribution. The theory is that if two time series data are
 truely related, then they should be more so when recorded simulatenously rather than at random points.
+
+Author chain of code: Brandon Benson (IBL) & Guido Meijer (crypto paper).
+Benson function: https://int-brain-lab.github.io/iblenv/_modules/brainbox/population/decode.html#sigtest_linshift
+Meijer function: https://github.com/guidomeijer/crypto-correlations/blob/master/correlate_crypto_controls.py
+Harris code: https://github.com/kdharris101/nonsense-correlations/blob/main/nonsense.ipynb
+
+crypto paper: https://peercommunityjournal.org/item/10.24072/pcjournal.30.pdf
+
 """
 
 import numpy as np
@@ -22,31 +28,29 @@ class LinearShift:
             takes arguments (X, y) and returns a scalar statistical measure of how well X decodes y
             this is the "user defined function" referred to in Harris 2021. It is assumed that for
             this statistic a higher scalar value is "better".
-        D : int
+        size_of_central_chunk (D) : int
             the window length along the center of y used to compute the statistical measure.
             must have room to shift both right and left: len(y) >= D+2 - I believe this is the
             number of samples for the middle chunk.
         """
-        # print("starting shift")
         self.D = size_of_central_chunk
-        self.X = X
-        self.y = y
+        self.alpha_thresh = .01 # threshold for determining a significant p-value
+        self.step = 400 # this should be at least 40 (fps)
         self.user_defined_function = stat_computation_func
-        self.__check_inputs()
-        self.T, self.N, self.shifts = self.init_params()
-        self.real_stat = self.compute_V0_statistic()
-        self.pseudo_stats = self.compute_shifted_statistics()
+        self.__check_inputs(y)
+        self.T, self.N, shifts = self.init_params(y)
+        self.real_stat = self.compute_V0_statistic(X,y)
+        self.pseudo_stats = self.compute_shifted_statistics(X,y,shifts)
         self.reject_null, self.alpha, self.M, self.sig_level = self.compute_significance()
-        # print("done with shift")
 
-    def __check_inputs(self):
+    def __check_inputs(self,y):
         """
         Check the user defined arguments are valid
         """
-        assert len(self.y) >= self.D + 2, f"The combination of data size {len(self.y)} with central chunk size {self.D} is incompatible"
-        assert len(self.y) != 0, "The data provided has no length"
+        assert len(y) >= self.D + 2, f"The combination of data size {len(y)} with central chunk size {self.D} is incompatible"
+        assert len(y) != 0, "The data provided has no length"
 
-    def init_params(self):
+    def init_params(self,y):
         """
         Set up the parameters.
         + T: Total length of data
@@ -54,47 +58,48 @@ class LinearShift:
         + shifts: An nd.array of how much to shift the central chunk to compare from the start to the end of the array. Number of shifts
         is len(shifts)
         """
-        T = len(self.y)
+        T = len(y)
         N = int((T - self.D) / 2)
-        shifts = np.arange(-N, N - 400, 400) # 10 second shifts as camera is 40 Hz
-        # shifts = np.arange(-N, N - 400, 40) # 1 second shifts as camera is 40 Hz
+        shifts = np.arange(-N, N + 1,self.step)
 
         return T, N, shifts
 
-    def compute_V0_statistic(self):
+    def compute_V0_statistic(self,X,y):
         """
         Compute the real statistic for the simulatenously recorded central chunk
         """
         # return self.user_defined_function(self.X[self.N : self.T - self.N], self.y[self.N:self.T - self.N])[0]
-        # Filtering rows in Polars
-        # X_filtered = self.X.slice(self.N, self.T - 2*self.N)  # starts from self.N and takes (self.T - 2*self.N) rows
-        # y_filtered = self.y.slice(self.N, self.T - 2*self.N)  # same for y
-        
-        X_filtered = self.X[self.N : self.T - self.N] # Take out central chunk
-        y_filtered = self.y[self.N : self.T - self.N] # Take out central chunk
-        
-        # X_filtered = self.X[: self.N] # Take out last chunk
-        # y_filtered = self.y[ : self.N] # Take out last chunk
+        if type(X) == np.ndarray:
+            X_filtered = X[self.N : self.T - self.N]
+            y_filtered = y[self.N : self.T - self.N]
+        else:
+            # Filtering rows in Polars
+            X_filtered = X.slice(self.N, self.T - 2*self.N)  # starts from self.N and takes (self.T - 2*self.N) rows
+            y_filtered = y.slice(self.N, self.T - 2*self.N)  # same for y
 
         return self.user_defined_function(X_filtered, y_filtered)
 
-    def compute_shifted_statistics(self):
+    def compute_shifted_statistics(self,X,y,shifts):
         """
         Shift the central chunk and compute the user defined statistic on non simulatenously recorded segments of X and y.
         Hold X stationary.
         """
         
-        pseudoStats = np.zeros(len(self.shifts)) # How many pseudo statistics to compute
-        for shift_idx in range(len(self.shifts)):
-            s = self.shifts[shift_idx] # How much to shift the central chunk by
-            # print(f"shift {shift_idx} of {len(self.shifts)}")
+        pseudoStats = np.zeros(len(shifts)) # How many pseudo statistics to compute
+        for shift_idx in range(len(shifts)):
+            s = shifts[shift_idx] # How much to shift the central chunk by
+            # print(f"shift {shift_idx} of {len(shifts)}")
             
             # Remove central chunk
             if s == 0:
                 continue
             
-            xFiltered = self.X.slice(self.N, self.T - 2*self.N)
-            yFiltered = self.y.slice(s + self.N, self.T - 2*self.N)
+            if type(X) == np.ndarray:
+                xFiltered = X[self.N : self.T - self.N]
+                yFiltered = y[s + self.N:s + self.T - self.N]
+            else:
+                xFiltered = X.slice(self.N, self.T - 2*self.N)
+                yFiltered = y.slice(s + self.N, self.T - 2*self.N)
             pseudoStats[shift_idx] = self.user_defined_function(xFiltered, yFiltered)
 
         return pseudoStats
@@ -104,17 +109,19 @@ class LinearShift:
         How often is the shifted chance statistic greater than the real statistic. If a stronger statistic means
         higher or lower, does that effect the sign for acceptance, question? As long as "better" means higher stat fine for now.
         + reject_null (bool): Can the null hypothesis be rejected. If True, rejoice
-        + alpha (float): what is the signifcance level
+        + alpha (float): p-value, what is the signifcance level
         + M (int): how often is the shifted pseudo statistic greater than the real
         """
         M = np.sum(self.pseudo_stats >= self.real_stat) # m = sum I(V_S >_ V_0)
-        alpha = M / len(self.pseudo_stats)
+        p_val = M / ((len(self.pseudo_stats)/2) + 1) # alpha = M / (N+1)
         reject_null = False
-        if M <= alpha*(self.N + 1): # If true, reject the Null hypothesis. Your data is 'probably' significant. Rejoice.
+        if p_val < self.alpha_thresh:
+            # If true, reject the Null hypothesis. Your data is 'probably' significant. Rejoice.
+            # originally: if M <= alpha*((len(self.pseudo_stats)/2) + 1): m <= alpha*(N+1)
             reject_null = True
             
-        signifcance_level = alpha*(self.N + 1)    
-        return reject_null, alpha, M, signifcance_level
+        signifcance_level = p_val*(self.N + 1)    
+        return reject_null, p_val, M, signifcance_level
 
 if __name__ == "__main__":
 

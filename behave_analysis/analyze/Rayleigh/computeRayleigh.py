@@ -4,10 +4,13 @@ import numpy as np
 import polars as pl
 import os
 import matplotlib
+matplotlib.use('TkAgg')
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, identify_conditions
 import matplotlib.gridspec as gridspec
+from settings.settings_analyze_efizz import Settings_ae
+from behave_analysis.analyze.linshit import LinearShift
 
 def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_path):
     """ 
@@ -42,7 +45,7 @@ def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_p
                 
                 # compute tuning
                 logger.info("Calculating Rayleigh vectors for " + str(a) + " in condition: " + str(c))
-                rayleigh_vector(self, settings, this_df, X, a, data_path, compartment, settings.rayleigh_bootstrap)
+                rayleigh_vector(self, settings, this_df, X, a, data_path, compartment, settings.rayleigh_significance)
 
 def compute_single_cluster_tuning(self,settings):
     """Compute rayleigh and make polar plots for all angles in all conditions for a single cluster"""
@@ -120,12 +123,7 @@ def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, p
                 plt.show()
             plt.close()
 
-def compute_95th_percentile_rayleigh(rayleigh_results):
-    """Compute the 95th percentile of the rayleigh distribution for each angle and condition"""
-    flat_list = [item for sublist in rayleigh_results["Rayleigh"].to_list() for item in sublist] # unpack a series of lists into a single list
-    return np.percentile(flat_list, 95)
-
-def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_path, compartment, compute_bootstrap = False):
+def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_path, compartment, compute_significance = None):
     """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
     It only considers times when the mouse was outside the shelter
     It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
@@ -134,7 +132,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     Rayleigh's R close to 1 = very tuned, fires only when head is in one orientation"""
     
     # edges for binning firing rate at different angles
-    bin_angles, bin_angle_center = generate_bin_angles(number_of_bins = 19)
+    bin_angles, bin_angle_center = generate_bin_angles(number_of_bins = Settings_ae.number_of_bins)
             
     # Catch empty video dataframes
     if len(filtered_video_df) == 0:
@@ -151,30 +149,39 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(cluster_Ids, len(np.unique(compartment)), bin_angle_center)
     
     # assign spike times of each cluster to the corresponding video frame, then assign HD
-    for counter,c in enumerate(cluster_Ids):
-        Rayleigh_cluster[counter] = c
+    for count,c in enumerate(cluster_Ids):
+        Rayleigh_cluster[count] = c
         for c_count, comp in enumerate(np.unique(compartment)):
-
-            # compute firing in angle bins
-            angles_firing = np.zeros(len(bin_angles)-1)
-            unique_groups, group_counts = np.unique(binned_angles[compartment == comp], return_counts=True)
-            group_sums = np.bincount(binned_angles[compartment == comp], weights = X[compartment == comp,counter])
-            angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
-
-            # compute rayleigh
-            Rayleigh[counter,c_count], Rayleigh_theta[counter,c_count] = rayleigh(bin_angle_center[1:-1],angles_firing)
-            angle_firing_hist[counter,:,c_count] = angles_firing
             
-            # TODO: bootstrap x times with variable shifts in time
+            Rayleigh[count,c_count], Rayleigh_theta[count,c_count], angle_firing_hist[count,:,c_count] = compute_rayleigh_cluster(X[compartment == comp,count], 
+                                                                                                                                    binned_angles[compartment == comp], 
+                                                                                                                                    return_all_stats = True)   
+
             # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations 
-            # if compute_bootstrap:
-            #     x = 100
-            #     shift_dist = np.empty(x)
-                    
-            #     # significance logical
-            #     if Rayleigh[counter] > np.percentile(shift_dist, 95):
-            #         Rayleigh_sig[counter] = 1
-            #         print('yay! ' + str(c) + ' is significant')
+            if compute_significance == 'linshit':
+                LS_output = LinearShift(X[compartment == comp,count], 
+                                        y = binned_angles[compartment == comp],
+                                        stat_computation_func = compute_rayleigh_cluster,
+                                        size_of_central_chunk = np.round(np.shape(X[compartment == comp,count])[0]/3))
+
+                # significance logical
+                if LS_output.reject_null:
+                    Rayleigh_sig[count] = 1
+                    # print('yay! ' + str(c) + ' is significant')
+
+            # alternative method with bootstrap
+            if compute_significance == 'bootstrap':
+                x = 100
+                shift_dist = np.empty(x)
+                for it in np.arange(x):
+                    # shuffled linear shifts performed at a random offset between 0 and 100 seconds
+                    shift = int(np.random.uniform(1, 100)) * self.session.video.fps # temporal shift in video frames
+                    ang_roll = np.roll(binned_angles, shift)
+                    shift_dist[it] = compute_rayleigh_cluster(X[compartment == comp,count], ang_roll[compartment == comp]) 
+                # significance logical
+                if Rayleigh[count] > np.percentile(shift_dist, 95):
+                    Rayleigh_sig[count] = 1
+                    # print('yay! ' + str(c) + ' is significant')  
 
     # histogram of rayleighs
     plt.figure()
@@ -265,6 +272,30 @@ def rayleigh(angles,firing) -> tuple:
     theta = np.arctan2(y,x)
     r = np.sqrt(x**2 + y**2)
     return r, theta
+
+def firing_by_angle_bin(angles,neural_activity,nbins):
+    angles_firing = np.zeros(nbins)
+    unique_groups, group_counts = np.unique(angles, return_counts=True)
+    group_sums = np.bincount(angles, weights = neural_activity)
+    angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
+    return angles_firing
+
+def compute_rayleigh_cluster(X, y, return_all_stats = False):
+    """ This only works if there are no angle bins that are completely empty (angles that never occur)"""
+    # compute firing in angle bins
+    angle_firing_hist = firing_by_angle_bin(y,X,len(np.unique(y)))
+    _, bin_angle_center = generate_bin_angles(number_of_bins = Settings_ae.number_of_bins)
+    # compute rayleigh
+    Rval, Rtheta = rayleigh(bin_angle_center[1:-1],angle_firing_hist) 
+    if return_all_stats:
+        return Rval, Rtheta, angle_firing_hist
+    else:
+        return Rval
+       
+def compute_95th_percentile_rayleigh(rayleigh_results):
+    """Compute the 95th percentile of the rayleigh distribution for each angle and condition"""
+    flat_list = [item for sublist in rayleigh_results["Rayleigh"].to_list() for item in sublist] # unpack a series of lists into a single list
+    return np.percentile(flat_list, 95)
 
 ## ---------------------PLOTTING -----------------------------
 
