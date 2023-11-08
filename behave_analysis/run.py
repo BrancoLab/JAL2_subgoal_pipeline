@@ -1,12 +1,10 @@
-import os
-import dill as pickle
+from loguru import logger
 
 from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t
 from settings.settings_visualize import Settings_visualize as settings_v
-from settings.settings_analyze import settings_analyze as settings_a
-from settings.settings_analyze_efizz import Settings_analyze_efizz as settings_a_e
 from settings.settings_homings import settings_homings as settings_h
+from settings.settings_analyze import settings_analyze as settings_a
 from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
 from behave_analysis.homings.homings import get_Homings
@@ -14,17 +12,11 @@ from behave_analysis.homings.threshold_crossings import get_Threshold_crossings
 from behave_analysis.visualize.visualize_main import Visualize
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
-from behave_analysis.analyze.analyze import Analyze
-from behave_analysis.utils.print_settings import print_settings, print_settings_analysis
-from behave_analysis.utils.collect_session_IDs import collect_session_IDs, collect_session_IDs_analysis
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
-from databank import experiments_objects
 from behave_analysis.postprocess.pp_main import Postprocessor
+from databank import experiments_objects
 
-# OS Libaries
-
-from loguru import logger
 
 def process():
     """
@@ -48,6 +40,7 @@ def track():
     logger.info("The tracking pipeline has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_ID))
         Track(settings_t, session)
     logger.success("Tracking complete")
 
@@ -65,6 +58,7 @@ def postprocess():
     logger.info("The post processing of the data has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_ID))
         Postprocessor(session)
     logger.success("The post processing of the data has finished and the postprocessed object has been saved to a pickle file")
 
@@ -76,6 +70,7 @@ def visualize():
     logger.info("Visualisation started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_ID))
         visual_object = Visualize(session)
         Visualize_behave(session,visual_object.postprocessObject).plot_behavioral_stats()
         if settings_v.stim_type != '':
@@ -94,6 +89,7 @@ def analyze():
     logger.info("The analysis pipeline has started")
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_ID))
         AnalyzeBehave(session)
         if settings_a.efizz:
             AnalyzeEfizz(session)
