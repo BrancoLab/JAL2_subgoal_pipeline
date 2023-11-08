@@ -10,8 +10,9 @@ def track():
     in Deep lab cut.
     """
     logger.info("The tracking pipeline has started")
-    for session_ID in experiments_objects:
-        session = Process(session_ID).load_session()
+    for session_id in experiments_objects:
+        session = Process(session_id).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_id))
         Track(settings_t, session)
     logger.success("Tracking complete")
     

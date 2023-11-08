@@ -10,8 +10,9 @@ def process():
     Returns: Nothing, data is saved to a metadata file."""
     
     assert len(experiments_objects) != 0, "Session list should not be empty"
-    for session_ID in experiments_objects:
-        processObject = Process(session_ID)
+    for session_id in experiments_objects:
+        logger.info("Creating a session with the following details: {}".format(session_id))
+        processObject = Process(session_id)
         processObject.create_session(settings_p)
     logger.success("Processing complete")
 

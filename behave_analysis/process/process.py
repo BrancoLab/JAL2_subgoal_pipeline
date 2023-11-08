@@ -24,9 +24,9 @@ class Process():
     A class that holds the processing part of the data pipeline. It is the first part of the pipeline that should be run.
     This stage also includes verifications of data
     """
-    def __init__(self, session_ID):
-        logger.info("Session details: {}".format(session_ID))
-        self.session = get_experiment(session_ID) # Retrieve experimental data
+    def __init__(self, session_id):
+        self.session = get_experiment(session_id) # Retrieve experimental data
+        self.sesion_id = session_id
         
     def create_session(self, video_settings) -> NEW_Session:
         """
@@ -107,7 +107,7 @@ class Process():
             with open(os.path.join(self.session.base_path, self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
                 session.base_path, _ = get_computer_specific_paths()
-                
+
         except FileNotFoundError:
             print(f"Meta data file for path {os.path.join(self.session.base_path, self.session.metadata_file)} not found, aborting script")
             sys.exit()
