@@ -1,4 +1,4 @@
-# OS Libaries
+"""A module to hold the stats functions associated with the TunED model."""
 
 import numpy as np
 from scipy.stats import norm, binom
@@ -83,7 +83,7 @@ class TunEDModelStats:
         raise NotImplementedError('Was trying to implement the conditional probabilities but I am not sure if this is correct.')
     
     @staticmethod
-    def compute_significance_between_pairs_of_tuning_curves_set(Nbins, observed_tf, expected_tf, observed_sem, expected_sem):
+    def compute_sig_between_curves(Nbins, observed_tf, expected_tf, observed_sem, expected_sem):
         """
         Computes the significance between pairs of tuning curves.
         

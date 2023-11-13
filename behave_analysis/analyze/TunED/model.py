@@ -1,25 +1,21 @@
 """
-TunED model: disentangles the tuning of a neuron to two simultaneously recorded stimulus variables using coniditional independence tests.
+This model disentangles the tuning of a neuron to two simultaneously recorded 
+stimulus variables using coniditional independence tests.
 
-Tuning function (tf): 
-- Mean firing rate of a neuron to a given stimulus µ(v1) or µ(v2). See class compute_observed_tuning_function for more details.
-
-Null hypothesis (nh): 
-- We set a null hypothesis asking how much of the tuning function of one neuron to stimulus V1 can be explained by a second stimulus variable V2 and 
-its interaction with V1. We compute the expected conditional E[fr(v2)|v1]. And thus the NH is that the tuning function of that neuron is purely driven 
-by V2 and not V1. See class compute_null_hypothesis for more details. If the NH is true then the tuning function of that neuron should be the 
-same as the expected conditional.
+Definitions:
+-- tuning function (tf) - the mean firing rate of a neuron to a given stimulus
+-- null hypothesis (nh) - the tuning function of a neuron to a given stimulus is 
+purely driven by a second stimulus variable
 
 TODO:
-- There should be some quality checks done on the ingested data because I found a spike count at 130  in one frame for one cell which is impossible so data quality is not there yet.
-- Bins are not uniformly sampling with some bins empty - this might be causing unknown issues
-- make coeff circular coeff 
++ There should be some quality checks done on the ingested data because I found a spike 
+count at 130  in one frame for one cell which is impossible so data quality is not there yet.
++ Bins are not uniformly sampling with some bins empty - this might be causing unknown issues
++ make coeff circular coeff 
 """
 
-# standard libaries
+import os
 import pickle
-
-# Third party imports
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,11 +24,9 @@ import polars as pl
 from loguru import logger
 from tqdm import tqdm
 
-# Custom imports
-
-from behave_analysis.analyze.linshit import LinearShift
-from behave_analysis.analyze.TunED.tunED_stats import TunEDModelStats
-from behave_analysis.analyze.TunED.tunED_tuning_functions import (
+from behave_analysis.analyze.stats.linshit import LinearShift
+from behave_analysis.analyze.TunED.stats import TunEDModelStats
+from behave_analysis.analyze.TunED.tuning_curves import (
     ComputeObservedTuningFunction,
     ComputeNullHypothesisTuningFunction,
 )
@@ -61,15 +55,16 @@ class TunEdModel:
 
     # ---------------------------- High level functions ----------------------------------------------
 
-    def main(self, just_plots=True) -> dict:
+    def main(self, just_plots=False) -> dict:
         """Returns the classification results for each cluster and plots the tuning functions
         for each cluster and condition if requested"""
-        # classification_results = self.class_ec_clu_lin_shit()
         if just_plots:
+            # Just run the model for plotting and don't return the classification results
             self.run_model_4_plots()
             return None
         else:
             classification_results = self.class_ec_clu_lin_shit()
+            self.save_classification_results(classification_results)
             self.run_model_4_plots()
             return classification_results
 
@@ -127,14 +122,6 @@ class TunEdModel:
                 plt.show()
             plt.close()
 
-        # ------------------------Compute the number of clusters classified as hdir and hsa --------------------------------------
-
-        # self.sum_and_print_number_of_classified_cells(accuracy_dic)
-
-        return None
-
-    # ---------------------------- Linear shift functions ----------------------------------------------
-
     def select_significant_cluster_ids(self) -> list:
         """Select the cluster IDs that are significant in at least one compartment"""
         return ReturnSigClusters(self.post_process_object, self.settings).sig_clusters["cluster_id"].to_list()
@@ -149,17 +136,21 @@ class TunEdModel:
             return 1
 
     def class_ec_clu_lin_shit(self) -> dict:
-        """Classification of each cluster using linear shift combined with TunED
+        """Classification of each cluster using linear shift
+        combined with TunED
 
-        Theory: Given a cell tuned to a single stimuli, shifting that stimuli should result in a significant change.
-        Shifting the other stimuli the cell is NOT tuned to, should not result in a significant change.
+        Theory: Given a cell tuned to a single stimuli, shifting that stimuli
+        should result in a significant change.Shifting the other stimuli the
+        cell is NOT tuned to, should not result in a significant change.
 
         Returns:
-        -- classification (dict): key is cluster and value is a dictionary of the classification results e.g {"Hdir_tuned": True, "hsa_tuned": False, "mixed_tuning": False}
+        -- classification (dict): key is cluster and value is a dictionary of the
+        classification results e.g =
+        {"Hdir_tuned": True, "hsa_tuned": False, "mixed_tuning": False}
 
         TODO:
-        + does not take condition into things
-        + does not ingest specific cluster
+        + does not compute per condition
+        + does not load significant clusters
         """
 
         # Remove time mouse is in the shelter
@@ -167,7 +158,6 @@ class TunEdModel:
         clean_spike_df = df.filter((df["OutofshelterIdx"] == True))
 
         clusters = np.unique(clean_spike_df["spike_clusters"])
-        # clusters = np.unique(self.select_significant_cluster_ids())  # Only run the model on significant clusters
 
         shifted_variables = ["hdir", "hsa"]
         classification = {}
@@ -219,6 +209,7 @@ class TunEdModel:
         return classification
 
     def user_defined_func_lin_shit(self, X, y):
+        """The func passed to the lin shift class"""
         # Prepare data
         filtered_df = X
         filtered_df = filtered_df.with_column(y)  # Replace the NH column with the shifted NH column
@@ -261,7 +252,7 @@ class TunEdModel:
         )
 
         # Compute the significance of difference between the observed and expected tuning functions
-        hdir_significance, _, _ = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(
+        hdir_significance, _, _ = TunEDModelStats.compute_sig_between_curves(
             Nbins=Nbins,
             observed_tf=hdir_tf_obj.tuning_func,
             expected_tf=hsa_NH_object.tuning_func_nh,
@@ -269,7 +260,7 @@ class TunEdModel:
             expected_sem=hsa_NH_object.tuning_func_nh_sem,
         )
 
-        hsa_significance, _, _ = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(
+        hsa_significance, _, _ = TunEDModelStats.compute_sig_between_curves(
             Nbins=Nbins,
             observed_tf=hsa_tf_obj.tuning_func,
             expected_tf=hdir_NH_object.tuning_func_nh,
@@ -277,38 +268,17 @@ class TunEdModel:
             expected_sem=hdir_NH_object.tuning_func_nh_sem,
         )
 
-        # For debuing plot the shifted curves
-        # self.plot_tuning_functions(
-        #             num_conditions = len(self.conditions),
-        #             hdir_tf_obj = hdir_tf_obj,
-        #             hsa_NH_object = hsa_NH_object,
-        #             hsa_tf_obj = hsa_tf_obj,
-        #             hdir_NH_object = hdir_NH_object,
-        #             is_hdir_sig = None,
-        #             is_hsa_sig = None,
-        #             condition_indx = 0,
-        #         )
-
-        # plt.show()
-
-        # have I got it the right way around?
-        # if y.name == "hdir":
-        #     return np.sum(hsa_significance[0])
-
-        # elif y.name == "hsa":
-        #     return np.sum(hdir_significance[0])
-
-        # The logic holds that if a cell is tuned to hdir, then shifting hdir will result in a siginifcant change etc
-        # Shift hdir, return HSA NH
+        # If a cell is tuned to hdir, then shifting hdir will
+        # result in a siginifcant change. And shifting hsa will
+        # not result in a significant change because the cell
+        # is not tuned to hsa. The opposite is true for hsa tuning.
         if y.name == "hdir":
+            # Shift hdir, return HSA NH
             return np.sum(hdir_significance[0])
 
-        # Shift hsa, return HDIR NH
         elif y.name == "hsa":
+            # Shift hsa, return HDIR NH
             return np.sum(hsa_significance[0])
-
-        # dictionary = {"HSA NH": np.sum(hdir_significance[0]), "HDIR NH": np.sum(hsa_significance[0])}
-        # return dictionary
 
     # ---------------------------- Plotting functions ----------------------------------------------
 
@@ -395,8 +365,8 @@ class TunEdModel:
         col1.legend(loc="upper right", fontsize=16)
         # plt.xticks(fontsize=16)
         # plt.yticks(fontsize=16)
-        matplotlib.rc('xtick', labelsize=16) 
-        matplotlib.rc('ytick', labelsize=16)
+        matplotlib.rc("xtick", labelsize=16)
+        matplotlib.rc("ytick", labelsize=16)
         plt.subplots_adjust(wspace=0.01)
 
         return None
@@ -421,13 +391,13 @@ class TunEdModel:
     # ----------------------------- TunED model functions --------------------------------------------
 
     def init_model_inputs(self, data_df):
-        """Init the inputs for the TunEd model"""
-        Nsamples = len(data_df)
-        Nbins = 20  # Number of bins to use to bin up the stimulus variable
-        hdir = np.array(data_df["hdir"].to_numpy()).reshape(1, Nsamples)
-        hsa = np.array(data_df["hsa"].to_numpy()).reshape(1, Nsamples)
-        raster = np.array(data_df["spike_count"].to_numpy()).reshape(1, Nsamples)
-        return Nsamples, Nbins, hdir, hsa, raster
+        """Init the inputs for the model"""
+        n_samples = len(data_df)
+        n_bins = 20  # Number of bins to use to bin up the stimulus variable
+        hdir = np.array(data_df["hdir"].to_numpy()).reshape(1, n_samples)
+        hsa = np.array(data_df["hsa"].to_numpy()).reshape(1, n_samples)
+        raster = np.array(data_df["spike_count"].to_numpy()).reshape(1, n_samples)
+        return n_samples, n_bins, hdir, hsa, raster
 
     def compute_mean_firing_curves(self, raster, hdir, hsa, Nbins, Nsamples):
         """Compute the mean firing curves for hdir and hsa"""
@@ -441,16 +411,16 @@ class TunEdModel:
 
     def compute_conditionals(self, hdir, hsa, hdir_tf_obj, hsa_tf_obj, Nbins):
         """Compute the conditional probabilities"""
-        jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(
+        joint_prob, _, _ = TunEDModelStats.compute_joint_prob(
             hdir,
             hsa,
             stimulusV2edges=hsa_tf_obj.stimulus_bin_edges,
             stimulusV1edges=hdir_tf_obj.stimulus_bin_edges,
             Nbins=Nbins,
         )
-        Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
-        Pv2_v1 = jointProb_stimuli / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1)
-        Pv1_v2 = jointProb_stimuli.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2)  # P(v1|v2)
+        Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(joint_prob)
+        Pv2_v1 = joint_prob / (np.ones(len(Pv2)).reshape(-1, 1) * Pv1)
+        Pv1_v2 = joint_prob.T / (np.ones(len(Pv1)).reshape(-1, 1) * Pv2)  # P(v1|v2)
         return Pv1_v2, Pv2_v1
 
     def compute_NH_tuning(self, hdir_tf_obj, hsa_tf_obj, Pv1_v2, Pv2_v1):
@@ -475,9 +445,9 @@ class TunEdModel:
     # ----------------------------- Produce confidence intervals for plotting ------------------------
     def convert_CIs_to_dict(self, hdirObservedCI, hdirExpectedCI, hsaObservedCI, hsaExpectedCI):
         """Convert confidence intervals to a dictionary"""
-        hdirCI = {"observedCI": hdirObservedCI, "expectedCI": hdirExpectedCI}  # Needed to plot MOE on tuning functions
-        hsaCI = {"observedCI": hsaObservedCI, "expectedCI": hsaExpectedCI}
-        return hdirCI, hsaCI
+        hdir_ci = {"observedCI": hdirObservedCI, "expectedCI": hdirExpectedCI}  # Needed to plot MOE on tuning functions
+        hsa_ci = {"observedCI": hsaObservedCI, "expectedCI": hsaExpectedCI}
+        return hdir_ci, hsa_ci
 
     def produce_CIs(self, Nbins, hdir_tf_obj, hsa_NH_object, hsa_tf_obj, hdir_NH_object) -> (dict, dict):
         """Produce CIs for each curve"""
@@ -485,7 +455,7 @@ class TunEdModel:
             _,
             hdirObservedCI,
             hdirExpectedCI,
-        ) = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(
+        ) = TunEDModelStats.compute_sig_between_curves(
             Nbins=Nbins,
             observed_tf=hdir_tf_obj.tuning_func,
             expected_tf=hsa_NH_object.tuning_func_nh,
@@ -496,7 +466,7 @@ class TunEdModel:
             _,
             hsaObservedCI,
             hsaExpectedCI,
-        ) = TunEDModelStats.compute_significance_between_pairs_of_tuning_curves_set(
+        ) = TunEDModelStats.compute_sig_between_curves(
             Nbins=Nbins,
             observed_tf=hsa_tf_obj.tuning_func,
             expected_tf=hdir_NH_object.tuning_func_nh,
@@ -507,119 +477,127 @@ class TunEdModel:
 
         return hdir_CI, hsa_CI
 
+    # ------------------------------- Utility functions ----------------------------------------------
 
-if __name__ == "__main__":
-    """
-    The below logic is used to run the module as a standalone module for the purpose of testing toy data. It is currently set up to run on synthetic data that matches the matlab code
-    writen to produce the model from Campagner et al., 2022. Should the functions above be modified, this code will need to be modified to match.
-    """
+    def save_classification_results(self, results: dict) -> None:
+        """Save the classification results to a pickle file"""
+        file_obj = open(os.path.join(self.directory_location, "classification_results"), "wb")
+        pickle.dump(results, file_obj)
+        file_obj.close()
 
-    # Init params
-    Ncells = 1
-    Nsamples = 100000  # Number of samples to generate, i.e. number of frames
-    Nbins = 10  # Number of bins to use to bin up the stimulus variable
 
-    # Generate stimuli
-    stimulusV1 = np.random.randn(1, Nsamples)  # Driver stimulus
-    stimulusV2 = stimulusV1 * 0.6 + np.random.randn(1, Nsamples)  # Passenger stimulus
+# if __name__ == "__main__":
+# """
+# The below logic is used to run the module as a standalone module for the purpose of testing toy data. It is currently set up to run on synthetic data that matches the matlab code
+# writen to produce the model from Campagner et al., 2022. Should the functions above be modified, this code will need to be modified to match.
+# """
 
-    print(
-        np.corrcoef(stimulusV1, stimulusV2)
-    )  # Print the stimulus variables as a correlation matrix, to show variable 2 is correlated with variable 1
+# # Init params
+# Ncells = 1
+# Nsamples = 100000  # Number of samples to generate, i.e. number of frames
+# Nbins = 10  # Number of bins to use to bin up the stimulus variable
 
-    # Generate spike trains from a Poisson process with a rate that depends on the stimulus V1
-    frate = 0.1 * (stimulusV1[0, :] > 1.0) * stimulusV1[0, :]
-    frate = np.minimum(1, frate)
-    raster = np.zeros((1, Nsamples))
-    raster[0, :] = np.random.poisson(frate)
+# # Generate stimuli
+# stimulusV1 = np.random.randn(1, Nsamples)  # Driver stimulus
+# stimulusV2 = stimulusV1 * 0.6 + np.random.randn(1, Nsamples)  # Passenger stimulus
 
-    # Compute the tuning functions
-    v1Object = ComputeObservedTuningFunction(raster, stimulusV1, Nbins, Nsamples)
-    v2Object = ComputeObservedTuningFunction(raster, stimulusV2, Nbins, Nsamples)
+# print(
+#     np.corrcoef(stimulusV1, stimulusV2)
+# )  # Print the stimulus variables as a correlation matrix, to show variable 2 is correlated with variable 1
 
-    # Joint probability of the stimuli --------------------------------------------------------
-    jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(
-        stimulusV1,
-        stimulusV2,
-        stimulusV2edges=v2Object.stimulus_bin_edges,
-        stimulusV1edges=v1Object.stimulus_bin_edges,
-        Nbins=Nbins,
-    )
+# # Generate spike trains from a Poisson process with a rate that depends on the stimulus V1
+# frate = 0.1 * (stimulusV1[0, :] > 1.0) * stimulusV1[0, :]
+# frate = np.minimum(1, frate)
+# raster = np.zeros((1, Nsamples))
+# raster[0, :] = np.random.poisson(frate)
 
-    Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
-    Pv2_v1 = jointProb_stimuli / (
-        np.ones(len(Pv2)).reshape(-1, 1) * Pv1
-    )  # P(v2|v1) # TODO write a compute conditional probability function with logic i Understand
-    Pv1_v2 = jointProb_stimuli.T / (
-        np.ones(len(Pv1)).reshape(-1, 1) * Pv2
-    )  # P(v1|v2) # Tranpose to ensure broadcasting works correctly row wise instead of column wise
+# # Compute the tuning functions
+# v1Object = ComputeObservedTuningFunction(raster, stimulusV1, Nbins, Nsamples)
+# v2Object = ComputeObservedTuningFunction(raster, stimulusV2, Nbins, Nsamples)
 
-    # ------------------------------- NULL Hypothesis tests ---------------------------------------------------------------------
-    V2_NH_object = ComputeNullHypothesisTuningFunction(
-        v2Object.tuning_func, v2Object.tuning_func_s2, v1Object.n, Pv2_v1
-    )  # E[fr(v2)|v1] given NH that cell is driven purely by V2:
-    V1_NH_object = ComputeNullHypothesisTuningFunction(
-        v1Object.tuning_func, v1Object.tuning_func_s2, v2Object.n, Pv1_v2
-    )  # E[fr(v1)|v2] given NH that cell is driven purely by V1:
+# # Joint probability of the stimuli --------------------------------------------------------
+# jointProb_stimuli, _, _ = TunEDModelStats.compute_joint_prob(
+#     stimulusV1,
+#     stimulusV2,
+#     stimulusV2edges=v2Object.stimulus_bin_edges,
+#     stimulusV1edges=v1Object.stimulus_bin_edges,
+#     Nbins=Nbins,
+# )
 
-    # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
-    fig, ax = plt.subplots(1, 2, figsize=(18, 5))
+# Pv1, Pv2 = TunEDModelStats.compute_marginal_prob(jointProb_stimuli)
+# Pv2_v1 = jointProb_stimuli / (
+#     np.ones(len(Pv2)).reshape(-1, 1) * Pv1
+# )  # P(v2|v1) # TODO write a compute conditional probability function with logic i Understand
+# Pv1_v2 = jointProb_stimuli.T / (
+#     np.ones(len(Pv1)).reshape(-1, 1) * Pv2
+# )  # P(v1|v2) # Tranpose to ensure broadcasting works correctly row wise instead of column wise
 
-    ax[0].plot(v1Object.bin_centres, v1Object.tuning_func[0, :], ".-", label="Tuning to v1", color="gold")
-    ax[0].fill_between(
-        v1Object.bin_centres,
-        v1Object.tuning_func[0, :] - v1Object.tuning_func_sem[0, :],
-        v1Object.tuning_func[0, :] + v1Object.tuning_func_sem[0, :],
-        alpha=0.1,
-        color="gold",
-    )
-    ax[0].plot(
-        v1Object.bin_centres,
-        V2_NH_object.tuning_func_nh[0, :],
-        ".--",
-        label="Tuning to v1 given NH that driver is v2 E[fr(v2)|v1]",
-        color="darkorange",
-    )
-    ax[0].fill_between(
-        v1Object.bin_centres,
-        V2_NH_object.tuning_func_nh[0, :] - V2_NH_object.tuning_func_nh_sem[0, :],
-        V2_NH_object.tuning_func_nh[0, :] + V2_NH_object.tuning_func_nh_sem[0, :],
-        alpha=0.1,
-        color="darkorange",
-    )
-    ax[0].set_xlabel("v1")
-    ax[0].set_ylabel("fr")
-    ax[0].legend(loc="upper right")
-    ax[0].set_title("Tuning to V1", fontweight="bold")
+# # ------------------------------- NULL Hypothesis tests ---------------------------------------------------------------------
+# V2_NH_object = ComputeNullHypothesisTuningFunction(
+#     v2Object.tuning_func, v2Object.tuning_func_s2, v1Object.n, Pv2_v1
+# )  # E[fr(v2)|v1] given NH that cell is driven purely by V2:
+# V1_NH_object = ComputeNullHypothesisTuningFunction(
+#     v1Object.tuning_func, v1Object.tuning_func_s2, v2Object.n, Pv1_v2
+# )  # E[fr(v1)|v2] given NH that cell is driven purely by V1:
 
-    # ------------------------------------------- second chart ------------------------------------------------------
+# # Plot the tuning functions and Null Hypothesis -----------------------------------------------------------------
+# fig, ax = plt.subplots(1, 2, figsize=(18, 5))
 
-    ax[1].plot(v2Object.bin_centres, v2Object.tuning_func[0, :], ".-", label="Tuning to v2", color="gold")
-    ax[1].fill_between(
-        v2Object.bin_centres,
-        v2Object.tuning_func[0, :] - v2Object.tuning_func_sem[0, :],
-        v2Object.tuning_func[0, :] + v2Object.tuning_func_sem[0, :],
-        color="gold",
-        alpha=0.1,
-    )
-    ax[1].plot(
-        v2Object.bin_centres,
-        V1_NH_object.tuning_func_nh[0, :],
-        ".--",
-        label="Tuning to v2 given NH that driver is v1 E[fr(v1)|v2]",
-        color="darkorange",
-    )
-    ax[1].fill_between(
-        v2Object.bin_centres,
-        V1_NH_object.tuning_func_nh[0, :] - V1_NH_object.tuning_func_nh_sem[0, :],
-        V1_NH_object.tuning_func_nh[0, :] + V1_NH_object.tuning_func_nh_sem[0, :],
-        color="darkorange",
-        alpha=0.1,
-    )
-    ax[1].set_xlabel("v2")
-    ax[1].set_ylabel("fr")
-    ax[1].legend(loc="upper right")
-    ax[1].set_title("Tuning to V2", fontweight="bold")
+# ax[0].plot(v1Object.bin_centres, v1Object.tuning_func[0, :], ".-", label="Tuning to v1", color="gold")
+# ax[0].fill_between(
+#     v1Object.bin_centres,
+#     v1Object.tuning_func[0, :] - v1Object.tuning_func_sem[0, :],
+#     v1Object.tuning_func[0, :] + v1Object.tuning_func_sem[0, :],
+#     alpha=0.1,
+#     color="gold",
+# )
+# ax[0].plot(
+#     v1Object.bin_centres,
+#     V2_NH_object.tuning_func_nh[0, :],
+#     ".--",
+#     label="Tuning to v1 given NH that driver is v2 E[fr(v2)|v1]",
+#     color="darkorange",
+# )
+# ax[0].fill_between(
+#     v1Object.bin_centres,
+#     V2_NH_object.tuning_func_nh[0, :] - V2_NH_object.tuning_func_nh_sem[0, :],
+#     V2_NH_object.tuning_func_nh[0, :] + V2_NH_object.tuning_func_nh_sem[0, :],
+#     alpha=0.1,
+#     color="darkorange",
+# )
+# ax[0].set_xlabel("v1")
+# ax[0].set_ylabel("fr")
+# ax[0].legend(loc="upper right")
+# ax[0].set_title("Tuning to V1", fontweight="bold")
 
-    plt.suptitle(f"Number of samples: {Nsamples}, V1 is the driving stimulus and V2 is the passenger stimulus.")
-    plt.show()
+# # ------------------------------------------- second chart ------------------------------------------------------
+
+# ax[1].plot(v2Object.bin_centres, v2Object.tuning_func[0, :], ".-", label="Tuning to v2", color="gold")
+# ax[1].fill_between(
+#     v2Object.bin_centres,
+#     v2Object.tuning_func[0, :] - v2Object.tuning_func_sem[0, :],
+#     v2Object.tuning_func[0, :] + v2Object.tuning_func_sem[0, :],
+#     color="gold",
+#     alpha=0.1,
+# )
+# ax[1].plot(
+#     v2Object.bin_centres,
+#     V1_NH_object.tuning_func_nh[0, :],
+#     ".--",
+#     label="Tuning to v2 given NH that driver is v1 E[fr(v1)|v2]",
+#     color="darkorange",
+# )
+# ax[1].fill_between(
+#     v2Object.bin_centres,
+#     V1_NH_object.tuning_func_nh[0, :] - V1_NH_object.tuning_func_nh_sem[0, :],
+#     V1_NH_object.tuning_func_nh[0, :] + V1_NH_object.tuning_func_nh_sem[0, :],
+#     color="darkorange",
+#     alpha=0.1,
+# )
+# ax[1].set_xlabel("v2")
+# ax[1].set_ylabel("fr")
+# ax[1].legend(loc="upper right")
+# ax[1].set_title("Tuning to V2", fontweight="bold")
+
+# plt.suptitle(f"Number of samples: {Nsamples}, V1 is the driving stimulus and V2 is the passenger stimulus.")
+# plt.show()
