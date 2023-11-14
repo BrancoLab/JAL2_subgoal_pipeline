@@ -92,12 +92,12 @@ def plot_angle_distributions(session, trackingData, video_data, sessionHeight, s
         axs[con_i, 1].set_ylabel("Probability Density", fontsize=16)
     
 
-    # if settings.show_plots:
+    if settings.show_plots:
+        plt.show()
     
     for ax in axs[:, 1].flat:
         plt.setp(ax.get_xticklabels(), visible=True)
 
-    plt.show()
     plt.subplots_adjust(wspace=0.05, hspace=0)
     plt.savefig(os.path.join(save_path, "behavioural_angle_distributions_vs_optimals.png"))
     plt.close()

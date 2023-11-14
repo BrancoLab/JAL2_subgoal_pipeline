@@ -49,13 +49,13 @@ class Visualize_behave:
         plot_angle_distributions(
             session=self.session,
             trackingData=self.tracking_data,
-            videoDf=self.video_df,
+            video_data=self.video_df,
             sessionHeight=self.session.video.height,
             save_path=self.behave_path,
         )
 
         # Circular rho depends on angle distributions
-        plot_the_circular_rho(self.video_df, save_path=self.behave_path)
+        plot_the_circular_rho(self.session, self.video_df, save_path=self.behave_path)
 
         plot_heat_map_of_position(
             session=self.session,
