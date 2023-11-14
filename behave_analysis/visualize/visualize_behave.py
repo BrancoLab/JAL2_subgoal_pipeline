@@ -45,7 +45,7 @@ class Visualize_behave:
         self.position_by_bsa()
         self.location_occupancy()
 
-        Plotting angle distriubtions must go before plotting the circular rho
+        # Plotting angle distriubtions must go before plotting the circular rho
         plot_angle_distributions(
             session=self.session,
             trackingData=self.tracking_data,
