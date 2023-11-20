@@ -55,10 +55,11 @@ class AnalyzeEfizz:
 
     def extract_all_or_custom_conditions(self, session):
         """Identify all conditions to analyze or use custom conditions from settings file"""
-        if len(Settings_ae.condition) == 0:
-            conditions = identify_conditions(session)
+        if Settings_ae.user_defined_conditions:
+            conditions = Settings_ae.conditions
         else:
-            conditions = Settings_ae.condition
+            conditions = identify_conditions(session)
+
         return conditions
 
     def execute_models(self):
@@ -102,17 +103,13 @@ class AnalyzeEfizz:
             if not Settings_ae.single_cluster_plots:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
                 all_angles = identify_angles(self.session)
-                if len(Settings_ae.condition) > 0: 
-                    all_conditions = Settings_ae.condition
-                else: 
-                    all_conditions = identify_conditions(self.session)
                 base_path = os.path.join(self.dir, 
                                          'Rayleigh', 
                                          self.cluster_type)
                 compute_all_clusters_rayleigh(self, 
                                               Settings_ae, 
                                               all_angles, 
-                                              all_conditions, 
+                                              self.all_conditions, 
                                               base_path)
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")

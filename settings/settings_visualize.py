@@ -30,12 +30,13 @@ defined_settings_visualize = Settings_visualize(
     by_session=True,
     sessions=[0],  # This session must be the one indexed in the databank
     all_sessions=False,
-    efizz=False,  # if you want to visualize efizz also
+    efizz=True,  # if you want to visualize efizz also
     show_plots=False,  # if this is false, it will make and save the plots without showing them
     cluster_type="synthetic",
-    # over_ride_conditions=["all_time", "shelter_only", "barrier_present"], # JAL1-2
-    over_ride_conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],  # JAL3-5
-    over_ride_conditions_bool=True,
     # cluster_type: "synthetic", "synthetichdir" (only hdir cells in synthetic dataset),
     # "synthetichdirhsa", "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
+    conditions = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"],  # JAL3-5
+    # conditions=["all_time", "shelter_only", "barrier_present"], # JAL1-2
+    user_defined_conditions=False, # False if you want automatically identified conditions 
+    
 )
