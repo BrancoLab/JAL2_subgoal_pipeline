@@ -11,7 +11,7 @@ import polars as pl
 
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, filter_video_dataframe
 from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
-from behave_analysis.visualize.behaviour_coverage_metrics import CoverageStatistics
+from behave_analysis.visualize.behaviour.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_position
 from behave_analysis.visualize.behaviour.angle_distributions import plot_angle_distributions
 from settings.settings_visualize import defined_settings_visualize as settings_v
@@ -80,17 +80,7 @@ class Visualize_behave:
         # color position by their shelter angle
         mass = self.tracking_data["avg_loc"][outofShelterIdx, :]
         ang_color = np.digitize(np.rad2deg(self.tracking_data["bod_shelt_dir"][outofShelterIdx]), np.arange(-180, 180))
-        phi = np.linspace(0, 2 * np.pi, len(np.arange(360)))
-        rgb_cycle = np.vstack(
-            (  # Three sinusoids
-                0.5 * (1.0 + np.cos(phi)),  # scaled to [0,1]
-                0.5 * (1.0 + np.cos(phi + 2 * np.pi / 3)),  # 120° phase shifted.
-                0.5 * (1.0 + np.cos(phi - 2 * np.pi / 3)),
-            )
-        ).T  # Shape = (60,3)
-        bsa_rgb_cycle = np.zeros(shape=(len(ang_color), 3))
-        for i in np.arange(360):
-            bsa_rgb_cycle[ang_color == i + 1, :] = rgb_cycle[i, :]
+        bsa_rgb_cycle = hsv_hdir_colormap(ang_color)
         plt.figure()
         plt.scatter(mass[:, 0], mass[:, 1], s=5, c=bsa_rgb_cycle, linewidths=0, marker=".")
         plt.title("position coloured by angle to shelter")
@@ -104,7 +94,12 @@ class Visualize_behave:
 
     def shelter_occupancy(self):
         """Make a bar plot of minutes in and out of shelter per condition in each session"""
-        conditions = identify_conditions(self.session, overide=settings_v.over_ride_conditions_bool)
+
+        if settings_v.user_defined_conditions:
+            conditions = settings_v.conditions
+        else:
+            conditions = identify_conditions(self.session)
+
         _, ax = plt.subplots(figsize=(10, 5))
 
         for x, c in enumerate(conditions):
@@ -385,3 +380,20 @@ def plot_trajectories(head_loc, velocity, onset_frames, stimulus_durations, ax, 
     y_loc = head_loc[onset_frames : onset_frames + int(stimulus_durations * 40), 1]
     speed = velocity[onset_frames : onset_frames + int(stimulus_durations * 40)]
     ax.scatter(x_loc, y_loc, s=5, c=speed, cmap=colors)
+
+def hsv_hdir_colormap(angles):
+    """
+    Make a colormap for circular variables like hdir
+    input is array of angles you need to assign a colour to"""
+    phi = np.linspace(0, 2 * np.pi, len(np.arange(360)))
+    rgb_cycle = np.vstack(
+        (  # Three sinusoids
+            0.5 * (1.0 + np.cos(phi)),  # scaled to [0,1]
+            0.5 * (1.0 + np.cos(phi + 2 * np.pi / 3)),  # 120° phase shifted.
+            0.5 * (1.0 + np.cos(phi - 2 * np.pi / 3)),
+        )
+    ).T  # Shape = (60,3)
+    bsa_rgb_cycle = np.zeros(shape=(len(angles), 3))
+    for i in np.arange(360):
+        bsa_rgb_cycle[angles == i + 1, :] = rgb_cycle[i, :]
+    return bsa_rgb_cycle
