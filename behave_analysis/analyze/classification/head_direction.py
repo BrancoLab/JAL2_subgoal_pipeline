@@ -48,7 +48,7 @@ def classify_hdir(session: object, cluster_type: str) -> list:
 
     logger.info(f"Found {len(head_direction_cells)} head direction cells")
 
-    return data
+    return head_direction_cells
 
 
 def check_both_compartments_significant(sig: tuple) -> bool:
