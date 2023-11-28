@@ -16,6 +16,7 @@ from behave_analysis.analyze.Rayleigh.computeRayleigh import (
     compute_single_cluster_tuning,
 )
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, identify_angles
+from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.utils.creating_directories import make_directory
 
 
@@ -57,6 +58,7 @@ class AnalyzeEfizz:
                 raise FileNotFoundError
 
             self.execute_models()
+            self.classify_cells()
 
     def extract_all_or_custom_conditions(self, session):
         """Identify all conditions to analyze or use custom conditions from settings file"""
@@ -122,3 +124,10 @@ class AnalyzeEfizz:
                 compute_single_cluster_tuning(self, Settings)
 
         logger.success("All models complete")
+        
+    def classify_cells(self):
+        """A function to call cell type specific classification functions
+        
+        TODO: Work in progress"""
+        hdir_cell_ids = classify_hdir(session = self.session, cluster_type = self.cluster_type)
+        print(hdir_cell_ids)
