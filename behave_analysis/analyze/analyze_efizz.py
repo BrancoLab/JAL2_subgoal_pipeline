@@ -130,4 +130,4 @@ class AnalyzeEfizz:
         
         TODO: Work in progress"""
         hdir_cell_ids = classify_hdir(session = self.session, cluster_type = self.cluster_type)
-        print(hdir_cell_ids)
+        print("Cell ids we think are hdir", hdir_cell_ids)
