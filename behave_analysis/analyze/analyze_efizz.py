@@ -7,7 +7,7 @@ import numpy as np
 
 from behave_analysis.analyze.TunED.model import TunEdModel
 
-# from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
+from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
 from settings.settings_analyze_efizz import Settings_ae as Settings
 
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
@@ -15,8 +15,12 @@ from behave_analysis.analyze.Rayleigh.computeRayleigh import (
     compute_all_clusters_rayleigh,
     compute_single_cluster_tuning,
 )
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, identify_angles
+from behave_analysis.analyze.filtering_data.filtering_functions import (
+    identify_conditions,
+    identify_angles,
+)
 from behave_analysis.analyze.classification.head_direction import classify_hdir
+from behave_analysis.analyze.classification.head_shelter import classify_hsa
 from behave_analysis.utils.creating_directories import make_directory
 
 
@@ -30,12 +34,15 @@ class AnalyzeEfizz:
     def __init__(self, session):
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
-        self.dir = os.path.join(session.base_path, session.processed_path) + "\\" + "models"
+        self.dir = (
+            os.path.join(session.base_path, session.processed_path) + "\\" + "models"
+        )
         self.show_plots = Settings.show_plots
         self.settings = Settings
         self.all_conditions = self.extract_all_or_custom_conditions(session)
         self.video_df = pl.read_csv(
-            os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv"
+            os.path.join(self.session.base_path, self.session.processed_path) + "\\"
+            "full_video_dataframe.csv"
         )
         make_directory(self.dir)
 
@@ -96,17 +103,20 @@ class AnalyzeEfizz:
         #             main(X_valid, y_valid, X_train, y_train, y_test)
 
         # ------------------------------ Compute LDA --------------------------------
-        # if len(Settings_analyze_efizz.run_LDA) > 0:
-        #     if Settings_analyze_efizz.run_LDA == 'all':
-        #         angles = identify_angles(self.session)
-        #         angles.append('randP')
-        #     else: angles = Settings_analyze_efizz.run_LDA
+        if len(Settings.run_LDA) > 0:
+            if Settings.run_LDA == "all":
+                angles = identify_angles(self.session)
+                angles.append("randP")
+            else:
+                angles = Settings.run_LDA
 
-        #     for o in self.all_conditions:
-        #         self.condition = o
-        #         logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
-        #         run_LDA_model(self,Settings_analyze_efizz, angles)
-        #     logger.success('LDA analysis complete')
+            for o in self.all_conditions:
+                self.condition = o
+                logger.info(
+                    f"Run LDA on {self.cluster_type} data with condition: {self.condition}"
+                )
+                run_LDA_model(self, Settings, angles)
+            logger.success("LDA analysis complete")
 
         # ----------------- Compute Rayleigh and polar plots -------------------------
         if Settings.run_rayleigh:
@@ -118,16 +128,29 @@ class AnalyzeEfizz:
                 else:
                     all_conditions = identify_conditions(self.session)
                 base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type)
-                compute_all_clusters_rayleigh(self, Settings, all_angles, all_conditions, base_path)
+                compute_all_clusters_rayleigh(
+                    self, Settings, all_angles, all_conditions, base_path
+                )
             else:
-                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
+                logger.info(
+                    f"Making single cluster polar plots on {self.cluster_type} data"
+                )
                 compute_single_cluster_tuning(self, Settings)
 
         logger.success("All models complete")
-        
+
     def classify_cells(self):
         """A function to call cell type specific classification functions
-        
+
         TODO: Work in progress"""
-        hdir_cell_ids = classify_hdir(session = self.session, cluster_type = self.cluster_type)
+        hdir_cell_ids = classify_hdir(
+            session=self.session, cluster_type=self.cluster_type
+        )
         print("Cell ids we think are hdir", hdir_cell_ids)
+
+        hsa_cell_ids = classify_hsa(
+            session=self.session, 
+            cluster_type=self.cluster_type,
+            hdir_cells=hdir_cell_ids
+        )
+        print("Cell ids we think are hsa", hsa_cell_ids)
