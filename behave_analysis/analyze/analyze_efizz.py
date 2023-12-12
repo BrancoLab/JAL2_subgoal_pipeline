@@ -1,16 +1,13 @@
 import os
 import dill as pickle
+import time
 
 from loguru import logger
 import polars as pl
-import numpy as np
 
-from behave_analysis.analyze.TunED.model import TunEdModel
-
-from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
 from settings.settings_analyze_efizz import Settings_ae as Settings
-
-# from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
+from behave_analysis.analyze.TunED.model import TunEdModel
+from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
 from behave_analysis.analyze.Rayleigh.computeRayleigh import (
     compute_all_clusters_rayleigh,
     compute_single_cluster_tuning,
@@ -21,8 +18,9 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
 )
 from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.analyze.classification.head_shelter import classify_hsa
+from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
+from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
-
 
 class AnalyzeEfizz:
     """
@@ -32,6 +30,7 @@ class AnalyzeEfizz:
     """
 
     def __init__(self, session):
+        start_time = time.time()
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
         self.dir = (
@@ -58,14 +57,22 @@ class AnalyzeEfizz:
                     + str(self.cluster_type),
                     "rb",
                 )
+                logger.info(
+                    "About to load giant pickle file which takes for ever, so go make a cup of tea or figure out hot to make it fast"
+                )
                 self.postprocessObject = pickle.load(fileObj)
                 fileObj.close()
             except FileNotFoundError:
                 logger.error(f"Data not found for session: {self.session.name}")
                 raise FileNotFoundError
 
+            end_time = time.time()
+            print(
+                f"Time taken to reach model execution: {end_time - start_time} seconds"
+            )
+
             self.execute_models()
-            self.classify_cells()
+            # self.classify_cells()
 
     def extract_all_or_custom_conditions(self, session):
         """Identify all conditions to analyze or use custom conditions from settings file"""
@@ -78,6 +85,22 @@ class AnalyzeEfizz:
     def execute_models(self):
         logger.info("Executing models")
 
+        # ------------------------------ Compute PCA ----------------------------------
+        if Settings.run_pca_model:
+            logger.info("Running PCA model")
+            pca_path = os.path.join(self.dir, "PCA")
+            angles = identify_angles(self.session)
+            make_directory(pca_path)
+            pca = PreprocessPca(
+                session=self.session,
+                cluster_type=self.cluster_type,
+                conditions=self.all_conditions,
+                path_to_save=pca_path,
+                angles=angles,
+            )
+            run_pca_kmeans_plot(pca_path, pca.x, pca.labels)
+            logger.success("PCA analysis complete")
+            
         # ------------------------------ Compute TUNED --------------------------------
         if Settings.run_tunED:
             logger.info("Running TunED model")
@@ -139,18 +162,20 @@ class AnalyzeEfizz:
 
         logger.success("All models complete")
 
-    def classify_cells(self):
-        """A function to call cell type specific classification functions
+    # Had to comment out because it can't handle the Nans from the rayleigh data
+    
+    # def classify_cells(self):
+    #     """A function to call cell type specific classification functions
 
-        TODO: Work in progress"""
-        hdir_cell_ids = classify_hdir(
-            session=self.session, cluster_type=self.cluster_type
-        )
-        print("Cell ids we think are hdir", hdir_cell_ids)
+    #     TODO: Work in progress"""
+    #     hdir_cell_ids = classify_hdir(
+    #         session=self.session, cluster_type=self.cluster_type
+    #     )
+    #     print("Cell ids we think are hdir", hdir_cell_ids)
 
-        hsa_cell_ids = classify_hsa(
-            session=self.session, 
-            cluster_type=self.cluster_type,
-            hdir_cells=hdir_cell_ids
-        )
-        print("Cell ids we think are hsa", hsa_cell_ids)
+    #     hsa_cell_ids = classify_hsa(
+    #         session=self.session,
+    #         cluster_type=self.cluster_type,
+    #         hdir_cells=hdir_cell_ids,
+    #     )
+    #     print("Cell ids we think are hsa", hsa_cell_ids)
