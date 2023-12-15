@@ -11,32 +11,40 @@ from loguru import logger
 
 from behave_analysis.analyze.decoders.LSTM.helpers import get_spikes_with_history
 
+
 class LSTMDataset(Dataset):
-    '''
-    Custom Dataset subclass. 
-    Serves as input to DataLoader to transform X 
-      into sequence data using rolling window. 
-    DataLoader using this dataset will output batches 
+    """
+    Custom Dataset subclass.
+    Serves as input to DataLoader to transform X
+      into sequence data using rolling window.
+    DataLoader using this dataset will output batches
       of `(batch_size, seq_len, n_features)` shape.
     Suitable as an input to RNNs.
-    
+
     # Batch size is the number of sequences fed into the model at once
     # Sequence length is the number of time steps in each sequence
     # Features is the number of features in each sequence
-    '''
-    def __init__(self, X, Y, seq_len: int = 80): # 80 is 2 seconds of data
-        self.X = torch.tensor(X, dtype=torch.float32)  # Shape: [batch_size, seq_len, features]
+    """
+
+    def __init__(self, X, Y, seq_len: int = 80):  # 80 is 2 seconds of data
+        self.X = torch.tensor(
+            X, dtype=torch.float32
+        )  # Shape: [batch_size, seq_len, features]
         self.Y = torch.tensor(Y, dtype=torch.float32)  # Shape can vary based on task
         self.seq_len = seq_len
 
     def __len__(self):
-        """This method returns the total number of possible 
+        """This method returns the total number of possible
         sequences that can be generated from X given the specified seq_len."""
-        return self.X.__len__() - (self.seq_len-1)
+        return self.X.__len__() - (self.seq_len - 1)
 
     def __getitem__(self, index):
         """This method retrieves a single item from the dataset at a specified index"""
-        return (self.X[index:index+self.seq_len], self.Y[index:index+self.seq_len])
+        return (
+            self.X[index : index + self.seq_len],
+            self.Y[index : index + self.seq_len],
+        )
+
 
 class LSTMRegression(nn.Module):
     """
@@ -63,15 +71,17 @@ class LSTMRegression(nn.Module):
         Whether to show progress of the fit after each epoch
     """
 
-    def __init__(self, 
-                 input_size, 
-                 output_size=1, 
-                 hidden_units=400,
-                 dropout=0,
-                 num_epochs=100,
-                 verbose=True):
+    def __init__(
+        self,
+        input_size,
+        output_size=1,
+        hidden_units=400,
+        dropout=0,
+        num_epochs=20,
+        verbose=True,
+    ):
         super(LSTMRegression, self).__init__()
-        
+
         # Init parameters
         self.hidden_units = hidden_units
         self.dropout = dropout
@@ -82,7 +92,7 @@ class LSTMRegression(nn.Module):
         # Model Layers
         self.lstm = nn.LSTM(input_size, hidden_units, batch_first=True, dropout=dropout)
         self.fc = nn.Linear(hidden_units, output_size)
-        
+
     def get_device(self):
         # Get cpu, gpu or mps device for training.
         device = (
@@ -93,11 +103,13 @@ class LSTMRegression(nn.Module):
             else "cpu"
         )
         if device != "cuda":
-            logger.warning("Cuda is not available. Using CPU instead this will take forever fix.")
-            
+            logger.warning(
+                "Cuda is not available. Using CPU instead this will take forever fix."
+            )
+
         if device == "cuda":
             logger.success("Using CUDA device")
-            
+
         return device
 
     def forward(self, x):
@@ -107,29 +119,31 @@ class LSTMRegression(nn.Module):
         # Forward pass through the fully connected layer
         x = self.fc(x)
         return x
-    
+
     def custom_loss_function(self, predictions, true_values):
         # Flatten the batch and sequence dimensions
         predictions_flat = predictions.view(-1, predictions.size(-1))
         true_values_flat = true_values.view(-1, true_values.size(-1))
 
         # Create a Von Mises distribution centered at the predicted angles
-        concentration_tensor = torch.tensor([1.0], device=self.device) # second parameter is concentration for von mises
+        concentration_tensor = torch.tensor(
+            [1.0], device=self.device
+        )  # second parameter is concentration for von mises
         von_mises_dist = dist.VonMises(predictions_flat, concentration_tensor)
 
         # Calculate the negative log likelihood
         loss = -von_mises_dist.log_prob(true_values_flat)
         return loss.mean()  # Return the average loss over all time steps and batches
-    
+
     def optimizer(self, model):
         return optim.Adam(model.parameters())
-    
+
     @staticmethod
     def train_loop(dataloader, model, loss_fn, optimizer, device):
         """Use backpropagation to train the model, updating the weights and biases
-        
+
         Also known as training the model."""
-        model.train() # Set model to training mode
+        model.train()  # Set model to training mode
         size = len(dataloader.dataset)
         losses = []
         for batch, (x, y) in enumerate(dataloader):
@@ -140,21 +154,21 @@ class LSTMRegression(nn.Module):
             loss = loss_fn(pred, y)
 
             # Backpropagation
-            loss.backward() # compute gradients
-            optimizer.step() # update weights and biases
-            optimizer.zero_grad() # clear gradients
-            
+            loss.backward()  # compute gradients
+            optimizer.step()  # update weights and biases
+            optimizer.zero_grad()  # clear gradients
+
             # Save loss
             losses.append(loss.item())
 
             if batch % 100 == 0:
-                print(f'Batch {batch}/{len(dataloader)}, Loss: {loss.item()}')
-                
+                print(f"Batch {batch}/{len(dataloader)}, Loss: {loss.item()}")
+
         # Return average loss across batches
         avg_loss = np.mean(losses)
-            
+
         return avg_loss
-    
+
     @staticmethod
     def test_loop(dataloader, model, loss_fn, device):
         model.eval()
@@ -172,20 +186,34 @@ class LSTMRegression(nn.Module):
         mean_y = np.mean(all_y)
         sst = sum([(y_val - mean_y) ** 2 for y_val in all_y])  # Total variance
         r_squared = 1 - (ssr / sst)
-        
+
         print(f"Test R²: {r_squared:>8f}")
         return r_squared
 
+    @staticmethod
+    def predict(model, dataloader, device):
+        """Predict the output for a given input"""
+        model.eval()
+        predictions = []
+        with torch.no_grad():
+            for X_batch, _ in dataloader:
+                X_batch = X_batch.to(device)
+                pred = model(X_batch)
+                predictions.append(pred.cpu())  # Move predictions to CPU
+        predictions = torch.cat(predictions, dim=0)
+        return predictions
+
+
 def main(frame_by_cluster_matrix, Y):
     """Main function for running the LSTM model"""
-    
+
     batch_size = 128
-    
+
     # Initialize dataset
     X = frame_by_cluster_matrix
     data = LSTMDataset(X, Y)
     logger.success("Reshaped neural data for LSTM")
-    
+
     # Define training/testing/validation sets
     total_samples = len(data)  # Replace 'your_dataset' with your dataset variable
     train_size = int(total_samples * 0.8)  # 70% of the dataset
@@ -194,49 +222,63 @@ def main(frame_by_cluster_matrix, Y):
 
     # Declare model
     model_lstm = LSTMRegression(input_size=frame_by_cluster_matrix.shape[1])
-    model_lstm.to(model_lstm.device) # Move model to GPU if available
-    training_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
-    
+    model_lstm.to(model_lstm.device)  # Move model to GPU if available
+    training_loader = DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=0
+    )
+    test_loader = DataLoader(
+        test_dataset, batch_size=batch_size, shuffle=False, num_workers=0
+    )
+
     plot_losses = []
     plot_r2 = []
 
     for t in range(1, model_lstm.num_epochs + 1):
         print(f"Epoch {t}\n-------------------------------")
-        losses = LSTMRegression.train_loop(dataloader = training_loader,
-                                            model = model_lstm,
-                                            loss_fn = nn.MSELoss(),
-                                            # loss_fn = model_lstm.custom_loss_function,
-                                            optimizer = model_lstm.optimizer(model_lstm),
-                                            device = model_lstm.device)
+        losses = LSTMRegression.train_loop(
+            dataloader=training_loader,
+            model=model_lstm,
+            loss_fn=nn.MSELoss(),
+            # loss_fn = model_lstm.custom_loss_function,
+            optimizer=model_lstm.optimizer(model_lstm),
+            device=model_lstm.device,
+        )
         plot_losses.append(losses)
-        r2 = LSTMRegression.test_loop(dataloader = test_loader,
-                                 model = model_lstm,
-                                 loss_fn = nn.MSELoss(),
-                                 device = model_lstm.device)
+        r2 = LSTMRegression.test_loop(
+            dataloader=test_loader,
+            model=model_lstm,
+            loss_fn=nn.MSELoss(),
+            device=model_lstm.device,
+        )
         plot_r2.append(r2)
-        
+
     # Plot losses across batches in one subplot and R² across epochs in another
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
-    ax1.plot(plot_losses, label='Training Loss')
-    ax2.plot(plot_r2, label='Test R²')
+    ax1.plot(plot_losses, label="Training Loss")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss")
+    ax2.plot(plot_r2, label="Test R²")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("R²")
+    plt.title("Losses and R² Across Epochs")
     plt.legend()
     plt.show()
-    x = 10
-    
-    # # Predict on validation set
-    # y_valid_predicted = model_lstm.predict(X_valid_tensor)
-    
-    # # Visualization (if needed)
-    # # For example, plotting actual vs predicted head directions
-    # plt.figure(figsize=(10, 6))
-    # plt.plot(y_valid, label='Actual Head Direction')
-    # plt.plot(y_valid_predicted, label='Predicted Head Direction', alpha=0.7)
-    # plt.title('Head Direction: Actual vs Predicted')
-    # plt.xlabel('Time Steps')
-    # plt.ylabel('Head Direction')
-    # plt.legend()
-    # plt.show()
 
-    
-    
+    # Now predict
+    actual_labels = np.asarray(test_dataset.dataset.Y).reshape(-1)
+
+    predictions = model_lstm.predict(
+        model=model_lstm, dataloader=test_loader, device=model_lstm.device
+    ).numpy()
+    flat_predictions = predictions.reshape(-1)  # Shape (10646560,)
+    # whereas acutal labels is (665486,)
+    flat_predictions = flat_predictions[: len(test_dataset.dataset.Y)]
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(flat_predictions, label="Predicted", linewidth=2)
+    plt.plot(actual_labels, label="Actual", linewidth=2)
+    plt.title("Predictions vs Actual Labels for LSTM: {model_lstm.num_epochs} epochs}")
+    plt.xlabel("Sample Index")
+    plt.ylabel("Head Direction")
+    plt.legend()
+    plt.show()
