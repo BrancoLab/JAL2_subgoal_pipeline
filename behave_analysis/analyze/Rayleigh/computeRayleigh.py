@@ -55,7 +55,7 @@ def compute_single_cluster_tuning(self,settings):
 
     # Initialize variables
     all_angles = identify_angles(self.session)
-    all_conditions = identify_conditions(self.session)
+    all_conditions = self.all_conditions
     # all_conditions = ['shelter_only', 'barrier_pre_flip', 'barrier_post_flip']
     base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type)
     plot_save_path = os.path.join(base_path, 'single_cluster_plots')

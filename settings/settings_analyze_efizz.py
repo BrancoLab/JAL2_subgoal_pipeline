@@ -17,7 +17,8 @@ Settings_ae = Settings_analyze_efizz(
     #                             'shelter_only',
     #                             'barrier_pre_flip',
     #                             'barrier_post_flip',
-    condition = [], # if condition is empty all possible conditions will be analyzed
+    conditions = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
+    user_defined_conditions=True, # False if you want automatically identified conditions 
     number_of_bins = 19, # number of bins for angles
     
     # ------------- Tuned model settings -----------------------

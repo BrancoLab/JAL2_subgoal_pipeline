@@ -83,10 +83,9 @@ class Settings_visualize:
     efizz: bool=False
     show_plots: bool=False
     cluster_type: str = ''
-    conditions_to_plot: list = None
     stim_type: str = ''
-    over_ride_conditions: list = None
-    over_ride_conditions_bool: bool = False
+    conditions: list = None
+    user_defined_conditions: bool = False
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
@@ -157,6 +156,7 @@ class Settings_analyze_efizz:
     multi_cluster_plots: bool = False
     linear_shift: bool = True
     condition: str = ''
+    user_defined_conditions: bool = False
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False
     

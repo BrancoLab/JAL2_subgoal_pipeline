@@ -13,7 +13,12 @@ from settings.settings_visualize import defined_settings_visualize as settings
 
 def plot_heat_map_of_position(session, video_data_frame, session_height, save_path) -> None:
     """Create heatplot of mouse exploration for each condition"""
-    conditions = identify_conditions(session, overide=settings.over_ride_conditions_bool)
+    
+    if settings.user_defined_conditions:
+        conditions = settings.conditions
+    else:
+        conditions = identify_conditions(session)
+
     fig, axs = plt.subplots(nrows=1, ncols=len(conditions), figsize=(24, 6), sharey=True, sharex=True)
     cbar_ax = fig.add_axes([0.91, 0.13, 0.01, 0.75])  # The list represents [left, bottom, width, height],
     # where all values are in fractional (0-1) coordinates.

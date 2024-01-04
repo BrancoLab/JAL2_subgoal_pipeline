@@ -10,6 +10,9 @@ import time
 
 # Import custom settings
 from settings.settings_visualize import defined_settings_visualize as settings_v
+from behave_analysis.visualize.efizz.egocentric_firing_map_binned import egocentric_firing_map
+from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, filter_video_dataframe
+from behave_analysis.visualize.visualize_behave import hsv_hdir_colormap
 
 class Visualize_efizz:
     """
@@ -19,6 +22,9 @@ class Visualize_efizz:
     def __init__(self,  PreProcessed_data_object, session):
        self.processed_data = PreProcessed_data_object
        self.session = session
+       self.video_df = pl.read_csv(
+            os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv")
+        )
        self.stim_resp_path = os.path.join(self.session.base_path,self.session.processed_path, 'stim_resp')
        if not(os.path.exists(self.stim_resp_path)): os.makedirs(self.stim_resp_path)
        self.spatial_path = os.path.join(self.session.base_path,self.session.processed_path, 'spatial_firing')
@@ -28,7 +34,15 @@ class Visualize_efizz:
     def run_tuning_functions(self):
         """Make tuning plots"""
         logger.info(f"Starting to make some efizz tuning plots...")
-        self.spatial_position_firing() # ~ BUG - RuntimeError: main thread is not in main loop
+        self.spatial_position_firing_hdir() # when a neuron fires coloured by hdir
+        # self.spatial_position_firing() # ~ BUG - RuntimeError: main thread is not in main loop
+        cluster_Ids = self.processed_data.video_spike_count_df["spike_clusters"].unique().to_numpy()
+        egocentric_firing_map(self.processed_data.frame_by_cluster_matrix, 
+                              self.video_df,
+                              self.processed_data.clu_label,
+                              self.session,
+                              cluster_Ids = cluster_Ids[cluster_Ids > 0])
+        logger.info(f"Finished! to make some efizz tuning plots...")
 
     def run_stim_resp_plotting(self):
         """Make plots of stimulus response"""
@@ -264,7 +278,118 @@ class Visualize_efizz:
 
 # FUNCTIONS FOR PLOTTING TUNING ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
+    def spatial_position_firing_hdir(self):
+        """ 
+        A function that plots the position of the mouse at every AP of a given cluster and colours it by hdir
+        """
+
+        logger.info("Commence making figures of spatial position firing plots of all clusters")
+        cc = matplotlib.cm.Reds # could use Reds or copper
+        # set number of rows and calculate number of columns
+        ncols = 10
+        nrows = 5 # nclu // ncols + (nclu % ncols > 0)
+        figg, axs = plt.subplots(nrows,ncols)
+        figg.set_figwidth(30)
+        figg.set_figheight(15)
+        fnum = 1
+        axs = axs.ravel()
+        save_path = os.path.join(self.spatial_path, 'spatial_firing_hdir_color',self.processed_data.select_clusters)
+
+        video_df = filter_video_dataframe(self.video_df,'all_time')
+        video_df = video_df.select(['frames','hdir','mouse_x_position','mouse_y_position'])
+        spike_data = self.processed_data.spike_data.select(['spike_clusters','spike_aligned_to_frame'])
+
+        # what is firing rate per frame?
+        for counter,cluster in enumerate(self.processed_data.spike_data["spike_clusters"].unique()):
+            if counter >= (ncols*nrows)*fnum:
+                figg, axs = plt.subplots(nrows,ncols)
+                figg.set_figwidth(30)
+                figg.set_figheight(15)
+                fnum = fnum + 1
+                axs = axs.ravel()
+            # filter spikes by cluster
+            spikes = spike_data.filter(spike_data['spike_clusters'] == cluster)
+            # align spike data for this cluster to video_df
+            spikes = spikes.with_column(spikes['spike_aligned_to_frame'].cast(pl.Int64))
+            merged_df = video_df.join(spikes, left_on='frames', right_on = 'spike_aligned_to_frame', how='inner')
+
+            hdir = np.digitize(np.rad2deg(merged_df['hdir']), np.arange(-180, 180))
+            cc = hsv_hdir_colormap(hdir)
+            
+            axs[counter-(nrows*ncols*fnum)].scatter(video_df['mouse_x_position'].to_numpy(),
+                                                    video_df['mouse_y_position'].to_numpy(),
+                                                    s=3,color=[.7, .7, .7],linewidths=0,marker='.') # all mouse positions
+            axs[counter-(nrows*ncols*fnum)].scatter(merged_df['mouse_x_position'].to_numpy(),
+                                                    merged_df['mouse_y_position'].to_numpy(),
+                                                    s=7,c=cc,linewidths=0,marker='.') # this neuron's firing coloured by hdir
+            axs[counter-(nrows*ncols*fnum)].set_axis_off()
+            axs[counter-(nrows*ncols*fnum)].invert_yaxis()
+            axs[counter-(nrows*ncols*fnum)].set_aspect('equal')
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [cluster])
+            axs[counter-(nrows*ncols*fnum)].title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' cluster ' + str(cluster))
+
+            # save the figure
+            if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spike_data["spike_clusters"].unique())-1):
+                
+                plt.tight_layout()
+                plt.savefig(str(save_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_firing_hdir_colored" + str(fnum) + ".png")
+                
+                if settings_v.show_plots: 
+                    plt.show()
+                    
+                plt.close()
+
     def spatial_position_firing(self):
+        """ 
+        A function that makes maps of mousie's position in arena and show where each cluster fired
+        """
+        #TODO: rewrite this using big postprocess matrix instead
+        logger.info("Commence making figures of spatial position firing plots of all clusters")
+        cc = matplotlib.cm.Reds # could use Reds or copper
+        # set number of rows and calculate number of columns
+        ncols = 10
+        nrows = 5 # nclu // ncols + (nclu % ncols > 0)
+        figg, axs = plt.subplots(nrows,ncols)
+        figg.set_figwidth(30)
+        figg.set_figheight(15)
+        fnum = 1
+        axs = axs.ravel()
+        save_path = os.path.join(self.spatial_path, 'spatial_firing_maps',self.processed_data.select_clusters)
+
+        large_dataFrame = self.processed_data.video_spike_count_df.select(['frames','spike_clusters','mouse_x_position','mouse_y_position','spike_count'])
+
+        # what is firing rate per frame?
+        for counter,cluster in enumerate(self.processed_data.spike_data["spike_clusters"].unique()):
+            if counter >= (ncols*nrows)*fnum:
+                figg, axs = plt.subplots(nrows,ncols)
+                figg.set_figwidth(30)
+                figg.set_figheight(15)
+                fnum = fnum + 1
+                axs = axs.ravel()
+            # filter spikes by cluster
+            spikes = large_dataFrame.filter(large_dataFrame['spike_clusters'] == cluster)
+            spikes = spikes.fill_null(strategy="zero")
+            
+            axs[counter-(nrows*ncols*fnum)].scatter(spikes['mouse_x_position'].to_numpy(),
+                                                    spikes['mouse_y_position'].to_numpy(),
+                                                    s=5,c=cc(spikes['spike_count'].to_numpy()*50),linewidths=0,marker='.') # srate*2 increase contrast
+            axs[counter-(nrows*ncols*fnum)].set_axis_off()
+            axs[counter-(nrows*ncols*fnum)].invert_yaxis()
+            axs[counter-(nrows*ncols*fnum)].set_aspect('equal')
+            this_cluster = self.processed_data.clu_label.filter(self.processed_data.clu_label["spike_clusters"] == [cluster])
+            axs[counter-(nrows*ncols*fnum)].title.set_text(str(this_cluster["cluster_group"].to_numpy()) + ' cluster ' + str(cluster))
+
+            # save the figure
+            if np.logical_or(counter-(nrows*ncols*(fnum-1)) == (ncols*nrows)-1, counter == len(self.processed_data.spike_data["spike_clusters"].unique())-1):
+                plt.tight_layout()
+                plt.savefig(str(save_path) + "/" + self.processed_data.select_clusters + "_clusters_spatial_position_firing_" + str(fnum) + ".png")
+                
+                if settings_v.show_plots: 
+                    plt.show()
+                    
+                plt.close()
+
+    def spatial_position_firing_old(self):
         """ 
         A function that makes maps of mousie's position in arena and show where each cluster fired
         """
@@ -311,5 +436,4 @@ class Visualize_efizz:
                 if settings_v.show_plots: 
                     plt.show()
                     
-                plt.close()
-    
+                plt.close()    
