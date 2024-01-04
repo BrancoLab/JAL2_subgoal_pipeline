@@ -52,7 +52,7 @@ class AnalyzeBehave:
                 self.session.__dict__[self.settings.stim_type].stimulus_durations)):
             ax = plt.subplot(nrows, ncols, trial_num + 1)
             # set up axes with shelt and barrier locations
-            condition = identify_condition(self.video_df.filter(self.video_df['frames'] == onset_frames),self.session)
+            condition = identify_condition_escape(self.video_df.filter(self.video_df['frames'] == onset_frames),self.session)
             base_plotting(ax,self.tracking_data,condition)
             self.trajectory_length[trial_num] = self.plot_escape_trajectories(onset_frames[0],stimulus_durations[0],ax)
             self.optimal_trajectory_length[trial_num] = self.plot_optimal_trajectories(onset_frames[0],ax,condition)
@@ -121,7 +121,7 @@ class AnalyzeBehave:
 
 ###--------------UTILS
 
-def identify_condition(video_df,session):
+def identify_condition_escape(video_df,session):
     """Which condition did the escape happen in?"""
     if np.logical_and(video_df['shelter'].to_numpy() == True, video_df['barrier_present'].to_numpy() == False):
         condition = 'shelter_only'

@@ -54,8 +54,11 @@ def plot_angle_distributions(session, trackingData, video_data, sessionHeight, s
 
     NOTE - I think the right edge is north and the left edge is south.
     """
-
-    conditions = identify_conditions(session, overide=settings.over_ride_conditions_bool)
+    if settings.user_defined_conditions:
+        conditions = settings.conditions
+    else:
+        conditions = identify_conditions(session)
+        
     angles = identify_angles(session)
     optimal_dic, hdir_df = create_optimal_distributions(trackingData, sessionHeight, session.barrier_time)
     save_optimal_as_csv(optimal_dic, hdir_df, save_path)

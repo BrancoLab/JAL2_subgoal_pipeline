@@ -62,8 +62,8 @@ class AnalyzeEfizz:
 
     def extract_all_or_custom_conditions(self, session):
         """Identify all conditions to analyze or use custom conditions from settings file"""
-        if Settings_ae.user_defined_conditions:
-            conditions = Settings_ae.conditions
+        if Settings.user_defined_conditions:
+            conditions = Settings.conditions
         else:
             conditions = identify_conditions(session)
         return conditions

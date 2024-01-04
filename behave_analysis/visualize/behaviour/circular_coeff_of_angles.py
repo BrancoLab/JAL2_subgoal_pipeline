@@ -54,7 +54,10 @@ def plot_the_circular_rho(session, video_df, save_path) -> None:
     dirty_angles = identify_angles(session)
     angles = [angle for angle in dirty_angles if angle != "h_bar_centre_a"]
     perms = create_all_the_permutations_of_angles(angles)
-    conditions = identify_conditions(session, overide=settings_v.over_ride_conditions_bool)
+    if settings_v.user_defined_conditions:
+        conditions = settings_v.conditions
+    else:
+        conditions = identify_conditions(session)
 
     # Create optimal rho dict
     optimals = load_optimals(save_path)
@@ -93,7 +96,7 @@ def plot_the_circular_rho(session, video_df, save_path) -> None:
         axs[con_i, 1].spines["left"].set_visible(False)
         axs[con_i, 1].set_ylabel("Circular rho (ρ)", fontsize=16)
         axs[con_i, 1].axhline(linewidth=1, color="black", linestyle="--")
-        axs[con_i, 1].set_yticks([-1, -0.5, 0, 0.5, 1], fontsize=16)
+        axs[con_i, 1].set_yticks([-1, -0.5, 0, 0.5, 1],labels = ['-1', '-0.5', '0', '0.5', '1'], fontsize=16)
         axs[con_i, 1].set_xticklabels(x_labels, rotation=10)
 
 
