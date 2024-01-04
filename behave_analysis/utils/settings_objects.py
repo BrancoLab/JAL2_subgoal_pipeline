@@ -83,7 +83,6 @@ class Settings_visualize:
     efizz: bool=False
     show_plots: bool=False
     cluster_type: str = ''
-    conditions_to_plot: list = None
     stim_type: str = ''
     conditions: list = None
     user_defined_conditions: bool = False
