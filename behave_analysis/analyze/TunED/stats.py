@@ -1,4 +1,4 @@
-# OS Libaries
+"""A module to hold the stats functions associated with the TunED model."""
 
 import numpy as np
 from scipy.stats import norm, binom
@@ -83,7 +83,7 @@ class TunEDModelStats:
         raise NotImplementedError('Was trying to implement the conditional probabilities but I am not sure if this is correct.')
     
     @staticmethod
-    def compute_significance_between_pairs_of_tuning_curves_set(Nbins, observed_tf, expected_tf, observed_sem, expected_sem):
+    def compute_sig_between_curves(Nbins, observed_tf, expected_tf, observed_sem, expected_sem):
         """
         Computes the significance between pairs of tuning curves.
         
@@ -93,6 +93,11 @@ class TunEDModelStats:
         and the CDF includes the left side of the distribution, we divide alpha by 2 to get the central 95% of the distribution. 0.05 / 2 = 0.025
         as we need 2.5% on each side of the distribution. We do 1- alpha to get the right side of the distribution. 1 - 0.025 = 0.975. It's
         called z-score because it's the number of standard deviations away from the mean.
+        
+        return:
+        -- do_not_overlap: <np.ndarray> of size (Nbins, ). True if the confidence intervals do not overlap, False if they do overlap.
+        -- observed_confidence_interval: <np.ndarray> of size (Nbins, ). The confidence interval for the observed tuning curve.
+        -- expected_confidence_interval: <np.ndarray> of size (Nbins, ). The confidence interval for the expected tuning curve.
         
         NOTE: ARe the same bins used for both tuning curves? Check this
         """

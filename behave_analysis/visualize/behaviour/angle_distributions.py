@@ -12,31 +12,38 @@ Leaving this here as a reminder that we need more tests and quality checks in th
 pipeline is untested and unreliable in it's current state 
 
 TODO:
-- Currently the logic is not condition specific so will fail for mushroom
 - The logic is not robust in the sense that it does not prevent the synthetic mouse from walking through the barrier
 This should not be a too big of an issue and should only have minimal impact on the marginals
 - Make util functions for removing points away from the center global as been used 3x now in individual scripts
 """
 
-# Import Standard Lib
 import itertools
 import os
 
-# Import third party lib
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 import pandas as pd
 import polars as pl
 
-# Import custom lib
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles
+from behave_analysis.analyze.filtering_data.filtering_functions import (
+    identify_angles,
+    identify_conditions,
+    filter_video_dataframe,
+)
 from settings.settings_visualize import defined_settings_visualize as settings
 
-# ---------------------------------------Main Functions--------------------------------------------------------------------------------------------
+# ---------------------------------------Main Functions-----------------------------------------------
 
+def plot_condition_titles(conditions, nrows, columns) -> None:
+    """Plot titles and remove the axes from the first 
+    column of subplots that act as sub titles"""
+    for c_counter, c in enumerate(conditions):
+        ax = plt.subplot(nrows, columns, c_counter * columns + 1)
+        ax.text(0.5, 0.4, c, rotation="horizontal", va="center", ha="center", fontsize=20)
+        ax.set_axis_off()
 
-def plot_angle_distributions(session, trackingData, videoDf, sessionHeight, save_path) -> None:
+def plot_angle_distributions(session, trackingData, video_data, sessionHeight, save_path) -> None:
     """
     Plot sample and optimal angle distributions of behaviour in the arena.
 
@@ -48,43 +55,48 @@ def plot_angle_distributions(session, trackingData, videoDf, sessionHeight, save
     NOTE - I think the right edge is north and the left edge is south.
     """
 
-    # Retrieve data
-    videoDf = videoDf.filter(pl.col("OutofshelterIdx") == True)
+    conditions = identify_conditions(session, overide=settings.over_ride_conditions_bool)
     angles = identify_angles(session)
     optimal_dic, hdir_df = create_optimal_distributions(trackingData, sessionHeight, session.barrier_time)
     save_optimal_as_csv(optimal_dic, hdir_df, save_path)
-
-    # Plt set up
-    fig, axs = plt.subplots(nrows=1, ncols=len(angles), figsize=(24, 6), sharey=True, sharex=True)
+    
+    # Plotting
+    fig, axs = plt.subplots(nrows=len(conditions), ncols=len(angles) + 1, figsize=(24, 6), sharey=False, sharex=True)
+    plot_condition_titles(conditions, len(conditions), len(angles) + 1)
     labels = ["Sampled Distribution", "Optimal Distribution"]
-    colors = [
-        "dimgrey",
-        "lightgreen",
-    ]  # These colors should match what sns.kdeplot uses by default and your hardcoded color
+    colors = ["dimgrey", "lightgreen"]
     legend_elements = [Line2D([0], [0], color=color, lw=4, label=label) for color, label in zip(colors, labels)]
-    fig.legend(handles=legend_elements, loc="upper right")
+    fig.legend(handles=legend_elements, loc="upper right", fontsize=16)
+    
+    for con_i, con in enumerate(conditions):
+        videoDf = filter_video_dataframe(video_data, con)
 
-    # Plot each condition
-    for i, angle in enumerate(angles):
-        axs[i].hist(videoDf[str(angle)], bins=30, density=True, color="dimgrey", alpha=0.8)
-        axs[i].set_xlabel(f"{str(angle)} (radians)")
+        # Plot each angle
+        for i, angle in enumerate(angles):
+            axs[con_i, i + 1].hist(videoDf[str(angle)], bins=30, density=True, color="dimgrey", alpha=0.8)
+            axs[con_i, i + 1].set_xlabel(f"{str(angle)} (radians)", fontsize=16)
 
-        # Plot optimal distribution if it exists
-        if angle in optimal_dic.keys():
-            dataframe = pd.DataFrame(optimal_dic[angle], columns=["angle"])
-            axs[i].hist(dataframe, bins=30, density=True, color="lightgreen", alpha=0.3)
+            # Plot optimal distribution if it exists
+            if angle in optimal_dic:
+                dataframe = pd.DataFrame(optimal_dic[angle], columns=["angle"])
+                axs[con_i, i + 1].hist(dataframe, bins=30, density=True, color="lightgreen", alpha=0.3)
 
-    # Settings for all axes
-    for ax in axs.flat:
-        ax.set_xlim([-np.pi, np.pi])
-        ax.spines["top"].set_visible(False)
-        ax.spines["right"].set_visible(False)
-        ax.spines["left"].set_visible(False)
+        # Settings for all axes
+        for ax in axs.flat:
+            ax.set_xlim([-np.pi, np.pi])
+            ax.spines["top"].set_visible(False)
+            ax.spines["right"].set_visible(False)
+            ax.spines["left"].set_visible(True)
+            ax.set_yticks(np.arange(0, 0.5, 0.1))
 
-    axs[0].set_ylabel("Probability Density")
+        axs[con_i, 1].set_ylabel("Probability Density", fontsize=16)
+    
 
     if settings.show_plots:
         plt.show()
+    
+    for ax in axs[:, 1].flat:
+        plt.setp(ax.get_xticklabels(), visible=True)
 
     plt.subplots_adjust(wspace=0.05, hspace=0)
     plt.savefig(os.path.join(save_path, "behavioural_angle_distributions_vs_optimals.png"))
@@ -138,7 +150,8 @@ def extract_xys_of_arena_objects(trackingData, barrier_time: bool) -> dict:
             "h_bar_south_a": leftEdgeLocation,
             "h_bar_north_a": rightEdgeLocation,
         }
-        
+
+
 def create_grid() -> tuple:
     """Create a grid of bins in the arena."""
     xs = np.arange(0, 1024, 1)  # 1024 is the size of the arena
@@ -182,8 +195,7 @@ def generate_hdir_data_for_each_position_point(positionPoints) -> pd.DataFrame:
     return dataframe
 
 
-# ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-# Utils - This has been used 3x now, make it global!!
+# --------------------------------------------------------------------------------------------
 def remove_points_away_from_center_of_circle(x, y, session_height) -> tuple:
     """
     Ensures there are no positions outside of the areana by removing them from the x and y coordinates based
@@ -215,7 +227,8 @@ def compute_the_angle_between_the_head_and_a_point(headPositionDf, pointOfIntere
 
     Logic:
     - xLen and yLen are the x and y components of the triangle formed by the head and the point of interest
-    - Inverse of Tan is used to obtain the angle in radians between the x and y components, arcTan2 is used to ensure the correct quadrant is returned (Unsure why negative is needed)
+    - Inverse of Tan is used to obtain the angle in radians between the x and y components, arcTan2 is used to ensure 
+    the correct quadrant is returned (Unsure why negative is needed)
     - The pos and negative logic is to covert a 270 degree turn into a -90 degree turn
     - Rotate the coordinate plane by 90 degrees to ensure it is in the same coordinate system as the head direction
     - Ensure angle generated is (from pi to -pi) by wrapping values over 180 degrees back to negative
@@ -242,7 +255,9 @@ def compute_the_angle_between_the_head_and_a_point(headPositionDf, pointOfIntere
 
     return adjustedAngleOfInterest
 
+
 # -------------------------------------------- Utilities ----------------------------------------------------------------------------------------
+
 
 def save_optimal_as_csv(dict, hdir_df, save_path) -> None:
     """Converts dictionary to csv"""

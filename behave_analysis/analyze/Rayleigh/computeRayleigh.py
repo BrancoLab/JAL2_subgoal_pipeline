@@ -1,16 +1,19 @@
-# script for computin rayleigh vectors
+import os
+
+from tqdm import tqdm
 from loguru import logger
 import numpy as np
 import polars as pl
-import os
 import matplotlib
-matplotlib.use('TkAgg')
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
-from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, identify_conditions
 import matplotlib.gridspec as gridspec
+
 from settings.settings_analyze_efizz import Settings_ae
-from behave_analysis.analyze.linshit import LinearShift
+from behave_analysis.analyze.stats.linshit import LinearShift
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, identify_conditions
+
+matplotlib.use('TkAgg')
 
 def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_path):
     """ 
