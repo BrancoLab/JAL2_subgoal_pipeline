@@ -34,7 +34,7 @@ class Visualize_efizz:
     def run_tuning_functions(self):
         """Make tuning plots"""
         logger.info(f"Starting to make some efizz tuning plots...")
-        # self.spatial_position_firing_hdir() # when a neuron fires coloured by hdir
+        self.spatial_position_firing_hdir() # when a neuron fires coloured by hdir
         # self.spatial_position_firing() # ~ BUG - RuntimeError: main thread is not in main loop
         cluster_Ids = self.processed_data.video_spike_count_df["spike_clusters"].unique().to_numpy()
         egocentric_firing_map(self.processed_data.frame_by_cluster_matrix, 

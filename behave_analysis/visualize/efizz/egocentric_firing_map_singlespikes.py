@@ -17,6 +17,12 @@ from behave_analysis.analyze.filtering_data.filtering_functions import identify_
 from settings.settings_visualize import defined_settings_visualize as settings_v
 
 def egocentric_firing_map(spike_data,video_data,session):
+    '''
+    This function has been replaced by egocentric_firing_map_binned.egocentric_firing_map
+    This function looks at the position and head dir of the mouse each time a given neuron fires.
+    It is more biased by uneven sampling of space and hdir.
+    This function sets up making a firing map for an egocentric view of features in the arena.
+    For each cluster it will make a figure of egocentric firing maps in each condition'''
 
     # saving path
     map_path = os.path.join(session.base_path,session.processed_path, 'spatial_firing', 'egocentric_map',settings_v.cluster_type)
