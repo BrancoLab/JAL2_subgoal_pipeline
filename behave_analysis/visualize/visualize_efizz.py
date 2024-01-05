@@ -9,17 +9,18 @@ from behave_analysis.visualize.efizz.egocentric_firing_map_binned import egocent
 from behave_analysis.visualize.efizz.stim_resp_functions import single_cluster_raster, rasters, PSTH_all_neurons, PSTH_single_neurons
 from behave_analysis.visualize.efizz.tuning_functions import spatial_position_firing, spatial_position_firing_hdir
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.visualize.visualize_utils import open_postprocess_object
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters
     """
     
-    def __init__(self,  Processed_data_object, session):
+    def __init__(self, session):
        
        self.session = session
 
        # load in processed data
-       self.processed_data = Processed_data_object
+       self.processed_data = open_postprocess_object(self.session)
        self.video_df = pl.read_csv(
             os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv")
         )
