@@ -3,8 +3,6 @@
 # set up
 import os
 from loguru import logger
-import cv2
-import numpy as np
 import dill as pickle
 
 # import

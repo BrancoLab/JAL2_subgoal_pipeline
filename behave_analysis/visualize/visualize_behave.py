@@ -82,7 +82,6 @@ class Visualize_behave:
 ##--------MAKE MOVIS OF ESCAPE WITH DLC TRACKING
     def escape_movies(self):
         logger.info(f"Starting to make movies of mousie escape")
-        print("\nPress 'q' to quit and 'n' to move to the next video")
         trial_movies(tracking_data = self.tracking_data, 
                      kalman = self.kalman, 
                      session = self.session, 

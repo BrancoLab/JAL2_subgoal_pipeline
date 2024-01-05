@@ -16,6 +16,7 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type) -> None:
     A function that loops through all of the trials of a given type, and then loops through frame by frame.
     """
 
+    print("\nPress 'q' to quit and 'n' to move to the next video")
     for trial_num, (onset_frames, stimulus_durations) in enumerate(
         zip(session.__dict__[stim_type].onset_frames, session.__dict__[stim_type].stimulus_durations)
     ):

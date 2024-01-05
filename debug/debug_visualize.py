@@ -5,7 +5,6 @@ from loguru import logger
 from settings.settings_visualize import defined_settings_visualize as settings_v
 from databank import experiments_objects
 from behave_analysis.process.process import Process
-from behave_analysis.visualize.visualize_main import Visualize
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 
