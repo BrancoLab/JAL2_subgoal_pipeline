@@ -15,6 +15,7 @@ from PIL import Image
 
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, filter_video_dataframe, generate_bin_angles
 from settings.settings_visualize import defined_settings_visualize as settings_v
+from behave_analysis.utils.creating_directories import make_directory
 
 def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids):
     '''This function sets up making a firing map for an egocentric view of features in the arena.
@@ -28,12 +29,11 @@ def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids):
     window_size = 200 # for cropping the rendered arena image around the mouse
 
     # saving path - where to save the figures
-    map_path = os.path.join(session.base_path,
-                            session.processed_path, 
-                            'spatial_firing', 
-                            'egocentric_map',
-                            settings_v.cluster_type)
-    if not(os.path.exists(map_path)): os.makedirs(map_path)
+    map_path = make_directory(os.path.join(session.base_path,
+                                           session.processed_path, 
+                                            'spatial_firing', 
+                                            'egocentric_map',
+                                            settings_v.cluster_type))
 
     # make rendered arena image, add an offset for the cropping window
     # this defines the features that the firing map is built with

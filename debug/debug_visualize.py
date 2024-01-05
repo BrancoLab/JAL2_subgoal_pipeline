@@ -22,7 +22,7 @@ def visualize():
             # Visualize_behave(session, visual_object.postprocessObject).escape_movies(visual_object.kalman)
             # Visualize_behave(session, visual_object.postprocessObject).escape_plotting()
         if settings_v.efizz:
-            Visualize_efizz(visual_object.postprocessObject, session).run_tuning_functions()
+            # Visualize_efizz(visual_object.postprocessObject, session).run_tuning_functions()
             if settings_v.stim_type != "None":
                 Visualize_efizz(visual_object.postprocessObject, session).run_stim_resp_plotting()
     logger.success("Visualisation complete")

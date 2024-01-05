@@ -16,7 +16,7 @@ def spatial_position_firing_hdir(data, clu_label, video_df, save_path, show_plot
     A function that plots the position of the mouse at every AP of a given cluster and colours it by hdir
     """
 
-    logger.info("Commence making figures of spatial position firing plots of all clusters")
+    logger.info("Commence making figures of spatial position firing plots coloured by hdir of all clusters")
     cc = matplotlib.cm.Reds # could use Reds or copper
     # set number of rows and calculate number of columns
     ncols = 10
