@@ -39,7 +39,10 @@ class AnalyzeEfizz:
         # For each cluster type in settings e.g synthetic, syntheticHdir, good, mua
         for c_type in Settings.cluster_type:
             self.cluster_type = c_type
-            self.postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            self.video_spike_count_df = postprocessObject.video_spike_count_df
+            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+            self.cluster_Ids = postprocessObject.video_spike_count_df["spike_clusters"].unique().to_numpy()
 
     def extract_all_or_custom_conditions(self, session):
         """Identify all conditions to analyze or use custom conditions from settings file"""
@@ -59,9 +62,10 @@ class AnalyzeEfizz:
                 os.mkdir(self.dir + "\\" + "tunED")
             model_path = os.path.join(self.dir, "tunED")
             TunEdModel(
-                post_process_object=self.postprocessObject,
+                video_spike_count_df=self.video_spike_count_df,
                 analyze_efizz_settings=Settings,
                 save_dir=model_path,
+                session = self.session,
                 cluster_type=self.cluster_type,
                 conditions=self.all_conditions,
             )
@@ -87,7 +91,7 @@ class AnalyzeEfizz:
             for o in self.all_conditions:
                 self.condition = o
                 logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
-                run_LDA_model(self,Settings, angles)
+                run_LDA_model(self, Settings, angles)
             logger.success('LDA analysis complete')
 
         # ----------------- Compute Rayleigh and polar plots -------------------------
