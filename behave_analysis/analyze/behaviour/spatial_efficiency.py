@@ -49,11 +49,11 @@ def plot_escape_trajectories(onset_frames,stimulus_durations,ax, stim_type, trac
     speed = tracking_data["avg_Velocity"][onset_frames:onset_frames + int(stimulus_durations)]
     trail_color = np.empty((len(speed),3))
     distance_travelled = []
-    for i,stim_status in enumerate(np.arange(0,stimulus_durations,0.025)):
+    for i,stim_status in enumerate(np.arange(0,stimulus_durations)):
         trail_color[i,:] = get_color_based_on_speed(speed=speed[i], 
-                                            object_to_color="trail", 
-                                            stim_status=stim_status, 
-                                            stim_type=stim_type)
+                                                    object_to_color="trail", 
+                                                    stim_status=stim_status, 
+                                                    stim_type=stim_type)
         if i > 0:
             distance_travelled = np.append(distance_travelled,
                                             np.sqrt((x_loc[i] - x_loc[i-1])**2 + (y_loc[i] - y_loc[i-1])**2))

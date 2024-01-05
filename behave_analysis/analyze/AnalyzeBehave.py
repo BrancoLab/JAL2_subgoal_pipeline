@@ -6,6 +6,7 @@ import os
 from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from settings.settings_analyze import settings_analyze as settings
+from behave_analysis.utils.creating_directories import make_directory
 
 class AnalyzeBehave:
     """
@@ -13,11 +14,8 @@ class AnalyzeBehave:
     """
     def __init__(self,session):
         logger.info('Initializing AnalyzeBehave')
-        self.dir = os.path.join(session.base_path,session.processed_path) + "\\" + 'analyze_behave' 
+        self.dir = make_directory(os.path.join(session.base_path,session.processed_path) + "\\" + 'analyze_behave')
         self.session = session
-        if not os.path.isdir(self.dir):
-            os.mkdir(self.dir)
-        self.show_plots = settings.show_plots
         self.settings = settings
         open_tracking_data(self)
         """Load in video df"""
@@ -28,4 +26,9 @@ class AnalyzeBehave:
             raise FileNotFoundError("Synthetic data path doesn't exsist, have you generated it?")
  
     def behaviour_analyses(self):
-        spatial_efficiency()
+        logger.info(f"Making plots of spatial effciency in escape")
+        spatial_efficiency(session = self.session, 
+                           settings = settings, 
+                           video_df = self.video_df, 
+                           tracking_data = self.tracking_data, 
+                           save_dir = self.dir)

@@ -36,14 +36,14 @@ def open_tracking_data(session):
     
     return tracking_data
 
-def open_postprocess_object(session, settings) -> object:
+def open_postprocess_object(session, cluster_type) -> object:
     try:
         fileObj = open(
             os.path.join(session.base_path, session.processed_path)
             + "\\"
             + "postprocessclass"
             + "_"
-            + str(settings.cluster_type),
+            + str(cluster_type),
             "rb",
         )
         postprocessObject = pickle.load(fileObj)

@@ -20,7 +20,7 @@ class Visualize_efizz:
        self.session = session
 
        # load in processed data
-       self.processed_data = open_postprocess_object(self.session, settings_v)
+       self.processed_data = open_postprocess_object(self.session, settings_v.cluster_type)
        self.video_df = pl.read_csv(
             os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv")
         )
