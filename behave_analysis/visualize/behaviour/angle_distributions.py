@@ -271,7 +271,8 @@ def save_optimal_as_csv(dict, hdir_df, save_path) -> None:
         print(f"The length of 'arr' does not match the number of rows in 'df': {len(arr)} vs {df.height}.")
         return
 
-    large = df.with_column(pl.Series("hDir", arr).alias("hdir")).to_pandas()
+    # large = df.with_column(pl.Series("hDir", arr).alias("hdir")).to_pandas() # with_column deprecated in newer polars versions
+    large = df.hstack([pl.Series("hdir",arr)]).to_pandas()
     path = os.path.join(save_path, "optimal_distributions.csv")
     large.to_csv(path)
     return None
