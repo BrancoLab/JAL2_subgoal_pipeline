@@ -30,7 +30,6 @@ from matplotlib.lines import Line2D
 import matplotlib
 
 # Import custom libaries
-from settings.settings_visualize import defined_settings_visualize as settings_v
 from behave_analysis.analyze.filtering_data.filtering_functions import (
     identify_angles,
     identify_conditions,
@@ -49,13 +48,13 @@ def plot_condition_titles(conditions, nrows, columns) -> None:
         ax.set_axis_off()
 
 
-def plot_the_circular_rho(session, video_df, save_path) -> None:
+def plot_the_circular_rho(session, settings, video_df, save_path) -> None:
     """Plot coeff into bar chart"""
     dirty_angles = identify_angles(session)
     angles = [angle for angle in dirty_angles if angle != "h_bar_centre_a"]
     perms = create_all_the_permutations_of_angles(angles)
-    if settings_v.user_defined_conditions:
-        conditions = settings_v.conditions
+    if settings.user_defined_conditions:
+        conditions = settings.conditions
     else:
         conditions = identify_conditions(session)
 
@@ -100,7 +99,7 @@ def plot_the_circular_rho(session, video_df, save_path) -> None:
         axs[con_i, 1].set_xticklabels(x_labels, rotation=10)
 
 
-    if settings_v.show_plots:
+    if settings.show_plots:
         plt.show()
     matplotlib.rc('xtick', labelsize=20)
     plt.savefig(os.path.join(save_path, "Circular_coefficient_barplot.png"))

@@ -9,9 +9,8 @@ from matplotlib import pyplot as plt
 # Import custom lib
 from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
-from settings.settings_visualize import defined_settings_visualize as settings
 
-def plot_heat_map_of_position(session, video_data_frame, session_height, save_path) -> None:
+def plot_heat_map_of_position(session, settings, video_data_frame, session_height, save_path) -> None:
     """Create heatplot of mouse exploration for each condition"""
     
     if settings.user_defined_conditions:

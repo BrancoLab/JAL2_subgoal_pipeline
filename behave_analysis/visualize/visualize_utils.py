@@ -5,9 +5,6 @@ import os
 from loguru import logger
 import dill as pickle
 
-# import
-from settings.settings_visualize import defined_settings_visualize as settings
-
 def open_kalman_tracking_data(path):
     try:
         file = os.path.join(path, "kalman_tracking_data.pickle")
@@ -39,7 +36,7 @@ def open_tracking_data(session):
     
     return tracking_data
 
-def open_postprocess_object(session) -> object:
+def open_postprocess_object(session, settings) -> object:
     try:
         fileObj = open(
             os.path.join(session.base_path, session.processed_path)

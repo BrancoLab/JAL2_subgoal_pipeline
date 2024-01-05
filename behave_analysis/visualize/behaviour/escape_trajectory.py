@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # import
-from behave_analysis.analyze.AnalyzeBehave import identify_condition_escape, base_plotting
+from behave_analysis.analyze.behaviour.spatial_efficiency import identify_condition_escape, base_plotting
 
 def escape_trajectory_and_shelter_exits(tracking_data, video_df, session, settings, save_path):
     """

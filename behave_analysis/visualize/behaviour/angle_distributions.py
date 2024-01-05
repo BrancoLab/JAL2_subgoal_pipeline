@@ -31,7 +31,6 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
     identify_conditions,
     filter_video_dataframe,
 )
-from settings.settings_visualize import defined_settings_visualize as settings
 
 # ---------------------------------------Main Functions-----------------------------------------------
 
@@ -43,7 +42,7 @@ def plot_condition_titles(conditions, nrows, columns) -> None:
         ax.text(0.5, 0.4, c, rotation="horizontal", va="center", ha="center", fontsize=20)
         ax.set_axis_off()
 
-def plot_angle_distributions(session, trackingData, video_data, sessionHeight, save_path) -> None:
+def plot_angle_distributions(session, settings, trackingData, video_data, sessionHeight, save_path) -> None:
     """
     Plot sample and optimal angle distributions of behaviour in the arena.
 

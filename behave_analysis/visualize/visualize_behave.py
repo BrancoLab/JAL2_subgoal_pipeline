@@ -45,29 +45,32 @@ class Visualize_behave:
                         settings = settings_v, 
                         save_path = self.behave_path)
         location_occupancy(tracking_data = self.tracking_data,
-                          session = self.session, 
-                          settings = settings_v, 
-                          save_path = self.behave_path)
+                           session = self.session, 
+                           settings = settings_v, 
+                           save_path = self.behave_path)
 
         # Plotting angle distriubtions must go before plotting the circular rho
         plot_angle_distributions(session=self.session,
-                                trackingData=self.tracking_data,
-                                video_data=self.video_df,
-                                sessionHeight=self.session.video.height,
-                                save_path=self.behave_path)
+                                 settings = settings_v,
+                                 trackingData=self.tracking_data,
+                                 video_data=self.video_df,
+                                 sessionHeight=self.session.video.height,
+                                 save_path=self.behave_path)
 
         # Circular rho depends on angle distributions
         plot_the_circular_rho(self.session, 
+                              settings_v,
                               self.video_df, 
                               save_path=self.behave_path)
 
         plot_heat_map_of_position(session=self.session,
-                                video_data_frame=self.video_df,
-                                save_path=self.behave_path,
-                                session_height=self.session.video.height)
+                                  settings = settings_v,
+                                  video_data_frame=self.video_df,
+                                  save_path=self.behave_path,
+                                  session_height=self.session.video.height)
 
         CoverageStatistics(video_data_frame=self.video_df, 
-                           session=self.session, 
+                           settings = settings_v,
                            behave_path=self.behave_path)
 
 ##--------PLOT TRAJECTORIES OF ESCAPE

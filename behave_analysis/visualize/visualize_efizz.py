@@ -20,7 +20,7 @@ class Visualize_efizz:
        self.session = session
 
        # load in processed data
-       self.processed_data = open_postprocess_object(self.session)
+       self.processed_data = open_postprocess_object(self.session, settings_v)
        self.video_df = pl.read_csv(
             os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv")
         )
@@ -55,7 +55,8 @@ class Visualize_efizz:
                               self.video_df,
                               self.processed_data.clu_label,
                               self.session,
-                              cluster_Ids = cluster_Ids[cluster_Ids > 0])
+                              cluster_Ids = cluster_Ids[cluster_Ids > 0],
+                              settings = settings_v)
         logger.info(f"Finished! to make some efizz tuning plots...")
 
 ##------------STIMULUS RESPONSE PLOTTING

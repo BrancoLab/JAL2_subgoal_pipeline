@@ -30,14 +30,13 @@ class AnalyzeEfizz:
     def __init__(self, session):
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
-        self.dir = os.path.join(session.base_path, session.processed_path) + "\\" + "models"
+        self.dir = make_directory(os.path.join(session.base_path, session.processed_path,"models"))
         self.show_plots = Settings.show_plots
         self.settings = Settings
         self.all_conditions = self.extract_all_or_custom_conditions(session)
         self.video_df = pl.read_csv(
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv"
         )
-        make_directory(self.dir)
 
         # For each cluster type in settings e.g synthetic, syntheticHdir, good, mua
         for c_type in Settings.cluster_type:

@@ -1,7 +1,6 @@
 '''a set of functions for visualizing the stimulus (i.e. threat) response of neurons'''
 
 # set up
-from loguru import logger
 import numpy as np
 import polars as pl
 import matplotlib.pyplot as plt

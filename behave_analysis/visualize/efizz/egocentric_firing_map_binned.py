@@ -14,10 +14,9 @@ import matplotlib.gridspec as gridspec
 from PIL import Image
 
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, filter_video_dataframe, generate_bin_angles
-from settings.settings_visualize import defined_settings_visualize as settings_v
 from behave_analysis.utils.creating_directories import make_directory
 
-def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids):
+def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids, settings):
     '''This function sets up making a firing map for an egocentric view of features in the arena.
     For each cluster it will make a figure of egocentric firing maps in each condition.
     It will look at each position of the mouse, align the view of features in the arena based on the head angle of the mouse 
@@ -33,7 +32,7 @@ def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids):
                                            session.processed_path, 
                                             'spatial_firing', 
                                             'egocentric_map',
-                                            settings_v.cluster_type))
+                                            settings.cluster_type))
 
     # make rendered arena image, add an offset for the cropping window
     # this defines the features that the firing map is built with
@@ -42,8 +41,8 @@ def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids):
                                         session.barrier_location)
 
     # identify conditions in this session
-    if settings_v.user_defined_conditions:
-        conditions = settings_v.conditions
+    if settings.user_defined_conditions:
+        conditions = settings.conditions
     else:
         conditions = identify_conditions(session)
         
@@ -164,7 +163,7 @@ def single_cluster_plot(heatmap,all_conditions,plot_save_path,cluster,category):
     # Save and close the figure
     plt.tight_layout()
     plt.savefig(str(plot_save_path) + "/" + category[0] + "_cluster" + str(cluster) + "_polar_plots.png")
-    if settings_v.show_plots:
+    if settings.show_plots:
         plt.show()
     plt.close()
 

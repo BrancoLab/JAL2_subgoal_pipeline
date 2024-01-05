@@ -3,10 +3,6 @@
 # import third party libaries
 import numpy as np
 
-# custom import
-from settings.settings_visualize import defined_settings_visualize as settings
-
-
 def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_escape=True):
     """
     A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
