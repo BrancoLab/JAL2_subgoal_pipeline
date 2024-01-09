@@ -5,10 +5,11 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_ae = Settings_analyze_efizz(
     
     # General settings
+    stim_type = "None",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift = False, # whether to run linear shift!
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute = False, # if True it will force recompute any pre-saved analyses (e.g. Rayleigh)
-    cluster_type = ['synthetic'], # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
+    cluster_type = ['good'], # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots = False,
     # possible condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                             'pre_shelter' (empty arena),
@@ -17,7 +18,8 @@ Settings_ae = Settings_analyze_efizz(
     #                             'shelter_only',
     #                             'barrier_pre_flip',
     #                             'barrier_post_flip',
-    condition = [], # if condition is empty all possible conditions will be analyzed
+    conditions = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
+    user_defined_conditions=False, # False if you want automatically identified conditions 
     number_of_bins = 19, # number of bins for angles
     
     # ------------- Tuned model settings -----------------------
@@ -33,7 +35,7 @@ Settings_ae = Settings_analyze_efizz(
     PCA_process = [], # numnber of PCs to use, if left empty it will run without PCA
 
     # Rayleigh model settings
-    run_rayleigh = True,
+    run_rayleigh = False,
     rayleigh_significance = 'linshit', # can be either linear shift or bootstrap
     single_cluster_plots = True, # True: Plot every condition in one figure
                                  # False: Do not plot every condition in one figure for each cluster

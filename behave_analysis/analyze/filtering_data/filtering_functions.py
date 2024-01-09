@@ -3,10 +3,6 @@
 # import third party libaries
 import numpy as np
 
-# custom import
-from settings.settings_visualize import defined_settings_visualize as settings
-
-
 def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_escape=True):
     """
     A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
@@ -46,32 +42,35 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
     return filtered_video_df
 
 
-def identify_conditions(session, overide=False) -> list:
+def identify_conditions(session) -> list:
     """Determine which conditions are available in this session
 
     e.g. shelter_only, barrier_present, barrier_pre_flip, barrier_post_flip"""
 
-    if not overide:
-        condition = ["all_time"]
+    condition = ["all_time"]
 
-        if len(session.shelter_time) > 0:
-            condition.append("shelter_present")
-            if session.shelter_time[0] > 0:
-                condition.append("pre_shelter")
-            if len(session.barrier_time) > 0:
-                condition.append("shelter_only")
-
+    if len(session.shelter_time) > 0:
+        condition.append("shelter_present")
+        if session.shelter_time[0] > 0:
+            condition.append("pre_shelter")
         if len(session.barrier_time) > 0:
-            condition.append("barrier_present")
-            if session.barrier_flip_time:
-                condition.append("barrier_pre_flip")
-                condition.append("barrier_post_flip")
+            condition.append("shelter_only")
 
-    else:
-        condition = settings.over_ride_conditions
+    if len(session.barrier_time) > 0:
+        condition.append("barrier_present")
+        if session.barrier_flip_time:
+            condition.append("barrier_pre_flip")
+            condition.append("barrier_post_flip")
 
     return condition
 
+def extract_all_or_custom_conditions(settings, session):
+    """Identify all conditions to analyze or use custom conditions from settings file"""
+    if settings.user_defined_conditions:
+        conditions = settings.conditions
+    else:
+        conditions = identify_conditions(session)
+    return conditions
 
 def identify_angles(session):
     """
@@ -88,7 +87,6 @@ def identify_angles(session):
         angles.append("h_bar_centre_a")
 
     return angles
-
 
 def generate_bin_angles(number_of_bins):
     bin_angles = np.linspace(-np.pi, np.pi, number_of_bins)

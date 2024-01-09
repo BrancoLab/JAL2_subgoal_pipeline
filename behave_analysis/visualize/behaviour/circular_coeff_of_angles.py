@@ -30,10 +30,8 @@ from matplotlib.lines import Line2D
 import matplotlib
 
 # Import custom libaries
-from settings.settings_visualize import defined_settings_visualize as settings_v
 from behave_analysis.analyze.filtering_data.filtering_functions import (
     identify_angles,
-    identify_conditions,
     filter_video_dataframe,
 )
 
@@ -49,12 +47,11 @@ def plot_condition_titles(conditions, nrows, columns) -> None:
         ax.set_axis_off()
 
 
-def plot_the_circular_rho(session, video_df, save_path) -> None:
+def plot_the_circular_rho(session, settings, video_df, conditions, save_path) -> None:
     """Plot coeff into bar chart"""
     dirty_angles = identify_angles(session)
     angles = [angle for angle in dirty_angles if angle != "h_bar_centre_a"]
     perms = create_all_the_permutations_of_angles(angles)
-    conditions = identify_conditions(session, overide=settings_v.over_ride_conditions_bool)
 
     # Create optimal rho dict
     optimals = load_optimals(save_path)
@@ -93,11 +90,11 @@ def plot_the_circular_rho(session, video_df, save_path) -> None:
         axs[con_i, 1].spines["left"].set_visible(False)
         axs[con_i, 1].set_ylabel("Circular rho (ρ)", fontsize=16)
         axs[con_i, 1].axhline(linewidth=1, color="black", linestyle="--")
-        axs[con_i, 1].set_yticks([-1, -0.5, 0, 0.5, 1], fontsize=16)
+        axs[con_i, 1].set_yticks([-1, -0.5, 0, 0.5, 1],labels = ['-1', '-0.5', '0', '0.5', '1'], fontsize=16)
         axs[con_i, 1].set_xticklabels(x_labels, rotation=10)
 
 
-    if settings_v.show_plots:
+    if settings.show_plots:
         plt.show()
     matplotlib.rc('xtick', labelsize=20)
     plt.savefig(os.path.join(save_path, "Circular_coefficient_barplot.png"))

@@ -1,7 +1,5 @@
 # OS Libaries
 from loguru import logger
-import os
-import dill as pickle
 
 # Custom Libaries
 from databank import experiments_objects
@@ -18,9 +16,11 @@ def analyze():
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_id))
-        AnalyzeBehave(session)
+        if settings_a.stim_type != "None":
+            AnalyzeBehave(session).behaviour_analyses()
         if settings_a.efizz:
-            AnalyzeEfizz(session)
+            AnalyzeEfizz(session).execute_models()
+            AnalyzeEfizz(session).classify_cells()
     logger.success("Analysis pipeline complete")
     
 analyze()
