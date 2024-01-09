@@ -62,24 +62,20 @@ def postprocess():
         Postprocessor(session)
     logger.success("The post processing of the data has finished and the postprocessed object has been saved to a pickle file")
 
-
 def visualize():
-    """
-    A function that visualising the mouse's behaviour in a session by trial, and looks at how well the efizz has synced.
-    """
+    """Viusalize mouse behavior and efizz data"""
     logger.info("Visualisation started")
-    for session_ID in experiments_objects:
-        session = Process(session_ID).load_session()
-        logger.info("Loaded a session with the following details: {}".format(session_ID))
-        visual_object = Visualize(session)
-        Visualize_behave(session,visual_object.postprocessObject).plot_behavioral_stats()
-        if settings_v.stim_type != '':
-            visual_object.trial_movies(settings_v.stim_type)
-            Visualize_behave(session,visual_object.postprocessObject).escape_plotting()
+    for session_id in experiments_objects:
+        session = Process(session_id).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_id))
+        Visualize_behave(session).plot_behavioral_stats()
+        if settings_v.stim_type != "None":
+            Visualize_behave(session).escape_movies()
+            Visualize_behave(session).escape_plotting()
         if settings_v.efizz:
-            Visualize_efizz(visual_object.postprocessObject, session).run_tuning_functions()
-            if settings_v.stim_type != '':
-                Visualize_efizz(visual_object.postprocessObject, session).run_stim_resp_plotting()
+            Visualize_efizz(session).run_tuning_functions()
+            if settings_v.stim_type != "None":
+                Visualize_efizz(session).run_stim_resp_plotting()
     logger.success("Visualisation complete")
 
 def analyze():

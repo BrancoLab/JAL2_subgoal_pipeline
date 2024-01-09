@@ -5,15 +5,15 @@ from loguru import logger
 import numpy as np
 import polars as pl
 import matplotlib
+matplotlib.use('TkAgg')
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 from settings.settings_analyze_efizz import Settings_ae
 from behave_analysis.analyze.stats.linshit import LinearShift
-from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, identify_conditions
-
-matplotlib.use('TkAgg')
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles
+from behave_analysis.utils.creating_directories import make_directory
 
 def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_path):
     """ 
@@ -23,9 +23,7 @@ def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_p
     """
 
     for c in all_conditions:
-        data_path = os.path.join(base_path, c)
-        if not(os.path.exists(data_path)): 
-            os.makedirs(data_path)
+        data_path = make_directory(os.path.join(base_path, c))
         
         # filter data in this condition
         filtered_video_df = filter_video_dataframe(self.video_df, c)
@@ -43,7 +41,7 @@ def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_p
                 # extract relevant data
                 this_df = filtered_video_df.select(['frames',a])
                 frames = this_df['frames'].unique().to_numpy() - 1
-                X = self.postprocessObject.frame_by_cluster_matrix
+                X = self.frame_by_cluster_matrix
                 X = X[frames,:]           
                 
                 # compute tuning
@@ -55,25 +53,20 @@ def compute_single_cluster_tuning(self,settings):
 
     # Initialize variables
     all_angles = identify_angles(self.session)
-    all_conditions = self.all_conditions
-    # all_conditions = ['shelter_only', 'barrier_pre_flip', 'barrier_post_flip']
-    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type)
-    plot_save_path = os.path.join(base_path, 'single_cluster_plots')
 
-    # Create save path if it doesn't exist
-    if not os.path.exists(plot_save_path):
-        os.makedirs(plot_save_path)
+    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type)
+    plot_save_path = make_directory(os.path.join(base_path, 'single_cluster_plots'))
 
     # check that Rayleigh has been computed and saved for all conditions and if not compute it
-    compute_all_clusters_rayleigh(self,settings,all_angles, all_conditions,base_path)
+    compute_all_clusters_rayleigh(self,settings,all_angles, self.all_conditions,base_path)
 
-    single_cluster_plots(self,settings, all_angles, all_conditions, base_path, plot_save_path)
+    single_cluster_plots(self,settings, all_angles, self.all_conditions, base_path, plot_save_path)
 
 def single_cluster_plots(self,settings, all_angles, all_conditions, base_path, plot_save_path):
     """ Make a figure for each cluster with polar plots for all angles in all conditions of interest"""
 
     logger.info("Making individual cluster polar plots")
-    clusters = self.postprocessObject.video_spike_count_df["spike_clusters"].unique()
+    clusters = self.cluster_Ids
 
     # Add one index for the titles
     nrows = len(all_conditions) + 1
@@ -146,9 +139,8 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     binned_angles = np.digitize(binned_angles, bin_angles) - 1
 
     # initialize variables to compute the Rayleigh vector
-    cluster_Ids = self.postprocessObject.video_spike_count_df["spike_clusters"].unique().to_numpy()
     # Remove cluster 0 from ks only - synthetic starts at cluster id 1
-    cluster_Ids = cluster_Ids[cluster_Ids > 0]
+    cluster_Ids = self.cluster_Ids[self.cluster_Ids > 0]
     Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(cluster_Ids, len(np.unique(compartment)), bin_angle_center)
     
     # assign spike times of each cluster to the corresponding video frame, then assign HD

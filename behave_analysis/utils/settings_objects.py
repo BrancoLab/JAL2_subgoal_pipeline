@@ -139,6 +139,7 @@ class Settings_analyze_global:
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
+    stim_type: str = 'None'
     redo_compute: bool = False
     cluster_type: str = ''
     show_plots: bool = False
@@ -155,7 +156,7 @@ class Settings_analyze_efizz:
     single_cluster_plots: bool =True
     multi_cluster_plots: bool = False
     linear_shift: bool = True
-    condition: str = ''
+    conditions: str = ''
     user_defined_conditions: bool = False
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False

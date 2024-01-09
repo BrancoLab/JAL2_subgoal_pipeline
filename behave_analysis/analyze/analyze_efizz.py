@@ -7,17 +7,15 @@ import numpy as np
 
 from behave_analysis.analyze.TunED.model import TunEdModel
 
-# from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
+from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
 from settings.settings_analyze_efizz import Settings_ae as Settings
 
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
-from behave_analysis.analyze.Rayleigh.computeRayleigh import (
-    compute_all_clusters_rayleigh,
-    compute_single_cluster_tuning,
-)
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, identify_angles
+from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
+from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.visualize.visualize_utils import open_postprocess_object
 
 
 class AnalyzeEfizz:
@@ -30,43 +28,21 @@ class AnalyzeEfizz:
     def __init__(self, session):
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
-        self.dir = os.path.join(session.base_path, session.processed_path) + "\\" + "models"
+        self.dir = make_directory(os.path.join(session.base_path, session.processed_path,"models"))
         self.show_plots = Settings.show_plots
         self.settings = Settings
-        self.all_conditions = self.extract_all_or_custom_conditions(session)
+        self.all_conditions = extract_all_or_custom_conditions(Settings, session)
         self.video_df = pl.read_csv(
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv"
         )
-        make_directory(self.dir)
 
         # For each cluster type in settings e.g synthetic, syntheticHdir, good, mua
         for c_type in Settings.cluster_type:
             self.cluster_type = c_type
-            try:  # Load in postprocess object
-                fileObj = open(
-                    os.path.join(self.session.base_path, self.session.processed_path)
-                    + "\\"
-                    + "postprocessclass"
-                    + "_"
-                    + str(self.cluster_type),
-                    "rb",
-                )
-                self.postprocessObject = pickle.load(fileObj)
-                fileObj.close()
-            except FileNotFoundError:
-                logger.error(f"Data not found for session: {self.session.name}")
-                raise FileNotFoundError
-
-            self.execute_models()
-            self.classify_cells()
-
-    def extract_all_or_custom_conditions(self, session):
-        """Identify all conditions to analyze or use custom conditions from settings file"""
-        if Settings_ae.user_defined_conditions:
-            conditions = Settings_ae.conditions
-        else:
-            conditions = identify_conditions(session)
-        return conditions
+            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            self.video_spike_count_df = postprocessObject.video_spike_count_df
+            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+            self.cluster_Ids = postprocessObject.video_spike_count_df["spike_clusters"].unique().to_numpy()
 
     def execute_models(self):
         logger.info("Executing models")
@@ -78,9 +54,10 @@ class AnalyzeEfizz:
                 os.mkdir(self.dir + "\\" + "tunED")
             model_path = os.path.join(self.dir, "tunED")
             TunEdModel(
-                post_process_object=self.postprocessObject,
+                video_spike_count_df=self.video_spike_count_df,
                 analyze_efizz_settings=Settings,
                 save_dir=model_path,
+                session = self.session,
                 cluster_type=self.cluster_type,
                 conditions=self.all_conditions,
             )
@@ -96,17 +73,18 @@ class AnalyzeEfizz:
         #             main(X_valid, y_valid, X_train, y_train, y_test)
 
         # ------------------------------ Compute LDA --------------------------------
-        # if len(Settings_analyze_efizz.run_LDA) > 0:
-        #     if Settings_analyze_efizz.run_LDA == 'all':
-        #         angles = identify_angles(self.session)
-        #         angles.append('randP')
-        #     else: angles = Settings_analyze_efizz.run_LDA
+        if len(Settings.run_LDA) > 0:
+            if np.logical_or(Settings.run_LDA == 'all', 
+                             np.logical_and(type(Settings.run_LDA) is list, Settings.run_LDA[0] == 'all')):
+                angles = identify_angles(self.session)
+                angles.append('randP')
+            else: angles = Settings.run_LDA
 
-        #     for o in self.all_conditions:
-        #         self.condition = o
-        #         logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
-        #         run_LDA_model(self,Settings_analyze_efizz, angles)
-        #     logger.success('LDA analysis complete')
+            for o in self.all_conditions:
+                self.condition = o
+                logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
+                run_LDA_model(self, Settings, angles)
+            logger.success('LDA analysis complete')
 
         # ----------------- Compute Rayleigh and polar plots -------------------------
         if Settings.run_rayleigh:
@@ -117,7 +95,7 @@ class AnalyzeEfizz:
                                          'Rayleigh', 
                                          self.cluster_type)
                 compute_all_clusters_rayleigh(self, 
-                                              Settings_ae, 
+                                              Settings, 
                                               all_angles, 
                                               self.all_conditions, 
                                               base_path)

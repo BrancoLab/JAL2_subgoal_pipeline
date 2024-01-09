@@ -3,10 +3,6 @@
 # import third party libaries
 import numpy as np
 
-# custom import
-from settings.settings_visualize import defined_settings_visualize as settings
-
-
 def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_escape=True):
     """
     A function that filters the video dataframe (the behavioural data) by angle of interest and object presence (whether the barrier or shelter is present or not)
@@ -68,6 +64,13 @@ def identify_conditions(session) -> list:
 
     return condition
 
+def extract_all_or_custom_conditions(settings, session):
+    """Identify all conditions to analyze or use custom conditions from settings file"""
+    if settings.user_defined_conditions:
+        conditions = settings.conditions
+    else:
+        conditions = identify_conditions(session)
+    return conditions
 
 def identify_angles(session):
     """
