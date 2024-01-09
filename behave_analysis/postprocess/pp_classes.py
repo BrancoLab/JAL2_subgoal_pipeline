@@ -246,6 +246,11 @@ class BaseDataPostprocessor(ABC):
         return large_dataFrame
 
     def export_large_df_to_frame_by_cluster_matrix(self, spikeCountByFrameAndCluster, video_df) -> None:
+        """
+        This function takes the spike count by frame and cluster dataframe and extracts the spike count of each cluster on each frame,
+        populating a large matrix. 
+        Additionally it uses a sliding window to estimate firing rate.
+        Output: a matrix of frames x clusters of firing rates in Hz"""
         logger.info("building a frame by cluster matrix of firing rates")
         clu = spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
         # group the  data

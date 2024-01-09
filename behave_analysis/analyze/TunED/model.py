@@ -38,14 +38,15 @@ from behave_analysis.analyze.TunED.tuned_load_sig_clusters import ReturnSigClust
 class TunEdModel:
     """Conditional indepedence test"""
 
-    def __init__(self, post_process_object, analyze_efizz_settings, save_dir, cluster_type, conditions):
+    def __init__(self, video_spike_count_df, analyze_efizz_settings, session, save_dir, cluster_type, conditions):
         # Mode Params
         self.spike_threshold = 1000  # If a cluster has less than this number of spikes it will be skipped
         # This will be applied per condition during plotting, and for all conditions for classification
 
         # Init model
+        self.session = session
         self.settings = analyze_efizz_settings
-        self.post_process_object = post_process_object
+        self.video_spike_count_df = video_spike_count_df
         self.cluster_type = cluster_type
         self.directory_location = save_dir + "\\" + str(self.cluster_type)
         self.conditions = conditions
@@ -71,7 +72,7 @@ class TunEdModel:
     def run_model_4_plots(self):
         """Run TunEd across clu and condition for plotting"""
         # Remove time mouse is in the shelter
-        df = self.post_process_object.video_spike_count_df  # shorten name
+        df = self.video_spike_count_df  # shorten name
         clean_spike_df = df.filter((df["OutofshelterIdx"] == True))
 
         for cluster in np.unique(clean_spike_df["spike_clusters"]):
@@ -124,7 +125,7 @@ class TunEdModel:
 
     def select_significant_cluster_ids(self) -> list:
         """Select the cluster IDs that are significant in at least one compartment"""
-        return ReturnSigClusters(self.post_process_object, self.settings).sig_clusters["cluster_id"].to_list()
+        return ReturnSigClusters(self.session, self.settings).sig_clusters["cluster_id"].to_list()
 
     def skip_cluster_if_dud(self, cluster: int, cluster_df: pl.DataFrame, spike_thres: int) -> None:
         """Don't use clusters with no spikes or less than 2k spikes in model"""
@@ -154,7 +155,7 @@ class TunEdModel:
         """
 
         # Remove time mouse is in the shelter
-        df = self.post_process_object.video_spike_count_df  # shorten name
+        df = self.video_spike_count_df  # shorten name
         clean_spike_df = df.filter((df["OutofshelterIdx"] == True))
 
         clusters = np.unique(clean_spike_df["spike_clusters"])

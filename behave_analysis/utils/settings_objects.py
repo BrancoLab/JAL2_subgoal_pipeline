@@ -81,17 +81,15 @@ class Settings_visualize:
     fisheye_correction_file: str = None
     by_experiment: bool = False
     # experiments: list=None
-    by_session: bool = False
-    sessions: list = None
-    all_sessions: bool = False
-    efizz: bool = False
-    show_plots: bool = False
-    cluster_type: str = ""
-    conditions_to_plot: list = None
-    stim_type: str = ""
-    over_ride_conditions: list = None
-    over_ride_conditions_bool: bool = False
-
+    by_session: bool=False
+    sessions: list=None
+    all_sessions: bool=False
+    efizz: bool=False
+    show_plots: bool=False
+    cluster_type: str = ''
+    stim_type: str = ''
+    conditions: list = None
+    user_defined_conditions: bool = False
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
@@ -147,6 +145,7 @@ class Settings_analyze_global:
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
+    stim_type: str = 'None'
     redo_compute: bool = False
     cluster_type: str = ""
     show_plots: bool = False
@@ -163,7 +162,8 @@ class Settings_analyze_efizz:
     single_cluster_plots: bool = True
     multi_cluster_plots: bool = False
     linear_shift: bool = True
-    condition: str = ""
+    conditions: str = ''
+    user_defined_conditions: bool = False
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False
     run_pca_model: bool = False
