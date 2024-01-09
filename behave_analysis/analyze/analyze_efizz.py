@@ -6,6 +6,8 @@ from loguru import logger
 import polars as pl
 
 from settings.settings_analyze_efizz import Settings_ae as Settings
+
+from behave_analysis.analyze.decoders.LSTM.pytorch_LSTM import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
@@ -83,12 +85,13 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute LSTM --------------------------------
         # TODO: Finish LSTM model
+        
+        main(frame_by_cluster_matrix = self.postprocessObject.frame_by_cluster_matrix, 
+             Y = np.asarray(self.video_df["hdir"]).reshape(len(self.video_df["hdir"]), 1))
 
-        # Run LSTM
-        #         if 0:
-        #             X, y = bin_polars_dataframes(spike_data = pl.read_csv(self.spike_data_frame), video_data = self.data_df)
-        #             X_valid, y_valid, X_train, y_train, y_test = preprocess_data_and_set_up(neural_data = X, y = y)
-        #             main(X_valid, y_valid, X_train, y_train, y_test)
+        # X, y = bin_polars_dataframes(spike_data = pl.read_csv(self.spike_data_frame), video_data = self.data_df)
+        # X_valid, y_valid, X_train, y_train, y_test = preprocess_data_and_set_up(neural_data = X, y = y)
+        # main(X_valid, y_valid, X_train, y_train, y_test)
 
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:
