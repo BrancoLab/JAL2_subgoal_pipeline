@@ -14,6 +14,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
+from behave_analysis.analyze.classification.head_shelter import classify_hsa
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
 
@@ -33,7 +34,8 @@ class AnalyzeEfizz:
         self.settings = Settings
         self.all_conditions = extract_all_or_custom_conditions(Settings, session)
         self.video_df = pl.read_csv(
-            os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv"
+            os.path.join(self.session.base_path, self.session.processed_path) + "\\"
+            "full_video_dataframe.csv"
         )
 
         # For each cluster type in settings e.g synthetic, syntheticHdir, good, mua
@@ -100,14 +102,25 @@ class AnalyzeEfizz:
                                               self.all_conditions, 
                                               base_path)
             else:
-                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
+                logger.info(
+                    f"Making single cluster polar plots on {self.cluster_type} data"
+                )
                 compute_single_cluster_tuning(self, Settings)
 
         logger.success("All models complete")
-        
+
     def classify_cells(self):
         """A function to call cell type specific classification functions
-        
+
         TODO: Work in progress"""
-        hdir_cell_ids = classify_hdir(session = self.session, cluster_type = self.cluster_type)
+        hdir_cell_ids = classify_hdir(
+            session=self.session, cluster_type=self.cluster_type
+        )
         print("Cell ids we think are hdir", hdir_cell_ids)
+
+        hsa_cell_ids = classify_hsa(
+            session=self.session, 
+            cluster_type=self.cluster_type,
+            hdir_cells=hdir_cell_ids
+        )
+        print("Cell ids we think are hsa", hsa_cell_ids)
