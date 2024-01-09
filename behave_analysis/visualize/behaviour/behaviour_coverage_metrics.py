@@ -18,10 +18,6 @@ from scipy.stats import entropy
 from loguru import logger
 import os
 
-# Custom libaries
-
-from settings.settings_visualize import defined_settings_visualize as settings_v
-
 # Plotting settings
 sns.set_theme(style="ticks")
 
@@ -32,11 +28,11 @@ class CoverageStatistics:
     of this class is to inform the user if the mouse has sampled all the areas uniformly or if there are areas that are not being sampled.
     """
     
-    def __init__(self, video_data_frame, session, behave_path):
+    def __init__(self, video_data_frame, settings, behave_path):
         self.save_path = behave_path
         self.video_df = self.select_angle_columns(video_data_frame.filter(pl.col("OutofshelterIdx") == True))
         
-        self.plot_marginals_and_pairwise_correlations()
+        self.plot_marginals_and_pairwise_correlations(settings)
         
         # _, self.xedges, self.yedges = self.divide_arena_into_grid(video_data_frame, grid_number = 3) # 3 creates a 3x3 grid of the arena
         # self.mapped_coordinates = self.map_bin_edges_to_grid_coordinates()
@@ -61,7 +57,7 @@ class CoverageStatistics:
             
         return angles
         
-    def plot_marginals_and_pairwise_correlations(self) -> None:
+    def plot_marginals_and_pairwise_correlations(self, settings) -> None:
         """
         Plots the marginal distributions of the angles and the pairwise correlations between the angles. I suspect
         that as the correlation plots are linear and the coeff are circular that this is not the correct way to do this.
@@ -87,7 +83,7 @@ class CoverageStatistics:
             pair_plot.fig.set_size_inches(20, 8)
             plt.subplots_adjust(wspace=0.1, hspace=0.2)
 
-            if settings_v.show_plots: plt.show()
+            if settings.show_plots: plt.show()
 
         # If it's not a barrier experiment
         else:
@@ -100,7 +96,7 @@ class CoverageStatistics:
             pair_plot.fig.set_size_inches(20, 8)
             plt.subplots_adjust(wspace=0.1, hspace=0.2)
             
-            if settings_v.show_plots: plt.show()
+            if settings.show_plots: plt.show()
 
         plt.savefig(os.path.join(self.save_path, "marginal_and_pairwise_correlations.png"))
         plt.close()

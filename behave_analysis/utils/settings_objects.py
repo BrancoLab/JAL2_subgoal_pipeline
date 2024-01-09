@@ -4,38 +4,41 @@ As such each class below is just a shell"""
 
 from dataclasses import dataclass
 
+
 @dataclass(frozen=True)
 class Settings_process:
-    create_new_registration: bool=False
-    skip_registration: bool=True
-    registration: str='partial affine'
-    fisheye_correction_file: str=None
-    size: int=1024
-    pixels_per_cm : int=10
-    by_experiment: bool=False
-    experiments: list=None
-    by_session: bool=False
-    sessions: list=None
-    all_sessions: bool=False
-    efizz: bool=False
-    efizzDataPath: str=None
+    create_new_registration: bool = False
+    skip_registration: bool = True
+    registration: str = "partial affine"
+    fisheye_correction_file: str = None
+    size: int = 1024
+    pixels_per_cm: int = 10
+    by_experiment: bool = False
+    experiments: list = None
+    by_session: bool = False
+    sessions: list = None
+    all_sessions: bool = False
+    efizz: bool = False
+    efizzDataPath: str = None
+
 
 @dataclass(frozen=True)
 class Settings_track:
     inverse_fisheye_correction_file: str = None
-    redo_processing_step: bool=False
-    skip_processing_step: bool=False
-    display_tracking_output: bool=False
-    min_confidence_in_tracking: float=None
-    max_deviation_from_rest_of_points: int=None
-    by_experiment: bool=False
-    experiments: list=None
-    by_session: bool=False
-    sessions: list=None
-    all_sessions: bool=False
-    tracking_file_location: str=None
+    redo_processing_step: bool = False
+    skip_processing_step: bool = False
+    display_tracking_output: bool = False
+    min_confidence_in_tracking: float = None
+    max_deviation_from_rest_of_points: int = None
+    by_experiment: bool = False
+    experiments: list = None
+    by_session: bool = False
+    sessions: list = None
+    all_sessions: bool = False
+    tracking_file_location: str = None
     save_labeled_video: bool = False
     random_points: str = None
+
 
 @dataclass(frozen=True)
 class Settings_homings:
@@ -48,11 +51,12 @@ class Settings_homings:
     threat_area_height: int
     subgoal_locations: list
     duration_after_crossing: float
-    by_experiment: bool=False
-    experiments: list=None
-    by_session: bool=False
-    sessions: list=None
-    all_sessions: bool=False
+    by_experiment: bool = False
+    experiments: list = None
+    by_session: bool = False
+    sessions: list = None
+    all_sessions: bool = False
+
 
 @dataclass(frozen=True)
 class Settings_visualize:
@@ -61,10 +65,10 @@ class Settings_visualize:
     # homing_trials: bool=False
     # t_xing_trials: bool=True
     # explore_trial: bool=False
-    display_tracking:bool=False
-    display_trail:bool=True
-    rapid: bool=True
-    display_stimulus: bool=True
+    display_tracking: bool = False
+    display_trail: bool = True
+    rapid: bool = True
+    display_stimulus: bool = True
     seconds_before_audio: int = 3
     seconds_before_laser: int = 3
     seconds_before_homing: int = 3
@@ -75,7 +79,7 @@ class Settings_visualize:
     seconds_after_threshold_crossing: int = 3
     save_folder: str = None
     fisheye_correction_file: str = None
-    by_experiment: bool=False
+    by_experiment: bool = False
     # experiments: list=None
     by_session: bool=False
     sessions: list=None
@@ -83,42 +87,42 @@ class Settings_visualize:
     efizz: bool=False
     show_plots: bool=False
     cluster_type: str = ''
-    conditions_to_plot: list = None
     stim_type: str = ''
-    over_ride_conditions: list = None
-    over_ride_conditions_bool: bool = False
+    conditions: list = None
+    user_defined_conditions: bool = False
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
-    plot_escape: bool=False
-    plot_exploration: bool=False
-    plot_laser: bool=False
-    plot_targets: bool=False
-    plot_homings: bool=False
-    plot_t_xings: bool=False
-    plot_trial: bool=False
-    plot_homing: bool=False
-    plot_explore: bool=False
-    title: str=None
-    save_folder: str=None
+    plot_escape: bool = False
+    plot_exploration: bool = False
+    plot_laser: bool = False
+    plot_targets: bool = False
+    plot_homings: bool = False
+    plot_t_xings: bool = False
+    plot_trial: bool = False
+    plot_homing: bool = False
+    plot_explore: bool = False
+    title: str = None
+    save_folder: str = None
     experiments: list = None
     sessions: list = None
-    group_1: list=None
-    group_2: list=None
-    group_3: list=None
-    group_4: list=None
-    group_5: list=None
-    group_6: list=None
-    group_7: list=None
-    group_8: list=None
-    by_experiment: bool=True
-    by_session: bool=False
-    compare: bool=False
-    all_sessions: bool=False
+    group_1: list = None
+    group_2: list = None
+    group_3: list = None
+    group_4: list = None
+    group_5: list = None
+    group_6: list = None
+    group_7: list = None
+    group_8: list = None
+    by_experiment: bool = True
+    by_session: bool = False
+    compare: bool = False
+    all_sessions: bool = False
+
 
 @dataclass(frozen=True)
 class Settings_analyze_global:
-    analysis: Settings_analyze_local=None
+    analysis: Settings_analyze_local = None
     max_num_trials: int = 6
     max_escape_duration: int = 9
     post_laser_seconds_to_plot: int = 5
@@ -126,41 +130,46 @@ class Settings_analyze_global:
     escape_initiation_speed: float = 20
     edge_vector_threshold: float = 0.68
     binarize_statistics: bool = False
-    two_tailed_test: bool=True
-    leftside_only: bool=False
-    rightside_only: bool=False
-    reflect_trajectories: bool=False
+    two_tailed_test: bool = True
+    leftside_only: bool = False
+    rightside_only: bool = False
+    reflect_trajectories: bool = False
     stim_type: str = None
     show_plots: bool = False
-    save_folder: str=None
-    color_by: str=''
-    x_jitter: bool=True
-    efiz_file_path: str=""
-    efizz: bool =  True
+    save_folder: str = None
+    color_by: str = ""
+    x_jitter: bool = True
+    efiz_file_path: str = ""
+    efizz: bool = True
+
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
+    stim_type: str = 'None'
     redo_compute: bool = False
-    cluster_type: str = ''
+    cluster_type: str = ""
     show_plots: bool = False
     run_tunED: bool = False
     run_LDA: list = None
     epoch_num: int = 6
     number_of_bins: int = 19
     use_firing_rate: bool = True
-    discriminant_type: str = ''
+    discriminant_type: str = ""
     PCA_process: int = 15
-    object_present: bool = True # we should delete this
+    object_present: bool = True  # we should delete this
     run_rayleigh: bool = False
-    rayleigh_significance: str = ''
-    single_cluster_plots: bool =True
+    rayleigh_significance: str = ""
+    single_cluster_plots: bool = True
     multi_cluster_plots: bool = False
     linear_shift: bool = True
-    condition: str = ''
+    conditions: str = ''
+    user_defined_conditions: bool = False
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False
-    
+    run_pca_model: bool = False
+    redo_pca_preprocessing: bool = False
+
 @dataclass(frozen=True)
 class Settings_postprocess:
-    cluster_type: str = ''
+    cluster_type: str = ""
     efizz: bool = False

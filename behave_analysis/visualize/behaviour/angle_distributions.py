@@ -28,10 +28,8 @@ import polars as pl
 
 from behave_analysis.analyze.filtering_data.filtering_functions import (
     identify_angles,
-    identify_conditions,
     filter_video_dataframe,
 )
-from settings.settings_visualize import defined_settings_visualize as settings
 
 # ---------------------------------------Main Functions-----------------------------------------------
 
@@ -43,7 +41,7 @@ def plot_condition_titles(conditions, nrows, columns) -> None:
         ax.text(0.5, 0.4, c, rotation="horizontal", va="center", ha="center", fontsize=20)
         ax.set_axis_off()
 
-def plot_angle_distributions(session, trackingData, video_data, sessionHeight, save_path) -> None:
+def plot_angle_distributions(session, settings, trackingData, video_data, conditions, sessionHeight, save_path) -> None:
     """
     Plot sample and optimal angle distributions of behaviour in the arena.
 
@@ -54,8 +52,7 @@ def plot_angle_distributions(session, trackingData, video_data, sessionHeight, s
 
     NOTE - I think the right edge is north and the left edge is south.
     """
-
-    conditions = identify_conditions(session, overide=settings.over_ride_conditions_bool)
+        
     angles = identify_angles(session)
     optimal_dic, hdir_df = create_optimal_distributions(trackingData, sessionHeight, session.barrier_time)
     save_optimal_as_csv(optimal_dic, hdir_df, save_path)
@@ -269,7 +266,8 @@ def save_optimal_as_csv(dict, hdir_df, save_path) -> None:
         print(f"The length of 'arr' does not match the number of rows in 'df': {len(arr)} vs {df.height}.")
         return
 
-    large = df.with_column(pl.Series("hDir", arr).alias("hdir")).to_pandas()
+    # large = df.with_column(pl.Series("hDir", arr).alias("hdir")).to_pandas() # with_column deprecated in newer polars versions
+    large = df.hstack([pl.Series("hdir",arr)]).to_pandas()
     path = os.path.join(save_path, "optimal_distributions.csv")
     large.to_csv(path)
     return None

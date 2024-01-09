@@ -138,7 +138,7 @@ def binDfbyEpoch(matrix, matriy, bins, epoch_num):
 def ProcessPredictors(self,frames, settings):
     
     # select frames that have been filtered
-    X = self.postprocessObject.frame_by_cluster_matrix
+    X = self.frame_by_cluster_matrix
     X = X[frames,:]
 
     # remove NaN columns (empty clusters)

@@ -9,15 +9,15 @@ import polars as pl
 
 class ReturnSigClusters:
     """Return a filtered rayleigh df with only significant hdir clusters"""
-    def __init__(self, post_process_object, settings):
-        self.rayleigh_path = self.get_rayleigh_path(post_process_object)
+    def __init__(self, session, settings):
+        self.rayleigh_path = self.get_rayleigh_path(session)
         self.rayleigh_df = self.load_rayleigh_arrow_file(self.rayleigh_path, settings)
         self.sig_clusters = self.return_significant_clusters(self.rayleigh_df)
 
-    def get_rayleigh_path(self, post_process_object) -> str:
+    def get_rayleigh_path(self, session) -> str:
         """Retreive the path to rayleigh test results"""
-        base = post_process_object.session.base_path
-        processed = post_process_object.session.processed_path
+        base = session.base_path
+        processed = session.processed_path
         return os.path.join(base, processed, "models", "Rayleigh")
 
 

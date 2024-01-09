@@ -13,13 +13,10 @@ TODO: Include the output of the Tuned Model
 
 """
 
-import os
-
-import polars as pl
 import numpy as np
 from loguru import logger
 
-from settings.settings_analyze_efizz import Settings_ae as Settings
+from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
 
 # User defined constants
 RAYLEIGH_THRESHOLD = 0.5
@@ -31,7 +28,9 @@ def classify_hdir(session: object, cluster_type: str) -> list:
 
     Returns:
     -- cell ids (list) that are head direction cells"""
-    path = extract_rayleigh_path(session, cluster_type)
+    path = extract_rayleigh_path(
+        session, cluster_type, condition="all_time", file_name="hdir_Rayleigh.arrow"
+    )
     data = load_rayleigh_data(path)
 
     angles = extract_compartment_values(data, "Rayleigh_theta")
@@ -47,7 +46,7 @@ def classify_hdir(session: object, cluster_type: str) -> list:
             head_direction_cells.append(cell_id)
 
     logger.info(f"Found {len(head_direction_cells)} head direction cells")
-
+    
     return head_direction_cells
 
 
@@ -69,25 +68,6 @@ def extract_compartment_values(data, column_name: str) -> tuple:
         data
     ), "Length of extracted compartment values does not match length of data"
     return output
-
-
-def extract_rayleigh_path(session: object, cluster_type: str) -> str:
-    """Extract paths to Rayleigh data"""
-    path = os.path.join(
-        session.base_path,
-        session.processed_path,
-        "models",
-        "Rayleigh",
-        cluster_type,
-        "all_time",
-        "hdir_Rayleigh.arrow",
-    )
-    return path
-
-
-def load_rayleigh_data(path_to_rayleigh: str) -> pl.DataFrame:
-    """Load in Rayleigh data as polars DataFrame"""
-    return pl.read_ipc(path_to_rayleigh)
 
 
 def rayleigh_threshold(mag1: float, mag2: float) -> bool:
