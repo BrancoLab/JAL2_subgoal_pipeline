@@ -12,7 +12,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, identify_angles
+from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
@@ -31,7 +31,7 @@ class AnalyzeEfizz:
         self.dir = make_directory(os.path.join(session.base_path, session.processed_path,"models"))
         self.show_plots = Settings.show_plots
         self.settings = Settings
-        self.all_conditions = self.extract_all_or_custom_conditions(session)
+        self.all_conditions = extract_all_or_custom_conditions(Settings, session)
         self.video_df = pl.read_csv(
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv"
         )
@@ -43,14 +43,6 @@ class AnalyzeEfizz:
             self.video_spike_count_df = postprocessObject.video_spike_count_df
             self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
             self.cluster_Ids = postprocessObject.video_spike_count_df["spike_clusters"].unique().to_numpy()
-
-    def extract_all_or_custom_conditions(self, session):
-        """Identify all conditions to analyze or use custom conditions from settings file"""
-        if Settings.user_defined_conditions:
-            conditions = Settings.conditions
-        else:
-            conditions = identify_conditions(session)
-        return conditions
 
     def execute_models(self):
         logger.info("Executing models")

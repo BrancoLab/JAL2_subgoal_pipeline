@@ -64,6 +64,13 @@ def identify_conditions(session) -> list:
 
     return condition
 
+def extract_all_or_custom_conditions(settings, session):
+    """Identify all conditions to analyze or use custom conditions from settings file"""
+    if settings.user_defined_conditions:
+        conditions = settings.conditions
+    else:
+        conditions = identify_conditions(session)
+    return conditions
 
 def identify_angles(session):
     """

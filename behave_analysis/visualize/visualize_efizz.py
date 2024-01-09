@@ -10,6 +10,8 @@ from behave_analysis.visualize.efizz.stim_resp_functions import single_cluster_r
 from behave_analysis.visualize.efizz.tuning_functions import spatial_position_firing, spatial_position_firing_hdir
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
+from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions
+
 class Visualize_efizz:
     """
     A class for some sanity check efizz plots using kilosort clusters
@@ -55,6 +57,7 @@ class Visualize_efizz:
                               self.video_df,
                               self.processed_data.clu_label,
                               self.session,
+                              conditions = extract_all_or_custom_conditions(settings_v, self.session),
                               cluster_Ids = cluster_Ids[cluster_Ids > 0],
                               settings = settings_v)
         logger.info(f"Finished! to make some efizz tuning plots...")

@@ -32,7 +32,6 @@ import matplotlib
 # Import custom libaries
 from behave_analysis.analyze.filtering_data.filtering_functions import (
     identify_angles,
-    identify_conditions,
     filter_video_dataframe,
 )
 
@@ -48,15 +47,11 @@ def plot_condition_titles(conditions, nrows, columns) -> None:
         ax.set_axis_off()
 
 
-def plot_the_circular_rho(session, settings, video_df, save_path) -> None:
+def plot_the_circular_rho(session, settings, video_df, conditions, save_path) -> None:
     """Plot coeff into bar chart"""
     dirty_angles = identify_angles(session)
     angles = [angle for angle in dirty_angles if angle != "h_bar_centre_a"]
     perms = create_all_the_permutations_of_angles(angles)
-    if settings.user_defined_conditions:
-        conditions = settings.conditions
-    else:
-        conditions = identify_conditions(session)
 
     # Create optimal rho dict
     optimals = load_optimals(save_path)

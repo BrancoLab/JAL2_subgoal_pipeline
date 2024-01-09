@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # import
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, filter_video_dataframe
+from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
 
 def position_by_bsa(tracking_data, outofShelterIdx, settings, save_path):
     """Make a scatter plot of position in arena colored by angle between body and shelter"""
@@ -28,13 +28,8 @@ def position_by_bsa(tracking_data, outofShelterIdx, settings, save_path):
         plt.show()
     plt.close()
 
-def shelter_occupancy(video_df, session, settings, save_path):
+def shelter_occupancy(video_df, session, settings, conditions, save_path):
     """Make a bar plot of minutes in and out of shelter per condition in each session"""
-
-    if settings.user_defined_conditions:
-        conditions = settings.conditions
-    else:
-        conditions = identify_conditions(session)
 
     _, ax = plt.subplots(figsize=(10, 5))
 

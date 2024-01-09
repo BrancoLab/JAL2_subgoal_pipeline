@@ -28,7 +28,6 @@ import polars as pl
 
 from behave_analysis.analyze.filtering_data.filtering_functions import (
     identify_angles,
-    identify_conditions,
     filter_video_dataframe,
 )
 
@@ -42,7 +41,7 @@ def plot_condition_titles(conditions, nrows, columns) -> None:
         ax.text(0.5, 0.4, c, rotation="horizontal", va="center", ha="center", fontsize=20)
         ax.set_axis_off()
 
-def plot_angle_distributions(session, settings, trackingData, video_data, sessionHeight, save_path) -> None:
+def plot_angle_distributions(session, settings, trackingData, video_data, conditions, sessionHeight, save_path) -> None:
     """
     Plot sample and optimal angle distributions of behaviour in the arena.
 
@@ -53,10 +52,6 @@ def plot_angle_distributions(session, settings, trackingData, video_data, sessio
 
     NOTE - I think the right edge is north and the left edge is south.
     """
-    if settings.user_defined_conditions:
-        conditions = settings.conditions
-    else:
-        conditions = identify_conditions(session)
         
     angles = identify_angles(session)
     optimal_dic, hdir_df = create_optimal_distributions(trackingData, sessionHeight, session.barrier_time)

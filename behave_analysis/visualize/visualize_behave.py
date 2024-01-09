@@ -14,6 +14,7 @@ from behave_analysis.visualize.behaviour.escape_trajectory import escape_traject
 from behave_analysis.visualize.behaviour.escape_movies import trial_movies
 from behave_analysis.visualize.visualize_utils import open_tracking_data, open_kalman_tracking_data
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions
 from settings.settings_visualize import defined_settings_visualize as settings_v
 
 class Visualize_behave:
@@ -39,6 +40,7 @@ class Visualize_behave:
         shelter_occupancy(video_df = self.video_df, 
                           session = self.session, 
                           settings = settings_v, 
+                          conditions = extract_all_or_custom_conditions(settings_v, self.session),
                           save_path = self.behave_path)
         position_by_bsa(tracking_data = self.tracking_data,
                         outofShelterIdx = np.array(self.video_df["OutofshelterIdx"].to_numpy()),
@@ -54,6 +56,7 @@ class Visualize_behave:
                                  settings = settings_v,
                                  trackingData=self.tracking_data,
                                  video_data=self.video_df,
+                                 conditions = extract_all_or_custom_conditions(settings_v, self.session),
                                  sessionHeight=self.session.video.height,
                                  save_path=self.behave_path)
 
@@ -61,11 +64,13 @@ class Visualize_behave:
         plot_the_circular_rho(self.session, 
                               settings_v,
                               self.video_df, 
+                              conditions = extract_all_or_custom_conditions(settings_v, self.session),
                               save_path=self.behave_path)
 
         plot_heat_map_of_position(session=self.session,
                                   settings = settings_v,
                                   video_data_frame=self.video_df,
+                                  conditions = extract_all_or_custom_conditions(settings_v, self.session),
                                   save_path=self.behave_path,
                                   session_height=self.session.video.height)
 

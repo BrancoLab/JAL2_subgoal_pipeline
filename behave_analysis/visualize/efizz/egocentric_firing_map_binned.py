@@ -16,7 +16,7 @@ from PIL import Image
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions, filter_video_dataframe, generate_bin_angles
 from behave_analysis.utils.creating_directories import make_directory
 
-def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids, settings):
+def egocentric_firing_map(spike_data,video_data,clusters, session, conditions, cluster_Ids, settings):
     '''This function sets up making a firing map for an egocentric view of features in the arena.
     For each cluster it will make a figure of egocentric firing maps in each condition.
     It will look at each position of the mouse, align the view of features in the arena based on the head angle of the mouse 
@@ -39,12 +39,6 @@ def egocentric_firing_map(spike_data,video_data,clusters, session, cluster_Ids, 
     x,y = generate_arena_feature_points([session.video.height,session.video.width], 
                                         session.shelter_location,
                                         session.barrier_location)
-
-    # identify conditions in this session
-    if settings.user_defined_conditions:
-        conditions = settings.conditions
-    else:
-        conditions = identify_conditions(session)
         
     if isinstance(conditions, list):
         num_conditions = len(conditions)
