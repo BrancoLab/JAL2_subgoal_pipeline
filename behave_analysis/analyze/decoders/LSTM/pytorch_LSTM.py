@@ -4,7 +4,7 @@ import torch.optim as optim
 import torch.distributions as dist
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
-from torch.utils.data import random_split
+from torch.utils.data import Subset
 import numpy as np
 import matplotlib.pyplot as plt
 from loguru import logger
@@ -77,7 +77,7 @@ class LSTMRegression(nn.Module):
         output_size=1,
         hidden_units=400,
         dropout=0,
-        num_epochs=20,
+        num_epochs=100,
         verbose=True,
     ):
         super(LSTMRegression, self).__init__()
@@ -172,23 +172,29 @@ class LSTMRegression(nn.Module):
     @staticmethod
     def test_loop(dataloader, model, loss_fn, device):
         model.eval()
-        ssr = 0  # Sum of squared residuals
-        all_y = []  # To store all actual values for computing the mean
-
+        num_batches = len(dataloader)
+        # ssr = 0  # Sum of squared residuals
+        # all_y = []  # To store all actual values for computing the mean
+        test_loss = 0
         with torch.no_grad():
             for X, y in dataloader:
                 X, y = X.to(device), y.to(device)
                 pred = model(X)
-                residuals = (pred - y) ** 2
-                ssr += residuals.sum().item()  # Sum of squared residuals for the batch
-                all_y.extend(y.view(-1).tolist())
+                # residuals = (pred - y) ** 2
+                # ssr += residuals.sum().item()  # Sum of squared residuals for the batch
+                # all_y.extend(y.view(-1).tolist())
+                test_loss += loss_fn(pred, y).item()
 
-        mean_y = np.mean(all_y)
-        sst = sum([(y_val - mean_y) ** 2 for y_val in all_y])  # Total variance
-        r_squared = 1 - (ssr / sst)
+        # mean_y = np.mean(all_y)
+        # sst = sum([(y_val - mean_y) ** 2 for y_val in all_y])  # Total variance
+        # r_squared = 1 - (ssr / sst)
+        
+        test_loss /= num_batches
 
-        print(f"Test R²: {r_squared:>8f}")
-        return r_squared
+        # print(f"Test R²: {r_squared:>8f}")
+        print("---------------------------")
+        print(f"Test loss: {test_loss:>8f}")
+        return test_loss
 
     @staticmethod
     def predict(model, dataloader, device):
@@ -217,50 +223,50 @@ def main(frame_by_cluster_matrix, Y):
     # Define training/testing/validation sets
     total_samples = len(data)  # Replace 'your_dataset' with your dataset variable
     train_size = int(total_samples * 0.8)  # 70% of the dataset
-    test_size = total_samples - train_size  # Remaining 20% for the test set
-    train_dataset, test_dataset = random_split(data, [train_size, test_size])
+    # test_size = total_samples - train_size  # Remaining 20% for the test set
+    
+    # Manually split the dataset to preserve temporal order
+    train_dataset = Subset(data, range(0, train_size))
+    test_dataset = Subset(data, range(train_size, total_samples))
 
     # Declare model
     model_lstm = LSTMRegression(input_size=frame_by_cluster_matrix.shape[1])
     model_lstm.to(model_lstm.device)  # Move model to GPU if available
-    training_loader = DataLoader(
-        train_dataset, batch_size=batch_size, shuffle=True, num_workers=0
-    )
-    test_loader = DataLoader(
-        test_dataset, batch_size=batch_size, shuffle=False, num_workers=0
-    )
+    training_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False, num_workers=0)
 
     plot_losses = []
-    plot_r2 = []
+    plot_test_losses = []
 
     for t in range(1, model_lstm.num_epochs + 1):
         print(f"Epoch {t}\n-------------------------------")
         losses = LSTMRegression.train_loop(
             dataloader=training_loader,
             model=model_lstm,
-            loss_fn=nn.MSELoss(),
-            # loss_fn = model_lstm.custom_loss_function,
+            # loss_fn=nn.MSELoss(),
+            loss_fn = model_lstm.custom_loss_function,
             optimizer=model_lstm.optimizer(model_lstm),
             device=model_lstm.device,
         )
         plot_losses.append(losses)
-        r2 = LSTMRegression.test_loop(
+        test_losses = LSTMRegression.test_loop(
             dataloader=test_loader,
             model=model_lstm,
-            loss_fn=nn.MSELoss(),
+            loss_fn = model_lstm.custom_loss_function,
+            # loss_fn=nn.MSELoss(),
             device=model_lstm.device,
         )
-        plot_r2.append(r2)
+        plot_test_losses.append(test_losses)
 
     # Plot losses across batches in one subplot and R² across epochs in another
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+    _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
     ax1.plot(plot_losses, label="Training Loss")
     ax1.set_xlabel("Epoch")
-    ax1.set_ylabel("Loss")
-    ax2.plot(plot_r2, label="Test R²")
+    ax1.set_ylabel("Training Loss")
+    ax2.plot(plot_test_losses, label="Test R²")
     ax2.set_xlabel("Epoch")
-    ax2.set_ylabel("R²")
-    plt.title("Losses and R² Across Epochs")
+    ax2.set_ylabel("Test loss")
+    plt.suptitle("Training vs Test Losses for LSTM")
     plt.legend()
     plt.show()
 
