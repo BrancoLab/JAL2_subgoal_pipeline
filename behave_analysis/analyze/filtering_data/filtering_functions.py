@@ -125,7 +125,8 @@ def generate_bin_angles(number_of_bins):
 def generate_bin_positions(min, max, number_of_bins):
     """Bin the mouse's position in xy"""
     bin_pos = np.linspace(min, max, number_of_bins)
-    bin_pos_center = np.sort(
-        np.append([min, max], [bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)])
-    )
+    bin_pos_center = bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)
+    # bin_pos_center = np.sort(
+    #     np.append([min, max], [bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)])
+    # )
     return bin_pos, bin_pos_center
