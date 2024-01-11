@@ -4,6 +4,7 @@ Alexander, A.S., Carstensen, L.C., Hinman, J.R., Raudies, F., Chapman, G.W., Has
 """
 
 import os
+import numba
 import time
 import numpy as np
 import cv2
@@ -19,9 +20,7 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
 from behave_analysis.utils.creating_directories import make_directory
 
 
-def egocentric_firing_map(
-    spike_data, video_data, clusters, session, conditions, cluster_Ids, settings
-):
+def egocentric_firing_map(spike_data, video_data, clusters, session, conditions, cluster_Ids, settings):
     """This function sets up making a firing map for an egocentric view of features in the arena.
     For each cluster it will make a figure of egocentric firing maps in each condition.
     It will look at each position of the mouse, align the view of features in the arena based on the head angle of the mouse
@@ -68,32 +67,23 @@ def egocentric_firing_map(
         # loop through conditions to make maps  and filter video_df
         heatmap = np.zeros(shape=(2 * window_size, 2 * window_size, num_conditions))
         for count, c in enumerate(conditions):
-            video_df = filter_video_dataframe(
-                video_data, condition=c, outofshelter=True, exclude_escape=True
-            )
-            video_df = video_df.select(
-                ["frames", "hdir", "mouse_x_position", "mouse_y_position"]
-            )
+            video_df = filter_video_dataframe(video_data, condition=c, outofshelter=True, exclude_escape=True)
+            video_df = video_df.select(["frames", "hdir", "mouse_x_position", "mouse_y_position"])
 
             # extract and bin hdir
-            bin_angles, bin_angle_center = generate_bin_angles(
-                number_of_bins=number_of_bins
-            )  
+            bin_angles, bin_angle_center = generate_bin_angles(number_of_bins=number_of_bins)
             hdir = video_df["hdir"].to_numpy()
             hdir = np.digitize(hdir, bin_angles)
             hdir = bin_angle_center[hdir - 1]
 
             # extract and bin mouse position
-            bin_pos, bin_pos_center = generate_bin_positions(
-                1, session.video.height, num_pos_bins
-            ) # assuming asquare image of the arena
+            bin_pos, bin_pos_center = generate_bin_positions(1, session.video.height, num_pos_bins)  # assuming asquare image of the arena
             position = np.vstack(
                 [
                     video_df["mouse_x_position"].to_numpy(),
                     video_df["mouse_y_position"].to_numpy(),
                 ]
             ).T
-            # add window_size as an offset to video_data['mouse_x_position','mouse_y_position']
             position = np.digitize(position, bin_pos)
             position = bin_pos_center[position - 1]
 
@@ -102,65 +92,55 @@ def egocentric_firing_map(
             X = spike_data[video_df["frames"].to_numpy() - 1, count_clu]
 
             # heatmap for this cluster in this condition
-            
+
             start_time = time.time()
-            heatmap[:, :, count] = make_map_by_cluster_and_condition_speedy(
-                X, position, hdir, [x, y], window_size
-            )
+            heatmap[:, :, count] = make_map_by_cluster_and_condition_speedy(X, position, hdir, [x, y], window_size)
             end_time = time.time()
             total_time = end_time - start_time
-            print("For cluster ",clu ," and condition ", c," total time:", total_time, "seconds ")
+            print("For cluster ", clu, " and condition ", c, " total time:", total_time, "seconds ")
 
         single_cluster_plot(heatmap, conditions, settings, map_path, clu, category)
 
-def make_map_by_cluster_and_condition_speedy(
-    firing, position, hdir, arena, window_size
-):
+
+def make_map_by_cluster_and_condition_speedy(firing, position, hdir, arena, window_size):
     """
     This function will iterate over each position in the arena, and find the avg firing at each hdir.
     It then crops and rotates the arena image around the position and multiplies it by the avg firing rate.
     All of those cropped and scaled images are then summed to generate the map."""
-    
+
     unique_pos, _ = np.unique(position, axis=0, return_inverse=True)
     unique_hdir = np.unique(hdir)
 
     # shift all arena points to center on the mouse's locations
     all_arena_points = np.tile(arena, len(unique_pos))
     all_arena_translations = np.repeat(unique_pos, len(arena[0]), axis=0)
-    all_arena_points = (
-        all_arena_points.T - all_arena_translations
-    )  # (len(arena)*unique_pos) x 2
+    all_arena_points = all_arena_points.T - all_arena_translations  # (len(arena)*unique_pos) x 2
 
     # rotate by binned hdir
-    all_rotation_matrices = np.array(
-        [
-            [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
-            for angle in unique_hdir
-        ]
-    )
+    all_rotation_matrices = np.array([[[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]] for angle in unique_hdir])
     # unique_hdir x 2 x (len(arena)*unique_pos)
     all_rotated_points = np.matmul(all_rotation_matrices, all_arena_points.T).astype(int)
 
     # this might be fewer than the optimal sampling which is len(unique_hdir)*len(unique_pos)
-    position_hdir_combos, position_hdir_indices = np.unique(
-        np.vstack((position.T, hdir.T)), axis=1, return_inverse=True
-    )
+    position_hdir_combos, position_hdir_indices = np.unique(np.vstack((position.T, hdir.T)), axis=1, return_inverse=True)
 
     # find avg. firing at each hdir and postion
     unique_hdir_pos_comb = np.unique(position_hdir_indices)
-    cum_fr = np.bincount(position_hdir_indices,weights = firing)
+    cum_fr = np.bincount(position_hdir_indices, weights=firing)
     instances = np.bincount(position_hdir_indices)
-    avg_firing = cum_fr[unique_hdir_pos_comb]/instances[unique_hdir_pos_comb]
+    avg_firing = cum_fr[unique_hdir_pos_comb] / instances[unique_hdir_pos_comb]
 
     # generate the map for each hdir + osition combination
     num_arena_points = len(arena[0])
-    summed_rotated = generate_map(window_size,unique_pos, position_hdir_combos, num_arena_points, all_rotated_points, avg_firing,unique_hdir_pos_comb,unique_hdir)
-    
+    summed_rotated = generate_map(
+        window_size, unique_pos, position_hdir_combos, num_arena_points, all_rotated_points, avg_firing, unique_hdir_pos_comb, unique_hdir
+    )
+
     return summed_rotated
 
-import numba
+
 @numba.jit(nopython=True)
-def generate_map(window_size,unique_pos, position_hdir_combos, num_arena_points, all_rotated_points, avg_firing,unique_hdir_pos_comb,unique_hdir):
+def generate_map(window_size, unique_pos, position_hdir_combos, num_arena_points, all_rotated_points, avg_firing, unique_hdir_pos_comb, unique_hdir):
     summed_rotated = np.zeros(shape=(2 * window_size, 2 * window_size))
     for count, c in enumerate(unique_hdir_pos_comb):
         # select arena at this position and angle bin
@@ -170,25 +150,35 @@ def generate_map(window_size,unique_pos, position_hdir_combos, num_arena_points,
                 unique_pos[:, 0] == position_hdir_combos[0, c],
                 unique_pos[:, 1] == position_hdir_combos[1, c],
             )
-        )[0][0]
-        this_pos_hdir = all_rotated_points[
-            axis0, :, num_arena_points * axis2 : num_arena_points * (axis2 + 1)
-        ]
+        )[
+            0
+        ][0]
+        this_pos_hdir = all_rotated_points[axis0, :, num_arena_points * axis2 : num_arena_points * (axis2 + 1)]
 
         # crop in window around mouse
-        mask = np.logical_and(np.logical_and(this_pos_hdir[0,:] > -window_size,this_pos_hdir[0,:] < window_size),
-                              np.logical_and(this_pos_hdir[1,:] > -window_size,this_pos_hdir[1,:] < window_size))
-        this_pos_hdir = this_pos_hdir[:,mask] + window_size
+        mask = np.logical_and(
+            np.logical_and(this_pos_hdir[0, :] > -window_size, this_pos_hdir[0, :] < window_size),
+            np.logical_and(this_pos_hdir[1, :] > -window_size, this_pos_hdir[1, :] < window_size),
+        )
+        this_pos_hdir = this_pos_hdir[:, mask] + window_size
+
         # scale & place positions on map
-        rotated_image = np.zeros(shape = (2*window_size,2*window_size))
-        for x in np.unique(this_pos_hdir[1,:]):
-            which_ones = this_pos_hdir[1,:] == x
-            row = np.zeros(shape = (2*window_size))
-            row[this_pos_hdir[0,which_ones]] = np.ones(sum(which_ones))*avg_firing[count]
-            rotated_image[x,:] = row
+        rotated_image = np.zeros(shape=(2 * window_size, 2 * window_size))
+        for x in np.unique(this_pos_hdir[1, :]):
+            which_ones = this_pos_hdir[1, :] == x
+            row = np.zeros(shape=(2 * window_size))
+            row[this_pos_hdir[0, which_ones]] = np.ones(sum(which_ones)) * avg_firing[count]
+            rotated_image[x, :] = row
+
+        # this is more elegant but not allowed by numba
+        # image_list = np.ravel_multi_index((this_pos_hdir[1,:],this_pos_hdir[0,:]),(2*window_size,2*window_size))
+        # rotated_image = np.zeros(shape = ((2*window_size)*(2*window_size)))
+        # rotated_image[image_list] = np.ones(len(image_list))*avg_firing[count]
+        # rotated_image = np.reshape(rotated_image,(2*window_size,2*window_size))
 
         summed_rotated += rotated_image
     return summed_rotated
+
 
 def single_cluster_plot(heatmap, all_conditions, settings, plot_save_path, cluster, category):
     """Make a figure for each cluster with heatmaps in all conditions of interest"""
@@ -233,14 +223,7 @@ def single_cluster_plot(heatmap, all_conditions, settings, plot_save_path, clust
 
     # Save and close the figure
     plt.tight_layout()
-    plt.savefig(
-        str(plot_save_path)
-        + "/"
-        + category[0]
-        + "_cluster"
-        + str(cluster)
-        + "_polar_plots.png"
-    )
+    plt.savefig(str(plot_save_path) + "/" + category[0] + "_cluster" + str(cluster) + "_polar_plots.png")
     if settings.show_plots:
         plt.show()
     plt.close()
@@ -272,12 +255,11 @@ def generate_arena_feature_points(size, shelter_location, barrier_location):
     # barrier location, assumes horizontal barrier
     if barrier_location:
         x = np.arange(barrier_location[0][0], barrier_location[1][0])
-        y = np.repeat(
-            np.round(np.mean([barrier_location[0][1], barrier_location[1][1]])), len(x)
-        )
+        y = np.repeat(np.round(np.mean([barrier_location[0][1], barrier_location[1][1]])), len(x))
         all_x = np.append(all_x, x)
         all_y = np.append(all_y, y)
     return all_x, all_y
+
 
 # ----------- OLD VERSION
 
@@ -296,9 +278,7 @@ def make_map_by_cluster_and_condition(firing, position, hdir, arena, window_size
             for h in np.unique(hdir):
                 # avg neural activity in this bin
                 avg_firing = 0
-                this_bin = np.logical_and(
-                    np.logical_and(position[:, 0] == x, position[:, 1] == y), hdir == h
-                )
+                this_bin = np.logical_and(np.logical_and(position[:, 0] == x, position[:, 1] == y), hdir == h)
                 if sum(this_bin) > 0:  # only take average if the bin is not empty
                     avg_firing = np.nanmean(firing[this_bin])
                 # crop the arena around this position
@@ -329,9 +309,7 @@ def generate_rendered_arena(size, shelter_location, barrier_location) -> object:
         lineType=16,
     )
     # shelter location
-    cv2.rectangle(
-        rendered_arena, (shelter_location[0]), (shelter_location[1]), 255, thickness=-1
-    )
+    cv2.rectangle(rendered_arena, (shelter_location[0]), (shelter_location[1]), 255, thickness=-1)
     # barrier location
     if barrier_location:
         cv2.line(
