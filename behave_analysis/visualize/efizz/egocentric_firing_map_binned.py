@@ -223,7 +223,7 @@ def single_cluster_plot(heatmap, all_conditions, settings, plot_save_path, clust
 
     # Save and close the figure
     plt.tight_layout()
-    plt.savefig(str(plot_save_path) + "/" + category[0] + "_cluster" + str(cluster) + "_polar_plots.png")
+    plt.savefig(str(plot_save_path) + "/" + category[0] + "_cluster" + str(cluster) + "_egocentric_map.png")
     if settings.show_plots:
         plt.show()
     plt.close()
