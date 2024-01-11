@@ -61,8 +61,8 @@ class Settings_homings:
 @dataclass(frozen=True)
 class Settings_visualize:
     # laser_trials: bool=True
-    # escape_trials: bool=True
-    # homing_trials: bool=False
+    escape_trials: bool=True
+    homing_trials: bool=False
     # t_xing_trials: bool=True
     # explore_trial: bool=False
     display_tracking: bool = False
