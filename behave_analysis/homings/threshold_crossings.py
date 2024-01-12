@@ -26,7 +26,7 @@ class get_Threshold_crossings:
 
 # --------MAIN FUNCS-----------------------------------------------
     def extract_variables(self):
-        open_tracking_data(self) # generates self.tracking_data
+        self.tracking_data = open_tracking_data(self.session) # generates self.tracking_data
         self.get_speed_along_each_axis()
 
         height = self.session.video.registration_size[1]

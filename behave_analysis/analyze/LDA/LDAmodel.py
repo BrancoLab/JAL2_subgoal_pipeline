@@ -78,14 +78,14 @@ def run_LDA_model(self, settings, angles):
                 title = np.append(title,str('randP' + str(j)))
     
     # make a plot of prediction accuracy across variables
-    PlotPredictionAccuracy(self, prediction_accuracy,title,settings)
+    PlotPredictionAccuracy(self, prediction_accuracy,title)
     filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
     with open(filename, 'wb') as fp:
         pickle.dump(prediction_accuracy, fp) 
 
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:
-        PlotLSPredictionAccuracy(self,LS_compiled,title,settings)
+        PlotLSPredictionAccuracy(self,LS_compiled,title)
         filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
         with open(filename, 'wb') as fp:
             pickle.dump(LS_compiled, fp)  
@@ -270,7 +270,8 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
 
     return prediction_accuracy
 
-def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
+def PlotPredictionAccuracy(self, prediction_accuracy, title):
+    '''Function to make a bar plot of the prediction accuracy for each angle'''
     fig = go.Figure()
     
     if len(list(filter(lambda x: 'randP' in x, title))) < 10:
@@ -305,7 +306,8 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
     filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".png"
     fig.write_image(filename)
 
-def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
+def PlotLSPredictionAccuracy(self, LS_compiled, title):
+    '''Make a violin plot of the prediction accuracy over all linear shifts'''
     fig = go.Figure()
     if len(title) > 10:
         colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,10)))
@@ -339,22 +341,23 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
     fig.write_image(filename)
 
 def PredictionAccuracyMapped(self,prediction_accuracy):
-    open_tracking_data(self)
+    '''Make a map of the prediction accuracy for the angle of the head to each point in the arena'''
+    tracking_data = open_tracking_data(self.session)
     pa = [val for key, val in prediction_accuracy.items() if re.search('randP', key)]
     plt.figure(figsize=(15, 15))
     if 'h_bar_north_a' in prediction_accuracy.keys():
-        plt.plot([self.tracking_data["barrier_loc"][0][0],self.tracking_data["barrier_loc"][1][0]],
-                [self.tracking_data["barrier_loc"][0][1],self.tracking_data["barrier_loc"][1][1]],
+        plt.plot([tracking_data["barrier_loc"][0][0],tracking_data["barrier_loc"][1][0]],
+                [tracking_data["barrier_loc"][0][1],tracking_data["barrier_loc"][1][1]],
                 color = [1,0,0])
     if 'hsa' in prediction_accuracy.keys():
         for i in [0,1]:
-            plt.plot([self.tracking_data["shelter_loc"][0][0],self.tracking_data["shelter_loc"][1][0]],
-                    [self.tracking_data["shelter_loc"][i][1],self.tracking_data["shelter_loc"][i][1]],
+            plt.plot([tracking_data["shelter_loc"][0][0],tracking_data["shelter_loc"][1][0]],
+                    [tracking_data["shelter_loc"][i][1],tracking_data["shelter_loc"][i][1]],
                     color = [1,0,0])
-            plt.plot([self.tracking_data["shelter_loc"][i][0],self.tracking_data["shelter_loc"][i][0]],
-                    [self.tracking_data["shelter_loc"][0][1],self.tracking_data["shelter_loc"][1][1]],
+            plt.plot([tracking_data["shelter_loc"][i][0],tracking_data["shelter_loc"][i][0]],
+                    [tracking_data["shelter_loc"][0][1],tracking_data["shelter_loc"][1][1]],
                     color = [1,0,0])
-    sc = plt.scatter(self.tracking_data["randP_loc"][:,0],self.tracking_data["randP_loc"][:,1], c = pa, s  =75, cmap = "Blues")
+    sc = plt.scatter(tracking_data["randP_loc"][:,0],tracking_data["randP_loc"][:,1], c = pa, s  =75, cmap = "Blues")
     plt.colorbar(sc)
     plt.axis('off')
     ax = plt.gca()

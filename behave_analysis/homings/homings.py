@@ -43,7 +43,7 @@ class get_Homings:
 
 # --------MAIN FUNCS-----------------------------------------------
     def extract_variables(self):
-        open_tracking_data(self) # generates self.tracking_data
+        self.tracking_data = open_tracking_data(self.session) # generates self.tracking_data
         self.get_homing_speed()
         self.get_homing_angle()
         self.get_homing_speed_angular()

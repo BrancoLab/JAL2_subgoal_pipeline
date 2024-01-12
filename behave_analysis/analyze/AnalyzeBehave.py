@@ -17,7 +17,7 @@ class AnalyzeBehave:
         self.dir = make_directory(os.path.join(session.base_path,session.processed_path) + "\\" + 'analyze_behave')
         self.session = session
         self.settings = settings
-        open_tracking_data(self)
+        self.tracking_data = open_tracking_data(self.session)
         """Load in video df"""
         video_df = os.path.join(session.base_path,session.processed_path) + "\\" + "full_video_dataframe.csv"
         if os.path.isfile(video_df):

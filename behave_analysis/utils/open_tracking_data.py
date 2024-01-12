@@ -1,10 +1,12 @@
 import os
 import dill as pickle
 
-def open_tracking_data(self):
+def open_tracking_data(session):
         
-        file = os.path.join(self.session.base_path,self.session.processed_path, "fully_processed_tracking_data.pickle")
-        assert file, 'Tracking data not found for session: {}'.format(self.session.name)
+        file = os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle")
+        assert file, 'Tracking data not found for session: {}'.format(session.name)
         with open(file, "rb") as dill_file: 
-                self.tracking_data = pickle.load(dill_file)
+                tracking_data = pickle.load(dill_file)
+        
+        return tracking_data
         

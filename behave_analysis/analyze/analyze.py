@@ -121,7 +121,7 @@ class Analyze():
         self.fps = self.session.video.fps
         self.session_count += 1
         self.num_successful_escapes_this_session = 0
-        open_tracking_data(self) # generates self.tracking_data
+        self.tracking_data = open_tracking_data(self.session)
 
     def get_data_on_each_trial(self):
         for onset_frames, stim_durations in zip(self.session.__dict__[self.stim_type].onset_frames, \
