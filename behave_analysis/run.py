@@ -63,15 +63,27 @@ def postprocess():
     logger.success("The post processing of the data has finished and the postprocessed object has been saved to a pickle file")
 
 def visualize():
-    """Viusalize mouse behavior and efizz data"""
+    """Viusalize mouse behavior and efizz data
+    
+    Responsibilities:
+    -- Create movies of each trial type (homing, escapes)
+    -- plot some behavioral statistics
+    -- plot some efizz statistics
+    """
     logger.info("Visualisation started")
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_id))
         Visualize_behave(session).plot_behavioral_stats()
-        if settings_v.stim_type != "None":
-            Visualize_behave(session).escape_movies()
+        
+        # ------ BEHAVIORAL VISUALIZATION ------
+        if settings_v.escape_trials:
+            Visualize_behave(session).make_movies(stim_type="audio")
             Visualize_behave(session).escape_plotting()
+        if settings_v.homing_trials:
+            Visualize_behave(session).make_movies(stim_type="homing")
+
+        # ------ EFIZZ VISUALIZATION ------
         if settings_v.efizz:
             Visualize_efizz(session).run_tuning_functions()
             if settings_v.stim_type != "None":

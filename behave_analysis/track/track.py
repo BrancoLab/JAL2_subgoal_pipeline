@@ -20,22 +20,20 @@ TODO:
 + Do we need the compute body direction function?
 
 """
+import os, sys
 
-# Custom Libaries
+from scipy.ndimage import gaussian_filter1d
+from loguru import logger
+import numpy as np
+import cv2
+import matplotlib
+import matplotlib.pyplot as plt
+import dill as pickle
+matplotlib.use('TKAgg')
+
 from behave_analysis.track.dlcHelp import DLC
 from behave_analysis.track.kalmanFilter import kalmann
 from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
-
-# OS Libaries
-from loguru import logger
-import os, sys
-import numpy as np
-import cv2
-import argparse
-import matplotlib
-matplotlib.use('TKAgg')
-import matplotlib.pyplot as plt
-import dill as pickle
 
 class Track(DLC):
     """
@@ -192,8 +190,9 @@ class Track(DLC):
         self.compute_angle_barrier(session)
         if len(self.settings.random_points) > 0 :self.compute_angle_random_points(session)
         self.compute_new_average_speed(session)
+        # Reincluding philips compute speed function as it has a relative to shelter var needed for homings
+        self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
         self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
-        # self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
         
     def map_regions_of_interest(self) -> dict:
         """
@@ -363,16 +362,16 @@ class Track(DLC):
     
     def compute_speed(self, session, reference_location: tuple = None, reference_name: str=''):
         if not reference_location:
-            speed_x_and_y_pixel_per_frame = np.diff(self.tracking_data['avg_loc'], axis=0) 
+            speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data['avg_loc'], axis=0) 
             speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0]**2 + speed_x_and_y_pixel_per_frame[:, 1]**2)**.5
         else:
-            distance_from_reference_location = ((self.tracking_data['avg_loc'][:,0] - reference_location[0])**2 + \
-                                                (self.tracking_data['avg_loc'][:,1] - reference_location[1])**2)**.5
-            self.tracking_data['distance' + reference_name] = distance_from_reference_location
+            distance_from_reference_location = ((self.region_tracking_data['avg_loc'][:,0] - reference_location[0])**2 + \
+                                                (self.region_tracking_data['avg_loc'][:,1] - reference_location[1])**2)**.5
+            self.region_tracking_data['distance' + reference_name] = distance_from_reference_location
             speed_pixel_per_frame = -np.diff(distance_from_reference_location)
         speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
         smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
-        self.tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
+        self.region_tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
 
 # --------UTILITY FUNCS---------------------------------------------------------------------
 

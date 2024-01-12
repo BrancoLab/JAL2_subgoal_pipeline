@@ -7,3 +7,4 @@ def open_tracking_data(self):
     assert file, "Tracking data not found for session: {}".format(self.session.name)
     with open(file, "rb") as dill_file:
         self.tracking_data = pickle.load(dill_file)
+
