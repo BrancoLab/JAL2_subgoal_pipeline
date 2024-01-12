@@ -18,7 +18,6 @@ from sklearn.metrics import confusion_matrix
 
 # import functions
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
-from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, generate_bin_angles
 
 def run_LDA_model(self, settings, angles):
@@ -342,22 +341,21 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
 
 def PredictionAccuracyMapped(self,prediction_accuracy):
     '''Make a map of the prediction accuracy for the angle of the head to each point in the arena'''
-    tracking_data = open_tracking_data(self.session)
     pa = [val for key, val in prediction_accuracy.items() if re.search('randP', key)]
     plt.figure(figsize=(15, 15))
     if 'h_bar_north_a' in prediction_accuracy.keys():
-        plt.plot([tracking_data["barrier_loc"][0][0],tracking_data["barrier_loc"][1][0]],
-                [tracking_data["barrier_loc"][0][1],tracking_data["barrier_loc"][1][1]],
+        plt.plot([self.tracking_data["barrier_loc"][0][0],self.tracking_data["barrier_loc"][1][0]],
+                [self.tracking_data["barrier_loc"][0][1],self.tracking_data["barrier_loc"][1][1]],
                 color = [1,0,0])
     if 'hsa' in prediction_accuracy.keys():
         for i in [0,1]:
-            plt.plot([tracking_data["shelter_loc"][0][0],tracking_data["shelter_loc"][1][0]],
-                    [tracking_data["shelter_loc"][i][1],tracking_data["shelter_loc"][i][1]],
+            plt.plot([self.tracking_data["shelter_loc"][0][0],self.tracking_data["shelter_loc"][1][0]],
+                    [self.tracking_data["shelter_loc"][i][1],self.tracking_data["shelter_loc"][i][1]],
                     color = [1,0,0])
-            plt.plot([tracking_data["shelter_loc"][i][0],tracking_data["shelter_loc"][i][0]],
-                    [tracking_data["shelter_loc"][0][1],tracking_data["shelter_loc"][1][1]],
+            plt.plot([self.tracking_data["shelter_loc"][i][0],self.tracking_data["shelter_loc"][i][0]],
+                    [self.tracking_data["shelter_loc"][0][1],self.tracking_data["shelter_loc"][1][1]],
                     color = [1,0,0])
-    sc = plt.scatter(tracking_data["randP_loc"][:,0],tracking_data["randP_loc"][:,1], c = pa, s  =75, cmap = "Blues")
+    sc = plt.scatter(self.tracking_data["randP_loc"][:,0],self.tracking_data["randP_loc"][:,1], c = pa, s  =75, cmap = "Blues")
     plt.colorbar(sc)
     plt.axis('off')
     ax = plt.gca()

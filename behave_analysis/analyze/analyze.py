@@ -2,7 +2,7 @@
 # from behave_analysis.utils.mat_to_python import convert_matlab_struct
 from behave_analysis.process.camera_trigger import get_num_frames_expected, get_Camera_trigger
 from behave_analysis.process.process import Process
-from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.plot_funcs import *
 from behave_analysis.analyze.data_extraction_funcs import *
 from behave_analysis.analyze.stats_funcs import permutation_test, print_stat_test_results

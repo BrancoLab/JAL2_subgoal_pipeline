@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from behave_analysis.utils.color_funcs import get_color_based_on_speed
-from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 
 def spatial_efficiency(session, settings, video_df, tracking_data, save_dir):
     """ 

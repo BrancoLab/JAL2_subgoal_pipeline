@@ -14,7 +14,7 @@ from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
 
 
-def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_Ids, settings):
+def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_Ids, settings, tracking_data):
     """This function looks at the firing in each spatial position bin and then computes the rayleigh amplitude and angle for the avg. firing at each hdir. It then plots that as an arrow on the arena."""
 
     # fixed variables
@@ -96,7 +96,7 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
             full_pos = np.logical_not(empty_pos)
 
             # plot at each position that has a rayleigh an arrow/line with length and orientation given by rayleigh
-            base_plotting(ax, tracking = [], condition = c, session = session)
+            base_plotting(ax, tracking_data, condition = c)
             ax.scatter(this_pos[empty_pos, 0], this_pos[empty_pos, 1], 5, "k")
             ax.quiver(
                 this_pos[full_pos, 0],

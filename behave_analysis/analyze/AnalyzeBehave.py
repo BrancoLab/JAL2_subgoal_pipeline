@@ -3,7 +3,7 @@ import polars as pl
 import os
 
 # Custom classes
-from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from settings.settings_analyze import settings_analyze as settings
 from behave_analysis.utils.creating_directories import make_directory
