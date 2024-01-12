@@ -18,7 +18,6 @@ from sklearn.metrics import confusion_matrix
 
 # import functions
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
-from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, generate_bin_angles
 
 def run_LDA_model(self, settings, angles):
@@ -78,14 +77,14 @@ def run_LDA_model(self, settings, angles):
                 title = np.append(title,str('randP' + str(j)))
     
     # make a plot of prediction accuracy across variables
-    PlotPredictionAccuracy(self, prediction_accuracy,title,settings)
+    PlotPredictionAccuracy(self, prediction_accuracy,title)
     filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
     with open(filename, 'wb') as fp:
         pickle.dump(prediction_accuracy, fp) 
 
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:
-        PlotLSPredictionAccuracy(self,LS_compiled,title,settings)
+        PlotLSPredictionAccuracy(self,LS_compiled,title)
         filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
         with open(filename, 'wb') as fp:
             pickle.dump(LS_compiled, fp)  
@@ -270,7 +269,8 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
 
     return prediction_accuracy
 
-def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
+def PlotPredictionAccuracy(self, prediction_accuracy, title):
+    '''Function to make a bar plot of the prediction accuracy for each angle'''
     fig = go.Figure()
     
     if len(list(filter(lambda x: 'randP' in x, title))) < 10:
@@ -305,7 +305,8 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title,settings):
     filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".png"
     fig.write_image(filename)
 
-def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
+def PlotLSPredictionAccuracy(self, LS_compiled, title):
+    '''Make a violin plot of the prediction accuracy over all linear shifts'''
     fig = go.Figure()
     if len(title) > 10:
         colorz = sample_colorscale('Rainbow', list(np.linspace(0,1,10)))
@@ -339,7 +340,7 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title, settings):
     fig.write_image(filename)
 
 def PredictionAccuracyMapped(self,prediction_accuracy):
-    open_tracking_data(self)
+    '''Make a map of the prediction accuracy for the angle of the head to each point in the arena'''
     pa = [val for key, val in prediction_accuracy.items() if re.search('randP', key)]
     plt.figure(figsize=(15, 15))
     if 'h_bar_north_a' in prediction_accuracy.keys():

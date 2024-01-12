@@ -3,7 +3,7 @@ import polars as pl
 import os
 
 # Custom classes
-from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from settings.settings_analyze import settings_analyze as settings
 from behave_analysis.utils.creating_directories import make_directory
@@ -17,7 +17,7 @@ class AnalyzeBehave:
         self.dir = make_directory(os.path.join(session.base_path,session.processed_path) + "\\" + 'analyze_behave')
         self.session = session
         self.settings = settings
-        open_tracking_data(self)
+        self.tracking_data = open_tracking_data(self.session)
         """Load in video df"""
         video_df = os.path.join(session.base_path,session.processed_path) + "\\" + "full_video_dataframe.csv"
         if os.path.isfile(video_df):

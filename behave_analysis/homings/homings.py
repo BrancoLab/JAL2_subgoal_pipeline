@@ -12,9 +12,8 @@ from dataclasses import dataclass
 import dill as pickle
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 from loguru import logger
-
-from behave_analysis.utils.open_tracking_data import open_tracking_data
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 
 
@@ -67,7 +66,7 @@ class get_Homings:
 
     # --------MAIN FUNCS-----------------------------------------------
     def extract_variables(self):
-        open_tracking_data(self)  # generates self.tracking_data
+        self.tracking_data = open_tracking_data(self.session) 
         self.get_homing_speed()
         self.get_homing_angle()
         self.get_homing_speed_angular()

@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from behave_analysis.utils.color_funcs import get_color_based_on_speed
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 
 def spatial_efficiency(session, settings, video_df, tracking_data, save_dir):
     """ 
@@ -107,7 +108,9 @@ def identify_condition_escape(video_df,session):
         else: condition = 'barrier_present'
     return condition
 
-def base_plotting(ax,tracking,condition):
+def base_plotting(ax,tracking,condition, session = []):
+    if len(tracking) == 0:
+        tracking = open_tracking_data(session)
     arena_radius = 460
     # draw shelter
     if 'shelter_loc' in tracking.keys():
@@ -119,24 +122,25 @@ def base_plotting(ax,tracking,condition):
                     [tracking["shelter_loc"][0][1],tracking["shelter_loc"][1][1]],
                     color = [0,0,0])
     
-    if not(condition == 'shelter_only'):
-        if condition == 'barrier_present':
-            # draw old two-sided barrier
-            bar_loc = [tracking["barrier_loc"][0][0],tracking["barrier_loc"][1][0]]
-        
-        if condition == 'barrier_pre_flip':
-            # draw barrier from first point to the edge
-            if tracking["barrier_loc"][0][0] < 512: bar_loc = [tracking["barrier_loc"][0][0],512+arena_radius]
-            else: bar_loc = [512-arena_radius,tracking["barrier_loc"][0][0]]
-        
-        if condition == 'barrier_post_flip':
-            # draw barrier from second point to the edge
-            if tracking["barrier_loc"][1][0] < 512: bar_loc = [tracking["barrier_loc"][1][0],512+arena_radius]
-            else: bar_loc = [512-arena_radius,tracking["barrier_loc"][1][0]]
-        
-        plt.plot([bar_loc[0],bar_loc[1]],
-                [tracking["barrier_loc"][0][1],tracking["barrier_loc"][1][1]],
-                color = [0,0,0])
+    if not np.logical_or(condition == 'shelter_only', condition == 'pre_shelter'):
+        if len(tracking['barrier_loc']) > 0:
+            if condition == 'barrier_present':
+                # draw old two-sided barrier
+                bar_loc = [tracking["barrier_loc"][0][0],tracking["barrier_loc"][1][0]]
+            
+            if condition == 'barrier_pre_flip':
+                # draw barrier from first point to the edge
+                if tracking["barrier_loc"][0][0] < 512: bar_loc = [tracking["barrier_loc"][0][0],512+arena_radius]
+                else: bar_loc = [512-arena_radius,tracking["barrier_loc"][0][0]]
+            
+            if condition == 'barrier_post_flip':
+                # draw barrier from second point to the edge
+                if tracking["barrier_loc"][1][0] < 512: bar_loc = [tracking["barrier_loc"][1][0],512+arena_radius]
+                else: bar_loc = [512-arena_radius,tracking["barrier_loc"][1][0]]
+            
+            plt.plot([bar_loc[0],bar_loc[1]],
+                    [tracking["barrier_loc"][0][1],tracking["barrier_loc"][1][1]],
+                    color = [0,0,0])
     
     # draw arena edge
     a = 512 + ( arena_radius * np.cos( np.linspace( 0 , 2 * np.pi , 150 ) ) )

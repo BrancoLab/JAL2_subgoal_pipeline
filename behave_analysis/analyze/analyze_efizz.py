@@ -1,6 +1,6 @@
 import os
-import dill as pickle
 import time
+import numpy as np
 
 from loguru import logger
 import polars as pl
@@ -46,7 +46,8 @@ class AnalyzeEfizz:
             postprocessObject = open_postprocess_object(self.session, self.cluster_type)
             self.video_spike_count_df = postprocessObject.video_spike_count_df
             self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-            self.cluster_Ids = postprocessObject.video_spike_count_df["spike_clusters"].unique().to_numpy()
+            self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+            self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):
         logger.info("Executing models")

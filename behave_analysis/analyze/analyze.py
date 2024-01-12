@@ -2,7 +2,7 @@
 # from behave_analysis.utils.mat_to_python import convert_matlab_struct
 from behave_analysis.process.camera_trigger import get_num_frames_expected, get_Camera_trigger
 from behave_analysis.process.process import Process
-from behave_analysis.utils.open_tracking_data import open_tracking_data
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.plot_funcs import *
 from behave_analysis.analyze.data_extraction_funcs import *
 from behave_analysis.analyze.stats_funcs import permutation_test, print_stat_test_results
@@ -121,7 +121,7 @@ class Analyze():
         self.fps = self.session.video.fps
         self.session_count += 1
         self.num_successful_escapes_this_session = 0
-        open_tracking_data(self) # generates self.tracking_data
+        self.tracking_data = open_tracking_data(self.session)
 
     def get_data_on_each_trial(self):
         for onset_frames, stim_durations in zip(self.session.__dict__[self.stim_type].onset_frames, \
