@@ -11,6 +11,8 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
     generate_bin_positions,
 )
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
+
 
 def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_Ids, settings):
     """This function looks at the firing in each spatial position bin and then computes the rayleigh amplitude and angle for the avg. firing at each hdir. It then plots that as an arrow on the arena."""
@@ -33,13 +35,11 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
     if not isinstance(conditions, list):
         conditions = [conditions]
 
-    
-
     # for each cluster make a map for each condition
     for count_clu, clu in enumerate(cluster_Ids):
         # for clu in np.arange(np.shape(spike_data)[1]):
         start_t = time.time()
-        
+
         # identify cluster
         this_cluster = clusters.filter(clusters["spike_clusters"] == [clu])
         category = this_cluster["cluster_group"].to_numpy()
@@ -96,6 +96,7 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
             full_pos = np.logical_not(empty_pos)
 
             # plot at each position that has a rayleigh an arrow/line with length and orientation given by rayleigh
+            base_plotting(ax, tracking = [], condition = c, session = session)
             ax.scatter(this_pos[empty_pos, 0], this_pos[empty_pos, 1], 5, "k")
             ax.quiver(
                 this_pos[full_pos, 0],
@@ -110,7 +111,6 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
 
             # Set aspect ratio to be equal
             ax.set_aspect("equal")
-            ax.set_axis_off()
 
         end_t = time.time()
         tot = end_t - start_t
@@ -137,7 +137,6 @@ def compute_rayleigh_by_pos(avg_firing, position_hdir_indices, hdir, position, n
 
     # iterate over unique positions
     for i, p in enumerate(unique_pos):
-
         here = np.where(unique_pos_vector == p)[0]
         pos0 = position_hdir_indices[here]
 
@@ -157,10 +156,11 @@ def compute_rayleigh_by_pos(avg_firing, position_hdir_indices, hdir, position, n
             firing_this_pos = avg_firing[np.unique(pos0)]
 
             # compute rayleigh
-            x = np.sum(np.cos(unique_hdir_this_pos) * (firing_this_pos)) / np.sum(firing_this_pos)
-            y = np.sum(np.sin(unique_hdir_this_pos) * (firing_this_pos)) / np.sum(firing_this_pos)
-            theta[i] = np.arctan2(y, x)
-            r[i] = np.sqrt(x**2 + y**2)
+            if not np.sum(firing_this_pos) == 0:
+                x = np.sum(np.cos(unique_hdir_this_pos) * (firing_this_pos)) / np.sum(firing_this_pos)
+                y = np.sum(np.sin(unique_hdir_this_pos) * (firing_this_pos)) / np.sum(firing_this_pos)
+                theta[i] = np.arctan2(y, x)
+                r[i] = np.sqrt(x**2 + y**2)
         else:
             r[i] = np.nan
 

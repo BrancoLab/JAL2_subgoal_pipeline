@@ -6,6 +6,7 @@ import os
 # Import custom settings
 from settings.settings_visualize import defined_settings_visualize as settings_v
 from behave_analysis.visualize.efizz.egocentric_firing_map_binned import egocentric_firing_map
+from behave_analysis.visualize.efizz.rayleigh_map import rayleigh_map
 from behave_analysis.visualize.efizz.stim_resp_functions import single_cluster_raster, rasters, PSTH_all_neurons, PSTH_single_neurons
 from behave_analysis.visualize.efizz.tuning_functions import spatial_position_firing, spatial_position_firing_hdir
 from behave_analysis.utils.creating_directories import make_directory
@@ -60,7 +61,16 @@ class Visualize_efizz:
                               conditions = extract_all_or_custom_conditions(settings_v, self.session),
                               cluster_Ids = cluster_Ids[cluster_Ids > 0],
                               settings = settings_v)
-        logger.info(f"Finished! to make some efizz tuning plots...")
+        
+        # a map of where rayleighs point to
+        rayleigh_map(self.processed_data.frame_by_cluster_matrix, 
+                              self.video_df,
+                              self.processed_data.clu_label,
+                              self.session,
+                              conditions = extract_all_or_custom_conditions(settings_v, self.session),
+                              cluster_Ids = cluster_Ids[cluster_Ids > 0],
+                              settings = settings_v)
+        logger.info(f"Finished! Making some efizz tuning plots...")
 
 ##------------STIMULUS RESPONSE PLOTTING
     def run_stim_resp_plotting(self):
