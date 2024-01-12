@@ -95,7 +95,8 @@ class Process():
         """
         meta_file = os.path.join(self.session.base_path,self.session.metadata_file)
         assert not os.path.isfile(meta_file) or overwrite, "Permission to save not granted"
-        with open(meta_file, "wb") as dill_file: pickle.dump(self.session, dill_file)
+        with open(meta_file, "wb") as dill_file:
+            pickle.dump(self.session, dill_file)
         return None
 
     def load_session(self) -> NEW_Session:

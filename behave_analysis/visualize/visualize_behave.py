@@ -11,7 +11,7 @@ from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_posit
 from behave_analysis.visualize.behaviour.angle_distributions import plot_angle_distributions
 from behave_analysis.visualize.behaviour.behavioral_stats import shelter_occupancy,position_by_bsa,location_occupancy
 from behave_analysis.visualize.behaviour.escape_trajectory import escape_trajectory_and_shelter_exits
-from behave_analysis.visualize.behaviour.escape_movies import trial_movies
+from behave_analysis.visualize.behaviour.movies import trial_movies
 from behave_analysis.visualize.visualize_utils import open_tracking_data, open_kalman_tracking_data
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions
@@ -88,10 +88,10 @@ class Visualize_behave:
                                             save_path = self.behave_path)
 
 ##--------MAKE MOVIS OF ESCAPE WITH DLC TRACKING
-    def escape_movies(self):
-        logger.info(f"Starting to make movies of mousie escape")
+    def make_movies(self, stim_type):
+        logger.info(f"Starting to make behaviour movies for trials")
         trial_movies(tracking_data = self.tracking_data, 
                      kalman = self.kalman, 
                      session = self.session, 
                      settings = settings_v, 
-                     stim_type = settings_v.stim_type)
+                     stim_type = stim_type)
