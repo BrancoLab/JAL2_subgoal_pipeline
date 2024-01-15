@@ -24,7 +24,7 @@ def open_tracking_data(session):
     It is not really the responsibility of the postprocessing class to open the tracking data.
     """
     
-    file = os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle")
+    file = os.path.join(session.base_path, session.processed_path, "fully_processed_tracking_data.pickle")
     
     try:
         with open(file, "rb") as dill_file:
