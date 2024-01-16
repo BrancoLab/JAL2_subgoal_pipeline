@@ -38,5 +38,4 @@ def visualize():
 
     logger.success("Visualisation pipeline step complete")
 
-
 visualize()

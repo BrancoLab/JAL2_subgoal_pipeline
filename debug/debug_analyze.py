@@ -8,6 +8,7 @@ from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
 from settings.settings_analyze import Settings_analyze as settings_a
 
+
 def analyze():
     """
     A function that calls all the analysis modules and is designed to be run last and for the whole dataset.
@@ -20,7 +21,8 @@ def analyze():
             AnalyzeBehave(session).behaviour_analyses()
         if settings_a.efizz:
             AnalyzeEfizz(session).execute_models()
-            AnalyzeEfizz(session).classify_cells()
+            # AnalyzeEfizz(session).classify_cells()
     logger.success("Analysis pipeline complete")
-    
+
+
 analyze()

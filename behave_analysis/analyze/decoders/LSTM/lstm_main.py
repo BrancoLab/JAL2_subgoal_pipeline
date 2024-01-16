@@ -1,3 +1,6 @@
+"""An LSTM decoder for head direction data. 
+Input is a matrix of neural data, output is a vector of head direction data."""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,17 +12,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from loguru import logger
 
-from behave_analysis.analyze.decoders.LSTM.helpers import get_spikes_with_history
-
 
 class LSTMDataset(Dataset):
     """
-    Custom Dataset subclass.
-    Serves as input to DataLoader to transform X
-      into sequence data using rolling window.
-    DataLoader using this dataset will output batches
-      of `(batch_size, seq_len, n_features)` shape.
-    Suitable as an input to RNNs.
+    Custom Dataset subclass. Serves as input to DataLoader to transform X
+    into sequence data using rolling window. DataLoader using this dataset 
+    will output batches of `(batch_size, seq_len, n_features)` shape. Suitable 
+    as an input to RNN based architectures.
+    
+    Returns:
+    -- obj:
 
     # Batch size is the number of sequences fed into the model at once
     # Sequence length is the number of time steps in each sequence
@@ -27,9 +29,7 @@ class LSTMDataset(Dataset):
     """
 
     def __init__(self, X, Y, seq_len: int = 80):  # 80 is 2 seconds of data
-        self.X = torch.tensor(
-            X, dtype=torch.float32
-        )  # Shape: [batch_size, seq_len, features]
+        self.X = torch.tensor(X, dtype=torch.float32)  # Shape: [batch_size, seq_len, features]
         self.Y = torch.tensor(Y, dtype=torch.float32)  # Shape can vary based on task
         self.seq_len = seq_len
 
@@ -87,29 +87,19 @@ class LSTMRegression(nn.Module):
         self.dropout = dropout
         self.num_epochs = num_epochs
         self.verbose = verbose
-        self.device = self.get_device()
+        self.device = self._get_device()
 
         # Model Layers
         self.lstm = nn.LSTM(input_size, hidden_units, batch_first=True, dropout=dropout)
         self.fc = nn.Linear(hidden_units, output_size)
 
-    def get_device(self):
-        # Get cpu, gpu or mps device for training.
-        device = (
-            "cuda"
-            if torch.cuda.is_available()
-            else "mps"
-            if torch.backends.mps.is_available()
-            else "cpu"
-        )
+    def _get_device(self) -> str:
+        """Ensure GPU is used if available else use CPU"""
+        device = "cuda" if torch.cuda.is_available() else "cpu"
         if device != "cuda":
-            logger.warning(
-                "Cuda is not available. Using CPU instead this will take forever fix."
-            )
-
+            logger.warning("Cuda is not available. Using CPU instead this will take forever fix.")
         if device == "cuda":
             logger.success("Using CUDA device")
-
         return device
 
     def forward(self, x):
@@ -126,9 +116,7 @@ class LSTMRegression(nn.Module):
         true_values_flat = true_values.view(-1, true_values.size(-1))
 
         # Create a Von Mises distribution centered at the predicted angles
-        concentration_tensor = torch.tensor(
-            [1.0], device=self.device
-        )  # second parameter is concentration for von mises
+        concentration_tensor = torch.tensor([1.0], device=self.device)  # second parameter is concentration for von mises
         von_mises_dist = dist.VonMises(predictions_flat, concentration_tensor)
 
         # Calculate the negative log likelihood
@@ -188,7 +176,7 @@ class LSTMRegression(nn.Module):
         # mean_y = np.mean(all_y)
         # sst = sum([(y_val - mean_y) ** 2 for y_val in all_y])  # Total variance
         # r_squared = 1 - (ssr / sst)
-        
+
         test_loss /= num_batches
 
         # print(f"Test R²: {r_squared:>8f}")
@@ -224,7 +212,7 @@ def main(frame_by_cluster_matrix, Y):
     total_samples = len(data)  # Replace 'your_dataset' with your dataset variable
     train_size = int(total_samples * 0.8)  # 70% of the dataset
     # test_size = total_samples - train_size  # Remaining 20% for the test set
-    
+
     # Manually split the dataset to preserve temporal order
     train_dataset = Subset(data, range(0, train_size))
     test_dataset = Subset(data, range(train_size, total_samples))
@@ -244,7 +232,7 @@ def main(frame_by_cluster_matrix, Y):
             dataloader=training_loader,
             model=model_lstm,
             # loss_fn=nn.MSELoss(),
-            loss_fn = model_lstm.custom_loss_function,
+            loss_fn=model_lstm.custom_loss_function,
             optimizer=model_lstm.optimizer(model_lstm),
             device=model_lstm.device,
         )
@@ -252,7 +240,7 @@ def main(frame_by_cluster_matrix, Y):
         test_losses = LSTMRegression.test_loop(
             dataloader=test_loader,
             model=model_lstm,
-            loss_fn = model_lstm.custom_loss_function,
+            loss_fn=model_lstm.custom_loss_function,
             # loss_fn=nn.MSELoss(),
             device=model_lstm.device,
         )
@@ -273,9 +261,7 @@ def main(frame_by_cluster_matrix, Y):
     # Now predict
     actual_labels = np.asarray(test_dataset.dataset.Y).reshape(-1)
 
-    predictions = model_lstm.predict(
-        model=model_lstm, dataloader=test_loader, device=model_lstm.device
-    ).numpy()
+    predictions = model_lstm.predict(model=model_lstm, dataloader=test_loader, device=model_lstm.device).numpy()
     flat_predictions = predictions.reshape(-1)  # Shape (10646560,)
     # whereas acutal labels is (665486,)
     flat_predictions = flat_predictions[: len(test_dataset.dataset.Y)]
