@@ -8,6 +8,7 @@ settings_homings = Settings_homings(
     max_time_within_session=2000,  # How long is session in minutes - Ignore I think
     threat_area_width=820,
     threat_area_height=275,
+    cum_threshold=15,  # How many cm does the mouse have to move when considering homing angle
     # Commenting out the hard coded subgoal locations as we click on them in the GUI
     # subgoal_locations             = [(512-250, 512),(512+250, 512)],
     # Threshold script only logic?

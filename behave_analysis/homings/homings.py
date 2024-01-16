@@ -6,8 +6,8 @@ potentially post processing?
 BUG:
 -- Sometimes the meta file is not saved correctly and process has to be rerun
 """
-from statistics import mean
 import os
+from statistics import mean
 from dataclasses import dataclass
 
 from loguru import logger
@@ -23,16 +23,13 @@ from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 class Homings:
     """High level data structure for storing homings data""" ""
 
-    onset_frames: object
-    stimulus_durations: object
-    fast_speed: float
-    fast_angular_speed: float
-    padding_duration: float
-    min_change_in_dist_to_shelter: int
-    max_time_within_session: float
-    threat_area_height: int
-    threat_area_width: int
-    subgoal_locations: list
+    onset_frames: object  # which frames homing starts on
+    offset_frames: object  # which frames homing ends on
+    stimulus_durations: object  # in seconds
+    start_locs: np.array  # x,y pixel locations of the start of each homing run
+    end_locs: np.array  # x,y pixel locations of the end of each homing run
+    avg_speed: np.array  # Average speed in cm/s across homing
+    avg_hsa: np.array  # In the first 15cm of the homing run
 
 
 class get_Homings:
@@ -51,30 +48,37 @@ class get_Homings:
         self.settings = settings
         self.session = session
         self.reference_locations = [self.session.video.shelter_location] + self.session.barrier_location[:-1]
+        self.tracking_data = open_tracking_data(self.session)
 
+        # Begin extracting variables for homings
         self.extract_variables()
         self.homing_runs_on = self.identify_homing_runs()
-        self.onset_frames, self.stimulus_durations, self.offset_frames = self.get_onset_and_duration()
-        self.onset_frames, self.stimulus_durations = self.remove_inapplicable_runs()
+        onset_frames_pre, self.stimulus_durations, offset_frames_pre = self.get_onset_and_duration()
+        self.onset_frames, self.offset_frames, self.stimulus_durations = self.remove_inapplicable_runs(
+            onsets=onset_frames_pre, offsets=offset_frames_pre
+        )
+        self.start_locs, self.end_locs = self.get_start_and_end_locs(
+            tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
+        )
+        avg_speed = self.get_avg_speed(self.onset_frames, self.offset_frames, self.tracking_data)
+        avg_hsa = self.get_avg_hsa(self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold)
 
+        # Return main homings object
         self.session.homing = Homings(
             self.onset_frames,
+            self.offset_frames,
             self.stimulus_durations,
-            self.settings.fast_speed,
-            self.settings.fast_angular_speed,
-            self.settings.padding_duration,
-            self.settings.min_change_in_dist_to_shelter,
-            self.settings.max_time_within_session,
-            self.settings.threat_area_height,
-            self.settings.threat_area_width,
-            self.session.barrier_location[:-1],
+            self.start_locs,
+            self.end_locs,
+            avg_speed,
+            avg_hsa,
         )
+
         self.save_session()  # Add homings to session and save
 
     # --------MAIN FUNCS-----------------------------------------------
     def extract_variables(self):
         """Extract the variables needed to identify homings"""
-        self.tracking_data = open_tracking_data(self.session)
         self.homing_speed = self.get_homing_speed()
         self.homing_angle = self.get_homing_angle()
         self.homing_speed_angular = self.get_homing_speed_angular()
@@ -134,7 +138,7 @@ class get_Homings:
 
         return onset_frames, stimulus_durations, offset_frames
 
-    def remove_inapplicable_runs(self) -> tuple[np.array, np.array]:
+    def remove_inapplicable_runs(self, onsets, offsets) -> tuple[np.array, np.array]:
         """
         Remove homings that don't meet the criteria set in settings_homings.py
 
@@ -146,17 +150,17 @@ class get_Homings:
         self.distance_from_shelter = self.tracking_data["distance rel. to shelter"]
 
         # Where does the homing run start?
-        start_loc_x = self.tracking_data["avg_loc"][self.onset_frames, 0]
-        start_loc_y = self.tracking_data["avg_loc"][self.onset_frames, 1]
+        start_loc_x = self.tracking_data["avg_loc"][onsets, 0]
+        start_loc_y = self.tracking_data["avg_loc"][onsets, 1]
 
         # Does the mouse move enough towards the shelter to be considered a homing run?
-        change_in_distance_to_shelter = (
-            self.distance_from_shelter[self.onset_frames] - self.distance_from_shelter[self.offset_frames]
-        ) / self.distance_from_shelter[self.onset_frames]
+        change_in_distance_to_shelter = (self.distance_from_shelter[onsets] - self.distance_from_shelter[offsets]) / self.distance_from_shelter[
+            onsets
+        ]
         sufficient_move_toward_shelter = change_in_distance_to_shelter > self.settings.min_change_in_dist_to_shelter
 
         # Is the homing run long enough to be considered a homing run?
-        homing_run_durations = self.offset_frames - self.onset_frames + 1
+        homing_run_durations = offsets - onsets + 1
         sufficient_run_duration = homing_run_durations > (self.settings.padding_duration * self.session.video.fps + 1)
 
         # Is the homing run in the threat area?
@@ -175,17 +179,18 @@ class get_Homings:
         starts_in_subgoal = start_loc_x_within_subgoal * start_loc_y_within_subgoal
 
         # Some philip logic we can ignore?
-        onset_time_in_session = self.onset_frames / self.session.video.fps / 60
+        onset_time_in_session = onsets / self.session.video.fps / 60
         starts_late_enough = onset_time_in_session < self.settings.max_time_within_session
 
         # Apply all the criteria using an AND operation, make in threat area or starts in subgoal
         applicable_runs = sufficient_move_toward_shelter * sufficient_run_duration * (starts_in_threat_area + starts_in_subgoal) * starts_late_enough
 
         # Extract the onset frames and durations of the applicable runs
-        onset_frames = np.array([[onset_frame] for onset_frame in self.onset_frames[applicable_runs]])
+        onset_frames = np.array([[onset_frame] for onset_frame in onsets[applicable_runs]])
+        offset_frames = np.array([[offset_frame] for offset_frame in offsets[applicable_runs]])
         stimulus_durations = np.array([[stimulus_duration] for stimulus_duration in self.stimulus_durations[applicable_runs]])
 
-        return onset_frames, stimulus_durations
+        return onset_frames, offset_frames, stimulus_durations
 
     def save_session(self) -> None:
         """A fuction that saves the new session with the homings data"""
@@ -306,7 +311,7 @@ class get_Homings:
         homing_speed = np.concatenate((np.zeros(1), smoothed_homing_speed_cm_per_sec))
 
         # Speed cant be move than 100cm (arbitrary) per second as that would be ridiculous
-        assert np.max(homing_speed) < 100, "Homing speed is too high, check tracking data"
+        assert np.max(homing_speed) < 120, "Homing speed is too high, check tracking data"
 
         return homing_speed
 
@@ -344,9 +349,6 @@ class get_Homings:
                 angle_relative_to_reference_locations[:, i][angle_relative_to_reference_locations[:, i] > 180] - 360
             )
 
-        # Doesn't seem to be used anywhere so commenting out for now
-        # self.shelter_angle = abs(angle_relative_to_reference_locations[:, 0])
-
         # Choice of min angle is debatable and a bit arbitrary
         homing_angle = np.min(abs(angle_relative_to_reference_locations), axis=1)
         return homing_angle
@@ -375,3 +377,80 @@ class get_Homings:
         smoothed_speed_y_cm_per_sec = gaussian_filter1d(speed_y_cm_per_sec, sigma=self.session.video.fps / 10)
         speed_along_y_axis = np.concatenate((np.zeros(1), smoothed_speed_y_cm_per_sec))
         return speed_along_y_axis
+
+    def get_start_and_end_locs(self, tracking: object, onset_frames: np.array, offset_frames: np.array) -> tuple:
+        """Return the start and end locations of each homing run
+
+        Returns:
+        -- start_locs: np.array of shape (n_runs, 2) with the start locations of each homing run
+        -- end_locs: np.array of shape (n_runs, 2) with the end locations of each homing run
+
+        Each location is in pixels and stored as [x, y]"""
+        start_locs = tracking["avg_loc"][onset_frames]
+        end_locs = tracking["avg_loc"][offset_frames]
+        assert len(start_locs) == len(end_locs), "Start and end locs are not the same length"
+        assert len(start_locs) == len(onset_frames), "Start locs and number of homings are not the same length"
+        return start_locs, end_locs
+
+    def get_avg_speed(self, onsets, offsets, tracking_data) -> np.array:
+        """For each homing, compute the average speed in cm/s
+
+        Returns:
+        -- avg_speed: np.array of shape (n_runs, ) with the average speed in cm/s for each homing run"""
+
+        avg_speed = np.zeros(len(onsets))
+
+        for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
+            tracking = tracking_data["avg_loc"][onset[0] : offset[0]]
+            speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
+            speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
+            speed_cm_per_sec = speed_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
+            smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=self.session.video.fps / 10)
+            avg_speed[homing] = np.mean(smoothed_speed_cm_per_sec)
+
+        assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
+        return avg_speed
+
+    def get_avg_hsa(self, onsets, offsets, tracking_data, cum_threshold) -> np.array:
+        """For the first 15cm of each homing, compute the average hsa
+
+        Note - 15cm is arbitrary and could be changed in settings_homings.py
+
+        Args:
+        -- cum_threshold: int, the distance in cm that the mouse must move before the hsa is computed
+        -- onsets: np.array of shape (n_runs, ) with the onset frame of each homing run
+        -- offsets: np.array of shape (n_runs, ) with the offset frame of each homing run
+        -- tracking_data: dictionary of all the good stuff from the tracking file
+
+        Returns:
+        -- avg_hsa: np.array of shape (n_runs, ) with the average hsa for each homing run"""
+
+        avg_hsa = np.zeros(len(onsets))
+        hsa_data = tracking_data["hdir_shelt"]
+
+        for i, (onset, offset) in enumerate(zip(onsets, offsets)):
+            frame_coords = tracking_data["avg_loc"][onset[0] : offset[0]]
+            frame_index = self.cum_distance(onset, offset, frame_coords, cum_threshold)
+            hsa = hsa_data[onset[0] : onset[0] + frame_index]
+            avg_hsa[i] = np.mean(hsa)
+
+        assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
+        return avg_hsa
+
+    def cum_distance(self, onset, offset, frame_coords, cum_threshold: int) -> int:
+        """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold
+
+        Returns:
+        -- i: int, the index of the frame where the mouse has travelled cum_threshold cm"""
+        cum_dist = 0
+        for i, frame in enumerate(range(onset[0], offset[0])):
+            x_diff = frame_coords[i][0] - frame_coords[i - 1][0]
+            y_diff = frame_coords[i][1] - frame_coords[i - 1][1]
+            dist = np.sqrt(x_diff**2 + y_diff**2) / self.session.video.pixels_per_cm
+            cum_dist += dist
+            if cum_dist >= cum_threshold:
+                return frame
+
+        # if the mouse never reachs threshold return error message
+        logger.error(f"Mouse never reaches cum threshold {cum_threshold} cm")
+        return None
