@@ -34,12 +34,11 @@ class Homings:
 
 
 class get_Homings:
-    """Extract homings from a session and then append to metadata file within session object
+    """Extract homings metrics from a session
 
     Responsible for:
     -- Creates a Homings object
-    -- Appends the Homings object to the session object
-    -- Overwrites the session object
+    -- Saves the Homings object as a pickle file within the session folder
 
     Misc:
     -- Reference locations = [shelter, subgoal1, subgoal2] ignoring central barrier location
@@ -77,7 +76,7 @@ class get_Homings:
             homing_angles_dic,
         )
 
-        self.save_session()  # Add homings to session and save
+        self.save_session()
 
     # --------MAIN FUNCS-----------------------------------------------
     def extract_variables(self):
