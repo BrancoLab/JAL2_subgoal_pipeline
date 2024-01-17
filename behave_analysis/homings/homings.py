@@ -196,8 +196,7 @@ class get_Homings:
 
     def save_session(self) -> None:
         """Save homings object as a pickle file within the session folder"""
-        folder = os.path.join(self.session.base_path, self.session.processed_path, "homings")
-        make_directory(folder)
+        folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings"))
         file_name = os.path.join(folder, "homings_obj.pkl")
         with open(file_name, "wb") as dill_file:
             pickle.dump(self.session.homing, dill_file)
