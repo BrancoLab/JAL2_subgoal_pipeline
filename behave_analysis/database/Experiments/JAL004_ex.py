@@ -50,6 +50,6 @@ JAL4_19thSept = Experiment(# Mouse specific
                     experiment_date = "2023_09_19",
                     experiment_time = "14_10_56",
                     shelter_time = [0, -1],
-                    barrier_time = [56, -1],
+                    barrier_time = [56.36, -1], # seconds needed to be more precise
                     barrier_flip_time = 160,
                     experiment_path = Path(r"004_flipppuf19sept_2023_09_19T14_10_56"))
