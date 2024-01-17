@@ -17,6 +17,7 @@ from scipy.ndimage import gaussian_filter1d
 
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
+from behave_analysis.utils.creating_directories import make_directory
 
 
 @dataclass(frozen=True)
@@ -29,7 +30,7 @@ class Homings:
     start_locs: np.array  # x,y pixel locations of the start of each homing run
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
-    avg_hsa: np.array  # In the first 15cm of the homing run
+    homing_angles_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
 
 
 class get_Homings:
@@ -61,7 +62,9 @@ class get_Homings:
             tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
         )
         avg_speed = self.get_avg_speed(self.onset_frames, self.offset_frames, self.tracking_data)
-        avg_hsa = self.get_avg_hsa(self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold)
+        homing_angles_dic = self.get_avg_homing_angle_for_start_of_run(
+            self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
+        )
 
         # Return main homings object
         self.session.homing = Homings(
@@ -71,7 +74,7 @@ class get_Homings:
             self.start_locs,
             self.end_locs,
             avg_speed,
-            avg_hsa,
+            homing_angles_dic,
         )
 
         self.save_session()  # Add homings to session and save
@@ -193,13 +196,12 @@ class get_Homings:
         return onset_frames, offset_frames, stimulus_durations
 
     def save_session(self) -> None:
-        """A fuction that saves the new session with the homings data"""
-
-        meta_file = os.path.join(self.session.base_path, self.session.metadata_file)
-        assert os.path.exists(meta_file), "Metadata file does not exist already, and it should"
-        with open(meta_file, "wb") as dill_file:
-            pickle.dump(self.session, dill_file)
-        assert os.path.exists(meta_file), "Metadata file resaved incorrectly"
+        """Save homings object as a pickle file within the session folder"""
+        folder = os.path.join(self.session.base_path, self.session.processed_path, "homings")
+        make_directory(folder)
+        file_name = os.path.join(folder, "homings_obj.pkl")
+        with open(file_name, "wb") as dill_file:
+            pickle.dump(self.session.homing, dill_file)
         logger.success("Session saved with homings data")
 
     # --------DATA PROCESSING FUNCS---------------------------------------
@@ -411,8 +413,8 @@ class get_Homings:
         assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
         return avg_speed
 
-    def get_avg_hsa(self, onsets, offsets, tracking_data, cum_threshold) -> np.array:
-        """For the first 15cm of each homing, compute the average hsa
+    def get_avg_homing_angle_for_start_of_run(self, onsets, offsets, tracking_data, cum_threshold) -> dict:
+        """For the first 15cm of each homing, compute the average angles to reference locations
 
         Note - 15cm is arbitrary and could be changed in settings_homings.py
 
@@ -422,20 +424,41 @@ class get_Homings:
         -- offsets: np.array of shape (n_runs, ) with the offset frame of each homing run
         -- tracking_data: dictionary of all the good stuff from the tracking file
 
-        Returns:
-        -- avg_hsa: np.array of shape (n_runs, ) with the average hsa for each homing run"""
+        Creates:
+        -- avg_hsa: np.array of shape (n_runs, ) with the average hsa for each homing run
+        -- avg_hdir_bar_goal1: np.array of shape (n_runs, ) with the average hdir_bar_goal1 for each homing run
+        -- avg_hdir_bar_goal2: np.array of shape (n_runs, ) with the average hdir_bar_goal2 for each homing run
 
+        Returns:
+        -- dic: dictionary with the above arrays stored as values
+        """
+
+        # init
         avg_hsa = np.zeros(len(onsets))
+        avg_hdir_bar_goal1 = np.zeros(len(onsets))
+        avg_hdir_bar_goal2 = np.zeros(len(onsets))
+
+        # extract
         hsa_data = tracking_data["hdir_shelt"]
+        hdir_bar_goal1 = tracking_data["hdir_barrier"][:, 0]
+        hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
 
         for i, (onset, offset) in enumerate(zip(onsets, offsets)):
             frame_coords = tracking_data["avg_loc"][onset[0] : offset[0]]
             frame_index = self.cum_distance(onset, offset, frame_coords, cum_threshold)
             hsa = hsa_data[onset[0] : onset[0] + frame_index]
+            g1 = hdir_bar_goal1[onset[0] : onset[0] + frame_index]
+            g2 = hdir_bar_goal2[onset[0] : onset[0] + frame_index]
             avg_hsa[i] = np.mean(hsa)
+            avg_hdir_bar_goal1[i] = np.mean(g1)
+            avg_hdir_bar_goal2[i] = np.mean(g2)
 
         assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
-        return avg_hsa
+
+        # Save as dictionary, not as array, so I don't have to ask jasimine for the index every week
+        dic = {"avg_hsa": avg_hsa, "avg_hdir_bar_goal1": avg_hdir_bar_goal1, "avg_hdir_bar_goal2": avg_hdir_bar_goal2}
+
+        return dic
 
     def cum_distance(self, onset, offset, frame_coords, cum_threshold: int) -> int:
         """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold
