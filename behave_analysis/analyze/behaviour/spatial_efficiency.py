@@ -29,8 +29,8 @@ def spatial_efficiency(session, settings, video_df, tracking_data, save_dir):
         # set up axes with shelt and barrier locations
         condition = identify_condition_escape(video_df.filter(video_df['frames'] == onset_frames),session)
         base_plotting(ax,tracking_data,condition)
-        trajectory_length[trial_num] = plot_escape_trajectories(onset_frames[0],stimulus_durations[0]*session.video.fps,ax,settings.stim_type, tracking_data)
-        optimal_trajectory_length[trial_num] = plot_optimal_trajectories(onset_frames[0],ax,condition, tracking_data)
+        trajectory_length[trial_num] = plot_escape_trajectories(onset_frames[0],stimulus_durations[0]*session.video.fps, tracking_data, ax, settings.stim_type)
+        optimal_trajectory_length[trial_num] = plot_optimal_trajectories(onset_frames[0], tracking_data, condition, ax)
         spatial_efficiency_value[trial_num] = optimal_trajectory_length[trial_num]/trajectory_length[trial_num]
         ax.set_title('spatial efficiency = ' + str(spatial_efficiency_value[trial_num]))
     
@@ -40,7 +40,7 @@ def spatial_efficiency(session, settings, video_df, tracking_data, save_dir):
     if settings.show_plots: plt.show()
     plt.close()
 
-def plot_escape_trajectories(onset_frames,stimulus_durations,ax, stim_type, tracking_data):
+def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, ax = [], stim_type = []):
     """ 
     Plot escape trajectories
     """
@@ -51,17 +51,19 @@ def plot_escape_trajectories(onset_frames,stimulus_durations,ax, stim_type, trac
     trail_color = np.empty((len(speed),3))
     distance_travelled = []
     for i,stim_status in enumerate(np.arange(0,stimulus_durations)):
-        trail_color[i,:] = get_color_based_on_speed(speed=speed[i], 
-                                                    object_to_color="trail", 
-                                                    stim_status=stim_status, 
-                                                    stim_type=stim_type)
+        if len(stim_type) > 0:
+            trail_color[i,:] = get_color_based_on_speed(speed=speed[i], 
+                                                        object_to_color="trail", 
+                                                        stim_status=stim_status, 
+                                                        stim_type=stim_type)
         if i > 0:
             distance_travelled = np.append(distance_travelled,
                                             np.sqrt((x_loc[i] - x_loc[i-1])**2 + (y_loc[i] - y_loc[i-1])**2))
-    ax.scatter(x_loc,y_loc,s=5,c=trail_color/255)
+    if len(stim_type) > 0:
+        ax.scatter(x_loc,y_loc,s=5,c=trail_color/255)
     return np.sum(distance_travelled)
 
-def plot_optimal_trajectories(onset_frames, ax, condition, tracking_data):
+def plot_optimal_trajectories(onset_frames, tracking_data, condition, ax):
     """ Plot optimal escape path"""
     x_loc = tracking_data['head_loc'][onset_frames,0]
     y_loc = tracking_data['head_loc'][onset_frames,1]
@@ -78,18 +80,20 @@ def plot_optimal_trajectories(onset_frames, ax, condition, tracking_data):
             nearest_barrier_edge = 0
         elif condition == 'barrier_post_flip':
             nearest_barrier_edge = 1
-        ax.plot([x_loc,tracking_data["barrier_loc"][nearest_barrier_edge][0]],
-                    [y_loc,tracking_data["barrier_loc"][nearest_barrier_edge][1]],
-                    color = c_line)
+        if not len(ax) == 0:
+            ax.plot([x_loc,tracking_data["barrier_loc"][nearest_barrier_edge][0]],
+                        [y_loc,tracking_data["barrier_loc"][nearest_barrier_edge][1]],
+                        color = c_line)
         trjectory_to_barrier = np.sqrt((x_loc - tracking_data["barrier_loc"][nearest_barrier_edge][0])**2
                                 + (y_loc - tracking_data["barrier_loc"][nearest_barrier_edge][1])**2)
         x_loc = tracking_data["barrier_loc"][nearest_barrier_edge][0]
         y_loc = tracking_data["barrier_loc"][nearest_barrier_edge][1]
         
     # compute and plot each optimal trajectory to shelter
-    ax.plot([x_loc,np.mean([tracking_data['shelter_loc'][0][0],tracking_data['shelter_loc'][1][0]])],
-            [y_loc,np.mean([tracking_data['shelter_loc'][0][1],tracking_data['shelter_loc'][1][1]])],
-            color = c_line)
+    if not len(ax) == 0:
+        ax.plot([x_loc,np.mean([tracking_data['shelter_loc'][0][0],tracking_data['shelter_loc'][1][0]])],
+                [y_loc,np.mean([tracking_data['shelter_loc'][0][1],tracking_data['shelter_loc'][1][1]])],
+                color = c_line)
     trajectory_to_shelter = np.sqrt((np.mean([tracking_data['shelter_loc'][0][0],tracking_data['shelter_loc'][1][0]]) - x_loc)**2 
                                     + (np.mean([tracking_data['shelter_loc'][0][1],tracking_data['shelter_loc'][1][1]]) - y_loc)**2)
     return np.sum([trjectory_to_barrier,trajectory_to_shelter])
