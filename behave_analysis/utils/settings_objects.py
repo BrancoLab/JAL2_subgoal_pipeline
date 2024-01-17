@@ -48,11 +48,12 @@ class Settings_homings:
     min_change_in_dist_to_shelter: float
     max_time_within_session: float
     threat_area_width: int
+    cum_threshold: int
     threat_area_height: int
-    subgoal_locations: list
-    duration_after_crossing: float
-    by_experiment: bool = False
-    experiments: list = None
+    # subgoal_locations: list
+    # duration_after_crossing: float
+    # by_experiment: bool = False
+    # experiments: list = None
     by_session: bool = False
     sessions: list = None
     all_sessions: bool = False
@@ -61,8 +62,8 @@ class Settings_homings:
 @dataclass(frozen=True)
 class Settings_visualize:
     # laser_trials: bool=True
-    escape_trials: bool=True
-    homing_trials: bool=False
+    escape_trials: bool = True
+    homing_trials: bool = False
     # t_xing_trials: bool=True
     # explore_trial: bool=False
     display_tracking: bool = False
@@ -81,15 +82,16 @@ class Settings_visualize:
     fisheye_correction_file: str = None
     by_experiment: bool = False
     # experiments: list=None
-    by_session: bool=False
-    sessions: list=None
-    all_sessions: bool=False
-    efizz: bool=False
-    show_plots: bool=False
-    cluster_type: str = ''
-    stim_type: str = ''
+    by_session: bool = False
+    sessions: list = None
+    all_sessions: bool = False
+    efizz: bool = False
+    show_plots: bool = False
+    cluster_type: str = ""
+    stim_type: str = ""
     conditions: list = None
     user_defined_conditions: bool = False
+
 
 @dataclass(frozen=True)
 class Settings_analyze_local:
@@ -145,7 +147,7 @@ class Settings_analyze_global:
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
-    stim_type: str = 'None'
+    stim_type: str = "None"
     redo_compute: bool = False
     cluster_type: str = ""
     show_plots: bool = False
@@ -162,12 +164,13 @@ class Settings_analyze_efizz:
     single_cluster_plots: bool = True
     multi_cluster_plots: bool = False
     linear_shift: bool = True
-    conditions: str = ''
+    conditions: str = ""
     user_defined_conditions: bool = False
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False
     run_pca_model: bool = False
     redo_pca_preprocessing: bool = False
+
 
 @dataclass(frozen=True)
 class Settings_postprocess:

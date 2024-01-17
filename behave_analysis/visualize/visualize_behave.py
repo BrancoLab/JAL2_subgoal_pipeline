@@ -89,6 +89,7 @@ class Visualize_behave:
 
 ##--------MAKE MOVIS OF ESCAPE WITH DLC TRACKING
     def make_movies(self, stim_type):
+        """Make movies for homings or escapes"""
         logger.info(f"Starting to make behaviour movies for trials")
         trial_movies(tracking_data = self.tracking_data, 
                      kalman = self.kalman, 
