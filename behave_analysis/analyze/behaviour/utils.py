@@ -88,8 +88,9 @@ def base_plotting(ax, tracking, condition, session=[]) -> None:
                 else:
                     bar_loc = [512 - arena_radius, tracking["barrier_loc"][1][0]]
 
-            # Plot the barrier location onto the arena base
-            plt.plot([bar_loc[0], bar_loc[1]], [tracking["barrier_loc"][0][1], tracking["barrier_loc"][1][1]], color=[0, 0, 0])
+            if not condition == "barrier_removed":
+                # draw barrier location onto the arena base
+                plt.plot([bar_loc[0], bar_loc[1]], [tracking["barrier_loc"][0][1], tracking["barrier_loc"][1][1]], color=[0, 0, 0])
 
     # draw arena edge
     a = 512 + (arena_radius * np.cos(np.linspace(0, 2 * np.pi, 150)))
@@ -134,10 +135,16 @@ def identify_condition_of_trial(video_df, session) -> str:
     # Check which barrier condition the mouse is in
     elif np.logical_and(video_df["shelter"].to_numpy() == True, video_df["barrier_present"].to_numpy() == True):
         if session.barrier_flip_time:
+            # Check if the barrier has been flipped
             if video_df["barrier_flipped"].to_numpy() == False:
                 condition = "barrier_pre_flip"
-            elif video_df["barrier_flipped"].to_numpy() == True:
+
+            # Check if the barrier has been flipped
+            if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_removed"].to_numpy() == False):
                 condition = "barrier_post_flip"
+
+            if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_removed"].to_numpy() == True):
+                condition = "barrier_removed"
         else:
             condition = "barrier_present"
 

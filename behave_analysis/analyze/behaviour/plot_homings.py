@@ -96,7 +96,7 @@ def plot_homings(session, tracking_data, video_df) -> None:
     for figure in range(number_of_figures):
         fig = plt.figure(figsize=(20, 16))
         # Plot the title of the figure which is homings for a session for one figure
-        fig.suptitle(f"Homings for {session.name}, figure {figure} of {number_of_figures}", fontsize=16)
+        fig.suptitle(f"Homings for {session.name}, figure {figure + 1} of {number_of_figures}", fontsize=16)
         gs = gridspec.GridSpec(nrows, ncols, wspace=0, hspace=0)
         for row in range(nrows):
             for col in range(ncols):

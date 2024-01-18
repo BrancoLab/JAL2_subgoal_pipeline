@@ -18,6 +18,7 @@ class NEW_Session:
     shelter_time: None
     barrier_time: None
     barrier_flip_time: None
+    barrier_removal_time: None
     file_path: str
     base_path: str
     processed_path: str
@@ -52,6 +53,7 @@ def get_experiment(experiment_data_class):
                        experiment = experiment_type, 
                        shelter_time = experiment_data_class.shelter_time,
                        barrier_time = experiment_data_class.barrier_time,
+                       barrier_removal_time = experiment_data_class.barrier_removal_time,
                        barrier_flip_time = experiment_data_class.barrier_flip_time,
                        base_path = base_path,
                        file_path = file_path, 
