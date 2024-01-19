@@ -6,10 +6,13 @@ import time
 from loguru import logger
 import numpy as np
 import polars as pl
+import dill as pickle
 
 from behave_analysis.database.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.postprocess.trials.escapes import get_Escapes
+from behave_analysis.homings.homings import get_Homings
+from settings.settings_homings import settings_homings as settings_h
 
 class BaseDataPostprocessor(ABC):
     """
@@ -88,6 +91,17 @@ class BaseDataPostprocessor(ABC):
         filtered_video_df = video_df.filter((video_df["OutofshelterIdx"] == True) & (video_df["EscapePeriod"] == False))
         assert len(filtered_video_df) > 0, "No data left after filtering"
         return filtered_video_df
+
+    def load_or_extract_homings(self):
+        '''Check if homings object pickle is saved, if not extract homings'''
+        homie_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
+        if os.path.exists(homie_path):
+            logger.info("Homings object found. Loading...")
+            with open(homie_path, "rb") as dill_file: 
+                homings = pickle.load(dill_file)
+        else:
+            homings = get_Homings(settings_h, self.session)
+        return homings
 
     def track_to_polars(self) -> pl.DataFrame:
         """
@@ -390,7 +404,8 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
-        escapes = get_Escapes.get_escape_info(settings,session, tracking_data, video_df)
+        homings = self.load_or_extract_homings()
+        escapes = get_Escapes(settings,session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
