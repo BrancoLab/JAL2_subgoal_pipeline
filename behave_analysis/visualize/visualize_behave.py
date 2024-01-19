@@ -19,7 +19,7 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data, open_k
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions
 from settings.settings_visualize import defined_settings_visualize as settings_v
-
+from behave_analysis.utils.data_loading import load_or_extract_homings
 
 class Visualize_behave:
     """
@@ -94,16 +94,15 @@ class Visualize_behave:
         logger.info(f"Starting to make behaviour movies for trials")
 
         if stim_type == "audio":
-            raise NotImplementedError("Escape movies are not implemented yet, jasmine to do")
+            onsets = np.array(self.session.__dict__[stim_type].onset_frames)
+            stimulus_durations = np.array(self.session.__dict__[stim_type].stimulus_durations)
 
         if stim_type == "homing":
             logger.info("Making movies for homing trials")
-            file_loc = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
-            with open(file_loc, "rb") as f:
-                homings_obj = pickle.load(f)
+            homings_obj = load_or_extract_homings(self.session)
 
             onsets = homings_obj.onset_frames
-            stimulus_duarations = homings_obj.stimulus_durations
+            stimulus_durations = homings_obj.stimulus_durations
 
         trial_movies(
             tracking_data=self.tracking_data,
@@ -112,5 +111,5 @@ class Visualize_behave:
             settings=settings_v,
             stim_type=stim_type,
             onsets=onsets,
-            stimulus_durations=stimulus_duarations,
+            stimulus_durations=stimulus_durations,
         )
