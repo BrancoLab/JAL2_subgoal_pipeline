@@ -9,7 +9,6 @@ from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
 from behave_analysis.homings.homings import get_Homings
 from behave_analysis.homings.threshold_crossings import get_Threshold_crossings
-from behave_analysis.visualize.visualize_main import Visualize
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz

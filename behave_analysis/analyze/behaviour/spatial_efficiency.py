@@ -63,7 +63,7 @@ def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, ax 
         ax.scatter(x_loc,y_loc,s=5,c=trail_color/255)
     return np.sum(distance_travelled)
 
-def plot_optimal_trajectories(onset_frames, tracking_data, condition, ax):
+def plot_optimal_trajectories(onset_frames, tracking_data, condition, ax = []):
     """ Plot optimal escape path"""
     x_loc = tracking_data['head_loc'][onset_frames,0]
     y_loc = tracking_data['head_loc'][onset_frames,1]

@@ -176,3 +176,4 @@ class Settings_analyze_efizz:
 class Settings_postprocess:
     cluster_type: str = ""
     efizz: bool = False
+    response_thresh: int = 5
