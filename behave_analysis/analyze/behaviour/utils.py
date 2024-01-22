@@ -140,10 +140,11 @@ def identify_condition_of_trial(video_df, session) -> str:
                 condition = "barrier_pre_flip"
 
             # Check if the barrier has been flipped
-            if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_removed"].to_numpy() == False):
+            if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_present"].to_numpy() == True):
                 condition = "barrier_post_flip"
 
-            if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_removed"].to_numpy() == True):
+            # Condition fails if the barrier was not flipped and then removed
+            if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_present"].to_numpy() == False):
                 condition = "barrier_removed"
         else:
             condition = "barrier_present"

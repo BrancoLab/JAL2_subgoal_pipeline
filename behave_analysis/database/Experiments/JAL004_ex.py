@@ -17,7 +17,6 @@ JAL4_mush1 = Experiment(  # Mouse specific
     shelter_time=[72, -1],
     barrier_time=[],
     barrier_flip_time=None,
-    barrier_removal_time=None,
     experiment_path=Path(r"004_mush1_2023_08_22T13_13_41"),
 )
 
@@ -35,7 +34,6 @@ JAL4_3rdSept = Experiment(  # Mouse specific
     shelter_time=[0, -1],
     barrier_time=[54, -1],
     barrier_flip_time=171,
-    barrier_removal_time=None,
     experiment_path=Path(r"004_flip_2023_09_03T12_04_16"),
 )
 
@@ -51,8 +49,7 @@ JAL4_19thSept = Experiment(  # Mouse specific
     experiment_date="2023_09_19",
     experiment_time="14_10_56",
     shelter_time=[0, -1],
-    barrier_time=[56.36, -1],  # seconds needed to be more precise
+    barrier_time=[56.36, 274.14],  # seconds needed to be more precise
     barrier_flip_time=160,
-    barrier_removal_time=274.14,  # 274 minutes and 14 seconds
     experiment_path=Path(r"004_flipppuf19sept_2023_09_19T14_10_56"),
 )

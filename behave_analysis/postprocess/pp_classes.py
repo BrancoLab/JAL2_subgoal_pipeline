@@ -139,11 +139,6 @@ class BaseDataPostprocessor(ABC):
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
             print("no barrier in this session")
         
-        # Was the barrier removed during the session?
-        if self.session.barrier_removal_time:
-            # The defautl is False, so upuntil the barrier removal time frames are False, and then they are True
-            barrier_removed = np.arange(1, len(self.tracking_data["hdir"]) + 1) > ((self.session.barrier_removal_time * 60) * self.session.video.fps)
-
         # when was the barrier flipped?
         if self.session.barrier_flip_time:
             barrier_flipped = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barrierfliptime * self.session.video.fps)
@@ -169,7 +164,6 @@ class BaseDataPostprocessor(ABC):
                 "shelter": shelter,  # true when the shelter is in the arena
                 "barrier_present": barrier_present,  # true when the barrier is in the arena
                 "barrier_flipped": barrier_flipped,
-                "barrier_removed": barrier_removed,
             }
         )  # true after the shelter was flipped
 
