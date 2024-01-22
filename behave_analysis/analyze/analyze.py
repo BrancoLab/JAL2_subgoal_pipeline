@@ -270,61 +270,61 @@ class Analyze():
 
 # -------------- Interpolate behavioural data to match efiz
 
-    # Interpolate the position data so it's the same length as the ephys 
-    def interp_position(self):
-        """A function that takes in the fps of the camera, position data, and fs of signal and interpolates
-        both x and y positions and then saves it as a pickle file
+    # # Interpolate the position data so it's the same length as the ephys 
+    # def interp_position(self):
+    #     """A function that takes in the fps of the camera, position data, and fs of signal and interpolates
+    #     both x and y positions and then saves it as a pickle file
 
-        #Note!! if you want to re-do the interpolation you will need to delete the pickle file
-        """
+    #     #Note!! if you want to re-do the interpolation you will need to delete the pickle file
+    #     """
 
-        # Time interpolation
-        start_time = time.time()
+    #     # Time interpolation
+    #     start_time = time.time()
 
-        # Retrieve paths and set new path
-        self.interp_path = self.settings.efiz_file_path + "interpolated_data.pkl"
+    #     # Retrieve paths and set new path
+    #     self.interp_path = self.settings.efiz_file_path + "interpolated_data.pkl"
 
-        # See if interp dic already exsists and if so break
-        if os.path.isfile(self.interp_path) == True:
-            logger.info("Interpolation file already exsists")
-            return
+    #     # See if interp dic already exsists and if so break
+    #     if os.path.isfile(self.interp_path) == True:
+    #         logger.info("Interpolation file already exsists")
+    #         return
 
-        #Params
-        fps = self.session.video.fps
-        desired_fs = 30000
+    #     #Params
+    #     fps = self.session.video.fps
+    #     desired_fs = 30000
 
-        # Data
-        speed = self.tracking_data['speed']
-        position = self.avg_pos
-        hdir = self.tracking_data['neck_dir'] # two ears and upper back to use as hdir
+    #     # Data
+    #     speed = self.tracking_data['speed']
+    #     position = self.avg_pos
+    #     hdir = self.tracking_data['neck_dir'] # two ears and upper back to use as hdir
 
-        # Interp
-        logger.info("Commencing interpolation, processing may hang. Should take 5-10 minutes")
-        self.interp_x     = resampy.resample(position[:,0], fps, desired_fs)
-        self.interp_y     = resampy.resample(position[:,1], fps, desired_fs)
-        self.interp_speed = resampy.resample(speed, fps, desired_fs)
-        self.hdir         = resampy.resample(hdir, fps, desired_fs)
+    #     # Interp
+    #     logger.info("Commencing interpolation, processing may hang. Should take 5-10 minutes")
+    #     self.interp_x     = resampy.resample(position[:,0], fps, desired_fs)
+    #     self.interp_y     = resampy.resample(position[:,1], fps, desired_fs)
+    #     self.interp_speed = resampy.resample(speed, fps, desired_fs)
+    #     self.hdir         = resampy.resample(hdir, fps, desired_fs)
         
-        interp_dic = {"x": self.interp_x,
-                      "y": self.interp_y,
-                      "speed" : self.interp_speed,
-                      "hdir"  : self.hdir}
+    #     interp_dic = {"x": self.interp_x,
+    #                   "y": self.interp_y,
+    #                   "speed" : self.interp_speed,
+    #                   "hdir"  : self.hdir}
         
-        logger.info("Interpolation took: {} minutes".format((time.time() - start_time) / 60))
+    #     logger.info("Interpolation took: {} minutes".format((time.time() - start_time) / 60))
 
-        # Test save func
-        self.save_dictionary(interp_dic)
+    #     # Test save func
+    #     self.save_dictionary(interp_dic)
 
-        # Assertions
-        assert len(self.interp_x) == len(self.interp_y), "Interpolations should be the same length"
+    #     # Assertions
+    #     assert len(self.interp_x) == len(self.interp_y), "Interpolations should be the same length"
     
-    # Save the interpolated data to pickle rick dictionary
-    def save_dictionary(self, dic_to_save):
-        """A function that saves the interpolated data into a dictionary for loading in the future as the files are big to
-        speed up coding
-        """
+    # # Save the interpolated data to pickle rick dictionary
+    # def save_dictionary(self, dic_to_save):
+    #     """A function that saves the interpolated data into a dictionary for loading in the future as the files are big to
+    #     speed up coding
+    #     """
         
-        file = open(self.interp_path, "wb")
-        pickle.dump(dic_to_save, file)
-        file.close()
+    #     file = open(self.interp_path, "wb")
+    #     pickle.dump(dic_to_save, file)
+    #     file.close()
 

@@ -1,7 +1,8 @@
-from behave_analysis.postprocess.pp_main import Postprocessor
 from loguru import logger
-from databank import experiments_objects
+
+from behave_analysis.postprocess.pp_main import Postprocessor
 from behave_analysis.process.process import Process
+from databank import experiments_objects
 
 def postprocess():
     """ 

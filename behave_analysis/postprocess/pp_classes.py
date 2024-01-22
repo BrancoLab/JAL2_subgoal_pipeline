@@ -10,6 +10,7 @@ import polars as pl
 from behave_analysis.database.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 
+
 class BaseDataPostprocessor(ABC):
     """
     A parent class to support the real and synthetic data postprocessing children.
@@ -21,9 +22,9 @@ class BaseDataPostprocessor(ABC):
         self.tracking_data = tracking_data
         self.session = session
         (
-        self.sheltertime,
-        self.barriertime,
-        self.barrierfliptime,
+            self.sheltertime,
+            self.barriertime,
+            self.barrierfliptime,
         ) = self.convert_experimental_settings_to_conditon_timings(session)
 
     # --------------- Abstract methods to be implemented by all children ---------------------------------------------
@@ -68,9 +69,7 @@ class BaseDataPostprocessor(ABC):
         """
 
         clu_label = self.spike_data.groupby(["spike_clusters"]).first()
-        clu_label = clu_label.drop(
-            ["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"]
-        )
+        clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
         return clu_label
 
     def load_spike_data(self) -> pl.DataFrame:
@@ -91,6 +90,8 @@ class BaseDataPostprocessor(ABC):
     def track_to_polars(self) -> pl.DataFrame:
         """
         Adds all the behavioral variables from track to a polars dataframe, video_df - and saves it
+        
+        This function also saves so you can run just this function to regenerate it
 
         Returns: Video_df
         """
@@ -112,15 +113,11 @@ class BaseDataPostprocessor(ABC):
         if len(self.session.shelter_time) > 0:
             if not (np.logical_and(self.session.shelter_time[0] == 0, self.session.shelter_time[1] == -1)):
                 if self.session.shelter_time[1] == -1:  # shelter until the end of the session
-                    shelter = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (
-                        self.sheltertime[0] * self.session.video.fps
-                    )
+                    shelter = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.sheltertime[0] * self.session.video.fps)
                 else:
                     shelter = np.logical_and(
-                        np.arange(1, len(self.tracking_data["hdir"]) + 1)
-                        > (self.sheltertime[0] * self.session.video.fps),
-                        np.arange(1, len(self.tracking_data["hdir"]) + 1)
-                        < (self.sheltertime[1] * self.session.video.fps),
+                        np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.sheltertime[0] * self.session.video.fps),
+                        np.arange(1, len(self.tracking_data["hdir"]) + 1) < (self.sheltertime[1] * self.session.video.fps),
                     )
             else:
                 shelter = np.zeros(len(OutofShelterIdx)) == 0
@@ -132,9 +129,7 @@ class BaseDataPostprocessor(ABC):
         # what period in the recording was there a barrier?
         if len(self.session.barrier_time) > 0:
             if self.session.barrier_time[1] == -1:  # shelter only until the end of the session
-                barrier_present = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (
-                    self.barriertime[0] * self.session.video.fps
-                )
+                barrier_present = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barriertime[0] * self.session.video.fps)
             else:
                 barrier_present = np.logical_and(
                     np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barriertime[0] * self.session.video.fps),
@@ -143,12 +138,10 @@ class BaseDataPostprocessor(ABC):
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
             print("no barrier in this session")
-
+        
         # when was the barrier flipped?
         if self.session.barrier_flip_time:
-            barrier_flipped = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (
-                self.barrierfliptime * self.session.video.fps
-            )
+            barrier_flipped = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barrierfliptime * self.session.video.fps)
         else:
             barrier_flipped = np.zeros(len(OutofShelterIdx)) == 1
             print("barrier was not flipped in this session")
@@ -183,13 +176,9 @@ class BaseDataPostprocessor(ABC):
         # if random points were included, add the angles to video_df
         if "hdir_randP" in self.tracking_data:
             for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
-                video_df = video_df.hstack(
-                    [pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])]
-                )
+                video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
 
-        video_df.write_csv(
-            os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv"
-        )
+        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         return video_df
 
     def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
@@ -223,9 +212,7 @@ class BaseDataPostprocessor(ABC):
                 .groupby(["spike_aligned_to_frame", "spike_clusters"])
                 .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
             )  # Lazy query to plan computation
-            start_time = (
-                time.time()
-            )  # Collect lazy query and time it for user as this is the longest computation in the pipeline
+            start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
             # spikecountbyframe_neuron.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
@@ -236,19 +223,15 @@ class BaseDataPostprocessor(ABC):
         video_df = video_df.select(
             [pl.col("frames").apply(float), pl.exclude("frames")]
         )  # Cast frames to float to permit join and remove old frames column with wrong type
-        large_dataFrame = video_df.join(
-            spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left"
-        )
-        large_dataFrame = large_dataFrame.fill_null(
-            strategy="zero"
-        )  # this assigns some cluster IDs zero which is invalid!
+        large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
         # large_dataFrame.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + str(self.select_clusters) + "_large_dataframe.csv")
         return large_dataFrame
 
     def export_large_df_to_frame_by_cluster_matrix(self, spikeCountByFrameAndCluster, video_df) -> None:
         """
         This function takes the spike count by frame and cluster dataframe and extracts the spike count of each cluster on each frame,
-        populating a large matrix. 
+        populating a large matrix.
         Additionally it uses a sliding window to estimate firing rate.
         Output: a matrix of frames x clusters of firing rates in Hz"""
         logger.info("building a frame by cluster matrix of firing rates")
@@ -292,9 +275,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
 
     def __init__(self, cluster_labels_to_filter, tracking_data, session, settings):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
-        self.csv_path = os.path.join(
-            session.base_path, session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv")
-        )
+        self.csv_path = os.path.join(session.base_path, session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
         if settings.efizz:
@@ -302,14 +283,8 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
             self.spike_data = self.load_spike_data()
             self.clu_label = self.extract_cluster_labels()
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(
-                spikeCountByFrameAndCluster, 
-                video_df
-            )
-            self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(
-                spikeCountByFrameAndCluster, 
-                video_df
-            )
+            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
+            self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
 
     def check_synthetic_data_exists_if_not_generate_it(self, video_df) -> None:
         if not os.path.exists(self.csv_path):
@@ -353,9 +328,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         new_out_of_shelter_idx = pl.Series("OutofshelterIdx", np.full(new_entries_to_insert, fill_value=True))
         new_escape_period_idx = pl.Series("EscapePeriod", np.full(new_entries_to_insert, fill_value=False))
         new_shelter_only_idx = pl.Series("shelter_only", np.random.choice([True, False], size=new_entries_to_insert))
-        new_barrier_present_idx = pl.Series(
-            "barrier_present", np.random.choice([True, False], size=new_entries_to_insert)
-        )
+        new_barrier_present_idx = pl.Series("barrier_present", np.random.choice([True, False], size=new_entries_to_insert))
 
         # Generate new mouse position columns sampled from a uniform distribution between -1 and 1 for number of new entries
         min_x, max_x = min(video_df["mouse_x_position"]), max(video_df["mouse_x_position"])
@@ -394,14 +367,10 @@ class DataPostprocessor(BaseDataPostprocessor):
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
             self.clu_label = self.extract_cluster_labels()
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(
-                spikeCountByFrameAndCluster, video_df
-            )
+            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
 
         # This is slow can we speed it up?
-        self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(
-            spikeCountByFrameAndCluster, video_df
-        )
+        # self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
 
     def filter_spike_data(self, df):
         """
