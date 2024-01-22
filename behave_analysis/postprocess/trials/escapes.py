@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import dill as pickle
 import numpy as np
 from loguru import logger
-from behave_analysis.analyze.behaviour.spatial_efficiency import plot_escape_trajectories, plot_optimal_trajectories, identify_condition_escape
+from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.homings.homings import get_avg_homing_angle_for_start_of_run
 from settings.settings_analyze import settings_analyze as settings_a
@@ -83,8 +83,8 @@ class get_Escapes:
                     esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / session.video.fps
 
         # spatial efficiency
-        condition, trajectory_length, optimal_trajectory_length, spatial_efficiency = get_spatial_efficiency(
-            onset_frames, stimulus_durations, session, tracking_data, video_df
+        condition, trajectory_length, optimal_trajectory_length, spatial_efficiency_values = spatial_efficiency(
+            onset_frames, stimulus_durations, session, settings, tracking_data, video_df, plotting = False
         )
 
         self.escapes = Escapes(
@@ -96,7 +96,7 @@ class get_Escapes:
             escape_condition=condition,  # what condition did the escape happen in e.g. 'shelter_only'
             trajectory_length=trajectory_length,
             optimal_trajectory_length=optimal_trajectory_length,
-            spatial_efficiency=spatial_efficiency,
+            spatial_efficiency=spatial_efficiency_values,
             head_orientation=head_theta,
         )
 
@@ -135,14 +135,14 @@ def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
     return esc_onset, head_theta
 
 
-def get_spatial_efficiency(onset_frames, stimulus_durations, session, tracking_data, video_df):
-    condition = []
-    trajectory_length = np.empty(len(onset_frames))
-    optimal_trajectory_length = np.empty(len(onset_frames))
-    spatial_efficiency_value = np.empty(len(onset_frames))
-    for trial_num, (on_fr, st) in enumerate(zip(onset_frames, stimulus_durations)):
-        condition.append([identify_condition_escape(video_df.filter(video_df["frames"] == on_fr[0]), session)])
-        trajectory_length[trial_num] = plot_escape_trajectories(on_fr[0], st[0] * session.video.fps, tracking_data)
-        optimal_trajectory_length[trial_num] = plot_optimal_trajectories(on_fr[0], tracking_data, condition[trial_num][0])
-        spatial_efficiency_value[trial_num] = optimal_trajectory_length[trial_num] / trajectory_length[trial_num]
-    return condition, trajectory_length, optimal_trajectory_length, spatial_efficiency_value
+# def get_spatial_efficiency(onset_frames, stimulus_durations, session, tracking_data, video_df):
+#     condition = []
+#     trajectory_length = np.empty(len(onset_frames))
+#     optimal_trajectory_length = np.empty(len(onset_frames))
+#     spatial_efficiency_value = np.empty(len(onset_frames))
+#     for trial_num, (on_fr, st) in enumerate(zip(onset_frames, stimulus_durations)):
+#         condition.append([identify_condition_escape(video_df.filter(video_df["frames"] == on_fr[0]), session)])
+#         trajectory_length[trial_num] = plot_escape_trajectories(on_fr[0], st[0] * session.video.fps, tracking_data)
+#         optimal_trajectory_length[trial_num] = plot_optimal_trajectories(on_fr[0], tracking_data, condition[trial_num][0])
+#         spatial_efficiency_value[trial_num] = optimal_trajectory_length[trial_num] / trajectory_length[trial_num]
+#     return condition, trajectory_length, optimal_trajectory_length, spatial_efficiency_value

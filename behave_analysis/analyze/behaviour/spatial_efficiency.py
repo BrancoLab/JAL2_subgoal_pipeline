@@ -7,40 +7,48 @@ import matplotlib.pyplot as plt
 from behave_analysis.utils.color_funcs import get_color_based_on_speed
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 
-def spatial_efficiency(session, settings, video_df, tracking_data, save_dir):
+def spatial_efficiency(onset_frames, stimulus_durations, session, settings, video_df, tracking_data, plotting = True, save_dir = []):
     """ 
     Plot escape trajectories as well as optimal path
     """
-    # set up figure and number of rows and calculate number of columns
-    plt.figure(figsize=(20, 16))
-    plt.subplots_adjust(hspace=0.3)
-    ntrial = len(session.__dict__[settings.stim_type].onset_frames)
-    nrows = 3
-    ncols = ntrial // nrows + (ntrial % nrows > 0)
+    if plotting:
+        # set up figure and number of rows and calculate number of columns
+        plt.figure(figsize=(20, 16))
+        plt.subplots_adjust(hspace=0.3)
+        ntrial = len(onset_frames)
+        nrows = 3
+        ncols = ntrial // nrows + (ntrial % nrows > 0)
     
     # plot trajectory
-    trajectory_length = np.empty(len(session.__dict__[settings.stim_type].onset_frames))
-    optimal_trajectory_length = np.empty(len(session.__dict__[settings.stim_type].onset_frames))
-    spatial_efficiency_value = np.empty(len(session.__dict__[settings.stim_type].onset_frames))
-    for trial_num, (onset_frames, stimulus_durations) in enumerate(
-        zip(session.__dict__[settings.stim_type].onset_frames, 
-            session.__dict__[settings.stim_type].stimulus_durations)):
-        ax = plt.subplot(nrows, ncols, trial_num + 1)
+    condition = []
+    trajectory_length = np.empty(len(onset_frames))
+    optimal_trajectory_length = np.empty(len(onset_frames))
+    spatial_efficiency_value = np.empty(len(onset_frames))
+    for trial_num, (onset_frame, stimulus_duration) in enumerate(
+        zip(onset_frames, stimulus_durations)):
+        if plotting:
+            ax = plt.subplot(nrows, ncols, trial_num + 1)
+        else:
+            ax = []
         # set up axes with shelt and barrier locations
-        condition = identify_condition_escape(video_df.filter(video_df['frames'] == onset_frames),session)
+        condition.append([identify_condition_escape(video_df.filter(video_df["frames"] == onset_frame[0]), session)])
         base_plotting(ax,tracking_data,condition)
-        trajectory_length[trial_num] = plot_escape_trajectories(onset_frames[0],stimulus_durations[0]*session.video.fps, tracking_data, ax, settings.stim_type)
-        optimal_trajectory_length[trial_num] = plot_optimal_trajectories(onset_frames[0], tracking_data, condition, ax)
+        trajectory_length[trial_num] = plot_escape_trajectories(onset_frame[0],stimulus_duration[0]*session.video.fps, tracking_data, settings, ax)
+        optimal_trajectory_length[trial_num] = plot_optimal_trajectories(onset_frame[0], tracking_data, condition[trial_num][0], ax)
         spatial_efficiency_value[trial_num] = optimal_trajectory_length[trial_num]/trajectory_length[trial_num]
-        ax.set_title('spatial efficiency = ' + str(spatial_efficiency_value[trial_num]))
+        if plotting:
+            ax.set_title('spatial efficiency = ' + str(spatial_efficiency_value[trial_num]))
     
-    # save figure
-    filename = str(save_dir) + "/" + "SpatialEfficiency" + ".png"
-    plt.savefig(filename)
-    if settings.show_plots: plt.show()
-    plt.close()
+    if plotting:
+        # save figure
+        filename = str(save_dir) + "/" + "SpatialEfficiency" + ".png"
+        plt.savefig(filename)
+        if settings.show_plots: plt.show()
+        plt.close()
 
-def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, ax = [], stim_type = []):
+    return condition, trajectory_length, optimal_trajectory_length, spatial_efficiency_value
+
+def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, settings, ax = []):
     """ 
     Plot escape trajectories
     """
@@ -51,15 +59,15 @@ def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, ax 
     trail_color = np.empty((len(speed),3))
     distance_travelled = []
     for i,stim_status in enumerate(np.arange(0,stimulus_durations)):
-        if len(stim_type) > 0:
+        if ax:
             trail_color[i,:] = get_color_based_on_speed(speed=speed[i], 
                                                         object_to_color="trail", 
                                                         stim_status=stim_status, 
-                                                        stim_type=stim_type)
+                                                        stim_type=settings.stim_type)
         if i > 0:
             distance_travelled = np.append(distance_travelled,
                                             np.sqrt((x_loc[i] - x_loc[i-1])**2 + (y_loc[i] - y_loc[i-1])**2))
-    if len(stim_type) > 0:
+    if ax:
         ax.scatter(x_loc,y_loc,s=5,c=trail_color/255)
     return np.sum(distance_travelled)
 
@@ -90,7 +98,7 @@ def plot_optimal_trajectories(onset_frames, tracking_data, condition, ax = []):
         y_loc = tracking_data["barrier_loc"][nearest_barrier_edge][1]
         
     # compute and plot each optimal trajectory to shelter
-    if not len(ax) == 0:
+    if ax:
         ax.plot([x_loc,np.mean([tracking_data['shelter_loc'][0][0],tracking_data['shelter_loc'][1][0]])],
                 [y_loc,np.mean([tracking_data['shelter_loc'][0][1],tracking_data['shelter_loc'][1][1]])],
                 color = c_line)
