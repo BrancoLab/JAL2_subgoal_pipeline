@@ -4,9 +4,10 @@ import numpy as np
 
 from loguru import logger
 import polars as pl
+import pickle
+import matplotlib.pyplot as plt
 
 from settings.settings_analyze_efizz import Settings_ae as Settings
-
 from behave_analysis.analyze.decoders.LSTM.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
@@ -20,6 +21,8 @@ from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
+from behave_analysis.analyze.decoders.LSTM.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model
+from behave_analysis.analyze.decoders.LSTM.sklearn_decoders.input import gen_random_pred_array, split_data
 
 
 class AnalyzeEfizz:
@@ -40,12 +43,22 @@ class AnalyzeEfizz:
 
         # For each cluster type in settings e.g synthetic, syntheticHdir, good, mua
         for c_type in Settings.cluster_type:
+            assert c_type in ["synthetic", "syntheticHdir", "all", "good", "mua", "noise"], "Cluster type not recognised"
+            assert os.path.isfile(
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
+            ), "Cluster matrix file not found"
+
             self.cluster_type = c_type
-            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
-            self.video_spike_count_df = postprocessObject.video_spike_count_df
-            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-            self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
-            self.tracking_data = postprocessObject.tracking_data
+            self.frame_by_cluster_matrix = np.load(
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
+            )
+
+            # logger.info("Loading giant post processing object this will take for ever")
+            # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            # self.video_spike_count_df = postprocessObject.video_spike_count_df
+            # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+            # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+            # self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):
         logger.info("Executing models")
@@ -84,9 +97,81 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute LSTM --------------------------------
         # TODO: Finish LSTM model
-        
-        y_reshaped = np.asarray(self.video_df["hdir"]).reshape(len(self.video_df["hdir"]), 1)
-        main(frame_by_cluster_matrix=self.frame_by_cluster_matrix, Y=y_reshaped)
+
+        # if Settings.run_LSTM:
+        #     logger.info("Running LSTM model")
+
+        #     # Use buzacki data instead of ours ------------------------------
+        #     # save spike_rate_cell and angles to a pickle file
+        #     file_location = r"E:\\efizz\\JAL004\\004_flipppuf19sept_2023_09_19T14_10_56\\processed_data\\buzacki_data"
+        #     with open(file_location + "\\" "spike_rate_cell.p", "rb") as f:
+        #         spike_rate_cell = pickle.load(f)
+
+        #     with open(file_location + "\\" + "angles.p", "rb") as f:
+        #         angles = pickle.load(f)
+
+        #     y_reshaped = np.asarray(angles).reshape(len(angles), 1)
+        #     y_adjusted = np.nan_to_num(y_reshaped) - np.pi
+        #     x = spike_rate_cell
+        #     # main(x, y_adjusted)
+
+        # ------------------------------ Sklearn decoder models --------------------------------
+        if 1:
+            # Create the various predictors for the models
+            random_y = gen_random_pred_array(self.frame_by_cluster_matrix)
+            hdir = np.asarray(self.video_df["hdir"]).reshape(len(self.video_df["hdir"]))
+            hsa = np.asarray(self.video_df["hsa"]).reshape(len(self.video_df["hsa"]))
+            random_y_loc1 = np.asarray(self.video_df["head_randP_1"]).reshape(len(self.video_df["head_randP_1"]))
+            random_y_loc2 = np.asarray(self.video_df["head_randP_50"]).reshape(len(self.video_df["head_randP_50"]))
+            random_y_loc3 = np.asarray(self.video_df["head_randP_100"]).reshape(len(self.video_df["head_randP_100"]))
+            predictors = {
+                "hdir": hdir,
+                "hsa": hsa,
+                "random": random_y,
+                "random_loc1": random_y_loc1,
+                "random_loc2": random_y_loc2,
+                "random_loc3": random_y_loc3,
+            }
+
+            predicted_angles = {}
+            r2_scores = {}
+            # Run the models
+            for key, predictor in predictors.items():
+                X_train, X_test, Y_train, Y_test = split_data(self.frame_by_cluster_matrix, predictor, test_size=0.2)
+                logger.success("Running decoders for predictor: {}".format(key))
+                rff_r2, rff_y_pred = rf_model(X_train, Y_train, X_test, Y_test)
+                svr_r2, svr_y_pred = svr_model(X_train, Y_train, X_test, Y_test)
+                gbr_r2, gbr_y_pred = gbr_model(X_train, Y_train, X_test, Y_test)
+
+                # Make a dictionary for each predictor and each model
+                predicted_angles[key] = {"rff": rff_y_pred, "svr": svr_y_pred, "gbr": gbr_y_pred}
+                r2_scores[key] = {"rff": rff_r2, "svr": svr_r2, "gbr": gbr_r2}
+
+                logger.success("Finished running for predictor: {}".format(key))
+
+            # # Plot the R2 score for each predictor in a bar chart
+            # print(r2_scores)
+            # plt.bar(range(len(r2_scores)), list(r2_scores.values()), align="center")
+            # plt.show()
+
+            x = 10
+
+            # Plots
+
+            # print(f"Mean Squared Error: {mse}")
+            # print(f"R^2 Score: {r2}")
+            # logger.success("model done")
+
+            # # Plotting the results
+            # plt.figure(figsize=(8, 6))
+            # plt.plot(Y_pred, color="red", label="Predicted Angles")
+            # plt.plot(Y_test, color="green", label="Actual Angles")
+            # plt.xlabel("Frames")
+            # plt.ylabel("Angles")
+            # plt.legend()
+            # plt.title("Actual vs Predicted Angles using Random Forest")
+            # # plt.plot([Y_test.min(), Y_test.max()], [Y_test.min(), Y_test.max()], 'k--', lw=3)
+            # plt.show()
 
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:

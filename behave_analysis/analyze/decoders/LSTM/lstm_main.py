@@ -1,49 +1,17 @@
 """An LSTM decoder for head direction data. 
 Input is a matrix of neural data, output is a vector of head direction data."""
 
+import numpy as np
+import matplotlib.pyplot as plt
+from loguru import logger
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.distributions as dist
 from torch.utils.data import DataLoader
-from torch.utils.data import Dataset
 from torch.utils.data import Subset
-import numpy as np
-import matplotlib.pyplot as plt
-from loguru import logger
 
-
-class LSTMDataset(Dataset):
-    """
-    Custom Dataset subclass. Serves as input to DataLoader to transform X
-    into sequence data using rolling window. DataLoader using this dataset 
-    will output batches of `(batch_size, seq_len, n_features)` shape. Suitable 
-    as an input to RNN based architectures.
-    
-    Returns:
-    -- obj:
-
-    # Batch size is the number of sequences fed into the model at once
-    # Sequence length is the number of time steps in each sequence
-    # Features is the number of features in each sequence
-    """
-
-    def __init__(self, X, Y, seq_len: int = 80):  # 80 is 2 seconds of data
-        self.X = torch.tensor(X, dtype=torch.float32)  # Shape: [batch_size, seq_len, features]
-        self.Y = torch.tensor(Y, dtype=torch.float32)  # Shape can vary based on task
-        self.seq_len = seq_len
-
-    def __len__(self):
-        """This method returns the total number of possible
-        sequences that can be generated from X given the specified seq_len."""
-        return self.X.__len__() - (self.seq_len - 1)
-
-    def __getitem__(self, index):
-        """This method retrieves a single item from the dataset at a specified index"""
-        return (
-            self.X[index : index + self.seq_len],
-            self.Y[index : index + self.seq_len],
-        )
+from behave_analysis.analyze.decoders.LSTM.custom_dataset import LSTMDataset
 
 
 class LSTMRegression(nn.Module):
@@ -75,22 +43,20 @@ class LSTMRegression(nn.Module):
         self,
         input_size,
         output_size=1,
-        hidden_units=400,
-        dropout=0,
-        num_epochs=100,
-        verbose=True,
+        hidden_units=128,
+        num_epochs=40,  # 100 for e.g
     ):
         super(LSTMRegression, self).__init__()
 
         # Init parameters
         self.hidden_units = hidden_units
-        self.dropout = dropout
         self.num_epochs = num_epochs
-        self.verbose = verbose
         self.device = self._get_device()
+        self.concentration = nn.Parameter(torch.tensor([1.0]))  # starting value as 1.0 for von mises
 
         # Model Layers
-        self.lstm = nn.LSTM(input_size, hidden_units, batch_first=True, dropout=dropout)
+        # self.lstm = nn.LSTM(input_size, hidden_units, num_layers=2, batch_first=True, dropout=0.2) # bigger model
+        self.lstm = nn.LSTM(input_size, hidden_units, num_layers=1, batch_first=True)
         self.fc = nn.Linear(hidden_units, output_size)
 
     def _get_device(self) -> str:
@@ -116,15 +82,15 @@ class LSTMRegression(nn.Module):
         true_values_flat = true_values.view(-1, true_values.size(-1))
 
         # Create a Von Mises distribution centered at the predicted angles
-        concentration_tensor = torch.tensor([1.0], device=self.device)  # second parameter is concentration for von mises
-        von_mises_dist = dist.VonMises(predictions_flat, concentration_tensor)
+        # concentration_tensor = torch.tensor([1.0], device=self.device)  # Set concentration to 1.0 and don't learn it
+        von_mises_dist = dist.VonMises(predictions_flat, self.concentration) # learn concentration as well
 
         # Calculate the negative log likelihood
         loss = -von_mises_dist.log_prob(true_values_flat)
         return loss.mean()  # Return the average loss over all time steps and batches
 
     def optimizer(self, model):
-        return optim.Adam(model.parameters())
+        return optim.Adam(model.parameters(), lr=0.001)
 
     @staticmethod
     def train_loop(dataloader, model, loss_fn, optimizer, device):
@@ -132,7 +98,6 @@ class LSTMRegression(nn.Module):
 
         Also known as training the model."""
         model.train()  # Set model to training mode
-        size = len(dataloader.dataset)
         losses = []
         for batch, (x, y) in enumerate(dataloader):
             x, y = x.to(device), y.to(device)
@@ -161,8 +126,6 @@ class LSTMRegression(nn.Module):
     def test_loop(dataloader, model, loss_fn, device):
         model.eval()
         num_batches = len(dataloader)
-        # ssr = 0  # Sum of squared residuals
-        # all_y = []  # To store all actual values for computing the mean
         test_loss = 0
         with torch.no_grad():
             for X, y in dataloader:
@@ -173,13 +136,9 @@ class LSTMRegression(nn.Module):
                 # all_y.extend(y.view(-1).tolist())
                 test_loss += loss_fn(pred, y).item()
 
-        # mean_y = np.mean(all_y)
-        # sst = sum([(y_val - mean_y) ** 2 for y_val in all_y])  # Total variance
-        # r_squared = 1 - (ssr / sst)
-
+        # Provide avg test loss across all batches for that epoch
         test_loss /= num_batches
 
-        # print(f"Test R²: {r_squared:>8f}")
         print("---------------------------")
         print(f"Test loss: {test_loss:>8f}")
         return test_loss
@@ -194,24 +153,25 @@ class LSTMRegression(nn.Module):
                 X_batch = X_batch.to(device)
                 pred = model(X_batch)
                 predictions.append(pred.cpu())  # Move predictions to CPU
-        predictions = torch.cat(predictions, dim=0)
+        predictions = torch.cat(predictions, dim=0)  # Concatenate all predictions into one tensor
         return predictions
 
 
 def main(frame_by_cluster_matrix, Y):
     """Main function for running the LSTM model"""
 
+    # Set hyperparameters
     batch_size = 128
 
     # Initialize dataset
     X = frame_by_cluster_matrix
-    data = LSTMDataset(X, Y)
+    norm_y = Y / np.pi  # Divide by pi to get values between -1 and 1
+    data = LSTMDataset(X, norm_y)
     logger.success("Reshaped neural data for LSTM")
 
-    # Define training/testing/validation sets
-    total_samples = len(data)  # Replace 'your_dataset' with your dataset variable
-    train_size = int(total_samples * 0.8)  # 70% of the dataset
-    # test_size = total_samples - train_size  # Remaining 20% for the test set
+    # Define training/testing/ sets
+    total_samples = len(data)
+    train_size = int(total_samples * 0.8)  # 80% of the dataset
 
     # Manually split the dataset to preserve temporal order
     train_dataset = Subset(data, range(0, train_size))
@@ -246,29 +206,30 @@ def main(frame_by_cluster_matrix, Y):
         )
         plot_test_losses.append(test_losses)
 
-    # Plot losses across batches in one subplot and R² across epochs in another
+    # Plot losses for test and train across epochs
     _, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 8))
+
     ax1.plot(plot_losses, label="Training Loss")
     ax1.set_xlabel("Epoch")
-    ax1.set_ylabel("Training Loss")
-    ax2.plot(plot_test_losses, label="Test R²")
+    ax1.set_ylabel("Training Loss across epochs")
+
+    ax2.plot(plot_test_losses, label="Test Losses")
     ax2.set_xlabel("Epoch")
-    ax2.set_ylabel("Test loss")
+    ax2.set_ylabel("Test loss loss across epochs")
+
     plt.suptitle("Training vs Test Losses for LSTM")
     plt.legend()
     plt.show()
 
-    # Now predict
+    # Now predict ---------------------------------------------------------------
     actual_labels = np.asarray(test_dataset.dataset.Y).reshape(-1)
-
     predictions = model_lstm.predict(model=model_lstm, dataloader=test_loader, device=model_lstm.device).numpy()
-    flat_predictions = predictions.reshape(-1)  # Shape (10646560,)
-    # whereas acutal labels is (665486,)
+    flat_predictions = predictions.reshape(-1)
     flat_predictions = flat_predictions[: len(test_dataset.dataset.Y)]
 
     plt.figure(figsize=(10, 6))
-    plt.plot(flat_predictions, label="Predicted", linewidth=2)
-    plt.plot(actual_labels, label="Actual", linewidth=2)
+    plt.plot(flat_predictions * np.pi, label="Predicted", linewidth=2)
+    plt.plot(actual_labels * np.pi, label="Actual", linewidth=2)  # Multiply by pi to get values between -pi and pi
     plt.title("Predictions vs Actual Labels for LSTM: {model_lstm.num_epochs} epochs}")
     plt.xlabel("Sample Index")
     plt.ylabel("Head Direction")
