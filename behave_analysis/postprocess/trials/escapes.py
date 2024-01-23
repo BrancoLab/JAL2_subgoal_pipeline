@@ -84,7 +84,7 @@ class get_Escapes:
 
         # spatial efficiency
         condition, trajectory_length, optimal_trajectory_length, spatial_efficiency_values = spatial_efficiency(
-            onset_frames, stimulus_durations, session, settings, tracking_data, video_df, plotting = False
+            onset_frames, stimulus_durations, session, settings, video_df, tracking_data, plotting = False
         )
 
         self.escapes = Escapes(
@@ -100,11 +100,11 @@ class get_Escapes:
             head_orientation=head_theta,
         )
 
-        self.save_session()  # save escapes to pickle
+        self.save_session(session)  # save escapes to pickle
 
-    def save_session(self) -> None:
+    def save_session(self, session) -> None:
         """Save ecape object as a pickle file within the session folder"""
-        folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "escapes"))
+        folder = make_directory(os.path.join(session.base_path, session.processed_path, "escapes"))
         file_name = os.path.join(folder, "escapes_obj.pkl")
         with open(file_name, "wb") as dill_file:
             pickle.dump(self.escapes, dill_file)

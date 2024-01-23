@@ -15,5 +15,6 @@ def load_or_extract_homings(session):
         with open(homie_path, "rb") as dill_file:
             homings = pickle.load(dill_file)
     else:
-        homings = get_Homings(settings_h, session)
+        homings_obj = get_Homings(settings_h, session)
+        homings = homings_obj.session.homing
     return homings
