@@ -152,6 +152,7 @@ class Settings_analyze_efizz:
     show_plots: bool = False
     run_tunED: bool = False
     run_LDA: list = None
+    run_sklearn_decoders: bool = False
     run_LSTM: bool = False
     epoch_num: int = 6      
     number_of_bins: int = 19

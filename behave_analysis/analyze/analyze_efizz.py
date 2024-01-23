@@ -8,6 +8,7 @@ import pickle
 import matplotlib.pyplot as plt
 
 from settings.settings_analyze_efizz import Settings_ae as Settings
+
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
@@ -21,8 +22,9 @@ from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
-from behave_analysis.analyze.decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model
-from behave_analysis.analyze.decoders.sklearn_decoders.input import gen_random_pred_array, split_data
+from behave_analysis.analyze.regression_decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model, elastic_net_model
+from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data
+from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
 
 
 class AnalyzeEfizz:
@@ -116,63 +118,8 @@ class AnalyzeEfizz:
         #     # main(x, y_adjusted)
 
         # ------------------------------ Sklearn decoder models --------------------------------
-        if 1:
-            # Create the various predictors for the models
-            random_y = gen_random_pred_array(self.frame_by_cluster_matrix)
-            hdir = np.asarray(self.video_df["hdir"]).reshape(len(self.video_df["hdir"]))
-            hsa = np.asarray(self.video_df["hsa"]).reshape(len(self.video_df["hsa"]))
-            random_y_loc1 = np.asarray(self.video_df["head_randP_1"]).reshape(len(self.video_df["head_randP_1"]))
-            random_y_loc2 = np.asarray(self.video_df["head_randP_50"]).reshape(len(self.video_df["head_randP_50"]))
-            random_y_loc3 = np.asarray(self.video_df["head_randP_100"]).reshape(len(self.video_df["head_randP_100"]))
-            predictors = {
-                "hdir": hdir,
-                "hsa": hsa,
-                "random": random_y,
-                "random_loc1": random_y_loc1,
-                "random_loc2": random_y_loc2,
-                "random_loc3": random_y_loc3,
-            }
-
-            predicted_angles = {}
-            r2_scores = {}
-            # Run the models
-            for key, predictor in predictors.items():
-                X_train, X_test, Y_train, Y_test = split_data(self.frame_by_cluster_matrix, predictor, test_size=0.2)
-                logger.success("Running decoders for predictor: {}".format(key))
-                # rff_r2, rff_y_pred = rf_model(X_train, Y_train, X_test, Y_test)
-                # svr_r2, svr_y_pred = svr_model(X_train, Y_train, X_test, Y_test) # Too slow
-                gbr_r2, gbr_y_pred = gbr_model(X_train, Y_train, X_test, Y_test)
-                print(gbr_r2)
-
-                # Make a dictionary for each predictor and each model
-                # predicted_angles[key] = {"rff": rff_y_pred, "svr": svr_y_pred, "gbr": gbr_y_pred}
-                # r2_scores[key] = {"rff": rff_r2, "svr": svr_r2, "gbr": gbr_r2}
-
-                logger.success("Finished running for predictor: {}".format(key))
-
-            # # Plot the R2 score for each predictor in a bar chart
-            # print(r2_scores)
-            # plt.bar(range(len(r2_scores)), list(r2_scores.values()), align="center")
-            # plt.show()
-
-            x = 10
-
-            # Plots
-
-            # print(f"Mean Squared Error: {mse}")
-            # print(f"R^2 Score: {r2}")
-            # logger.success("model done")
-
-            # # Plotting the results
-            # plt.figure(figsize=(8, 6))
-            # plt.plot(Y_pred, color="red", label="Predicted Angles")
-            # plt.plot(Y_test, color="green", label="Actual Angles")
-            # plt.xlabel("Frames")
-            # plt.ylabel("Angles")
-            # plt.legend()
-            # plt.title("Actual vs Predicted Angles using Random Forest")
-            # # plt.plot([Y_test.min(), Y_test.max()], [Y_test.min(), Y_test.max()], 'k--', lw=3)
-            # plt.show()
+        if Settings.run_sklearn_decoders:
+            sklearn_main(self.video_df, self.frame_by_cluster_matrix)
 
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:

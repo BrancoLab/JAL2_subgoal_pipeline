@@ -25,8 +25,10 @@ Settings_ae = Settings_analyze_efizz(
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
+    # ------------- Sklearn model settings -----------------------
+    run_sklearn_decoders=True,
     # --------------LSTM model settings ------------------------
-    run_LSTM = True,
+    run_LSTM=False,
     # ------------- LDA model settings --------------------------
     run_LDA=[],  # if [] it will not run LDA
     # if 'all' it will run it for all possible angles - else provide list of angles
