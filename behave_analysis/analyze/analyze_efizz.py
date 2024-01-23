@@ -8,7 +8,7 @@ import pickle
 import matplotlib.pyplot as plt
 
 from settings.settings_analyze_efizz import Settings_ae as Settings
-from behave_analysis.analyze.decoders.LSTM.lstm_main import main
+# from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
 
@@ -21,8 +21,8 @@ from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
-from behave_analysis.analyze.decoders.LSTM.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model
-from behave_analysis.analyze.decoders.LSTM.sklearn_decoders.input import gen_random_pred_array, split_data
+from behave_analysis.analyze.decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model
+from behave_analysis.analyze.decoders.sklearn_decoders.input import gen_random_pred_array, split_data
 
 
 class AnalyzeEfizz:
@@ -139,13 +139,14 @@ class AnalyzeEfizz:
             for key, predictor in predictors.items():
                 X_train, X_test, Y_train, Y_test = split_data(self.frame_by_cluster_matrix, predictor, test_size=0.2)
                 logger.success("Running decoders for predictor: {}".format(key))
-                rff_r2, rff_y_pred = rf_model(X_train, Y_train, X_test, Y_test)
-                svr_r2, svr_y_pred = svr_model(X_train, Y_train, X_test, Y_test)
+                # rff_r2, rff_y_pred = rf_model(X_train, Y_train, X_test, Y_test)
+                # svr_r2, svr_y_pred = svr_model(X_train, Y_train, X_test, Y_test) # Too slow
                 gbr_r2, gbr_y_pred = gbr_model(X_train, Y_train, X_test, Y_test)
+                print(gbr_r2)
 
                 # Make a dictionary for each predictor and each model
-                predicted_angles[key] = {"rff": rff_y_pred, "svr": svr_y_pred, "gbr": gbr_y_pred}
-                r2_scores[key] = {"rff": rff_r2, "svr": svr_r2, "gbr": gbr_r2}
+                # predicted_angles[key] = {"rff": rff_y_pred, "svr": svr_y_pred, "gbr": gbr_y_pred}
+                # r2_scores[key] = {"rff": rff_r2, "svr": svr_r2, "gbr": gbr_r2}
 
                 logger.success("Finished running for predictor: {}".format(key))
 

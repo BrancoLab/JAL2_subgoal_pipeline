@@ -11,7 +11,7 @@ import torch.distributions as dist
 from torch.utils.data import DataLoader
 from torch.utils.data import Subset
 
-from behave_analysis.analyze.decoders.LSTM.custom_dataset import LSTMDataset
+from behave_analysis.analyze.decoders.LSTM.pytorch.custom_dataset import LSTMDataset
 
 
 class LSTMRegression(nn.Module):
