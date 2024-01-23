@@ -48,11 +48,12 @@ class Settings_homings:
     min_change_in_dist_to_shelter: float
     max_time_within_session: float
     threat_area_width: int
+    cum_threshold: int
     threat_area_height: int
-    subgoal_locations: list
-    duration_after_crossing: float
-    by_experiment: bool = False
-    experiments: list = None
+    # subgoal_locations: list
+    # duration_after_crossing: float
+    # by_experiment: bool = False
+    # experiments: list = None
     by_session: bool = False
     sessions: list = None
     all_sessions: bool = False

@@ -12,10 +12,10 @@ from behave_analysis.database.Experiments.JAL002_ex import (
     seq1_1,
     mushroom_3_002,
 )
-from behave_analysis.database.Experiments.JAL003_ex import flip1stSept_003, JAL3_flip_rot 
+from behave_analysis.database.Experiments.JAL003_ex import flip1stSept_003, JAL3_flip_rot
 
 from behave_analysis.database.Experiments.JAL004_ex import (
-    JAL4_mush1, 
+    JAL4_mush1,
     JAL4_3rdSept,
     JAL4_19thSept,
 )
@@ -23,9 +23,10 @@ from behave_analysis.database.Experiments.JAL004_ex import (
 from behave_analysis.database.Experiments.JAL005_ex import JAL5_mush1
 
 
-## -------------JR BEHAVIOR MICE
+# ## -------------JR BEHAVIOR MICE
 
 from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
 # Currently the code only works with one experiment at a time, so place that experiment in the below list for analysis
 experiments_objects = [JAL4_19thSept]
+

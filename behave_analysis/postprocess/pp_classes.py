@@ -90,6 +90,8 @@ class BaseDataPostprocessor(ABC):
     def track_to_polars(self) -> pl.DataFrame:
         """
         Adds all the behavioral variables from track to a polars dataframe, video_df - and saves it
+        
+        This function also saves so you can run just this function to regenerate it
 
         Returns: Video_df
         """
@@ -134,7 +136,7 @@ class BaseDataPostprocessor(ABC):
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
             print("no barrier in this session")
-
+        
         # when was the barrier flipped?
         if self.session.barrier_flip_time:
             barrier_flipped = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barrierfliptime * self.session.video.fps)
@@ -373,6 +375,7 @@ class DataPostprocessor(BaseDataPostprocessor):
 
             # This is slow can we speed it up?
             self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
+
 
     def filter_spike_data(self, df):
         """

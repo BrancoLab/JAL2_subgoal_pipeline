@@ -5,8 +5,8 @@ from dataclasses import dataclass
 import dill as pickle
 import numpy as np
 import cv2
-
 from scipy.ndimage import gaussian_filter1d
+
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 
