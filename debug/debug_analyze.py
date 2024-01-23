@@ -15,8 +15,8 @@ def analyze():
         logger.info("Loaded a session with the following details: {}".format(session_id))
         if settings_a.stim_type != "None":
             AnalyzeBehave(session).behaviour_analyses()
-        # if settings_a.efizz:
-        #     AnalyzeEfizz(session).execute_models()
+        if settings_a.efizz:
+            AnalyzeEfizz(session).execute_models()
             # AnalyzeEfizz(session).classify_cells()
     logger.success("Analysis pipeline complete")
 

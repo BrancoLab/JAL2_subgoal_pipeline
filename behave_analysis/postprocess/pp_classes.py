@@ -121,10 +121,8 @@ class BaseDataPostprocessor(ABC):
                     )
             else:
                 shelter = np.zeros(len(OutofShelterIdx)) == 0
-                print("shelter always present")
         else:
             shelter = np.zeros(len(OutofShelterIdx)) == 1
-            print("no shelter in this session")
 
         # what period in the recording was there a barrier?
         if len(self.session.barrier_time) > 0:
@@ -234,7 +232,7 @@ class BaseDataPostprocessor(ABC):
         populating a large matrix.
         Additionally it uses a sliding window to estimate firing rate.
         Output: a matrix of frames x clusters of firing rates in Hz"""
-        logger.info("building a frame by cluster matrix of firing rates")
+        logger.info("Building a frame by cluster matrix of firing rates -- very slow")
         clu = spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
         # group the  data
         df = spikeCountByFrameAndCluster.groupby(["spike_aligned_to_frame"]).all()
@@ -264,7 +262,13 @@ class BaseDataPostprocessor(ABC):
         for i in np.arange(np.shape(X)[1]):
             X[:, i] = np.convolve(X[:, i], np.ones(int(sampling_rate / nbins), dtype=int), "same") * nbins
 
-        # np.save(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"), X)
+        # save the matrix
+        base_path = os.path.join(self.session.base_path, self.session.processed_path)
+        np.save(
+            str(base_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"),
+            X,
+        )
+
         return X
 
 
@@ -369,8 +373,9 @@ class DataPostprocessor(BaseDataPostprocessor):
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
             self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
 
-        # This is slow can we speed it up?
-        # self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
+            # This is slow can we speed it up?
+            self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
+
 
     def filter_spike_data(self, df):
         """
