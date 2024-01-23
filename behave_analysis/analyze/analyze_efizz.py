@@ -150,18 +150,17 @@ class AnalyzeEfizz:
 
     # Had to comment out because it can't handle the Nans from the rayleigh data
 
-    # def classify_cells(self):
-    #     """A function to call cell type specific classification functions
 
-    #     TODO: Work in progress"""
-    #     hdir_cell_ids = classify_hdir(
-    #         session=self.session, cluster_type=self.cluster_type
-    #     )
-    #     print("Cell ids we think are hdir", hdir_cell_ids)
+    def classify_cells(self):
+        """A function to call cell type specific classification functions
 
-    #     hsa_cell_ids = classify_hsa(
-    #         session=self.session,
-    #         cluster_type=self.cluster_type,
-    #         hdir_cells=hdir_cell_ids,
-    #     )
-    #     print("Cell ids we think are hsa", hsa_cell_ids)
+        NOTE: Work in progress"""
+        hdir_cell_ids = classify_hdir(session=self.session, cluster_type=self.cluster_type)
+        logger.debug(f"The hdir cell ids are: {hdir_cell_ids}")
+
+        hsa_cell_ids = classify_hsa(
+            session=self.session,
+            cluster_type=self.cluster_type,
+            hdir_cells=hdir_cell_ids,
+        )
+        logger.debug(f"The hsa cell ids are: {hsa_cell_ids}")
