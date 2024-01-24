@@ -1,4 +1,4 @@
-'''A set of functions for visualizing behavioral statistics of a mouse in a given session'''
+"""A set of functions for visualizing behavioral statistics of a mouse in a given session"""
 
 # set up
 import os
@@ -9,6 +9,7 @@ import numpy as np
 
 # import
 from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
+
 
 def position_by_bsa(tracking_data, outofShelterIdx, settings, save_path):
     """Make a scatter plot of position in arena colored by angle between body and shelter"""
@@ -28,6 +29,7 @@ def position_by_bsa(tracking_data, outofShelterIdx, settings, save_path):
         plt.show()
     plt.close()
 
+
 def shelter_occupancy(video_df, session, settings, conditions, save_path):
     """Make a bar plot of minutes in and out of shelter per condition in each session"""
 
@@ -35,10 +37,7 @@ def shelter_occupancy(video_df, session, settings, conditions, save_path):
 
     for x, c in enumerate(conditions):
         # Plot out of shelter
-        time_out_of_shelter = (
-            len(filter_video_dataframe(video_df, c, outofshelter=True, exclude_escape=False))
-            / session.video.fps
-        )
+        time_out_of_shelter = len(filter_video_dataframe(video_df, c, outofshelter=True, exclude_escape=False)) / session.video.fps
         plt.bar(
             x + 0.9,
             time_out_of_shelter / 60,
@@ -47,10 +46,7 @@ def shelter_occupancy(video_df, session, settings, conditions, save_path):
         )
 
         # Plot in shelter
-        time_in_shelter = (
-            len(filter_video_dataframe(video_df, c, outofshelter=False, exclude_escape=False))
-            / session.video.fps
-        )
+        time_in_shelter = len(filter_video_dataframe(video_df, c, outofshelter=False, exclude_escape=False)) / session.video.fps
         plt.bar(
             x + 1.1,
             time_in_shelter / 60,
@@ -72,6 +68,7 @@ def shelter_occupancy(video_df, session, settings, conditions, save_path):
         plt.show()
     plt.close()
 
+
 def location_occupancy(tracking_data, session, settings, save_path):
     """
     Make plots showing time in shelter, near barrier edged and in 4 quadrants of arena over the course of the session
@@ -81,9 +78,7 @@ def location_occupancy(tracking_data, session, settings, save_path):
     # x axis values for plotting, in minutes
     x = np.arange(
         w / 2,
-        (session.video.num_frames / (session.video.fps * 60))
-        - (w / 2)
-        + 1 / (session.video.fps * 60),
+        (session.video.num_frames / (session.video.fps * 60)) - (w / 2) + 1 / (session.video.fps * 60),
         1 / (session.video.fps * 60),
     )
     figg, axs = plt.subplots(1, 3)
@@ -104,14 +99,10 @@ def location_occupancy(tracking_data, session, settings, save_path):
                 tracking_data["avg_loc"][:, 1] < tracking_data["shelter_loc"][1][1] + extra,
             ),
         )
-        axs[0].plot(
-            x,
-            np.convolve(InShelterIdx.astype(int), np.ones(session.video.fps * 60 * w), "valid")
-            / (session.video.fps * 60 * w),
-        )
-        axs[0].plot(
-            [session.shelter_time[0], session.shelter_time[0]], [0, 1], "-k"
-        )
+        # TODO: check that the x axis time is correct when we x[:len(conv)]
+        conv = np.convolve(InShelterIdx.astype(int), np.ones(session.video.fps * 60 * w), "valid") / (session.video.fps * 60 * w)
+        axs[0].plot(x[: len(conv)],conv)
+        axs[0].plot([session.shelter_time[0], session.shelter_time[0]], [0, 1], "-k")
         axs[0].title.set_text("In shelter")
         axs[0].set_xlabel("time (mins)")
         axs[0].set_ylabel("fraction occupancy")
@@ -121,27 +112,15 @@ def location_occupancy(tracking_data, session, settings, save_path):
     center = [session.video.width / 2, session.video.height / 2]
     Q = np.vstack(
         (
-            np.logical_and(
-                tracking_data["avg_loc"][:, 0] < center[0], tracking_data["avg_loc"][:, 1] < center[1]
-            ),  # upper_left
-            np.logical_and(
-                tracking_data["avg_loc"][:, 0] > center[0], tracking_data["avg_loc"][:, 1] < center[1]
-            ),  # upper_right
-            np.logical_and(
-                tracking_data["avg_loc"][:, 0] > center[0], tracking_data["avg_loc"][:, 1] > center[1]
-            ),  # lower_right
-            np.logical_and(
-                tracking_data["avg_loc"][:, 0] < center[0], tracking_data["avg_loc"][:, 1] > center[1]
-            ),
+            np.logical_and(tracking_data["avg_loc"][:, 0] < center[0], tracking_data["avg_loc"][:, 1] < center[1]),  # upper_left
+            np.logical_and(tracking_data["avg_loc"][:, 0] > center[0], tracking_data["avg_loc"][:, 1] < center[1]),  # upper_right
+            np.logical_and(tracking_data["avg_loc"][:, 0] > center[0], tracking_data["avg_loc"][:, 1] > center[1]),  # lower_right
+            np.logical_and(tracking_data["avg_loc"][:, 0] < center[0], tracking_data["avg_loc"][:, 1] > center[1]),
         )
     )  # lower_left
     for i in np.arange(4):
-        axs[1].plot(
-            x,
-            np.convolve(Q[i, :].astype(int), np.ones(session.video.fps * 60 * w), "valid")
-            / (session.video.fps * 60 * w),
-            color=cc(i),
-        )
+        conv = np.convolve(Q[i, :].astype(int), np.ones(session.video.fps * 60 * w), "valid") / (session.video.fps * 60 * w)
+        axs[1].plot(x[: len(conv)], conv, color=cc(i))
     axs[1].title.set_text("In quadrants")
     axs[1].legend(["upper_left", "upper_right", "lower_right", "lower_left"])
     axs[1].set_xlabel("time (mins)")
@@ -160,15 +139,9 @@ def location_occupancy(tracking_data, session, settings, save_path):
                     tracking_data["avg_loc"][:, 1] < c[1] + extra,
                 ),
             )
-            axs[2].plot(
-                x,
-                np.convolve(NearBarrier.astype(int), np.ones(session.video.fps * 60 * w), "valid")
-                / (session.video.fps * 60 * w),
-                color=cc(i),
-            )
-        axs[2].plot(
-            [session.barrier_time[0], session.barrier_time[0]], [0, 1], "-k"
-        )
+            conv = np.convolve(NearBarrier.astype(int), np.ones(session.video.fps * 60 * w), "valid") / (session.video.fps * 60 * w)
+            axs[2].plot(x[:len(conv)], conv, color=cc(i))
+        axs[2].plot([session.barrier_time[0], session.barrier_time[0]], [0, 1], "-k")
     axs[2].set_xlabel("time (mins)")
     axs[2].legend(["left_edge", "right_edge"])
     axs[2].title.set_text("Near barrier edge")
@@ -177,6 +150,7 @@ def location_occupancy(tracking_data, session, settings, save_path):
     if settings.show_plots:
         plt.show()
     plt.close()
+
 
 def hsv_hdir_colormap(angles):
     """
@@ -194,6 +168,7 @@ def hsv_hdir_colormap(angles):
     for i in np.arange(360):
         bsa_rgb_cycle[angles == i + 1, :] = rgb_cycle[i, :]
     return bsa_rgb_cycle
+
 
 ## ------------ UNUSED FUNCTIONS
 def angle_histograms(tracking_data, session, settings, save_path):
@@ -222,9 +197,7 @@ def angle_histograms(tracking_data, session, settings, save_path):
         )
     )
     # head direction
-    axs[0].hist(
-        tracking_data["hdir"][OutofShelterIdx], np.arange(-np.pi, np.pi, np.pi / 10), density="stacked"
-    )
+    axs[0].hist(tracking_data["hdir"][OutofShelterIdx], np.arange(-np.pi, np.pi, np.pi / 10), density="stacked")
     axs[0].set_ylabel("fraction of frames")
     axs[0].title.set_text("head dir")
 
@@ -235,11 +208,7 @@ def angle_histograms(tracking_data, session, settings, save_path):
         if session.shelter_time[1] == -1:
             frames_with_shelter[session.shelter_time[0] * 60 * self.session.video.fps :] = 1
         else:
-            frames_with_shelter[
-                session.shelter_time[0] * 60
-                * session.video.fps : session.shelter_time[1] * 60
-                * session.video.fps
-            ] = 1
+            frames_with_shelter[session.shelter_time[0] * 60 * session.video.fps : session.shelter_time[1] * 60 * session.video.fps] = 1
         axs[1].hist(
             tracking_data["hdir_shelt"][np.logical_and(OutofShelterIdx, frames_with_shelter == 1)],
             np.arange(-np.pi, np.pi, np.pi / 10),
@@ -254,11 +223,7 @@ def angle_histograms(tracking_data, session, settings, save_path):
         if session.barrier_time[1] == -1:
             frames_with_barrier[session.barrier_time[0] * 60 * session.video.fps :] = 1
         else:
-            frames_with_barrier[
-                session.barrier_time[0] * 60
-                * session.video.fps : session.barrier_time[1] * 60
-                * session.video.fps
-            ] = 1
+            frames_with_barrier[session.barrier_time[0] * 60 * session.video.fps : session.barrier_time[1] * 60 * session.video.fps] = 1
         for c in np.arange(2):
             axs[2].hist(
                 tracking_data["hdir_barrier"][np.logical_and(OutofShelterIdx, frames_with_shelter == 1), c],
