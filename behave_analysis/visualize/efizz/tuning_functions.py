@@ -5,6 +5,7 @@ from loguru import logger
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib
+import polars as pl
 
 # import
 from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
