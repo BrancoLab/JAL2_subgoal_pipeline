@@ -1,16 +1,20 @@
 import numpy as np
 from loguru import logger
 from sklearn.decomposition import PCA
+import matplotlib.pyplot as plt
 
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sk_models import rf_model, gbr_model
-from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data
+from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data, remove_hdir_cells
 
 
-def sklearn_main(video_df, cluster_matrix, d_reduction=False):
+def sklearn_main(session, video_df, cluster_matrix, cluster_labels, d_reduction=False, remove_hdir=True):
     """
     NOTE: PCA seems to make the models worse
     """
-    
+    if remove_hdir:
+        logger.info("Removing hdir cells")
+        cluster_matrix = remove_hdir_cells(session, cluster_matrix, cluster_labels)
+
     # Create a random array of angles to use as a predictor to check model is not overfitting
     random_y = gen_random_pred_array(cluster_matrix)
 
@@ -54,4 +58,20 @@ def sklearn_main(video_df, cluster_matrix, d_reduction=False):
         # predicted_angles[key] = {"rff": rff_y_pred, "svr": svr_y_pred, "gbr": gbr_y_pred}
         # r2_scores[key] = {"rff": rff_r2, "svr": svr_r2, "gbr": gbr_r2}
 
+        plot_and_save_results(Y_test, rff_y_pred, gbr_y_pred, rff_r2, gbr_r2, key)
+
         logger.info(f"Finished running for predictor: {key}")
+
+
+def plot_and_save_results(y_test, rff_pred, gbr_pred, rff_r2, gbr_r2, key):
+    # Plot the first 500 samples
+    index = 500
+    plt.figure(figsize=(10, 10))
+    plt.plot(y_test[:index], label="True")
+    plt.plot(rff_pred[:index], label="RFF")
+    plt.plot(gbr_pred[:index], label="GBR")
+    plt.legend()
+    plt.title(f"First 500 samples with results R2: RFF: {rff_r2}, GBR: {gbr_r2}")
+    # plt.show()
+    plt.savefig(f"{key}_first_500_samples.png") 
+    

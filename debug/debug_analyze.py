@@ -17,7 +17,7 @@ def analyze():
             AnalyzeBehave(session).behaviour_analyses()
         if settings_a.efizz:
             AnalyzeEfizz(session).execute_models()
-            # AnalyzeEfizz(session).classify_cells()
+        # AnalyzeEfizz(session).classify_cells()
     logger.success("Analysis pipeline complete")
 
 

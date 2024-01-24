@@ -55,12 +55,12 @@ class AnalyzeEfizz:
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
 
-            # logger.info("Loading giant post processing object this will take for ever")
-            # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
-            # self.video_spike_count_df = postprocessObject.video_spike_count_df
-            # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-            # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
-            # self.tracking_data = postprocessObject.tracking_data
+            logger.info("Loading giant post processing object this will take for ever")
+            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            self.video_spike_count_df = postprocessObject.video_spike_count_df
+            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+            self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+            self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):
         logger.info("Executing models")
@@ -119,7 +119,7 @@ class AnalyzeEfizz:
 
         # ------------------------------ Sklearn decoder models --------------------------------
         if Settings.run_sklearn_decoders:
-            sklearn_main(self.video_df, self.frame_by_cluster_matrix)
+            sklearn_main(self.session, self.video_df, self.frame_by_cluster_matrix, cluster_labels=self.cluster_Ids)
 
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:
@@ -149,7 +149,6 @@ class AnalyzeEfizz:
         logger.success("All models complete")
 
     # Had to comment out because it can't handle the Nans from the rayleigh data
-
 
     def classify_cells(self):
         """A function to call cell type specific classification functions
