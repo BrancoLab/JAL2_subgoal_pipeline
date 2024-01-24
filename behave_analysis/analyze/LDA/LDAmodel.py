@@ -36,7 +36,7 @@ def run_LDA_model(self, settings, angles):
     LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
     do_LDA = True
     do_LS = settings.linear_shift
-    if not settings.force_redo:
+    if not settings.redo_compute:
         if os.path.exists(LDA_out):
             do_LDA = False
         if os.path.exists(LS_out):
