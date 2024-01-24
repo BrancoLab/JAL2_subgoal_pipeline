@@ -4,7 +4,6 @@ from sklearn.metrics import r2_score
 from sklearn.svm import SVR
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.linear_model import ElasticNet
-from sklearn.metrics import r2_score
 
 # ------------------------------- Models that work -------------------------------------------------
 
@@ -17,7 +16,7 @@ def rf_model(x_train, y_train, x_test, y_test):
     used when building trees. Setting to zero gets rid of randomness."""
 
     logger.info("Fitting a random forest model")
-    model = RandomForestRegressor(n_estimators=20, random_state=0)  # 100 - 500 models
+    model = RandomForestRegressor(n_estimators=10, random_state=0)  # 20, 100 - 500 models
     model.fit(x_train, y_train)
     y_pred = model.predict(x_test)
     r2 = r2_score(y_test, y_pred)
@@ -31,7 +30,7 @@ def gbr_model(x_train, y_train, x_test, y_test):
 
     # Create and fit the model
     # You can tune parameters like n_estimators, learning_rate, etc.
-    model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.05)
+    model = GradientBoostingRegressor(n_estimators=100, learning_rate=0.01)  # 100 estimators
     model.fit(x_train, y_train)
 
     # Make predictions and evaluate

@@ -12,10 +12,10 @@ i.e angles must be as different as possible with a high rayleigh score in both c
 TODO: Include the output of the Tuned Model
 
 """
+import os
 
 import numpy as np
 from loguru import logger
-import os
 import dill as pickle
 
 from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
