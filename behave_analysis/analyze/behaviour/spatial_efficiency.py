@@ -88,7 +88,7 @@ def plot_optimal_trajectories(onset_frames, tracking_data, condition, ax = []):
             nearest_barrier_edge = 0
         elif condition == 'barrier_post_flip':
             nearest_barrier_edge = 1
-        if not len(ax) == 0:
+        if ax:
             ax.plot([x_loc,tracking_data["barrier_loc"][nearest_barrier_edge][0]],
                         [y_loc,tracking_data["barrier_loc"][nearest_barrier_edge][1]],
                         color = c_line)
@@ -136,7 +136,7 @@ def base_plotting(ax,tracking,condition, session = []):
     
     if not np.logical_or(condition == 'shelter_only', condition == 'pre_shelter'):
         if len(tracking['barrier_loc']) > 0:
-            if condition == 'barrier_present':
+            if np.logical_or(np.logical_or(condition == 'barrier_present',condition == 'all_time'),condition == 'shelter_present'):
                 # draw old two-sided barrier
                 bar_loc = [tracking["barrier_loc"][0][0],tracking["barrier_loc"][1][0]]
             
@@ -153,7 +153,7 @@ def base_plotting(ax,tracking,condition, session = []):
             plt.plot([bar_loc[0],bar_loc[1]],
                     [tracking["barrier_loc"][0][1],tracking["barrier_loc"][1][1]],
                     color = [0,0,0])
-    
+
     # draw arena edge
     a = 512 + ( arena_radius * np.cos( np.linspace( 0 , 2 * np.pi , 150 ) ) )
     b = 512 + ( arena_radius * np.sin( np.linspace( 0 , 2 * np.pi , 150 ) ) )
