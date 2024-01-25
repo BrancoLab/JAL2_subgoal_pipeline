@@ -9,6 +9,8 @@ import polars as pl
 
 from behave_analysis.database.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
+from behave_analysis.postprocess.trials.escapes import get_Escapes
+from behave_analysis.utils.data_loading import load_or_extract_homings
 
 
 class BaseDataPostprocessor(ABC):
@@ -366,6 +368,8 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
+        homings = load_or_extract_homings(session)
+        escapes = get_Escapes(settings,session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)

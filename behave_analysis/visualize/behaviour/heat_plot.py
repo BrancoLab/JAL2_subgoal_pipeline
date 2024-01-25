@@ -45,6 +45,7 @@ def plot_heat_map_of_position(session, settings, video_data_frame, conditions, s
         axs[idx].xaxis.set_ticks_position("none")
         axs[idx].yaxis.set_ticks_position("none")
         axs[idx].set_title(condition, fontsize=20)
+        axs[idx].set_aspect('equal')
         axs[idx].figure.axes[-1].yaxis.label.set_size(
             16
         )  # The legend is the last axis so this is a hack to change the font size of the legend

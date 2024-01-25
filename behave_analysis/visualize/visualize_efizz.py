@@ -51,7 +51,7 @@ class Visualize_efizz:
             video_spike_count_df=self.processed_data.video_spike_count_df,
             save_path=save_path + "/" + self.processed_data.select_clusters,
             show_plots=settings_v.show_plots,
-        )  # ~ BUG - RuntimeError: main thread is not in main loop
+        )  
 
         # egocentric view of features where a neuron fires
         cluster_Ids = self.processed_data.clu_label["spike_clusters"].unique().to_numpy()
