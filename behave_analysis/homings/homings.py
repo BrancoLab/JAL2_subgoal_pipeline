@@ -47,7 +47,7 @@ class get_Homings:
     def __init__(self, settings, session):
         self.settings = settings
         self.session = session
-        self.reference_locations = [self.session.video.shelter_location] + [self.session.video.shelter_location] + [self.session.video.shelter_location]# + self.session.barrier_location[:-1]
+        self.reference_locations = [self.session.video.shelter_location]+ self.session.barrier_location[:-1]
         self.tracking_data = open_tracking_data(self.session)
 
         # Begin extracting variables for homings
