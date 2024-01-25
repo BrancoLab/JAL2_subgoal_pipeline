@@ -21,10 +21,8 @@ from behave_analysis.analyze.classification.head_shelter import classify_hsa
 from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.visualize.visualize_utils import open_postprocess_object
-from behave_analysis.analyze.regression_decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model, elastic_net_model
-from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
+from behave_analysis.analyze.Rayleigh.analyze_rayleighs import compare_condition_pdfs
 
 
 class AnalyzeEfizz:
@@ -55,16 +53,19 @@ class AnalyzeEfizz:
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
 
-            logger.info("Loading giant post processing object this will take for ever")
-            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
-            self.video_spike_count_df = postprocessObject.video_spike_count_df
-            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-            self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
-            self.tracking_data = postprocessObject.tracking_data
+            # logger.info("Loading giant post processing object this will take for ever")
+            # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            # self.video_spike_count_df = postprocessObject.video_spike_count_df
+            # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+            # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+            # self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):
         logger.info("Executing models")
-
+        
+        # ------------------------------ Compare conditions ---------------------------
+        compare_condition_pdfs(self.session, self.cluster_type)
+        
         # ------------------------------ Compute PCA ----------------------------------
         if Settings.run_pca_model:
             logger.info("Running PCA model")

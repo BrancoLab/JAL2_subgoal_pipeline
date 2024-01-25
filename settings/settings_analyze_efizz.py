@@ -26,7 +26,7 @@ Settings_ae = Settings_analyze_efizz(
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
     # ------------- Sklearn model settings -----------------------
-    run_sklearn_decoders=True,
+    run_sklearn_decoders=False,
     # --------------LSTM model settings ------------------------
     run_LSTM=False,
     # ------------- LDA model settings --------------------------
