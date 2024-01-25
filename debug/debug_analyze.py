@@ -1,7 +1,5 @@
-# OS Libaries
 from loguru import logger
 
-# Custom Libaries
 from databank import experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
@@ -9,10 +7,9 @@ from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
 from settings.settings_analyze import settings_analyze as settings_a
 from settings.settings_analyze_efizz import Settings_ae
 
+
 def analyze():
-    """
-    A function that calls all the analysis modules and is designed to be run last and for the whole dataset.
-    """
+    """A function that calls all the analysis modules and is designed to be run last and for the whole dataset."""
     logger.info("The analysis pipeline has started")
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
@@ -24,5 +21,6 @@ def analyze():
                 AnalyzeEfizz(session, c_type).execute_models()
                 AnalyzeEfizz(session, c_type).classify_cells()
     logger.success("Analysis pipeline complete")
-    
+
+
 analyze()

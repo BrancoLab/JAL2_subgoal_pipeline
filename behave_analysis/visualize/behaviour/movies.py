@@ -1,9 +1,9 @@
 """All the functions needed to make movies of all the mouse escapes in one session"""
 
 import os
-from loguru import logger
 import cv2
 import numpy as np
+from loguru import logger
 
 from behave_analysis.utils.color_funcs import get_color_based_on_speed, get_colormap
 from behave_analysis.utils.generate_stim_status_array import generate_stim_status_array
@@ -253,7 +253,7 @@ def display_heading_dir_on_frame(actual_frame, hdir, head_loc, bod_shelt_dir, hd
     direction and one for head direction. Or maybe just head direction.
     """
     magnitudeOfVector = 30  # This is the length of the arrow that will be plotted on the frame
-    heading_dir_x = int(magnitudeOfVector * np.cos(hdir))  # self.body_dir  # Convert the angle from radians to an x component
+    heading_dir_x = int(magnitudeOfVector * np.cos(hdir))  # self.body_dir  # CPonvert the angle from radians to an x component
     heading_dir_y = -int(magnitudeOfVector * np.sin(hdir))  # Convert the angle from radians to an y component
 
     # Plot the heading direction on the frame centered at the animal's average location

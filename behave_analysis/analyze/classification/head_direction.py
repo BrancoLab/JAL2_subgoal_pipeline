@@ -12,11 +12,14 @@ i.e angles must be as different as possible with a high rayleigh score in both c
 TODO: Include the output of the Tuned Model
 
 """
+import os
 
 import numpy as np
 from loguru import logger
+import dill as pickle
 
 from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
+from behave_analysis.utils.creating_directories import make_directory
 
 # User defined constants
 RAYLEIGH_THRESHOLD = 0.5
@@ -28,9 +31,7 @@ def classify_hdir(session: object, cluster_type: str) -> list:
 
     Returns:
     -- cell ids (list) that are head direction cells"""
-    path = extract_rayleigh_path(
-        session, cluster_type, condition="all_time", file_name="hdir_Rayleigh.arrow"
-    )
+    path = extract_rayleigh_path(session, cluster_type, condition="all_time", file_name="hdir_Rayleigh.arrow")
     data = load_rayleigh_data(path)
 
     angles = extract_compartment_values(data, "Rayleigh_theta")
@@ -46,7 +47,9 @@ def classify_hdir(session: object, cluster_type: str) -> list:
             head_direction_cells.append(cell_id)
 
     logger.info(f"Found {len(head_direction_cells)} head direction cells")
-    
+
+    save_cell_ids(session, head_direction_cells)
+
     return head_direction_cells
 
 
@@ -64,9 +67,7 @@ def extract_compartment_values(data, column_name: str) -> tuple:
     first = [x[0] for x in data[column_name]]
     second = [x[1] for x in data[column_name]]
     output = tuple(zip(first, second))
-    assert len(output) == len(
-        data
-    ), "Length of extracted compartment values does not match length of data"
+    assert len(output) == len(data), "Length of extracted compartment values does not match length of data"
     return output
 
 
@@ -97,8 +98,15 @@ def angle_similarity(theta1: float, theta2: float) -> float:
     # Normalize the difference to get the similarity score
     similarity_score = (np.pi - adjusted_diff) / np.pi
 
-    assert (
-        similarity_score >= 0 and similarity_score <= 1
-    ), "Similarity score is not between 0 and 1"
+    assert similarity_score >= 0 and similarity_score <= 1, "Similarity score is not between 0 and 1"
 
     return similarity_score
+
+
+def save_cell_ids(session, cell_ids) -> None:
+    """Saves the cell ids to a pickle file to a within a folder called cells"""
+    path = make_directory(os.path.join(session.base_path, session.processed_path, "cells"))
+    file_name = os.path.join(path, "hdir_cells.pkl")
+    with open(file_name, "wb") as dill_file:
+        pickle.dump(cell_ids, dill_file)
+    logger.success("Head direction cell ids saved")

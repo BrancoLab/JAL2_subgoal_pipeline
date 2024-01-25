@@ -108,7 +108,7 @@ class get_Homings:
         # Return a boolean array of shape (filter_length, )
         go_fast_to_shelter_or_edge_padded = self.boxcar_filter(
             data=go_fast_to_shelter_or_edge,
-            filter_length=self.settings.padding_duration * self.session.video.fps,
+            filter_length=int(self.settings.padding_duration * self.session.video.fps),
             sign=+1,
             time="current",
         ).astype(bool)
@@ -203,7 +203,7 @@ class get_Homings:
         logger.success("Session saved with homings data")
 
     # --------DATA PROCESSING FUNCS---------------------------------------
-    def boxcar_filter(self, data, filter_length, sign, time="current"):
+    def boxcar_filter(self, data, filter_length, sign, time="future"):
         """
         Apply a boxcar filter to the provided data array.
 
@@ -305,7 +305,7 @@ class get_Homings:
         # Choosing max speed relative to any reference location per frame is debatable and a bit arbitrary
         homing_speed_pixel_per_frame = np.max(speed_relative_to_reference_locations, axis=1)
         homing_speed_cm_per_sec = homing_speed_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-        smoothed_homing_speed_cm_per_sec = gaussian_filter1d(homing_speed_cm_per_sec, sigma=self.session.video.fps / 2)
+        smoothed_homing_speed_cm_per_sec = gaussian_filter1d(homing_speed_cm_per_sec, sigma=self.session.video.fps / 2, mode = "nearest")
 
         # Add a zero needed to ensure len as np.diff returns len-1
         homing_speed = np.concatenate((np.zeros(1), smoothed_homing_speed_cm_per_sec))
@@ -363,7 +363,7 @@ class get_Homings:
         -- homing_speed_angular: np.array of shape (n_frames, ) with the angular speed in degrees per second"""
         angular_speed_deg_per_frame = -np.diff(self.homing_angle)
         angular_speed_deg_per_sec = angular_speed_deg_per_frame * self.session.video.fps
-        smoothed_angular_speed_deg_per_sec = gaussian_filter1d(angular_speed_deg_per_sec, sigma=self.session.video.fps / 10)
+        smoothed_angular_speed_deg_per_sec = gaussian_filter1d(angular_speed_deg_per_sec, sigma=self.session.video.fps / 10, mode = "nearest")
         homing_speed_angular = np.concatenate((np.zeros(1), smoothed_angular_speed_deg_per_sec))
         return homing_speed_angular
 
@@ -374,7 +374,7 @@ class get_Homings:
         -- speed_along_y_axis: np.array of shape (n_frames, ) with the speed in cm/s along the y axis"""
         speed_y_pixel_per_frame = np.diff(self.tracking_data["avg_loc"][:, 1], axis=0)
         speed_y_cm_per_sec = speed_y_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-        smoothed_speed_y_cm_per_sec = gaussian_filter1d(speed_y_cm_per_sec, sigma=self.session.video.fps / 10)
+        smoothed_speed_y_cm_per_sec = gaussian_filter1d(speed_y_cm_per_sec, sigma=self.session.video.fps / 10, mode = "nearest")
         speed_along_y_axis = np.concatenate((np.zeros(1), smoothed_speed_y_cm_per_sec))
         return speed_along_y_axis
 
@@ -405,7 +405,7 @@ class get_Homings:
             speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
             speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
             speed_cm_per_sec = speed_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-            smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=self.session.video.fps / 10)
+            smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=self.session.video.fps / 10, mode = "nearest")
             avg_speed[homing] = np.mean(smoothed_speed_cm_per_sec)
 
         assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"

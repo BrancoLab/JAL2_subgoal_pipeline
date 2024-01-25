@@ -7,14 +7,13 @@ based on the following criteria:
 """
 
 import numpy as np
+import os
+import dill as pickle
+from loguru import logger
 
-from behave_analysis.utils.rayleigh.load_rayleigh import (
-    extract_rayleigh_path,
-    load_rayleigh_data,
-)
-from behave_analysis.utils.rayleigh.manipulate_rayleigh_df import (
-    extract_compartment_values,
-)
+from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
+from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.utils.rayleigh.manipulate_rayleigh_df import extract_compartment_values
 
 # User defined constants
 RAYLEIGH_THRESHOLD = 0.2
@@ -31,9 +30,7 @@ def classify_hsa(session: object, cluster_type: str, hdir_cells: list) -> list:
     Returns:
     -- cell ids (list) that are head shelter direction cells"""
 
-    path = extract_rayleigh_path(
-        session, cluster_type, condition="shelter_only", file_name="hsa_Rayleigh.arrow"
-    )
+    path = extract_rayleigh_path(session, cluster_type, condition="shelter_only", file_name="hsa_Rayleigh.arrow")
     data = load_rayleigh_data(path)
 
     angles = extract_compartment_values(data, "Rayleigh_theta")
@@ -48,11 +45,11 @@ def classify_hsa(session: object, cluster_type: str, hdir_cells: list) -> list:
         if simlar_angles > SIMILAR_ANGLE_THRESHOLD and above_threshold and sig_bool:
             head_shelter_cells.append(cell_id)
 
-    filtered_head_direction_cells = [
-        cell for cell in head_shelter_cells if cell not in hdir_cells
-    ]
+    hsa_cells = [cell for cell in head_shelter_cells if cell not in hdir_cells]
 
-    return filtered_head_direction_cells
+    save_cell_ids(session, hsa_cells)
+
+    return hsa_cells
 
 
 def angle_similarity(theta1: float, theta2: float) -> float:
@@ -77,9 +74,7 @@ def angle_similarity(theta1: float, theta2: float) -> float:
     # Normalize the difference to get the similarity score
     similarity_score = (np.pi - adjusted_diff) / np.pi
 
-    assert (
-        similarity_score >= 0 and similarity_score <= 1
-    ), "Similarity score is not between 0 and 1"
+    assert similarity_score >= 0 and similarity_score <= 1, "Similarity score is not between 0 and 1"
 
     return similarity_score
 
@@ -92,3 +87,12 @@ def rayleigh_threshold(mag1: float, mag2: float) -> bool:
 def check_both_compartments_significant(sig: tuple) -> bool:
     """Return True if both compartments are significant"""
     return sig[0] and sig[1]
+
+
+def save_cell_ids(session, cell_ids) -> None:
+    """Saves the cell ids to a pickle file to a within a folder called cells"""
+    path = make_directory(os.path.join(session.base_path, session.processed_path, "cells"))
+    file_name = os.path.join(path, "hsa_cells.pkl")
+    with open(file_name, "wb") as dill_file:
+        pickle.dump(cell_ids, dill_file)
+    logger.success("HSA cell ids saved")
