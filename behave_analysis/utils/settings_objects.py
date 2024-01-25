@@ -170,6 +170,7 @@ class Settings_analyze_efizz:
     analyze_only_the_period_before_barrier: bool = False
     run_pca_model: bool = False
     redo_pca_preprocessing: bool = False
+    learned_conditions: bool = False
 
 
 @dataclass(frozen=True)

@@ -20,7 +20,7 @@ from sklearn.metrics import confusion_matrix
 
 # import functions
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
-from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, generate_bin_angles
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, generate_bin_angles, filter_video_df_mouse_behaviour
 from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
 
 def run_LDA_model(self, settings, angles):
@@ -132,6 +132,8 @@ def BinDfbyAngle(self, variable, settings):
 
     # subselect relevant times
     filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
+    if settings.learned_conditions:
+        filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, self.condition, self.session)
     title = str(variable + '_' + self.condition)
     filtered_video_df = filtered_video_df.select(['frames',variable])
     frames = filtered_video_df['frames'].unique().to_numpy() - 1

@@ -9,7 +9,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 
 from behave_analysis.analyze.decoders.LSTM.pytorch_LSTM import main
 from behave_analysis.analyze.TunED.model import TunEdModel
-from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
+from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
@@ -19,6 +19,7 @@ from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 
 class AnalyzeEfizz:
     """
@@ -27,7 +28,7 @@ class AnalyzeEfizz:
     the preprocessing each time. Any processing of the data should be done outside of this module.
     """
 
-    def __init__(self, session):
+    def __init__(self, session, c_type):
         start_time = time.time()
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
@@ -40,14 +41,16 @@ class AnalyzeEfizz:
             "full_video_dataframe.csv"
         )
 
-        # For each cluster type in settings e.g synthetic, syntheticHdir, good, mua
-        for c_type in Settings.cluster_type:
-            self.cluster_type = c_type
-            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
-            self.video_spike_count_df = postprocessObject.video_spike_count_df
-            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-            self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
-            self.tracking_data = postprocessObject.tracking_data
+        self.cluster_type = c_type
+        self.frame_by_cluster_matrix = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"))
+        self.tracking_data = open_tracking_data(self.session)
+        self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
+
+            # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            # self.video_spike_count_df = postprocessObject.video_spike_count_df
+            # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+            # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+            # self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):
         logger.info("Executing models")
@@ -87,8 +90,8 @@ class AnalyzeEfizz:
         # ------------------------------ Compute LSTM --------------------------------
         # TODO: Finish LSTM model
         
-        main(frame_by_cluster_matrix = self.postprocessObject.frame_by_cluster_matrix, 
-             Y = np.asarray(self.video_df["hdir"]).reshape(len(self.video_df["hdir"]), 1))
+        # main(frame_by_cluster_matrix = self.postprocessObject.frame_by_cluster_matrix, 
+        #      Y = np.asarray(self.video_df["hdir"]).reshape(len(self.video_df["hdir"]), 1))
 
         # X, y = bin_polars_dataframes(spike_data = pl.read_csv(self.spike_data_frame), video_data = self.data_df)
         # X_valid, y_valid, X_train, y_train, y_test = preprocess_data_and_set_up(neural_data = X, y = y)
@@ -106,6 +109,7 @@ class AnalyzeEfizz:
                 self.condition = o
                 logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
                 run_LDA_model(self, Settings, angles)
+            across_conditions_LDA_map(self, Settings)
             logger.success('LDA analysis complete')
 
         # ----------------- Compute Rayleigh and polar plots -------------------------
