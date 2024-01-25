@@ -1,18 +1,16 @@
 import os
 import time
-import numpy as np
 
+import numpy as np
 from loguru import logger
 import polars as pl
 import pickle
 import matplotlib.pyplot as plt
 
-from settings.settings_analyze_efizz import Settings_ae as Settings
-
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
-
+from settings.settings_analyze_efizz import Settings_ae as Settings
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
@@ -22,7 +20,8 @@ from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
-from behave_analysis.analyze.Rayleigh.analyze_rayleighs import compare_condition_pdfs
+from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
+from behave_analysis.visualize.visualize_utils import open_postprocess_object
 
 
 class AnalyzeEfizz:
@@ -53,18 +52,15 @@ class AnalyzeEfizz:
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
 
-            # logger.info("Loading giant post processing object this will take for ever")
-            # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
-            # self.video_spike_count_df = postprocessObject.video_spike_count_df
-            # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-            # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
-            # self.tracking_data = postprocessObject.tracking_data
+            logger.info("Loading giant post processing object this will take for ever")
+            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            self.video_spike_count_df = postprocessObject.video_spike_count_df
+            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+            self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+            self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):
         logger.info("Executing models")
-        
-        # ------------------------------ Compare conditions ---------------------------
-        compare_condition_pdfs(self.session, self.cluster_type)
         
         # ------------------------------ Compute PCA ----------------------------------
         if Settings.run_pca_model:
@@ -146,11 +142,11 @@ class AnalyzeEfizz:
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
+                
+            plot_rayleigh_deltas(self.session, self.cluster_type) # Analyze rayleigh deltas
 
         logger.success("All models complete")
-
-    # Had to comment out because it can't handle the Nans from the rayleigh data
-
+        
     def classify_cells(self):
         """A function to call cell type specific classification functions
 

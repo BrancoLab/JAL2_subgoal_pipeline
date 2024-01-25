@@ -12,8 +12,8 @@ import numpy as np
 from loguru import logger
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import dill as pickle
 from matplotlib.lines import Line2D
+import scipy.stats as stats
 
 from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
 from behave_analysis.utils.rayleigh.manipulate_rayleigh_df import extract_compartment_values
@@ -133,7 +133,7 @@ def plot_rayleigh_deltas(session, cluster_type):
     # Plotting logic
     nrows = len(angles) + 1
     ncols = len(deltas.keys()) + 1
-    gs = gridspec.GridSpec(nrows, ncols, width_ratios=[1] + [3] * (ncols - 1), height_ratios=[1] + [3] * (nrows - 1), wspace=0.2, hspace=0.4)
+    gs = gridspec.GridSpec(nrows, ncols, width_ratios=[1] + [4] * (ncols - 1), height_ratios=[1] + [4] * (nrows - 1), wspace=0.3, hspace=0.6)
     fig = plt.figure(figsize=(30, 30))  # width, height
     axs_fontsize = 10
     labels = ["Shelter compartment", "Threat zone compartment"]
@@ -151,7 +151,7 @@ def plot_rayleigh_deltas(session, cluster_type):
     for c_counter, c in enumerate(deltas.keys()):
         ax = plt.subplot(gs[0, c_counter + 1])
         text = f"{c[0]} - {c[1]}"
-        ax.text(0.5, 0.5, text, rotation=20.0, va="center", ha="center", fontsize=axs_fontsize)
+        ax.text(0.5, 0.5, text, rotation=5.0, va="center", ha="center", fontsize=axs_fontsize)
         ax.set_axis_off()
 
     # plot hists
@@ -160,11 +160,21 @@ def plot_rayleigh_deltas(session, cluster_type):
             ax = plt.subplot(gs[ai + 1, i + 1])
             ax.hist(deltas[pair][angle]["one_delta"], bins=100, color="cornflowerblue", alpha=0.7, label="Delta in shelter zone")
             ax.hist(deltas[pair][angle]["two_delta"], bins=100, color="darkorchid", alpha=0.7, label="Delta in threat zone")
-
+            
+            sample_distribution = deltas[pair][angle]["one_delta"]
+            skewness = stats.skew(sample_distribution, nan_policy="omit")
+            kurtosis = stats.kurtosis(sample_distribution, fisher=True, nan_policy="omit")
+            
+            secomd_sample_distribution = deltas[pair][angle]["two_delta"]
+            skewness_2 = stats.skew(secomd_sample_distribution, nan_policy="omit")
+            kurtosis_2 = stats.kurtosis(secomd_sample_distribution, fisher=True, nan_policy="omit")
+            
+            ax.set_title(f"Skewness: {skewness:.2f}, {skewness_2:.2f} Kurtosis: {kurtosis:.2f}, {kurtosis_2:.2f}", fontsize=10)
+            
     fig.supxlabel("Delta in Rayleigh Magnitude")
     fig.supylabel("# of Cells")
     fig.suptitle(
-        f"Delta in Rayleigh Magnitude for all angles for {cluster_type} cells. Positive values indicate a reduction in tuning. Negative values indicate an increase in tuning."
+        f"Delta in Rayleigh Magnitude for all angles for {cluster_type} cells. \nPositive values indicate a reduction in tuning. Negative values indicate an increase in tuning."
     )
 
     save_rayleigh_deltas_plots(session, cluster_type)

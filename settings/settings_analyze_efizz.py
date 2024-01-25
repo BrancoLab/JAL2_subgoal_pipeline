@@ -18,7 +18,7 @@ Settings_ae = Settings_analyze_efizz(
     #                             'barrier_pre_flip',
     #                             'barrier_post_flip',
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
-    user_defined_conditions=False,  # False if you want automatically identified conditions
+    user_defined_conditions=True,  # False if you want automatically identified conditions
     number_of_bins=19,  # number of bins for angles
     # ------------- PCA model settings --------------------------
     run_pca_model=False,
