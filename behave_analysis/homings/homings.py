@@ -433,13 +433,15 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     # init
     avg_hsa = np.zeros(len(onsets))
-    avg_hdir_bar_goal1 = np.zeros(len(onsets))
-    avg_hdir_bar_goal2 = np.zeros(len(onsets))
+    if len(session.barrier_time) > 0:
+        avg_hdir_bar_goal1 = np.zeros(len(onsets))
+        avg_hdir_bar_goal2 = np.zeros(len(onsets))
 
     # extract
     hsa_data = tracking_data["hdir_shelt"]
-    # hdir_bar_goal1 = tracking_data["hdir_barrier"][:, 0]
-    # hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
+    if len(session.barrier_time) > 0:
+        hdir_bar_goal1 = tracking_data["hdir_barrier"][:, 0]
+        hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
 
     for i, (onset, offset) in enumerate(zip(onsets, offsets)):
         frame_coords = tracking_data["avg_loc"][onset[0] : offset[0]]
@@ -447,16 +449,21 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
         if frame_index == None:
             continue
         hsa = hsa_data[onset[0] : onset[0] + frame_index]
-        # g1 = hdir_bar_goal1[onset[0] : onset[0] + frame_index]
-        # g2 = hdir_bar_goal2[onset[0] : onset[0] + frame_index]
+        if len(session.barrier_time) > 0:
+            g1 = hdir_bar_goal1[onset[0] : onset[0] + frame_index]
+            g2 = hdir_bar_goal2[onset[0] : onset[0] + frame_index]
         avg_hsa[i] = np.mean(hsa)
-        # avg_hdir_bar_goal1[i] = np.mean(g1)
-        # avg_hdir_bar_goal2[i] = np.mean(g2)
+        if len(session.barrier_time) > 0:
+            avg_hdir_bar_goal1[i] = np.mean(g1)
+            avg_hdir_bar_goal2[i] = np.mean(g2)
 
     assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
 
     # Save as dictionary, not as array, so I don't have to ask jasimine for the index every week
-    dic = {"avg_hsa": avg_hsa, "avg_hdir_bar_goal1": avg_hdir_bar_goal1, "avg_hdir_bar_goal2": avg_hdir_bar_goal2}
+    if len(session.barrier_time) > 0:
+        dic = {"avg_hsa": avg_hsa, "avg_hdir_bar_goal1": avg_hdir_bar_goal1, "avg_hdir_bar_goal2": avg_hdir_bar_goal2}
+    else:
+        dic = {"avg_hsa": avg_hsa}
 
     return dic
 
