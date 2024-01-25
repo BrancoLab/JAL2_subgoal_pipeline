@@ -7,6 +7,7 @@ from behave_analysis.process.process import Process
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
 from settings.settings_analyze import settings_analyze as settings_a
+from settings.settings_analyze_efizz import Settings_ae
 
 def analyze():
     """
@@ -19,8 +20,9 @@ def analyze():
         if settings_a.stim_type != "None":
             AnalyzeBehave(session).behaviour_analyses()
         if settings_a.efizz:
-            AnalyzeEfizz(session).execute_models()
-            AnalyzeEfizz(session).classify_cells()
+            for c_type in Settings_ae.cluster_type:
+                AnalyzeEfizz(session, c_type).execute_models()
+                AnalyzeEfizz(session, c_type).classify_cells()
     logger.success("Analysis pipeline complete")
     
 analyze()
