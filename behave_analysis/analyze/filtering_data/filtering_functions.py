@@ -2,6 +2,7 @@
 
 # import third party libaries
 import numpy as np
+import polars as pl
 
 from behave_analysis.utils.data_loading import load_or_extract_homings
 
@@ -45,10 +46,48 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session):
     """
     A function that filters the video dataframe (the behavioural data) based on mousie's homing behaviour
     """
+    # get homings
     homings = load_or_extract_homings(session)
+    # single out the homings in this condition
     homies_in_condition = (homings.onset_frames > dataframe["frames"][0]) * (homings.offset_frames < dataframe["frames"][-1])
     homies_in_condition = [item for sublist in homies_in_condition for item in sublist]
+    # extract the avg angle towards all targets for homings in this condition
+    homie_angles = np.zeros((len(homings.homing_angles_dic.keys()),np.sum(homies_in_condition)))
+    for i,angle in enumerate(homings.homing_angles_dic.keys()):
+        homie_angles[i,:] = homings.homing_angles_dic[angle][homies_in_condition]
+    # identify the target: object with smallest head angle
+    target_of_homing = np.argmin(np.abs(homie_angles),axis=0)
+    # which is the correct target for this condition
+    angle_keys = [key for key in homings.homing_angles_dic.keys()]
+    if np.logical_or(condition == 'shelter_only', condition == 'shelter_present'):
+        target_of_homing = target_of_homing == angle_keys.index('avg_hsa')
+    if condition == 'barrier_pre_flip': 
+        target_of_homing = target_of_homing == angle_keys.index('avg_hdir_bar_goal1')
+    if condition == 'barrier_post_flip': 
+        target_of_homing = target_of_homing == angle_keys.index('avg_hdir_bar_goal2')
+    
+    # turn it into a vector
+    # honestly this is pretty ugly, there must be a more elegant pythonic way around this
+    frames = dataframe["frames"].to_numpy()
+    correct_targeting = np.zeros(len(dataframe))
+    onset_frames = homings.onset_frames[homies_in_condition]
+    for c in np.arange(1,len(target_of_homing)): # not looking befoe first homing - uncertain times
+        if np.logical_and(target_of_homing[c] == True, target_of_homing[c-1] == True):
+            start_idx = np.where(frames == int(onset_frames[c-1]))[0]
+            stop_idx = np.where(frames == int(onset_frames[c]))[0]
+            correct_targeting[int(start_idx):int(stop_idx)] = 1
 
+    # add correct targeting to dataframe
+    dataframe = dataframe.hstack([pl.Series("correct_targeting", correct_targeting)])
+
+    filtered_video_df = dataframe.filter((dataframe["EscapePeriod"] == False) & (dataframe['correct_targeting'] == True))
+
+    # import matplotlib.pyplot as plt
+    # plt.plot([dataframe["frames"][0],dataframe["frames"][-1]],[0, 0],'k',marker = '--')
+    # plt.scatter(homings.onset_frames[homies_in_condition],homings.homing_angles_dic['avg_hsa'][homies_in_condition])
+    # plt.scatter(homings.onset_frames[homies_in_condition],homings.homing_angles_dic['avg_hdir_bar_goal1'][homies_in_condition],c='r')
+    # plt.scatter(homings.onset_frames[homies_in_condition],homings.homing_angles_dic['avg_hdir_bar_goal2'][homies_in_condition],c='g')
+    return filtered_video_df
 
 def identify_conditions(session) -> list:
     """Determine which conditions are available in this session

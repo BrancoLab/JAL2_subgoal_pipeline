@@ -29,11 +29,19 @@ def run_LDA_model(self, settings, angles):
     prediction_accuracy = {}
     LS_compiled = {}
     title = []
-    self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition)
+    if settings.learned_conditions:
+        self.condition_family = 'learned_condition'
+    else:
+        self.condition_family = 'object_condition'
+    self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family, self.condition)
 
     # if LDA has already been run and saved, don't redo
-    LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
-    LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
+    if not settings.learned_conditions:
+        LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
+        LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
+    else:
+        LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
+        LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
     do_LDA = True
     do_LS = settings.linear_shift
     if not settings.redo_compute:
@@ -44,6 +52,7 @@ def run_LDA_model(self, settings, angles):
     
     # run LDA on different angles
     if np.logical_or(do_LDA,do_LS):
+        self.filtered_video_df = select_relevant_frames(self, settings)
         for variable in angles:
             if variable != 'randP':
                 logger.info(f"Processing for LDA on {variable}")
@@ -122,6 +131,15 @@ def run_LDA_model(self, settings, angles):
 
 #### --------- MAIN LDA FUNCS
 
+def select_relevant_frames(self, settings):
+    # subselect relevant times
+    if not settings.learned_conditions:
+        filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
+    else:
+        filtered_video_df = filter_video_dataframe(self.video_df, self.condition, exclude_escape=False)
+        filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, self.condition, self.session)
+    return filtered_video_df
+
 def BinDfbyAngle(self, variable, settings):
     """
     A function that processes dataframe for discriminant analysis
@@ -130,12 +148,8 @@ def BinDfbyAngle(self, variable, settings):
     # edges for binning firing rate at different angles
     bin_angles, _ = generate_bin_angles(settings.number_of_bins)
 
-    # subselect relevant times
-    filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
-    if settings.learned_conditions:
-        filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, self.condition, self.session)
     title = str(variable + '_' + self.condition)
-    filtered_video_df = filtered_video_df.select(['frames',variable])
+    filtered_video_df = self.filtered_video_df.select(['frames',variable])
     frames = filtered_video_df['frames'].unique().to_numpy() - 1
 
     # bin angles
@@ -392,7 +406,7 @@ def across_conditions_LDA_map(self, settings):
     # need to load them all in first to find min and max to normalize color axes
     pa = []
     for c in self.all_conditions:
-        savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, c)
+        savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family, c)
         LDA_out = str(savepath) + "/" + str(self.cluster_type) + '_' + str(c) + "_LDA_prediction_accuracy" + ".pkl"
         with open(LDA_out, "rb") as dill_file:
             prediction_accuracy = pickle.load(dill_file)
@@ -440,7 +454,7 @@ def across_conditions_LDA_map(self, settings):
 
     # Save and close the figure
     plt.subplots_adjust(wspace=0.05, hspace=0)
-    savepath = BuildSavingFolder(self.dir, settings, self.cluster_type)
+    savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family)
     plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.png")
     if settings.show_plots:
         plt.show()
@@ -448,7 +462,7 @@ def across_conditions_LDA_map(self, settings):
 
 # Utility functions ------------------------------------------------------------------------------------------------
 
-def BuildSavingFolder(basepath, settings, cluster_type, condition = []):
+def BuildSavingFolder(basepath, settings, cluster_type, condition_family, condition = []):
 
     if settings.discriminant_type == 'linear':
         pathh = str(basepath) + "/" + "LDA"
@@ -459,7 +473,7 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition = []):
     if settings.use_firing_rate:
         pathh = str(pathh) + "_fr"
 
-    pathh = str(pathh) + "/" + str(cluster_type)
+    pathh = str(pathh) + "/" + str(cluster_type) + "/" + str(condition_family)
     if len(condition) > 0:
         pathh = str(pathh) + "/" + str(condition)
 
