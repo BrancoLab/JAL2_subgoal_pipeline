@@ -1,18 +1,16 @@
 import os
 import time
-import numpy as np
 
+import numpy as np
 from loguru import logger
 import polars as pl
 import pickle
 import matplotlib.pyplot as plt
 
-from settings.settings_analyze_efizz import Settings_ae as Settings
-
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
-
+from settings.settings_analyze_efizz import Settings_ae as Settings
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
@@ -22,10 +20,11 @@ from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object, open_tracking_data
-
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model, elastic_net_model
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
+from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
+from behave_analysis.visualize.visualize_utils import open_postprocess_object
 
 
 class AnalyzeEfizz:
@@ -65,7 +64,7 @@ class AnalyzeEfizz:
 
     def execute_models(self):
         logger.info("Executing models")
-
+        
         # ------------------------------ Compute PCA ----------------------------------
         if Settings.run_pca_model:
             logger.info("Running PCA model")
@@ -147,11 +146,11 @@ class AnalyzeEfizz:
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
+                
+            plot_rayleigh_deltas(self.session, self.cluster_type) # Analyze rayleigh deltas
 
         logger.success("All models complete")
-
-    # Had to comment out because it can't handle the Nans from the rayleigh data
-
+        
     def classify_cells(self):
         """A function to call cell type specific classification functions
 
