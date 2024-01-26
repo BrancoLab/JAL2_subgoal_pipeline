@@ -29,4 +29,4 @@ from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3
 
 # Currently the code only works with one experiment at a time, so place that experiment in the below list for analysis
 
-experiments_objects = [JAL4_19thSept]
+experiments_objects = [JAL4_3rdSept]

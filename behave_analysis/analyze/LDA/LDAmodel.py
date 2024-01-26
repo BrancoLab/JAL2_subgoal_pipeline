@@ -36,12 +36,8 @@ def run_LDA_model(self, settings, angles):
     self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family, self.condition)
 
     # if LDA has already been run and saved, don't redo
-    if not settings.learned_conditions:
-        LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
-        LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
-    else:
-        LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
-        LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
+    LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
+    LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
     do_LDA = True
     do_LS = settings.linear_shift
     if not settings.redo_compute:
@@ -404,13 +400,20 @@ def PredictionAccuracyMapped(self,prediction_accuracy):
 def across_conditions_LDA_map(self, settings):
     # load i all prediction accuracies for conditions of interest
     # need to load them all in first to find min and max to normalize color axes
+
+    if settings.learned_conditions:
+        self.condition_family = 'learned_condition'
+    else:
+        self.condition_family = 'object_condition'
+
     pa = []
     for c in self.all_conditions:
-        savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family, c)
-        LDA_out = str(savepath) + "/" + str(self.cluster_type) + '_' + str(c) + "_LDA_prediction_accuracy" + ".pkl"
+        self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family, c)
+        LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(c) + "_LDA_prediction_accuracy" + ".pkl"
         with open(LDA_out, "rb") as dill_file:
             prediction_accuracy = pickle.load(dill_file)
         pa.append([val for key, val in prediction_accuracy.items() if re.search('randP', key)])
+    
     vmin = np.amin(pa)
     vmax = np.amax(pa)
 

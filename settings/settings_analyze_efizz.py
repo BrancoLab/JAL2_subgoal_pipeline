@@ -19,7 +19,7 @@ Settings_ae = Settings_analyze_efizz(
     #                             'barrier_post_flip',
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=False,  # False if you want automatically identified conditions
-    learned_conditions=True,  # if True it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
+    learned_conditions=False,  # if True it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
     number_of_bins=19,  # number of bins for angles
     # ------------- PCA model settings --------------------------
     run_pca_model=False,
@@ -27,7 +27,7 @@ Settings_ae = Settings_analyze_efizz(
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
     # ------------- Sklearn model settings -----------------------
-    run_sklearn_decoders=True,
+    run_sklearn_decoders=False,
     # --------------LSTM model settings ------------------------
     run_LSTM=False,
     # ------------- LDA model settings --------------------------
