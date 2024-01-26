@@ -47,10 +47,11 @@ class get_Homings:
     def __init__(self, settings, session):
         self.settings = settings
         self.session = session
-        self.reference_locations = [self.session.video.shelter_location] + self.session.barrier_location[:-1]
+        self.reference_locations = [self.session.video.shelter_location]+ self.session.barrier_location[:-1]
         self.tracking_data = open_tracking_data(self.session)
 
         # Begin extracting variables for homings
+        logger.info("Extracting homings...")
         self.extract_variables()
         self.homing_runs_on = self.identify_homing_runs()
         onset_frames_pre, self.stimulus_durations, offset_frames_pre = self.get_onset_and_duration()
@@ -61,7 +62,7 @@ class get_Homings:
             tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
         )
         avg_speed = self.get_avg_speed(self.onset_frames, self.offset_frames, self.tracking_data)
-        homing_angles_dic = self.get_avg_homing_angle_for_start_of_run(
+        homing_angles_dic = get_avg_homing_angle_for_start_of_run(self.session,
             self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
         )
 
@@ -196,12 +197,11 @@ class get_Homings:
 
     def save_session(self) -> None:
         """Save homings object as a pickle file within the session folder"""
-        folder = os.path.join(self.session.base_path, self.session.processed_path, "homings")
-        make_directory(folder)
+        folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings"))
         file_name = os.path.join(folder, "homings_obj.pkl")
         with open(file_name, "wb") as dill_file:
             pickle.dump(self.session.homing, dill_file)
-        logger.success("Session saved with homings data")
+        logger.success("Homings object pickle saved")
 
     # --------DATA PROCESSING FUNCS---------------------------------------
     def boxcar_filter(self, data, filter_length, sign, time="future"):
@@ -412,67 +412,86 @@ class get_Homings:
         assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
         return avg_speed
 
-    def get_avg_homing_angle_for_start_of_run(self, onsets, offsets, tracking_data, cum_threshold) -> dict:
-        """For the first 15cm of each homing, compute the average angles to reference locations
+def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
+    """For the first 15cm of each homing, compute the average angles to reference locations
 
-        Note - 15cm is arbitrary and could be changed in settings_homings.py
+    Note - 15cm is arbitrary and could be changed in settings_homings.py
 
-        Args:
-        -- cum_threshold: int, the distance in cm that the mouse must move before the hsa is computed
-        -- onsets: np.array of shape (n_runs, ) with the onset frame of each homing run
-        -- offsets: np.array of shape (n_runs, ) with the offset frame of each homing run
-        -- tracking_data: dictionary of all the good stuff from the tracking file
+    Args:
+    -- cum_threshold: int, the distance in cm that the mouse must move before the hsa is computed
+    -- onsets: np.array of shape (n_runs, ) with the onset frame of each homing run
+    -- offsets: np.array of shape (n_runs, ) with the offset frame of each homing run
+    -- tracking_data: dictionary of all the good stuff from the tracking file
 
-        Creates:
-        -- avg_hsa: np.array of shape (n_runs, ) with the average hsa for each homing run
-        -- avg_hdir_bar_goal1: np.array of shape (n_runs, ) with the average hdir_bar_goal1 for each homing run
-        -- avg_hdir_bar_goal2: np.array of shape (n_runs, ) with the average hdir_bar_goal2 for each homing run
+    Creates:
+    -- avg_hsa: np.array of shape (n_runs, ) with the average hsa for each homing run
+    -- avg_hdir_bar_goal1: np.array of shape (n_runs, ) with the average hdir_bar_goal1 for each homing run
+    -- avg_hdir_bar_goal2: np.array of shape (n_runs, ) with the average hdir_bar_goal2 for each homing run
 
-        Returns:
-        -- dic: dictionary with the above arrays stored as values
-        """
+    Returns:
+    -- dic: dictionary with the above arrays stored as values
+    """
 
-        # init
-        avg_hsa = np.zeros(len(onsets))
+    # init
+    avg_hsa = np.zeros(len(onsets))
+    if len(session.barrier_time) > 0:
         avg_hdir_bar_goal1 = np.zeros(len(onsets))
         avg_hdir_bar_goal2 = np.zeros(len(onsets))
 
-        # extract
-        hsa_data = tracking_data["hdir_shelt"]
+    # extract
+    hsa_data = tracking_data["hdir_shelt"]
+    if len(session.barrier_time) > 0:
         hdir_bar_goal1 = tracking_data["hdir_barrier"][:, 0]
         hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
 
-        for i, (onset, offset) in enumerate(zip(onsets, offsets)):
-            frame_coords = tracking_data["avg_loc"][onset[0] : offset[0]]
-            frame_index = self.cum_distance(onset, offset, frame_coords, cum_threshold)
-            hsa = hsa_data[onset[0] : onset[0] + frame_index]
-            g1 = hdir_bar_goal1[onset[0] : onset[0] + frame_index]
-            g2 = hdir_bar_goal2[onset[0] : onset[0] + frame_index]
-            avg_hsa[i] = np.mean(hsa)
+    for i, (onset, offset) in enumerate(zip(onsets, offsets)):
+        frame_coords = tracking_data["avg_loc"][onset[0] : offset[0]]
+        frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
+        if frame_index == None:
+            continue
+        hsa = hsa_data[start_frame : frame_index]
+        # plt.plot(np.arange(onset[0],frame_index),hsa)
+        # plt.plot(np.arange(start_frame,frame_index),hsa_data[start_frame : frame_index])
+        if len(session.barrier_time) > 0:
+            g1 = hdir_bar_goal1[start_frame : frame_index]
+            g2 = hdir_bar_goal2[start_frame : frame_index]
+        avg_hsa[i] = np.mean(hsa)
+        if len(session.barrier_time) > 0:
             avg_hdir_bar_goal1[i] = np.mean(g1)
             avg_hdir_bar_goal2[i] = np.mean(g2)
 
-        assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
+    assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
 
-        # Save as dictionary, not as array, so I don't have to ask jasimine for the index every week
+    # Save as dictionary, not as array, so I don't have to ask jasimine for the index every week
+    if len(session.barrier_time) > 0:
         dic = {"avg_hsa": avg_hsa, "avg_hdir_bar_goal1": avg_hdir_bar_goal1, "avg_hdir_bar_goal2": avg_hdir_bar_goal2}
+    else:
+        dic = {"avg_hsa": avg_hsa}
 
-        return dic
+    return dic
 
-    def cum_distance(self, onset, offset, frame_coords, cum_threshold: int) -> int:
-        """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold
+def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int) -> int:
+    """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold
 
-        Returns:
-        -- i: int, the index of the frame where the mouse has travelled cum_threshold cm"""
-        cum_dist = 0
-        for i, frame in enumerate(range(onset[0], offset[0])):
+    Returns:
+    -- i: int, the index of the frame where the mouse has travelled cum_threshold cm
+    
+    TODO: This could be improved by also finding a strating frame we want to use (instead of including the head turn movement in the avg hsa)
+    """
+    start_frame = []
+    for i, frame in enumerate(range(onset[0], offset[0])):
+        if i == 0:
+            cum_dist = 0
+        elif i > 0:
             x_diff = frame_coords[i][0] - frame_coords[i - 1][0]
             y_diff = frame_coords[i][1] - frame_coords[i - 1][1]
-            dist = np.sqrt(x_diff**2 + y_diff**2) / self.session.video.pixels_per_cm
+            dist = np.sqrt(x_diff**2 + y_diff**2) / pixels_per_cm
             cum_dist += dist
-            if cum_dist >= cum_threshold:
-                return frame
+        if np.logical_and(cum_dist > 5, len(start_frame) == 0):
+            start_frame.append(frame)
+        if cum_dist >= cum_threshold:
+            return frame, start_frame[0]
 
-        # if the mouse never reachs threshold return error message
-        logger.error(f"Mouse never reaches cum threshold {cum_threshold} cm")
-        return None
+    # if the mouse never reachs threshold return error message
+    logger.error(f"Mouse never reaches cum threshold {cum_threshold} cm")
+    return None

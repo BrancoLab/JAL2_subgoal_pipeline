@@ -5,6 +5,8 @@ import scipy.signal as sp
 import os
 import polars as pl
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
+import seaborn as sns
 import plotly.graph_objects as go
 from plotly.express.colors import sample_colorscale
 import pickle
@@ -18,7 +20,8 @@ from sklearn.metrics import confusion_matrix
 
 # import functions
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
-from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, generate_bin_angles
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, generate_bin_angles, filter_video_df_mouse_behaviour
+from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
 
 def run_LDA_model(self, settings, angles):
     """ A function that runs discriminant analysis based on user settings"""
@@ -26,74 +29,112 @@ def run_LDA_model(self, settings, angles):
     prediction_accuracy = {}
     LS_compiled = {}
     title = []
-    self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition)
+    if settings.learned_conditions:
+        self.condition_family = 'learned_condition'
+    else:
+        self.condition_family = 'object_condition'
+    self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family, self.condition)
+
+    # if LDA has already been run and saved, don't redo
+    LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
+    LS_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
+    do_LDA = True
+    do_LS = settings.linear_shift
+    if not settings.redo_compute:
+        if os.path.exists(LDA_out):
+            do_LDA = False
+        if os.path.exists(LS_out):
+            do_LS = False
     
     # run LDA on different angles
-    for variable in angles:
-        if variable != 'randP':
-            logger.info(f"Processing for LDA on {variable}")
-            binned_angles,frames, savename= BinDfbyAngle(self,variable, settings)
-            X = ProcessPredictors(self,frames,settings)
-            logger.info(f"Running LDA on {variable}")
-            pa = linear_discriminant_analysis(X,
-                                              Y = binned_angles.T, 
-                                              discriminant_type = settings.discriminant_type, 
-                                              plotting = True, 
-                                              settings = settings, 
-                                              self = self, 
-                                              title = savename)
-            prediction_accuracy.update({variable: pa})
-            logger.info(f"Running linear shift on LDA on {variable}")
-            if settings.linear_shift:
-                LS_output = LinearShift(X, 
-                                        y = binned_angles.T,
-                                        stat_computation_func = linear_discriminant_analysis,
-                                        size_of_central_chunk = np.round(np.shape(X)[0]/3))
-                LS_compiled.update({variable: LS_output})
-                del LS_output
-            title = np.append(title,variable)
-        else:
-            for j in np.arange(self.video_df.select(pl.col('^head_randP_.*$')).width):
-                logger.info(f"Processing for LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
-                binned_angles,frames, savename = BinDfbyAngle(self,str('head_randP_' + str(j)), settings)
+    if np.logical_or(do_LDA,do_LS):
+        self.filtered_video_df = select_relevant_frames(self, settings)
+        for variable in angles:
+            if variable != 'randP':
+                logger.info(f"Processing for LDA on {variable}")
+                binned_angles,frames, savename= BinDfbyAngle(self,variable, settings)
                 X = ProcessPredictors(self,frames,settings)
-                logger.info(f"Running LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
-                pa = linear_discriminant_analysis(X,
-                                                  Y = binned_angles.T, 
-                                                  discriminant_type = settings.discriminant_type, 
-                                                  plotting = False,
-                                                  settings = settings,
-                                                  self = self,
-                                                  title = savename)
-                prediction_accuracy.update({str(variable + str(j)): pa})
-                logger.info(f"Running linear shift on LDA on {variable + str(j)}")
-                if settings.linear_shift:
+                if do_LDA:
+                    logger.info(f"Running LDA on {variable}")
+                    pa = linear_discriminant_analysis(X,
+                                                    Y = binned_angles.T, 
+                                                    discriminant_type = settings.discriminant_type, 
+                                                    plotting = True, 
+                                                    settings = settings, 
+                                                    self = self, 
+                                                    title = savename)
+                    prediction_accuracy.update({variable: pa})
+                
+                if do_LS:
+                    logger.info(f"Running linear shift on LDA on {variable}")
                     LS_output = LinearShift(X, 
                                             y = binned_angles.T,
                                             stat_computation_func = linear_discriminant_analysis,
                                             size_of_central_chunk = np.round(np.shape(X)[0]/3))
-                    LS_compiled.update({str(variable + str(j)): LS_output})
+                    LS_compiled.update({variable: LS_output})
                     del LS_output
-                title = np.append(title,str('randP' + str(j)))
-    
+                title = np.append(title,variable)
+            else:
+                for j in np.arange(self.video_df.select(pl.col('^head_randP_.*$')).width):
+                    logger.info(f"Processing for LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
+                    binned_angles,frames, savename = BinDfbyAngle(self,str('head_randP_' + str(j)), settings)
+                    X = ProcessPredictors(self,frames,settings)
+                    if do_LDA:
+                        logger.info(f"Running LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
+                        pa = linear_discriminant_analysis(X,
+                                                        Y = binned_angles.T, 
+                                                        discriminant_type = settings.discriminant_type, 
+                                                        plotting = False,
+                                                        settings = settings,
+                                                        self = self,
+                                                        title = savename)
+                        prediction_accuracy.update({str(variable + str(j)): pa})
+
+                    if do_LS:    
+                        logger.info(f"Running linear shift on LDA on {variable + str(j)}")
+                        LS_output = LinearShift(X, 
+                                                y = binned_angles.T,
+                                                stat_computation_func = linear_discriminant_analysis,
+                                                size_of_central_chunk = np.round(np.shape(X)[0]/3))
+                        LS_compiled.update({str(variable + str(j)): LS_output})
+                        del LS_output
+                    title = np.append(title,str('randP' + str(j)))
+    else:
+        logger.info(f"LDA already run on this session for condition: {self.condition}")
+
     # make a plot of prediction accuracy across variables
+    if do_LDA:
+        with open(LDA_out, 'wb') as fp:
+            pickle.dump(prediction_accuracy, fp) 
+    else:
+        with open(LDA_out, "rb") as dill_file:
+            prediction_accuracy = pickle.load(dill_file)
     PlotPredictionAccuracy(self, prediction_accuracy,title)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
-    with open(filename, 'wb') as fp:
-        pickle.dump(prediction_accuracy, fp) 
 
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:
-        PlotLSPredictionAccuracy(self,LS_compiled,title)
-        filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
-        with open(filename, 'wb') as fp:
-            pickle.dump(LS_compiled, fp)  
+        if do_LS:
+            with open(LS_out, 'wb') as fp:
+                pickle.dump(LS_compiled, fp)  
+        else:
+            with open(LS_out, "rb") as dill_file:
+                LS_compiled = pickle.load(dill_file)
+        PlotLSPredictionAccuracy(self,LS_compiled,title)        
 
     # map random points on arena:
-    if len(list(filter(lambda x: 'randP' in x, title))) > 10:
+    if len(list(filter(lambda x: 'randP' in x, prediction_accuracy.keys()))) > 10:
         PredictionAccuracyMapped(self,prediction_accuracy)
 
 #### --------- MAIN LDA FUNCS
+
+def select_relevant_frames(self, settings):
+    # subselect relevant times
+    if not settings.learned_conditions:
+        filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
+    else:
+        filtered_video_df = filter_video_dataframe(self.video_df, self.condition, exclude_escape=False)
+        filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, self.condition, self.session)
+    return filtered_video_df
 
 def BinDfbyAngle(self, variable, settings):
     """
@@ -103,10 +144,8 @@ def BinDfbyAngle(self, variable, settings):
     # edges for binning firing rate at different angles
     bin_angles, _ = generate_bin_angles(settings.number_of_bins)
 
-    # subselect relevant times
-    filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
     title = str(variable + '_' + self.condition)
-    filtered_video_df = filtered_video_df.select(['frames',variable])
+    filtered_video_df = self.filtered_video_df.select(['frames',variable])
     frames = filtered_video_df['frames'].unique().to_numpy() - 1
 
     # bin angles
@@ -343,22 +382,14 @@ def PredictionAccuracyMapped(self,prediction_accuracy):
     '''Make a map of the prediction accuracy for the angle of the head to each point in the arena'''
     pa = [val for key, val in prediction_accuracy.items() if re.search('randP', key)]
     plt.figure(figsize=(15, 15))
-    if 'h_bar_north_a' in prediction_accuracy.keys():
-        plt.plot([self.tracking_data["barrier_loc"][0][0],self.tracking_data["barrier_loc"][1][0]],
-                [self.tracking_data["barrier_loc"][0][1],self.tracking_data["barrier_loc"][1][1]],
-                color = [1,0,0])
-    if 'hsa' in prediction_accuracy.keys():
-        for i in [0,1]:
-            plt.plot([self.tracking_data["shelter_loc"][0][0],self.tracking_data["shelter_loc"][1][0]],
-                    [self.tracking_data["shelter_loc"][i][1],self.tracking_data["shelter_loc"][i][1]],
-                    color = [1,0,0])
-            plt.plot([self.tracking_data["shelter_loc"][i][0],self.tracking_data["shelter_loc"][i][0]],
-                    [self.tracking_data["shelter_loc"][0][1],self.tracking_data["shelter_loc"][1][1]],
-                    color = [1,0,0])
-    sc = plt.scatter(self.tracking_data["randP_loc"][:,0],self.tracking_data["randP_loc"][:,1], c = pa, s  =75, cmap = "Blues")
+    # add points with prediction accuracy
+    s = np.mean(np.diff(np.unique(self.tracking_data["randP_loc"][:,0])))*2
+    sc = plt.scatter(self.tracking_data["randP_loc"][:,0],self.tracking_data["randP_loc"][:,1], c = pa, s = s, marker = 's', cmap = "Blues")
     plt.colorbar(sc)
     plt.axis('off')
+    # prettify with arena features
     ax = plt.gca()
+    base_plotting(ax,self.tracking_data,self.condition)
     ax.invert_yaxis()
     ax.set_aspect('equal')
     filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy_map" + ".png"
@@ -366,9 +397,75 @@ def PredictionAccuracyMapped(self,prediction_accuracy):
     if self.show_plots: plt.show()
     plt.close()
 
+def across_conditions_LDA_map(self, settings):
+    # load i all prediction accuracies for conditions of interest
+    # need to load them all in first to find min and max to normalize color axes
+
+    if settings.learned_conditions:
+        self.condition_family = 'learned_condition'
+    else:
+        self.condition_family = 'object_condition'
+
+    pa = []
+    for c in self.all_conditions:
+        self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family, c)
+        LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(c) + "_LDA_prediction_accuracy" + ".pkl"
+        with open(LDA_out, "rb") as dill_file:
+            prediction_accuracy = pickle.load(dill_file)
+        pa.append([val for key, val in prediction_accuracy.items() if re.search('randP', key)])
+    
+    vmin = np.amin(pa)
+    vmax = np.amax(pa)
+
+    # figure set-up
+    fig, axs = plt.subplots(nrows=1, ncols=len(self.all_conditions), figsize=(24, 6), sharey=True, sharex=True)
+    # where all values are in fractional (0-1) coordinates.
+    # Where to plot the colorbar, create new axis object at these coordinates
+    cbar_ax = fig.add_axes([0.91, 0.13, 0.01, 0.75])  # The list represents [left, bottom, width, height],
+
+
+    for idx, condition in enumerate(self.all_conditions):
+        # build heatmap
+        ybins,y = np.unique(self.tracking_data["randP_loc"][:,0], return_inverse = True)
+        xbins,x = np.unique(self.tracking_data["randP_loc"][:,1], return_inverse = True)
+        heatmap = np.zeros(shape = (len(np.unique(self.tracking_data["randP_loc"][:,0])),len(np.unique(self.tracking_data["randP_loc"][:,1]))))
+        heatmap[x,y] = pa[idx]
+
+        # Plotting logic for the heatmap
+        axs[idx] = sns.heatmap(
+            heatmap,
+            cmap="coolwarm",
+            cbar_ax=cbar_ax,
+            robust=True,
+            ax=axs[idx],
+            mask=(heatmap == 0),
+            cbar_kws={"label": "Prediction accuracy"},
+            norm=plt.Normalize(vmin=vmin, vmax=vmax),
+        )
+
+        add_features(axs[idx], condition, self.tracking_data, xbins, ybins)
+
+        # Remove x and y tick labels and ticks
+        axs[idx].set_xticklabels([])
+        axs[idx].set_yticklabels([])
+        axs[idx].xaxis.set_ticks_position("none")
+        axs[idx].yaxis.set_ticks_position("none")
+        axs[idx].set_title(condition, fontsize=20)
+        # The legend is the last axis so this is a hack to change the font size of the legend
+        axs[idx].figure.axes[-1].yaxis.label.set_size(16)  
+        axs[idx].set_aspect('equal')
+
+    # Save and close the figure
+    plt.subplots_adjust(wspace=0.05, hspace=0)
+    savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_family)
+    plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.png")
+    if settings.show_plots:
+        plt.show()
+    plt.close()
+
 # Utility functions ------------------------------------------------------------------------------------------------
 
-def BuildSavingFolder(basepath, settings, cluster_type, condition):
+def BuildSavingFolder(basepath, settings, cluster_type, condition_family, condition = []):
 
     if settings.discriminant_type == 'linear':
         pathh = str(basepath) + "/" + "LDA"
@@ -379,7 +476,9 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition):
     if settings.use_firing_rate:
         pathh = str(pathh) + "_fr"
 
-    pathh = str(pathh) + "/" + str(cluster_type) + "/" + str(condition)
+    pathh = str(pathh) + "/" + str(cluster_type) + "/" + str(condition_family)
+    if len(condition) > 0:
+        pathh = str(pathh) + "/" + str(condition)
 
     if not(os.path.exists(pathh)): 
         os.makedirs(pathh) 
@@ -427,3 +526,33 @@ def compute_prediction_accuracy(matrixx):
         x = np.roll(matrixx[i.astype(int),:],pos-i)
         pred_acc[i] = np.sum(x[pos-1:pos+2])
     return np.mean(pred_acc)
+
+def add_features(ax, condition, tracking,xbins,ybins):
+    arena_radius = 460
+    # draw shelter
+    if 'shelter_loc' in tracking.keys():
+        shelt = [np.digitize(tracking["shelter_loc"][0],xbins), np.digitize(tracking["shelter_loc"][1],ybins)]
+        for i in [0,1]:
+            ax.plot([shelt[0][0],shelt[1][0]],[shelt[i][1],shelt[i][1]],color = 'k')
+            ax.plot([shelt[i][0],shelt[i][0]],[shelt[0][1],shelt[1][1]],color = 'k')
+    
+    if not np.logical_or(condition == 'shelter_only', condition == 'pre_shelter'):
+        if len(tracking['barrier_loc']) > 0:
+            if np.logical_or(np.logical_or(condition == 'barrier_present',condition == 'all_time'),condition == 'shelter_present'):
+                # draw old two-sided barrier
+                bar_loc = [tracking["barrier_loc"][0][0],tracking["barrier_loc"][1][0]]
+            
+            if condition == 'barrier_pre_flip':
+                # draw barrier from first point to the edge
+                if tracking["barrier_loc"][0][0] < 512: bar_loc = [tracking["barrier_loc"][0][0],512+arena_radius]
+                else: bar_loc = [512-arena_radius,tracking["barrier_loc"][0][0]]
+            
+            if condition == 'barrier_post_flip':
+                # draw barrier from second point to the edge
+                if tracking["barrier_loc"][1][0] < 512: bar_loc = [tracking["barrier_loc"][1][0],512+arena_radius]
+                else: bar_loc = [512-arena_radius,tracking["barrier_loc"][1][0]]
+            
+            bar_loc = np.digitize(bar_loc,xbins)
+            ax.plot([bar_loc[0],bar_loc[1]],
+                    [np.digitize(tracking["barrier_loc"][0][1],ybins),np.digitize(tracking["barrier_loc"][1][1],ybins)],
+                    color = 'k')

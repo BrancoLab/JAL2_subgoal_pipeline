@@ -1,6 +1,7 @@
 from loguru import logger
 import polars as pl
 import os
+import numpy as np
 
 # Custom classes
 from behave_analysis.visualize.visualize_utils import open_tracking_data
@@ -8,6 +9,7 @@ from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficie
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.behaviour.plot_homings import plot_homings
 from settings.settings_analyze import settings_analyze as settings
+
 
 
 class AnalyzeBehave:
@@ -30,7 +32,16 @@ class AnalyzeBehave:
 
     def behaviour_analyses(self):
         logger.info(f"Making plots of spatial effciency in escape")
-        spatial_efficiency(session=self.session, settings=settings, video_df=self.video_df, tracking_data=self.tracking_data, save_dir=self.dir)
+        spatial_efficiency(
+            np.array(self.session.__dict__[settings.stim_type].onset_frames),
+            np.array(self.session.__dict__[settings.stim_type].stimulus_durations),
+            self.session,
+            settings,
+            self.video_df,
+            self.tracking_data,
+            plotting=True,
+            save_dir=self.dir,
+        )
 
         logger.info(f"Making plots of homing trajectories")
         plot_homings(self.session, self.tracking_data, self.video_df)

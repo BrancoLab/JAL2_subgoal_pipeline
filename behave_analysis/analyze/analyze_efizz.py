@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
-from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model
+from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
 from settings.settings_analyze_efizz import Settings_ae as Settings
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
@@ -19,6 +19,9 @@ from behave_analysis.analyze.classification.head_shelter import classify_hsa
 from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.visualize.visualize_utils import open_postprocess_object, open_tracking_data
+from behave_analysis.analyze.regression_decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model, elastic_net_model
+from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
 from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
 from behave_analysis.visualize.visualize_utils import open_postprocess_object
@@ -31,7 +34,8 @@ class AnalyzeEfizz:
     the preprocessing each time. Any processing of the data should be done outside of this module.
     """
 
-    def __init__(self, session):
+    def __init__(self, session, c_type):
+
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
         self.dir = make_directory(os.path.join(session.base_path, session.processed_path, "models"))
@@ -40,24 +44,23 @@ class AnalyzeEfizz:
         self.all_conditions = extract_all_or_custom_conditions(Settings, session)
         self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
 
-        # For each cluster type in settings e.g synthetic, syntheticHdir, good, mua
-        for c_type in Settings.cluster_type:
-            assert c_type in ["synthetic", "syntheticHdir", "all", "good", "mua", "noise"], "Cluster type not recognised"
-            assert os.path.isfile(
-                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
-            ), "Cluster matrix file not found"
-
-            self.cluster_type = c_type
-            self.frame_by_cluster_matrix = np.load(
+        self.cluster_type = c_type
+        assert c_type in ["synthetic", "syntheticHdir", "all", "good", "mua", "noise"], "Cluster type not recognised"
+        assert os.path.isfile(
+            os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
+        ), "Cluster matrix file not found"
+        self.frame_by_cluster_matrix = np.load(
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
+        self.tracking_data = open_tracking_data(self.session)
+        self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
 
-            logger.info("Loading giant post processing object this will take for ever")
-            postprocessObject = open_postprocess_object(self.session, self.cluster_type)
-            self.video_spike_count_df = postprocessObject.video_spike_count_df
-            self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-            self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
-            self.tracking_data = postprocessObject.tracking_data
+        logger.info("Loading giant post processing object this will take for ever")
+        # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+            # self.video_spike_count_df = postprocessObject.video_spike_count_df
+            # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
+        # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+            # self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):
         logger.info("Executing models")
@@ -130,7 +133,8 @@ class AnalyzeEfizz:
                 self.condition = o
                 logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
                 run_LDA_model(self, Settings, angles)
-            logger.success("LDA analysis complete")
+            across_conditions_LDA_map(self, Settings)
+            logger.success('LDA analysis complete')
 
         # ----------------- Compute Rayleigh and polar plots -------------------------
         if Settings.run_rayleigh:
