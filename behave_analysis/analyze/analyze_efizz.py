@@ -54,13 +54,13 @@ class AnalyzeEfizz:
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
         self.tracking_data = open_tracking_data(self.session)
-#         self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
+        self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
 
         logger.info("Loading giant post processing object this will take for ever")
-        postprocessObject = open_postprocess_object(self.session, self.cluster_type)
+        # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
             # self.video_spike_count_df = postprocessObject.video_spike_count_df
             # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-         self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
+        # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
             # self.tracking_data = postprocessObject.tracking_data
 
     def execute_models(self):

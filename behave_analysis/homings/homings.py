@@ -51,6 +51,7 @@ class get_Homings:
         self.tracking_data = open_tracking_data(self.session)
 
         # Begin extracting variables for homings
+        logger.info("Extracting homings...")
         self.extract_variables()
         self.homing_runs_on = self.identify_homing_runs()
         onset_frames_pre, self.stimulus_durations, offset_frames_pre = self.get_onset_and_duration()
@@ -200,7 +201,7 @@ class get_Homings:
         file_name = os.path.join(folder, "homings_obj.pkl")
         with open(file_name, "wb") as dill_file:
             pickle.dump(self.session.homing, dill_file)
-        logger.success("Session saved with homings data")
+        logger.success("Homings object pickle saved")
 
     # --------DATA PROCESSING FUNCS---------------------------------------
     def boxcar_filter(self, data, filter_length, sign, time="future"):
@@ -445,13 +446,15 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     for i, (onset, offset) in enumerate(zip(onsets, offsets)):
         frame_coords = tracking_data["avg_loc"][onset[0] : offset[0]]
-        frame_index = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
+        frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
         if frame_index == None:
             continue
-        hsa = hsa_data[onset[0] : onset[0] + frame_index]
+        hsa = hsa_data[start_frame : frame_index]
+        # plt.plot(np.arange(onset[0],frame_index),hsa)
+        # plt.plot(np.arange(start_frame,frame_index),hsa_data[start_frame : frame_index])
         if len(session.barrier_time) > 0:
-            g1 = hdir_bar_goal1[onset[0] : onset[0] + frame_index]
-            g2 = hdir_bar_goal2[onset[0] : onset[0] + frame_index]
+            g1 = hdir_bar_goal1[start_frame : frame_index]
+            g2 = hdir_bar_goal2[start_frame : frame_index]
         avg_hsa[i] = np.mean(hsa)
         if len(session.barrier_time) > 0:
             avg_hdir_bar_goal1[i] = np.mean(g1)
@@ -471,15 +474,23 @@ def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int)
     """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold
 
     Returns:
-    -- i: int, the index of the frame where the mouse has travelled cum_threshold cm"""
-    cum_dist = 0
+    -- i: int, the index of the frame where the mouse has travelled cum_threshold cm
+    
+    TODO: This could be improved by also finding a strating frame we want to use (instead of including the head turn movement in the avg hsa)
+    """
+    start_frame = []
     for i, frame in enumerate(range(onset[0], offset[0])):
-        x_diff = frame_coords[i][0] - frame_coords[i - 1][0]
-        y_diff = frame_coords[i][1] - frame_coords[i - 1][1]
-        dist = np.sqrt(x_diff**2 + y_diff**2) / pixels_per_cm
-        cum_dist += dist
+        if i == 0:
+            cum_dist = 0
+        elif i > 0:
+            x_diff = frame_coords[i][0] - frame_coords[i - 1][0]
+            y_diff = frame_coords[i][1] - frame_coords[i - 1][1]
+            dist = np.sqrt(x_diff**2 + y_diff**2) / pixels_per_cm
+            cum_dist += dist
+        if np.logical_and(cum_dist > 5, len(start_frame) == 0):
+            start_frame.append(frame)
         if cum_dist >= cum_threshold:
-            return frame
+            return frame, start_frame[0]
 
     # if the mouse never reachs threshold return error message
     logger.error(f"Mouse never reaches cum threshold {cum_threshold} cm")

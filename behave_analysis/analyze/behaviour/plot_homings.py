@@ -23,32 +23,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
 from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial, plot_trajectories
-
-
-def load_homings(session) -> object:
-    """
-    Load and return the homing data object from a serialized pickle file for a given session.
-
-    This function retrieves homing data, which typically includes information about specific behavioral trials,
-    from a pre-processed pickle file. The file's location is determined based on the session's base path and
-    processed path attributes. The function asserts the existence of the file before attempting to load it,
-    ensuring that the necessary data is available and has been generated prior to this function call.
-
-    Parameters:
-    - session (SessionType): An object representing the session, which should contain attributes `base_path`
-      and `processed_path` used to construct the file path to the homing data.
-
-    Returns:
-    - object: The homing data object loaded from the pickle file.
-
-    Raises:
-    - AssertionError: If the homing data file does not exist at the expected path.
-    """
-    file_loc = os.path.join(session.base_path, session.processed_path, "homings", "homings_obj.pkl")
-    assert os.path.isfile(file_loc), "Homings object doesn't exist, have you generated it?"
-    with open(file_loc, "rb") as f:
-        homings_obj = pickle.load(f)
-    return homings_obj
+from behave_analysis.utils.data_loading import load_or_extract_homings
 
 
 def plot_homings(session, tracking_data, video_df) -> None:
@@ -75,7 +50,7 @@ def plot_homings(session, tracking_data, video_df) -> None:
     - The function assumes that the `session` object provides access to video frame rate information.
     - The layout of the figures and subplots is subject to change based on the number of trials.
     """
-    homings_obj = load_homings(session)
+    homings_obj = load_or_extract_homings(session)
     assert homings_obj is not None, "Failed to load homing data."
     assert hasattr(homings_obj, 'onset_frames') and hasattr(homings_obj, 'stimulus_durations'), "Homings object must have 'onset_frames' and 'stimulus_durations'."
 
