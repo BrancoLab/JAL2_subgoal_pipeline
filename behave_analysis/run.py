@@ -4,6 +4,7 @@ from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t
 from settings.settings_visualize import Settings_visualize as settings_v
 from settings.settings_homings import settings_homings as settings_h
+from settings.settings_analyze_efizz import Settings_ae
 from settings.settings_analyze import settings_analyze as settings_a
 from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
@@ -99,7 +100,10 @@ def analyze():
         logger.info("Loaded a session with the following details: {}".format(session_ID))
         # AnalyzeBehave(session)
         if settings_a.efizz:
-            AnalyzeEfizz(session).execute_models()
+            for c_type in Settings_ae.cluster_type:
+                AnalyzeEfizz(session, c_type).execute_models()
+                
+
     
     logger.success("Analysis pipeline complete")
         
