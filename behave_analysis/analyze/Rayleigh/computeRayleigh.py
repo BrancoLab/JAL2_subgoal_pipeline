@@ -12,7 +12,7 @@ import matplotlib.gridspec as gridspec
 
 from settings.settings_analyze_efizz import Settings_ae
 from behave_analysis.analyze.stats.linshit import LinearShift
-from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, filter_video_df_mouse_behaviour
 from behave_analysis.utils.creating_directories import make_directory
 
 def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_path):
@@ -22,11 +22,22 @@ def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_p
     2. if Settings_analyze_efizz.multi_cluster_plots = True, it also plots all clusters per angle
     """
 
+    if settings.learned_conditions:
+        self.condition_family = 'learned_condition'
+    else:
+        self.condition_family = 'object_condition'
+    base_path = make_directory(os.path.join(base_path,self.condition_family))
+
     for c in all_conditions:
         data_path = make_directory(os.path.join(base_path, c))
         
         # filter data in this condition
-        filtered_video_df = filter_video_dataframe(self.video_df, c)
+        if not settings.learned_conditions:
+            filtered_video_df = filter_video_dataframe(self.video_df, c)
+        else:
+            filtered_video_df = filter_video_dataframe(self.video_df, c, exclude_escape=False)
+            filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, c, self.session)
+        # filtered_video_df = filter_video_dataframe(self.video_df, c)
         
         # which compartment of the arena was the mouse in?
         # compartment 1 (in blue) is the side where the shelter is
