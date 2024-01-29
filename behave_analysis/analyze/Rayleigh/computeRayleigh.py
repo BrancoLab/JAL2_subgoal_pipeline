@@ -196,6 +196,9 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
                 fps=self.session.video.fps,
                 flag="whole_arena",
             )
+            
+        if compute_significance == "linshit":
+            arena_sig[count] = linearshift_rayleigh_significance(X=X[:, count], binned_angles=binned_angles)
 
         # ---------------------- Specific compartment computations ------------------------------------------------------
         for c_count, comp in enumerate(np.unique(compartment)):
@@ -205,22 +208,22 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
 
             # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations
             if compute_significance == "linshit":
-                LS_output = LinearShift(
-                    X[compartment == comp, count],
-                    y=binned_angles[compartment == comp],
-                    stat_computation_func=compute_rayleigh_cluster,
-                    size_of_central_chunk=np.round(np.shape(X[compartment == comp, count])[0] / 3),
+                Rayleigh_sig[count, c_count] = linearshift_rayleigh_significance(
+                    X=X[compartment == comp, count],
+                    binned_angles=binned_angles[compartment == comp],
                 )
-
-                # significance logical
-                if LS_output.reject_null:
-                    Rayleigh_sig[count] = 1
-                    # print('yay! ' + str(c) + ' is significant')
 
             # alternative method with bootstrap
             if compute_significance == "bootstrap":
                 Rayleigh_sig[count, c_count] = bootstrap_rayleigh_significance(
-                    binned_angles, comp, count, Rayleigh, X[compartment == comp, count], self.session.video.fps, compartment, flag="compartments"
+                    binned_angles=binned_angles,
+                    comp=comp,
+                    count=count,
+                    rayleigh=Rayleigh,
+                    X=X[compartment == comp, count],
+                    fps=self.session.video.fps,
+                    compartment=compartment,
+                    flag="compartments",
                 )
 
     # histogram of rayleighs
@@ -269,7 +272,7 @@ def bootstrap_rayleigh_significance(
     binned_angles, count: int, rayleigh, X, fps: int, flag: str, comp: int = None, compartment: np.array = None
 ) -> int:
     """A function that computes the significance of the rayleigh magnitude using bootstrapping"""
-    logger.info(f"Computing significance of Rayleigh vector using bootstrapping for neuron index {count}")
+    # logger.info(f"Computing significance of Rayleigh vector using bootstrapping for neuron index {count}")
     x = 100
     shift_dist = np.empty(x)
 
@@ -283,7 +286,7 @@ def bootstrap_rayleigh_significance(
         significance = 0
         if rayleigh[count][int(comp) - 1] > np.percentile(shift_dist, 95):
             significance = 1
-            # print('yay! ' + str(c) + ' is significant')
+            # logger.success("Significant rayleigh vector found")
 
     if flag == "whole_arena":
         # shuffled linear shifts performed at a random offset between 0 and 100 seconds
@@ -296,7 +299,30 @@ def bootstrap_rayleigh_significance(
         if rayleigh[count] > np.percentile(shift_dist, 95):
             significance = 1
 
-    logger.info(f"Significance of Rayleigh vector using bootstrapping for neuron index {count} is {significance}")
+    # logger.info(f"Significance of Rayleigh vector using bootstrapping for neuron index {count} is {significance}")
+    return significance
+
+
+def linearshift_rayleigh_significance(X: np.array, binned_angles: np.array) -> int:
+    """Compute the significance of the rayleigh magnitude using linear shift
+
+    Returns:
+    -- significance: 1 if the rayleigh vector is significant, 0 if not"""
+    # logger.info("starting linear shift significance test")
+    LS_output = LinearShift(
+        X,
+        y=binned_angles,
+        stat_computation_func=compute_rayleigh_cluster,
+        size_of_central_chunk=np.round(np.shape(X)[0] / 3),
+    )
+
+    significance = 0
+    # significance logical
+    if LS_output.reject_null:
+        significance = 1
+    #     logger.success("Significant rayleigh vector found")
+    # logger.info("finished linear shift significance test")
+
     return significance
 
 

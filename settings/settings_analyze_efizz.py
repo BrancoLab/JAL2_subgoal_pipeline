@@ -45,7 +45,7 @@ Settings_ae = Settings_analyze_efizz(
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     # ------------ Rayleigh model settings ----------------------
     run_rayleigh=True,
-    rayleigh_significance="bootstrap",  # can be either linear shift or bootstrap
+    rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=True,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster
     multi_cluster_plots=False,  # True: Plot every cluster in one figure for one condition
