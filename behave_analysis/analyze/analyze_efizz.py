@@ -53,7 +53,7 @@ class AnalyzeEfizz:
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
         self.tracking_data = open_tracking_data(self.session)
-        self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
+        # self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
 
         logger.info("Loading giant post processing object this will take for ever")
         # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
@@ -65,22 +65,21 @@ class AnalyzeEfizz:
     def execute_models(self):
         logger.info("Executing models")
         
-        # ------------------------------ Compute PCA ----------------------------------
-        if Settings.run_pca_model:
-            logger.info("Running PCA model")
-            pca_path = os.path.join(self.dir, "PCA")
-            angles = identify_angles(self.session)
-            make_directory(pca_path)
-            pca = PreprocessPca(
-                session=self.session,
-                cluster_type=self.cluster_type,
-                conditions=self.all_conditions,
-                path_to_save=pca_path,
-                angles=angles,
-            )
-            run_pca_kmeans_plot(pca_path, pca.x, pca.labels)
-            logger.success("PCA analysis complete")
-
+        
+        # ----------------- Compute Rayleigh, polar plots and delta hists ------------
+        if Settings.run_rayleigh:
+            if not Settings.single_cluster_plots:
+                logger.info(f"Compute Rayleigh on {self.cluster_type} data")
+                all_angles = identify_angles(self.session)
+                base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type)
+                compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
+            else:
+                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
+                compute_single_cluster_tuning(self, Settings)
+                
+        self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type) # Analyze rayleigh deltas
+        
+    
         # ------------------------------ Compute TUNED --------------------------------
         if Settings.run_tunED:
             logger.info("Running TunED model")
@@ -136,18 +135,22 @@ class AnalyzeEfizz:
             across_conditions_LDA_map(self, Settings)
             logger.success('LDA analysis complete')
 
-        # ----------------- Compute Rayleigh and polar plots -------------------------
-        if Settings.run_rayleigh:
-            if not Settings.single_cluster_plots:
-                logger.info(f"Compute Rayleigh on {self.cluster_type} data")
-                all_angles = identify_angles(self.session)
-                base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type)
-                compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
-            else:
-                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
-                compute_single_cluster_tuning(self, Settings)
-                
-            plot_rayleigh_deltas(self.session, self.cluster_type) # Analyze rayleigh deltas
+        # ----------------------------- Compute PCA ----------------------------------
+        if Settings.run_pca_model:
+            logger.info("Running PCA model")
+            pca_path = os.path.join(self.dir, "PCA")
+            angles = identify_angles(self.session)
+            make_directory(pca_path)
+            pca = PreprocessPca(
+                session=self.session,
+                cluster_type=self.cluster_type,
+                conditions=self.all_conditions,
+                path_to_save=pca_path,
+                angles=angles,
+                delta_between_conditions = self.mangituide_deltas
+            )
+            run_pca_kmeans_plot(pca_path, pca.x, pca.labels)
+            logger.success("PCA analysis complete")
 
         logger.success("All models complete")
         

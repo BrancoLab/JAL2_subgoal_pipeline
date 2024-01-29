@@ -26,13 +26,13 @@ def run_pca_kmeans_plot(path_to_save, x, labels):
     logger.success("Completed PCA")
     transformed_data = pca.transform(x)
     kmeans_labels = k_means(transformed_data, path_to_save)
-    # plot_pca(transformed_data, labels, pca, kmeans_labels)
-    plot_pca_plotly(x, labels, pca, kmeans_labels)
+    plot_pca(transformed_data, labels, pca, kmeans_labels)
+    # plot_pca_plotly(x, labels, pca, kmeans_labels)
 
 
 def k_means(pca_transformed_data, path_to_save):
     """Runs K means clustering on the PCA transformed data and saves the labels"""
-    kmeans = KMeans(n_clusters=9, random_state=0, n_init="auto")
+    kmeans = KMeans(n_clusters=5, random_state=0, n_init="auto")
     kmeans.fit(pca_transformed_data)
     np.save(os.path.join(path_to_save, "kmeans_labels.npy"), kmeans.labels_)
     logger.success("Completed K means clustering and saved labels")
@@ -81,7 +81,7 @@ def plot_pca(x, labels, pca_model, kmeans_labels):
         ax1.text(x[i, 0], x[i, 1], "%s" % (labels[i]), size=8, zorder=1, color="k")
     # add the explained variance for each component in the title of the plot
     ax1.set_title(
-        f"Explained Variance for PC 1: {pca_model.explained_variance_ratio_[0]} and PC 2: {pca_model.explained_variance_ratio_[1]}"
+        f"Explained Variance for PC 1: {pca_model.explained_variance_ratio_[0]:.2f} and PC 2: {pca_model.explained_variance_ratio_[1]:.2f}"
     )
 
     # 2D scatter plot - second and third PCs - bottom row, second column
@@ -94,7 +94,7 @@ def plot_pca(x, labels, pca_model, kmeans_labels):
     for i in range(len(x)):
         ax2.text(x[i, 1], x[i, 2], "%s" % (labels[i]), size=8, zorder=1, color="k")
     ax2.set_title(
-        f"Explained Variance for PC 2: {pca_model.explained_variance_ratio_[1]} and PC 3: {pca_model.explained_variance_ratio_[2]}"
+        f"Explained Variance for PC 2: {pca_model.explained_variance_ratio_[1]:.2f} and PC 3: {pca_model.explained_variance_ratio_[2]:.2f}"
     )
 
     # 2D scatter plot - third and fourth PCs - bottom row, second column
@@ -107,7 +107,7 @@ def plot_pca(x, labels, pca_model, kmeans_labels):
     for i in range(len(x)):
         ax3.text(x[i, 2], x[i, 3], "%s" % (labels[i]), size=8, zorder=1, color="k")
     ax3.set_title(
-        f"Explained Variance for PC 3: {pca_model.explained_variance_ratio_[2]} and PC 4: {pca_model.explained_variance_ratio_[3]}"
+        f"Explained Variance for PC 3: {pca_model.explained_variance_ratio_[2]:.2f} and PC 4: {pca_model.explained_variance_ratio_[3]:.2f}"
     )
 
     # Create a colormap normalized by the number of clusters

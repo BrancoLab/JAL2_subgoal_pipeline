@@ -3,6 +3,12 @@ This script provides functionality for analyzing and visualizing rayleigh data.
 It includes methods to retrieve specific or all Rayleigh data based on experimental conditions and angles, compute the
 delta of Rayleigh magnitude between pairs of conditions, and visualize these differences. The script primarily handles
 data related to two distinct compartments in an experiment, referred to as 'shelter zone' and 'threat zone'.
+
+# TODO;
+- Remove comparison of all time and shelter present conditions in barrier settings, this results in zero delta
+and is not useful and then is fed into pca so could be a problem
+-- remove rubish cells that might be biasing the distribution, mabye cells that have a low magnitude in both conditions
+maybe try a low rayleigh across both compartments and all conditions
 """
 
 import os
@@ -178,6 +184,9 @@ def plot_rayleigh_deltas(session, cluster_type):
     )
 
     save_rayleigh_deltas_plots(session, cluster_type)
+    # plt.close()
+    
+    return deltas
 
 
 def save_rayleigh_deltas_plots(session, cluster_type) -> None:
