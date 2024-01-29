@@ -1,7 +1,7 @@
 import os
 import time
-import numpy as np
 
+import numpy as np
 from loguru import logger
 import polars as pl
 import pickle
@@ -11,8 +11,8 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
-# from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
-from behave_analysis.analyze.LDA.LDAmodel_spacebins import run_LDA_model, across_conditions_LDA_map
+from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
+# from behave_analysis.analyze.LDA.LDAmodel_spacebins import run_LDA_model, across_conditions_LDA_map
 
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
@@ -23,10 +23,11 @@ from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
 from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_postprocess_object, open_tracking_data
-
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model, elastic_net_model
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
+from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
+from behave_analysis.visualize.visualize_utils import open_postprocess_object
 
 
 class AnalyzeEfizz:
@@ -67,23 +68,22 @@ class AnalyzeEfizz:
 
     def execute_models(self):
         logger.info("Executing models")
-
-        # ------------------------------ Compute PCA ----------------------------------
-        if Settings.run_pca_model:
-            logger.info("Running PCA model")
-            pca_path = os.path.join(self.dir, "PCA")
-            angles = identify_angles(self.session)
-            make_directory(pca_path)
-            pca = PreprocessPca(
-                session=self.session,
-                cluster_type=self.cluster_type,
-                conditions=self.all_conditions,
-                path_to_save=pca_path,
-                angles=angles,
-            )
-            run_pca_kmeans_plot(pca_path, pca.x, pca.labels)
-            logger.success("PCA analysis complete")
-
+        
+        
+        # ----------------- Compute Rayleigh, polar plots and delta hists ------------
+        if Settings.run_rayleigh:
+            if not Settings.single_cluster_plots:
+                logger.info(f"Compute Rayleigh on {self.cluster_type} data")
+                all_angles = identify_angles(self.session)
+                base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type)
+                compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
+            else:
+                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
+                compute_single_cluster_tuning(self, Settings)
+                
+        self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type) # Analyze rayleigh deltas
+        
+    
         # ------------------------------ Compute TUNED --------------------------------
         if Settings.run_tunED:
             logger.info("Running TunED model")
@@ -153,10 +153,25 @@ class AnalyzeEfizz:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
 
+                # ----------------------------- Compute PCA ----------------------------------
+        if Settings.run_pca_model:
+            logger.info("Running PCA model")
+            pca_path = os.path.join(self.dir, "PCA")
+            angles = identify_angles(self.session)
+            make_directory(pca_path)
+            pca = PreprocessPca(
+                session=self.session,
+                cluster_type=self.cluster_type,
+                conditions=self.all_conditions,
+                path_to_save=pca_path,
+                angles=angles,
+                delta_between_conditions = self.mangituide_deltas
+            )
+            run_pca_kmeans_plot(pca_path, pca.x, pca.labels)
+            logger.success("PCA analysis complete")
+
         logger.success("All models complete")
-
-    # Had to comment out because it can't handle the Nans from the rayleigh data
-
+        
     def classify_cells(self):
         """A function to call cell type specific classification functions
 

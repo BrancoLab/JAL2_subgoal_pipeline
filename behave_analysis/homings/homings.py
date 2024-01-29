@@ -444,8 +444,8 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
         hdir_bar_goal1 = tracking_data["hdir_barrier"][:, 0]
         hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
 
-    for i, (onset, offset) in enumerate(zip(onsets, offsets)):
-        frame_coords = tracking_data["avg_loc"][onset[0] : offset[0]]
+    for i, (onset, offset) in enumerate(zip(int(onsets), int(offsets))):
+        frame_coords = tracking_data["avg_loc"][onset : offset]
         frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
         if frame_index == None:
             continue
@@ -479,7 +479,7 @@ def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int)
     TODO: This could be improved by also finding a strating frame we want to use (instead of including the head turn movement in the avg hsa)
     """
     start_frame = []
-    for i, frame in enumerate(range(onset[0], offset[0])):
+    for i, frame in enumerate(range(int(onset), int(offset))):
         if i == 0:
             cum_dist = 0
         elif i > 0:
