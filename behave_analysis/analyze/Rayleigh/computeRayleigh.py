@@ -65,7 +65,11 @@ def compute_single_cluster_tuning(self,settings):
     # Initialize variables
     all_angles = identify_angles(self.session)
 
-    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type)
+    if settings.learned_conditions:
+        self.condition_family = 'learned_condition'
+    else:
+        self.condition_family = 'object_condition'
+    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,self.condition_family)
     plot_save_path = make_directory(os.path.join(base_path, 'single_cluster_plots'))
 
     # check that Rayleigh has been computed and saved for all conditions and if not compute it
