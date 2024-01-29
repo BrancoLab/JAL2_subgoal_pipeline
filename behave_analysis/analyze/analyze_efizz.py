@@ -11,7 +11,8 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
-from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
+# from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
+from behave_analysis.analyze.LDA.LDAmodel_spacebins import run_LDA_model, across_conditions_LDA_map
 
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
@@ -54,6 +55,7 @@ class AnalyzeEfizz:
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
         self.tracking_data = open_tracking_data(self.session)
+        # TODO: in postprocess save cluster Ids as separate npy file so you don't have to load in postprocess object
         self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
 
         logger.info("Loading giant post processing object this will take for ever")

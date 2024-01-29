@@ -49,15 +49,17 @@ def run_LDA_model(self, settings, angles):
     # run LDA on different angles
     if np.logical_or(do_LDA,do_LS):
         self.filtered_video_df = select_relevant_frames(self, settings)
+        binned_pos = BinDfbyPos(self)
         for variable in angles:
             if variable != 'randP':
                 logger.info(f"Processing for LDA on {variable}")
-                binned_angles,frames, savename= BinDfbyAngle(self,variable, settings)
+                binned_angles,frames, savename = BinDfbyAngle(self,variable, settings)
                 X = ProcessPredictors(self,frames,settings)
                 if do_LDA:
                     logger.info(f"Running LDA on {variable}")
                     pa = linear_discriminant_analysis(X,
                                                     Y = binned_angles.T, 
+                                                    binned_pos = binned_pos,
                                                     discriminant_type = settings.discriminant_type, 
                                                     plotting = True, 
                                                     settings = settings, 
@@ -83,6 +85,7 @@ def run_LDA_model(self, settings, angles):
                         logger.info(f"Running LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
                         pa = linear_discriminant_analysis(X,
                                                         Y = binned_angles.T, 
+                                                        binned_pos = binned_pos,
                                                         discriminant_type = settings.discriminant_type, 
                                                         plotting = False,
                                                         settings = settings,
@@ -158,17 +161,36 @@ def BinDfbyAngle(self, variable, settings):
 
     return binned_angles, frames, title
 
-def binDfbyEpoch(matrix, matriy, bins, epoch_num):
+def BinDfbyPos(self):
+    """
+    A function that processes dataframe for discriminant analysis
+    variable: what we're trying to predict (e.g. head_shelter_angle), it needs to be one of the columns of video_df
+    """
+    mouse_x = self.filtered_video_df['mouse_x_position'].to_numpy()
+    mouse_y = self.filtered_video_df['mouse_y_position'].to_numpy()
 
-    # make angle bins equally populated
-    matrix, matriy = EqualAngleBins_matrix(matrix, matriy) # this step randomly subsamples!!
+    # bin into quadrants
+    mouse_x = mouse_x > (self.session.video.height/2)
+    mouse_y = mouse_y > (self.session.video.width/2)
+    
+    _, binned_pos = np.unique(np.vstack((mouse_x,mouse_y)),axis=1,return_inverse = True)
+
+    return binned_pos
+
+def binDfbyEpoch(matrix, matriy, binned_pos, epoch_num):
+
+    _, unique_pos_ang = np.unique(np.vstack((binned_pos,matriy)),axis=1,return_inverse = True)
+
+    # make angle + position bins equally populated
+    matrix, matriy, unique_pos_ang = EqualBins_matrix(matrix, matriy, unique_pos_ang) # this step randomly subsamples!!
 
     # chunk data into training and test data for each angle bin!!
     epochs = np.empty_like(matriy)
+    bins = np.unique(unique_pos_ang)
     for i in bins:
-        x_filt = matrix[matriy == i,:]
-        binned_frames = data_chunker(x_filt,epoch_num)
-        epochs[matriy == i] = binned_frames
+        x_filt = matrix[unique_pos_ang == i,:]
+        binned_frames = data_chunker(np.shape(x_filt)[0],epoch_num)
+        epochs[unique_pos_ang == i] = binned_frames
     
     epochs = epochs[np.argsort(matrix[:,0])]
     
@@ -201,7 +223,7 @@ def ProcessPredictors(self,frames, settings):
 
     return X
 
-def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = False, settings = None, self = None, title = None):#self, df, title, settings, X):
+def linear_discriminant_analysis(X,Y, binned_pos, discriminant_type = 'linear', plotting = False, settings = None, self = None, title = None):#self, df, title, settings, X):
     """
     A function for doing LDA on data
     """
@@ -213,7 +235,7 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
     conf_matrix_all_test = np.empty((n_bins,n_bins,epoch_num))
 
     # chunk into epochs
-    X, Y, epochs = binDfbyEpoch(X, Y, np.unique(Y), epoch_num)
+    X, Y, epochs = binDfbyEpoch(X, Y, binned_pos, epoch_num)
     X = X[:,1:] # the first column is frame id and you no longer need it
 
     # LDA
@@ -497,25 +519,30 @@ def plotConfusionMatrix(y,x,title,axy):
     axy.set_title(title)
     return conf
 
-def EqualAngleBins_matrix(x,y):
-    angbins, counts = np.unique(y, return_counts = True)
+def EqualBins_matrix(x,y, unique_fr):
+    angbins, counts = np.unique(unique_fr, return_counts = True)
     samples = np.amin(counts)
 
-    y_new = []
+    unique_new = []
     for c,i in enumerate(angbins):
-        x_filt = x[y == i,:]
+        x_filt = x[unique_fr == i,:]
+        y_filt = y[unique_fr == i]
         samplingidx = np.random.randint(0,len(x_filt),samples)
-        x_filt = x_filt[samplingidx,:]
-        if c == 0: x_new = x_filt
-        else: x_new = np.append(x_new,x_filt, axis=0)
-        y_new = np.append(y_new,np.ones(np.shape(x_filt)[0])*i)
+        if c == 0: 
+            x_new = x_filt[samplingidx,:]
+            y_new = y_filt[samplingidx]
+        else: 
+            x_new = np.append(x_new,x_filt[samplingidx,:], axis=0)
+            y_new = np.append(y_new,y_filt[samplingidx], axis=0)
+        unique_new = np.append(unique_new,np.ones(samples)*i)
     
     y_new = y_new[np.argsort(x_new[:,0])]
+    unique_new = unique_new[np.argsort(x_new[:,0])]
     x_new = x_new[np.argsort(x_new[:,0]),:]
-    return x_new, y_new
+    return x_new, y_new, unique_new
 
-def data_chunker(x,epoch_num):
-    rows = np.arange(np.shape(x)[0])
+def data_chunker(frame_num,epoch_num):
+    rows = np.arange(frame_num)
     epoch_edge = np.round(np.linspace(np.amin(rows)-1,np.amax(rows)+1,epoch_num+1))
     binned_frames = np.digitize(rows,epoch_edge)
     return binned_frames
