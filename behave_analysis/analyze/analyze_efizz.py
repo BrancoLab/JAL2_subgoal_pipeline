@@ -7,10 +7,13 @@ import polars as pl
 import pickle
 import matplotlib.pyplot as plt
 
+from settings.settings_analyze_efizz import Settings_ae as Settings
+
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
-from settings.settings_analyze_efizz import Settings_ae as Settings
+# from behave_analysis.analyze.LDA.LDAmodel_spacebins import run_LDA_model, across_conditions_LDA_map
+
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
@@ -53,7 +56,8 @@ class AnalyzeEfizz:
                 os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
             )
         self.tracking_data = open_tracking_data(self.session)
-        # self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
+        # TODO: in postprocess save cluster Ids as separate npy file so you don't have to load in postprocess object
+        self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
 
         logger.info("Loading giant post processing object this will take for ever")
         # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
@@ -135,7 +139,21 @@ class AnalyzeEfizz:
             across_conditions_LDA_map(self, Settings)
             logger.success('LDA analysis complete')
 
-        # ----------------------------- Compute PCA ----------------------------------
+        # ----------------- Compute Rayleigh and polar plots -------------------------
+        if Settings.run_rayleigh:
+            if not Settings.single_cluster_plots:
+                logger.info(f"Compute Rayleigh on {self.cluster_type} data")
+                all_angles = identify_angles(self.session)
+                if Settings.learned_conditions:
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'learned_condition'))
+                else:
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'object_condition'))
+                compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
+            else:
+                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
+                compute_single_cluster_tuning(self, Settings)
+
+                # ----------------------------- Compute PCA ----------------------------------
         if Settings.run_pca_model:
             logger.info("Running PCA model")
             pca_path = os.path.join(self.dir, "PCA")

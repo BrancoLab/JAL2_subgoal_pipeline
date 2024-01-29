@@ -13,7 +13,7 @@ import matplotlib.gridspec as gridspec
 
 from settings.settings_analyze_efizz import Settings_ae
 from behave_analysis.analyze.stats.linshit import LinearShift
-from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe, identify_angles, generate_bin_angles
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, filter_video_df_mouse_behaviour
 from behave_analysis.utils.creating_directories import make_directory
 
 
@@ -28,7 +28,12 @@ def compute_all_clusters_rayleigh(self, settings, all_angles, all_conditions, ba
         data_path = make_directory(os.path.join(base_path, c))
 
         # filter data in this condition
-        filtered_video_df = filter_video_dataframe(self.video_df, c)
+        if not settings.learned_conditions:
+            filtered_video_df = filter_video_dataframe(self.video_df, c)
+        else:
+            filtered_video_df = filter_video_dataframe(self.video_df, c, exclude_escape=False)
+            filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, c, self.session)
+        # filtered_video_df = filter_video_dataframe(self.video_df, c)
 
         # which compartment of the arena was the mouse in?
         # compartment 1 (in blue) is the side where the shelter is
@@ -56,8 +61,12 @@ def compute_single_cluster_tuning(self, settings):
     # Initialize variables
     all_angles = identify_angles(self.session)
 
-    base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type)
-    plot_save_path = make_directory(os.path.join(base_path, "single_cluster_plots"))
+    if settings.learned_conditions:
+        self.condition_family = 'learned_condition'
+    else:
+        self.condition_family = 'object_condition'
+    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,self.condition_family)
+    plot_save_path = make_directory(os.path.join(base_path, 'single_cluster_plots'))
 
     # check that Rayleigh has been computed and saved for all conditions and if not compute it
     compute_all_clusters_rayleigh(self, settings, all_angles, self.all_conditions, base_path)

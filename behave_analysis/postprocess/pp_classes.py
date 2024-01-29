@@ -72,6 +72,7 @@ class BaseDataPostprocessor(ABC):
 
         clu_label = self.spike_data.groupby(["spike_clusters"]).first()
         clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
+        np.save(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids"), clu_label["spike_clusters"].unique().to_numpy())
         return clu_label
 
     def load_spike_data(self) -> pl.DataFrame:
