@@ -22,12 +22,6 @@ def compute_all_clusters_rayleigh(self,settings,all_angles,all_conditions,base_p
     2. if Settings_analyze_efizz.multi_cluster_plots = True, it also plots all clusters per angle
     """
 
-    if settings.learned_conditions:
-        self.condition_family = 'learned_condition'
-    else:
-        self.condition_family = 'object_condition'
-    base_path = make_directory(os.path.join(base_path,self.condition_family))
-
     for c in all_conditions:
         data_path = make_directory(os.path.join(base_path, c))
         

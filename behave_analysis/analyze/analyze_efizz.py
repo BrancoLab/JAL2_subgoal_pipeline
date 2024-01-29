@@ -144,7 +144,10 @@ class AnalyzeEfizz:
             if not Settings.single_cluster_plots:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
                 all_angles = identify_angles(self.session)
-                base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type)
+                if Settings.learned_conditions:
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'learned_condition'))
+                else:
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'object_condition'))
                 compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
