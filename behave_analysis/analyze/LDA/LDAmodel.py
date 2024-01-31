@@ -311,6 +311,7 @@ def linear_discriminant_analysis(X,Y, discriminant_type = 'linear', plotting = F
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title):
     '''Function to make a bar plot of the prediction accuracy for each angle'''
+    print("start plot")
     fig = go.Figure()
     
     if len(list(filter(lambda x: 'randP' in x, title))) < 10:
@@ -343,7 +344,9 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title):
     fig.update_yaxes(title_text = 'prediction accuracy')
     fig.update_xaxes(tickangle = -45)
     filename = str(self.savepath) + "/" + str(self.cluster_type) + '_' + str(self.condition) + "_LDA_prediction_accuracy" + ".png"
-    fig.write_image(filename)
+    # fig.write_image(filename)
+    fig.write_html(filename.replace('.png','.html'))
+    print("done ")
 
 def PlotLSPredictionAccuracy(self, LS_compiled, title):
     '''Make a violin plot of the prediction accuracy over all linear shifts'''
