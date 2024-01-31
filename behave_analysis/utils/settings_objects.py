@@ -91,6 +91,7 @@ class Settings_visualize:
     stim_type: str = ""
     conditions: list = None
     user_defined_conditions: bool = False
+    learned_conditions: bool = False
 
 
 @dataclass(frozen=True)
