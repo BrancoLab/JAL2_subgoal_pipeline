@@ -155,6 +155,8 @@ class AnalyzeEfizz:
 
         logger.success("All models complete")
 
+        
+
     # Had to comment out because it can't handle the Nans from the rayleigh data
 
     def classify_cells(self):
