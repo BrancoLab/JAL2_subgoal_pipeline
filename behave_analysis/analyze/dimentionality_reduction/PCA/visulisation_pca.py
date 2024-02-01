@@ -26,7 +26,7 @@ def run_pca_kmeans_plot(path_to_save, x, labels):
     logger.success("Completed PCA")
     transformed_data = pca.transform(x)
     kmeans_labels = k_means(transformed_data, path_to_save)
-    plot_pca(transformed_data, labels, pca, kmeans_labels)
+    plot_pca(transformed_data, labels, pca, kmeans_labels, path_to_save)
     # plot_pca_plotly(x, labels, pca, kmeans_labels)
 
 
@@ -39,7 +39,7 @@ def k_means(pca_transformed_data, path_to_save):
     return kmeans.labels_
 
 
-def plot_pca(x, labels, pca_model, kmeans_labels):
+def plot_pca(x, labels, pca_model, kmeans_labels, path_to_save):
     """Plots the PCA transformed data and colors the data points based on the K means labels
 
     Currently not used as the plotly version is more interactive"""
@@ -72,43 +72,31 @@ def plot_pca(x, labels, pca_model, kmeans_labels):
 
     # 2D scatter plot - first and second PCs - top row, second column
     ax1 = fig.add_subplot(gs[0, 1])
-    ax1.scatter(
-        x[:, 0], x[:, 1], c=kmeans_labels, cmap=plt.cm.nipy_spectral, edgecolor="k"
-    )
+    ax1.scatter(x[:, 0], x[:, 1], c=kmeans_labels, cmap=plt.cm.nipy_spectral, edgecolor="k")
     ax1.set_xlabel("PC1")
     ax1.set_ylabel("PC2")
     for i in range(len(x)):
         ax1.text(x[i, 0], x[i, 1], "%s" % (labels[i]), size=8, zorder=1, color="k")
     # add the explained variance for each component in the title of the plot
-    ax1.set_title(
-        f"Explained Variance for PC 1: {pca_model.explained_variance_ratio_[0]:.2f} and PC 2: {pca_model.explained_variance_ratio_[1]:.2f}"
-    )
+    ax1.set_title(f"Explained Variance for PC 1: {pca_model.explained_variance_ratio_[0]:.2f} and PC 2: {pca_model.explained_variance_ratio_[1]:.2f}")
 
     # 2D scatter plot - second and third PCs - bottom row, second column
     ax2 = fig.add_subplot(gs[1, 1])
-    ax2.scatter(
-        x[:, 1], x[:, 2], c=kmeans_labels, cmap=plt.cm.nipy_spectral, edgecolor="k"
-    )
+    ax2.scatter(x[:, 1], x[:, 2], c=kmeans_labels, cmap=plt.cm.nipy_spectral, edgecolor="k")
     ax2.set_xlabel("PC2")
     ax2.set_ylabel("PC3")
     for i in range(len(x)):
         ax2.text(x[i, 1], x[i, 2], "%s" % (labels[i]), size=8, zorder=1, color="k")
-    ax2.set_title(
-        f"Explained Variance for PC 2: {pca_model.explained_variance_ratio_[1]:.2f} and PC 3: {pca_model.explained_variance_ratio_[2]:.2f}"
-    )
+    ax2.set_title(f"Explained Variance for PC 2: {pca_model.explained_variance_ratio_[1]:.2f} and PC 3: {pca_model.explained_variance_ratio_[2]:.2f}")
 
     # 2D scatter plot - third and fourth PCs - bottom row, second column
     ax3 = fig.add_subplot(gs[2, 1])
-    ax3.scatter(
-        x[:, 2], x[:, 3], c=kmeans_labels, cmap=plt.cm.nipy_spectral, edgecolor="k"
-    )
+    ax3.scatter(x[:, 2], x[:, 3], c=kmeans_labels, cmap=plt.cm.nipy_spectral, edgecolor="k")
     ax3.set_xlabel("PC3")
     ax3.set_ylabel("PC4")
     for i in range(len(x)):
         ax3.text(x[i, 2], x[i, 3], "%s" % (labels[i]), size=8, zorder=1, color="k")
-    ax3.set_title(
-        f"Explained Variance for PC 3: {pca_model.explained_variance_ratio_[2]:.2f} and PC 4: {pca_model.explained_variance_ratio_[3]:.2f}"
-    )
+    ax3.set_title(f"Explained Variance for PC 3: {pca_model.explained_variance_ratio_[2]:.2f} and PC 4: {pca_model.explained_variance_ratio_[3]:.2f}")
 
     # Create a colormap normalized by the number of clusters
     n_clusters = len(np.unique(kmeans_labels))
@@ -120,20 +108,15 @@ def plot_pca(x, labels, pca_model, kmeans_labels):
         return cmap(norm(i))
 
     # Create legend patches
-    patches = [
-        mpatches.Patch(color=cluster_color(i), label=f"Cluster {i}")
-        for i in range(n_clusters)
-    ]
+    patches = [mpatches.Patch(color=cluster_color(i), label=f"Cluster {i}") for i in range(n_clusters)]
 
     # Place the legend on the plot
     plt.legend(handles=patches, bbox_to_anchor=(1.05, 1), loc="upper left")
-
-    plt.show()
-
+    fig.savefig(os.path.join(path_to_save, "PCA_Kmeans.png"))
 
 def plot_pca_plotly(x, labels, pca_model, kmeans_labels):
     """Creates an interactive PCA plot in the broswer using plotly
-    
+
     No saving of the plot is currently implemented. Could be buggy
     as first time using plotly"""
     # Create a subplot figure with 2 columns
@@ -241,9 +224,9 @@ def plot_pca_plotly(x, labels, pca_model, kmeans_labels):
 
 def jasimine_plot(self, Kmeans_labels):
     """Heat plot per kmeans cluster for each condition and angle
-    
+
     Not currently called anywhere or saved"""
-    
+
     # Add one for labels
     rows = len(self.conditions) + 1
     columns = len(self.angles) + 1
@@ -251,9 +234,7 @@ def jasimine_plot(self, Kmeans_labels):
     first_key = list(self.condition_data.keys())[0]
     second_key = list(self.condition_data[first_key].keys())[0]
 
-    unique_neurons = np.unique(
-        self.condition_data[first_key][second_key]["clusterID"]
-    )
+    unique_neurons = np.unique(self.condition_data[first_key][second_key]["clusterID"])
 
     ticks = np.linspace(-3.14, 3.14, 3)
     tick_pos = np.linspace(0, 17, 3)
@@ -293,13 +274,7 @@ def jasimine_plot(self, Kmeans_labels):
         global_max = 0
         for condition in self.condition_data.values():
             for angle_data in condition.values():
-                firing_rates = np.array(
-                    angle_data.filter(
-                        pl.col("clusterID").is_in(
-                            (unique_neurons[ids_in_cluster].tolist())
-                        )
-                    )["angle_firing_hist"]
-                )
+                firing_rates = np.array(angle_data.filter(pl.col("clusterID").is_in((unique_neurons[ids_in_cluster].tolist())))["angle_firing_hist"])
                 com1 = np.array([sub_array[:18] for sub_array in firing_rates])
                 com2 = np.array([sub_array[18:] for sub_array in firing_rates])
                 current_max = max(com1.max(), com2.max())
@@ -317,19 +292,11 @@ def jasimine_plot(self, Kmeans_labels):
 
                 outer_grid = plt.subplot(gs[counter])
                 counter = counter + 1
-                inner_grid = gridspec.GridSpecFromSubplotSpec(
-                    2, 1, subplot_spec=outer_grid
-                )
+                inner_grid = gridspec.GridSpecFromSubplotSpec(2, 1, subplot_spec=outer_grid)
                 ax1 = plt.subplot(inner_grid[0])
                 ax2 = plt.subplot(inner_grid[1])
 
-                firing_rates = np.array(
-                    df.filter(
-                        pl.col("clusterID").is_in(
-                            (unique_neurons[ids_in_cluster].tolist())
-                        )
-                    )["angle_firing_hist"]
-                )
+                firing_rates = np.array(df.filter(pl.col("clusterID").is_in((unique_neurons[ids_in_cluster].tolist())))["angle_firing_hist"])
 
                 # Apparently all the firing rate is in one list which is aboslutey mental so need to fix that but here we go
                 # NOTE chance for bugs hard coded 18

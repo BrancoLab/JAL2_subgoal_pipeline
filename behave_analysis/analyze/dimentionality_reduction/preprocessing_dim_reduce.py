@@ -1,5 +1,5 @@
 """
-Preprocess data for PCA analysis. This is a class that vectorises the data used in each subplot
+Preprocess data for PCA and UMAP analysis. This is a class that vectorises the data used in each subplot
 of the polar plots and creates a matrix of shape (neurons, features) that can be used for PCA.
 If other features are to be added to the PCA analysis then they should be added here.
 
@@ -9,6 +9,13 @@ Current features used are:
     - Magnitude of second compartment
     # - Local max firing rate - this one was coded up but removed in the end
     - Delta between conditions in rayleigh magnitude
+    
+TODO = refactor me im dieing of ugly code
+- make into a genral step before PCA and UMAP
+- clean functions
+- add doc strings
+- add type hints
+- add unit tests
 """
 
 import os
@@ -17,6 +24,8 @@ import math
 from loguru import logger
 import numpy as np
 import polars as pl
+from sklearn.preprocessing import StandardScaler
+import matplotlib.pyplot as plt
 
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles
 from behave_analysis.utils.rayleigh.load_rayleigh import load_all_rayleigh_data, collect_all_rayleigh_paths
@@ -25,8 +34,8 @@ from behave_analysis.utils.rayleigh.analysis_rayleigh import angle_similarity
 from settings.settings_analyze_efizz import Settings_ae as settings
 
 
-class PreprocessPca:
-    """Preprocess data for PCA analysis
+class Preprocess_for_DimReduction:
+    """Preprocess data for dimentionality reduction
 
     Creates two main attributes:
     -- x: (np.array) of shape (num_neurons, num_features * num_subplots)
@@ -47,11 +56,12 @@ class PreprocessPca:
         self.angles = angles
         self.session = session
         self.delta_between_conditions = delta_between_conditions
-        self.num_features = 3  # Change this if you add more features
+        self.num_features = 3  # lesve this number its hard coded
         self.conditions = conditions
         self.paths = collect_all_rayleigh_paths(session, cluster_type, self.conditions)
         self.condition_data = load_all_rayleigh_data(self.paths)
         self.remove_nan_clusters()
+        self.plot_histograms_of_max_firing_rates(path_to_save)
         x, labels = self.run_load_create_save(path_to_save)
 
         # Attach main attributes
@@ -115,41 +125,44 @@ class PreprocessPca:
         x = np.empty([num_neurons, self.num_features * num_subplots], dtype=np.float16)
         return x
 
-    def find_global_max_fr(self, clu_id) -> float:
-        """Find the maximum single bin fr for a single neuron
+    def find_local_max_fr_non_normalised(self, n_idx, subplot_data, compartment: str) -> float:
+        """Extract and don't normalise the local max firing rate for a single subplot for a single bin
 
-        Loop through all conditions and angles to find the
-        maximum firing rate for a single neuron.
+        This function finds the maximum firing rate for a single bin and does not normalise it.
+        The arguments focus this function on a single condition for a single neuron.
 
-        Returns:
-            max_fr: (float) Across all conditions and angles for a single neuron
-            what is the maximum firing rate in a single bin.
-        """
-        max_fr = 0
-        for condition, _ in self.condition_data.items():
-            for angle in self.condition_data[condition]:
-                histogram = self.condition_data[condition][angle]["angle_firing_hist"][clu_id]
-                if np.amax(np.asarray(histogram)) > max_fr:
-                    max_fr = np.amax(np.asarray(histogram))
+        Because Jasmine is insane both comaprtments are in a single array and the first 18 bins
+        refer to the first compartment and the last 18 bins refer to the second compartment.
 
-        assert max_fr > 0, "Max firing rate is 0 which is not possible"
-        return max_fr
+        Arguments:
+        -- n_idx: (int) cluster id
+        -- subplot_data: (pl.df) Polars dataframe of a single subplot"""
+        if compartment == "shelter":
+            return subplot_data["angle_firing_hist"][n_idx][0:18].max()
+        if compartment == "threat":
+            return subplot_data["angle_firing_hist"][n_idx][18:-1].max()
 
-    def find_local_max_fr(self, n_idx, max_fr, subplot) -> float:
-        """Extract and normalise the local max firing rate for a single subplot
+    def plot_histograms_of_max_firing_rates(self, path_to_save) -> None:
+        """Plot histograms of max firing rates for each compartment
 
-        Args:
-            n_idx (int): index of neuron position in the table
-            max_fr (float): Global max firing rate for a single neuron across all conditions and angles
-            subplot (pl.df): Polars dataframe of a single subplot
+        Given that the max firing rates will be zscored and then each comaprtment
+        difference will be computed. This function plots the distribution of max firing
+        to ensure the distributions are similar. This is a sanity check.
 
-        Returns:
-            float: (float) normalised local max firing rate for a single subplot
-        """
-        data = subplot["angle_firing_hist"][n_idx]
-        fr = np.amax(np.asarray(data))
-        norm_fr = fr / max_fr
-        return norm_fr
+        Saves the plot to the path_to_save. Returns nothing"""
+        shelter_max_frs = self.loop_through_find_local_max_fr_non_normalised(compartment="shelter")
+        threat_max_frs = self.loop_through_find_local_max_fr_non_normalised(compartment="threat")
+        shelter_all_values = np.array(list(shelter_max_frs.values())).T
+        threat_all_values = np.array(list(threat_max_frs.values())).T
+        plt.hist(shelter_all_values.flatten(), bins=100, alpha=0.5, label="Shelter")
+        plt.hist(threat_all_values.flatten(), bins=100, alpha=0.5, label="Threat")
+        plt.legend()
+        plt.xlabel("Max firing rate (Hz)")
+        plt.ylabel("Count of neurons in a subplot")
+        plt.title("Distribution of max firing rates for each compartment")
+        path = os.path.join(path_to_save, "max_firing_rates_histograms.png")
+        plt.savefig(path)
+        plt.close()
 
     def vectorise_data(self) -> tuple:
         """
@@ -173,9 +186,6 @@ class PreprocessPca:
             iidx = 0  # Index for inserting into X
             labels.append(neuron_id)
 
-            # Extract max firing rate
-            # max_firing_rate = self.find_global_max_fr(n_idx)
-
             for condition, _ in self.condition_data.items():
                 for angle in self.condition_data[condition]:
                     subplot_df = self.condition_data[condition][angle]
@@ -183,17 +193,12 @@ class PreprocessPca:
                     theta = extract_compartment_values(subplot_df, "Rayleigh_theta")[n_idx]
                     score = angle_similarity(theta[0], theta[1])
                     magnitude = extract_compartment_values(subplot_df, "Rayleigh")[n_idx]
-                    # loc_max_fr = self.find_local_max_fr(n_idx, max_firing_rate, subplot_df)
 
                     # Insert into X at correct position
-                    # Insert angle similarity score
-                    x[n_idx, iidx] = score
-                    # Insert magnitude of first compartment
-                    x[n_idx, iidx + 1] = magnitude[0]
-                    # Insert magnitude of second compartment
-                    x[n_idx, iidx + 2] = magnitude[1]
-                    # Insert local max firing rate
-                    # x[n_idx, iidx + 3] = loc_max_fr
+                    x[n_idx, iidx] = score  # Insert angle similarity score
+                    x[n_idx, iidx + 1] = magnitude[0]  # Insert magnitude of first compartment
+                    x[n_idx, iidx + 2] = magnitude[1]  # Insert magnitude of second compartment
+
                     iidx += self.num_features  # Move to next subplot, 3 features per subplot
 
         return x, labels
@@ -234,6 +239,10 @@ class PreprocessPca:
         # Check that the new x matrix is the correct shape
         assert combined_x.shape[1] == len(feautres) + old_feature_num, "The new x matrix is not the correct shape"
 
+        # Now using the delta fr between compartments add that matrix
+        # remove this line if you want to remove the delta fr between compartments
+        # combined_combined_x = np.concatenate((combined_x, self.delta_fr_compartments), axis=1)
+
         return combined_x
 
     def remove_nan_clusters(self):
@@ -264,3 +273,126 @@ class PreprocessPca:
                 df = self.condition_data[condition][angle].to_pandas()
                 df = df.drop(cluster_ids_to_remove)
                 self.condition_data[condition][angle] = pl.from_pandas(df)
+
+    def loop_through_find_local_max_fr_non_normalised(self, compartment) -> dict:
+        """Extract max firing rates for all conditions, all neurons, all angles
+
+        Loops through all conditions, all angles and all neurons and extracts the max firing rate
+        for a single bin. This is not normalised.
+
+        Returns:
+        -- dictionary: (dict) of cluster ids as keys and a list of max firing rates as values
+            where each value is some combination of an angle and a condition
+        """
+
+        # Initalisation
+        _, clu_ids = self.extract_neurons()
+
+        dictionary = {}
+
+        for n_idx, neuron_id in enumerate(clu_ids):
+            list_of_firing_rates = []
+            for condition, _ in self.condition_data.items():
+                for angle in self.condition_data[condition]:
+                    subplot_df = self.condition_data[condition][angle]
+                    max_fr = self.find_local_max_fr_non_normalised(n_idx, subplot_df, compartment)
+                    list_of_firing_rates.append(max_fr)
+            dictionary[neuron_id] = list_of_firing_rates
+
+        assert np.array(list(dictionary.keys())).all() == np.asarray(clu_ids).all(), "The dictionary keys are not the same as the cluster ids"
+
+        return dictionary
+
+    # ________ NOT USED FEATURE FUNCTIONS __________
+    # Added the bellow features but they were not used in end as made worse performance
+    # not sufficient testing so leaving here for now
+
+    def zscore_max_firing_rates(self) -> dict:
+        """For both compartments zscore the max firing rates
+
+        Returns:
+        -- zscored_max_first: (nested dict)
+            keys are compartment names
+                keys are cluster ids
+                    values are zscored max firing rates for each configuration of angle and condition
+        """
+        shelter_max_frs = self.loop_through_find_local_max_fr_non_normalised(compartment="shelter")
+        threat_max_frs = self.loop_through_find_local_max_fr_non_normalised(compartment="threat")
+
+        # Prepare the data for scaling
+        shelter_all_values = np.array(list(shelter_max_frs.values())).T
+        threat_all_values = np.array(list(threat_max_frs.values())).T
+
+        # Apply StandardScaler
+        scaler = StandardScaler()
+        scaled_values_shelter = scaler.fit_transform(shelter_all_values)
+        scaled_values_threat = scaler.fit_transform(threat_all_values)
+
+        # Reassign the transformed data back to the dictionary
+        zscore_shelter_max_frs = {}
+        zscore_threat_max_frs = {}
+        for i, neuron in enumerate(shelter_max_frs.keys()):
+            zscore_shelter_max_frs[neuron] = scaled_values_shelter[:, i].tolist()
+            zscore_threat_max_frs[neuron] = scaled_values_threat[:, i].tolist()
+
+        # create a dictionary of dictionaries
+        zscored_max_frs = {"shelter": zscore_shelter_max_frs, "threat": zscore_threat_max_frs}
+        return zscored_max_frs
+
+    def turn_zscore_fr_into_delta_matrix(self) -> np.array:
+        """Create delta matrix from zscored max firing rates between compartments
+
+        Converts the zscored max firing rates into a matrix to be
+        concatenated with the other features for dimentionality reduction"""
+
+        zscored_max_frs = self.zscore_max_firing_rates()
+
+        # Initalisation
+        num_neurons, clu_ids = self.extract_neurons()
+
+        # Compute delta of zscore between compartment firing rates
+        # key for second shape length is arbitrary as they are the same
+        matrix1 = np.empty([num_neurons, len(zscored_max_frs["shelter"][clu_ids[0]])], dtype=np.float16)
+        matrix2 = np.empty([num_neurons, len(zscored_max_frs["threat"][clu_ids[0]])], dtype=np.float16)
+        for neuron in range(num_neurons):
+            matrix1[neuron] = zscored_max_frs["shelter"][clu_ids[neuron]]
+            matrix2[neuron] = zscored_max_frs["threat"][clu_ids[neuron]]
+        delta_matrix = matrix1 - matrix2
+
+        return delta_matrix
+
+    def find_global_max_fr(self, clu_id) -> float:
+        """Find the maximum single bin fr for a single neuron
+
+        Loop through all conditions and angles to find the
+        maximum firing rate for a single neuron.
+
+        Returns:
+            max_fr: (float) Across all conditions and angles for a single neuron
+            what is the maximum firing rate in a single bin.
+        """
+        max_fr = 0
+        for condition, _ in self.condition_data.items():
+            for angle in self.condition_data[condition]:
+                histogram = self.condition_data[condition][angle]["angle_firing_hist"][clu_id]
+                if np.amax(np.asarray(histogram)) > max_fr:
+                    max_fr = np.amax(np.asarray(histogram))
+
+        assert max_fr > 0, "Max firing rate is 0 which is not possible"
+        return max_fr
+
+    def find_local_max_fr(self, n_idx, max_fr, subplot) -> float:
+        """Extract and normalise the local max firing rate for a single subplot
+
+        Args:
+            n_idx (int): index of neuron position in the table
+            max_fr (float): Global max firing rate for a single neuron across all conditions and angles
+            subplot (pl.df): Polars dataframe of a single subplot
+
+        Returns:
+            float: (float) normalised local max firing rate for a single subplot
+        """
+        data = subplot["angle_firing_hist"][n_idx]
+        fr = np.amax(np.asarray(data))
+        norm_fr = fr / max_fr
+        return norm_fr
