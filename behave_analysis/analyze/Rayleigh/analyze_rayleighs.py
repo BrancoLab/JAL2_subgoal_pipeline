@@ -184,7 +184,7 @@ def plot_rayleigh_deltas(session, cluster_type):
     )
 
     save_rayleigh_deltas_plots(session, cluster_type)
-    # plt.close()
+    plt.close()
     
     return deltas
 

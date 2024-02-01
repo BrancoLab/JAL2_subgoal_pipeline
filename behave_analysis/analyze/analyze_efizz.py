@@ -12,6 +12,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
+
 # from behave_analysis.analyze.LDA.LDAmodel_spacebins import run_LDA_model, across_conditions_LDA_map
 
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
@@ -19,15 +20,13 @@ from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_cluster
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.analyze.classification.head_shelter import classify_hsa
-from behave_analysis.analyze.PCA.preprocessing_pca import PreprocessPca
-from behave_analysis.analyze.PCA.visulisation_pca import run_pca_kmeans_plot
+from behave_analysis.analyze.dimentionality_reduction.preprocessing_dim_reduce import Preprocess_for_DimReduction
+from behave_analysis.analyze.dimentionality_reduction.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.visualize.visualize_utils import open_postprocess_object, open_tracking_data
-from behave_analysis.analyze.regression_decoders.sklearn_decoders.sk_models import rf_model, svr_model, gbr_model, elastic_net_model
-from behave_analysis.analyze.regression_decoders.sklearn_decoders.input import gen_random_pred_array, split_data
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
 from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
-from behave_analysis.visualize.visualize_utils import open_postprocess_object
+from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
 
 
 class AnalyzeEfizz:
@@ -38,7 +37,6 @@ class AnalyzeEfizz:
     """
 
     def __init__(self, session, c_type):
-
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
         self.dir = make_directory(os.path.join(session.base_path, session.processed_path, "models"))
@@ -53,37 +51,34 @@ class AnalyzeEfizz:
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
         ), "Cluster matrix file not found"
         self.frame_by_cluster_matrix = np.load(
-                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
-            )
+            os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
+        )
         self.tracking_data = open_tracking_data(self.session)
+
         # TODO: in postprocess save cluster Ids as separate npy file so you don't have to load in postprocess object
         self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
 
-        logger.info("Loading giant post processing object this will take for ever")
-        # postprocessObject = open_postprocess_object(self.session, self.cluster_type)
-            # self.video_spike_count_df = postprocessObject.video_spike_count_df
-            # self.frame_by_cluster_matrix = postprocessObject.frame_by_cluster_matrix
-        # self.cluster_Ids = postprocessObject.clu_label["spike_clusters"].unique().to_numpy()
-            # self.tracking_data = postprocessObject.tracking_data
-
     def execute_models(self):
         logger.info("Executing models")
-        
-        
+
         # ----------------- Compute Rayleigh, polar plots and delta hists ------------
+
         if Settings.run_rayleigh:
             if not Settings.single_cluster_plots:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
                 all_angles = identify_angles(self.session)
-                base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type)
+                if Settings.learned_conditions:
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'learned_condition'))
+                else:
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'object_condition'))
                 compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
                 
-        self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type) # Analyze rayleigh deltas
-        
-    
+            # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
+            self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
+
         # ------------------------------ Compute TUNED --------------------------------
         if Settings.run_tunED:
             logger.info("Running TunED model")
@@ -137,9 +132,10 @@ class AnalyzeEfizz:
                 logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
                 run_LDA_model(self, Settings, angles)
             across_conditions_LDA_map(self, Settings)
-            logger.success('LDA analysis complete')
+            logger.success("LDA analysis complete")
 
-        # ----------------- Compute Rayleigh and polar plots -------------------------
+
+# ----------------- Compute Rayleigh and polar plots -------------------------
         if Settings.run_rayleigh:
             if not Settings.single_cluster_plots:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
@@ -153,28 +149,33 @@ class AnalyzeEfizz:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
 
-                # ----------------------------- Compute PCA ----------------------------------
-        if Settings.run_pca_model:
-            logger.info("Running PCA model")
-            pca_path = os.path.join(self.dir, "PCA")
+# ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
+        if Settings.run_dim_reduction:
+            path_to_save = os.path.join(self.dir, "dimentionality_reduction")
+            make_directory(path_to_save)
             angles = identify_angles(self.session)
-            make_directory(pca_path)
-            pca = PreprocessPca(
+            Preprocess_DimOBJ = Preprocess_for_DimReduction(
                 session=self.session,
                 cluster_type=self.cluster_type,
                 conditions=self.all_conditions,
-                path_to_save=pca_path,
+                path_to_save=path_to_save,
                 angles=angles,
-                delta_between_conditions = self.mangituide_deltas
+                delta_between_conditions=self.mangituide_deltas,
             )
-            run_pca_kmeans_plot(pca_path, pca.x, pca.labels)
-            logger.success("PCA analysis complete")
+
+            if Settings.run_pca:
+                logger.info("Running PCA model")
+                run_pca_kmeans_plot(path_to_save, Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels)
+                logger.success("PCA analysis complete")
+
+            if Settings.run_umap:
+                angles = identify_angles(self.session)
+                # Run UMAP hen HDBSCAN and return the cluster ids to the neuron ids
+                cluster_ids = run_umap_then_hdbscan(Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels, save_path=path_to_save)
+                #TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
 
         logger.success("All models complete")
 
-    # Had to comment out because it can't handle the Nans from the rayleigh data
-
-        
     def classify_cells(self):
         """A function to call cell type specific classification functions
 
