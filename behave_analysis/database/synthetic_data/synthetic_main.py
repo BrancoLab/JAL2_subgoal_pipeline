@@ -12,6 +12,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 from scipy import interpolate
 from typing import Tuple
+from glob import glob
 
 # Globals
 np.random.seed(42)  # For reproducibility, you can remove this line for true randomnes
@@ -162,8 +163,15 @@ def load_tracking_data():
     return session, tracking
 
 def efizz_stats(session):
-    spikedataframe = session.efizzDataProcessed.alignedDataFrame.filter((session.efizzDataProcessed.alignedDataFrame['cluster_group'] == "good")
-                                                                        | (session.efizzDataProcessed.alignedDataFrame['cluster_group'] == "mua"))
+    csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
+    spike_data = pl.read_csv(csv_path)
+    if len(spike_data.filter(spike_data["spike_clusters"] == 0)) > 0:
+        spike_data = spike_data.with_column(spike_data["spike_clusters"] + 1)
+    spikedataframe = spike_data.filter((spike_data['cluster_group'] == "good")
+                                        | (spike_data['cluster_group'] == "mua"))
+    # spikedataframe = session.efizzDataProcessed.alignedDataFrame.filter((session.efizzDataProcessed.alignedDataFrame['cluster_group'] == "good")
+    #                                                                 | (session.efizzDataProcessed.alignedDataFrame['cluster_group'] == "mua"))
+
     spikecount = spikedataframe.groupby("spike_clusters").count()
     number_of_spikes = spikecount["count"].to_numpy()
     return number_of_spikes
