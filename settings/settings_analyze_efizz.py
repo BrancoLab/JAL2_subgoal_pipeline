@@ -3,46 +3,55 @@
 from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 
 Settings_ae = Settings_analyze_efizz(
-    # General settings
+    # ------------- General settings --------------------------
     stim_type="None",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=False,  # whether to run linear shift!
-    # This does not effect Tuned, this model needs linear shift to work
-    redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
+                        # This does not effect Tuned, this model needs linear shift to work
+    redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=["good"],  # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots=False,
-    # possible condition inputs: 'all_time' (don't filter based on shelter or barrier),
-    #                             'pre_shelter' (empty arena),
-    #                             'shelter_present',
-    #                             'barrier_present'
-    #                             'shelter_only',
-    #                             'barrier_pre_flip',
-    #                             'barrier_post_flip',
+    # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
+    #                                         'pre_shelter' (empty arena),
+    #                                         'shelter_present',
+    #                                         'barrier_present'
+    #                                         'shelter_only',
+    #                                         'barrier_pre_flip',
+    #                                         'barrier_post_flip',
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=False,  # False if you want automatically identified conditions
-    learned_conditions=False,  # if True it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
+    condition_types='behavioral_conditions',  # if 'experimental_conditions' it uses conditions listed above that start with user
+                            # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
+                            # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
+    compartment_split = ['all'], #['threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment'] is the data being split in the two compartments
     number_of_bins=19,  # number of bins for angles
+    
     # ------------- PCA model settings --------------------------
     run_pca_model=False,
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
+   
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
+    
     # ------------- Sklearn model settings -----------------------
     run_sklearn_decoders=False,
+    
     # --------------LSTM model settings ------------------------
     run_LSTM=False,
+    
     # ------------- LDA model settings --------------------------
-    run_LDA='all',  # if [] it will not run LDA
-    # if 'all' it will run it for all possible angles - else provide list of angles
-    # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
+    run_LDA="all",  # if [] it will not run LDA
+                    # if 'all' it will run it for all possible angles - else provide list of angles
+                    # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
     epoch_num=6,  # number of epochs for cross validation
     use_firing_rate=True,
     discriminant_type="linear",  # 'linear' or 'quadratic'
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
+    
     # ------------ Rayleigh model settings ----------------------
-    run_rayleigh=True,
+    run_rayleigh=False,
     rayleigh_significance="linshit",  # can be either linear shift or bootstrap
     single_cluster_plots=True,  # True: Plot every condition in one figure
-    # False: Do not plot every condition in one figure for each cluster
+                                # False: Do not plot every condition in one figure for each cluster
     multi_cluster_plots=False,  # True: Plot every cluster in one figure for one condition
-    # False: Do not plot every cluster in one figure
+                                # False: Do not plot every cluster in one figure
 )
