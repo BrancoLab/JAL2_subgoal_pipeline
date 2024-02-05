@@ -10,7 +10,7 @@ import numpy as np
 # import
 from behave_analysis.analyze.behaviour.spatial_efficiency import identify_condition_escape, base_plotting
 
-def escape_trajectory_and_shelter_exits(tracking_data, video_df, session, settings, save_path):
+def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, session, settings, save_path):
     """
     Plot escape trajectories as well as the path by which the mouse last left the shelter
     """
@@ -18,14 +18,14 @@ def escape_trajectory_and_shelter_exits(tracking_data, video_df, session, settin
     # set up figure and number of rows and calculate number of columns
     plt.figure(figsize=(20, 16))
     plt.subplots_adjust(hspace=0.3)
-    ntrial = len(session.__dict__[settings.stim_type].onset_frames)
+    ntrial = len(session.__dict__[stim_type].onset_frames)
     nrows = 3
     ncols = ntrial // nrows + (ntrial % nrows > 0)
 
     for trial_num, (onset_frames, stimulus_durations) in enumerate(
         zip(
-            session.__dict__[settings.stim_type].onset_frames,
-            session.__dict__[settings.stim_type].stimulus_durations,
+            session.__dict__[stim_type].onset_frames,
+            session.__dict__[stim_type].stimulus_durations,
         )
     ):
         ax = plt.subplot(nrows, ncols, trial_num + 1)
