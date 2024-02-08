@@ -1,22 +1,19 @@
 # OS libaries
 from loguru import logger
 import numpy as np
-import scipy.signal as sp
-import os
 import polars as pl
-import matplotlib.pyplot as plt
 import pickle
 import matplotlib
-
 matplotlib.use("Agg")
-from loguru import logger
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
+import matplotlib.pyplot as plt
 
+from tqdm import tqdm
+from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 
 # import functions
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
-from behave_analysis.analyze.LDA.LDA_plotting import PlotLSPredictionAccuracy, PlotPredictionAccuracy, PredictionAccuracyMapped
+from behave_analysis.analyze.LDA.LDA_plotting import PlotLSPredictionAccuracy, PlotPredictionAccuracy, PredictionAccuracyMapped, across_conditions_LDA_map
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder, plotConfusionMatrix, compute_prediction_accuracy, check_if_we_do_LDA
 from behave_analysis.analyze.LDA.LDA_preprocess import (
     select_relevant_frames,
@@ -44,7 +41,9 @@ def LDA(self, settings):
         # good means the times when mousie is doing correct homies, 
         # bad is when mouse is doing incorrect homies
     elif settings.condition_types == 'homing_number_2':
-        condition_types = ['before_2good_homings','after_2good_homings'] 
+        self.number_of_homings = int(settings.condition_types.replace('homing_number_',''))
+        condition_types = ['before_'+str(self.number_of_homings)+'good_homings',
+                           'after_'+str(self.number_of_homings)+'good_homings'] 
 
     # run LDA across condition types, across compartments and across conditions
     for cond in condition_types: # e.g. 'experimental_conditions', 'behavioral_conditions'
@@ -53,13 +52,14 @@ def LDA(self, settings):
             self.compartment = comp
             for c in self.all_conditions: # e.g. 'all_time', 'pre_shelter', 'shelter_present', 'barrier_present', 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip'
                 self.condition = c
-                logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
                 self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types, self.condition, self.compartment)
                 self.LDA_out, self.LS_out, self.do_LDA, self.do_LS = check_if_we_do_LDA(self, settings)
                 if np.logical_or(self.do_LDA, self.do_LS):
+                    logger.info(f"Run LDA on {self.cluster_type} data with condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}")
                     run_LDA_model(self, settings, angles)
                 else:
-                    logger.info(f"LDA already run on this session for condition: {self.condition}")
+                    logger.info(f"LDA already run on this session for condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}")
+        across_conditions_LDA_map(self, settings)
 
 
 def run_LDA_model(self, settings, angles):
@@ -70,71 +70,90 @@ def run_LDA_model(self, settings, angles):
     title = []
 
     self.filtered_video_df = select_relevant_frames(self)
-    binned_pos = BinDfbyPos(self)
-    for variable in angles:
-        if variable != "randP":
-            logger.info(f"Processing for LDA on {variable}")
-            binned_angles, frames, savename = BinDfbyAngle(self, variable, settings)
-            X = ProcessPredictors(self, frames, settings)
-
-            # run LDA on different angles
-            if self.do_LDA:
+    # if no frames meet the criteria, make this condition blank
+    if len(self.filtered_video_df) == 0:
+        pa = 0
+        LS_out = 0
+        for variable in angles:
+            if variable != "randP":
+                title = np.append(title, variable)
+                if self.do_LDA:
+                    prediction_accuracy.update({variable: pa})
+                if self.do_LS:
+                    LS_compiled.update({variable: LS_out})
+            else:
+                for j in np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width):
+                    title = np.append(title, str("randP" + str(j)))
+                    var = str(variable + str(j))
+                    if self.do_LDA:
+                        prediction_accuracy.update({var: pa})
+                    if self.do_LS:
+                        LS_compiled.update({var: LS_out})
+                    
+    else:
+        binned_pos = BinDfbyPos(self)
+        for variable in angles:
+            if variable != "randP":
                 logger.info(f"Running LDA on {variable}")
-                pa = linear_discriminant_analysis(
-                    X,
-                    Y=binned_angles.T,
-                    binned_pos=binned_pos,
-                    discriminant_type=settings.discriminant_type,
-                    plotting=True,
-                    settings=settings,
-                    self=self,
-                    title=savename,
-                )
-                prediction_accuracy.update({variable: pa})
-
-            # run linear shift on different angles
-            if self.do_LS:
-                logger.info(f"Running linear shift on LDA on {variable}")
-                LS_output = LinearShift(
-                    X, y=binned_angles.T, stat_computation_func=linear_discriminant_analysis, size_of_central_chunk=np.round(np.shape(X)[0] / 3)
-                )
-                LS_compiled.update({variable: LS_output})
-                del LS_output
-            title = np.append(title, variable)
-        
-        else:
-            for j in np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width):
-                logger.info(f"Processing for LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
-                binned_angles, frames, savename = BinDfbyAngle(self, str("head_randP_" + str(j)), settings)
+                binned_angles, frames, savename = BinDfbyAngle(self, variable, settings)
                 X = ProcessPredictors(self, frames, settings)
-                
+
                 # run LDA on different angles
                 if self.do_LDA:
-                    logger.info(f"Running LDA on {variable + str(j)} of {self.video_df.select(pl.col('^head_randP_.*$')).width}")
                     pa = linear_discriminant_analysis(
                         X,
                         Y=binned_angles.T,
                         binned_pos=binned_pos,
                         discriminant_type=settings.discriminant_type,
-                        plotting=False,
+                        plotting=True,
                         settings=settings,
                         self=self,
                         title=savename,
                     )
-                    prediction_accuracy.update({str(variable + str(j)): pa})
+                    prediction_accuracy.update({variable: pa})
 
                 # run linear shift on different angles
                 if self.do_LS:
-                    logger.info(f"Running linear shift on LDA on {variable + str(j)}")
+                    logger.info(f"Running linear shift on LDA on {variable}")
                     LS_output = LinearShift(
-                        X,
-                        y=binned_angles.T,
-                        stat_computation_func=linear_discriminant_analysis,
-                        size_of_central_chunk=np.round(np.shape(X)[0] / 3),
+                        X, y=binned_angles.T, stat_computation_func=linear_discriminant_analysis, size_of_central_chunk=np.round(np.shape(X)[0] / 3)
                     )
-                    LS_compiled.update({str(variable + str(j)): LS_output})
+                    LS_compiled.update({variable: LS_output})
                     del LS_output
-                title = np.append(title, str("randP" + str(j)))
+                title = np.append(title, variable)
+            
+            else:
+                n_randP =  self.video_df.select(pl.col('^head_randP_.*$')).width
+                for j in tqdm(np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width),
+                              desc = f'Running LDA on random point out of  {n_randP}'):
+                    binned_angles, frames, savename = BinDfbyAngle(self, str("head_randP_" + str(j)), settings)
+                    X = ProcessPredictors(self, frames, settings)
+                    
+                    # run LDA on different angles
+                    if self.do_LDA:
+                        pa = linear_discriminant_analysis(
+                            X,
+                            Y=binned_angles.T,
+                            binned_pos=binned_pos,
+                            discriminant_type=settings.discriminant_type,
+                            plotting=False,
+                            settings=settings,
+                            self=self,
+                            title=savename,
+                        )
+                        prediction_accuracy.update({str(variable + str(j)): pa})
+
+                    # run linear shift on different angles
+                    if self.do_LS:
+                        LS_output = LinearShift(
+                            X,
+                            y=binned_angles.T,
+                            stat_computation_func=linear_discriminant_analysis,
+                            size_of_central_chunk=np.round(np.shape(X)[0] / 3),
+                        )
+                        LS_compiled.update({str(variable + str(j)): LS_output})
+                        del LS_output
+                    title = np.append(title, str("randP" + str(j)))
 
     # make a plot of prediction accuracy across variables
     if self.do_LDA:
@@ -170,105 +189,109 @@ def linear_discriminant_analysis(
 
     # initialize variables
     n_bins = len(np.unique(Y))
-    epoch_num = 6
+    epoch_num = settings.epoch_num
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
 
     # chunk into epochs
     X, Y, epochs = binDfbyEpoch(X, Y, binned_pos, epoch_num)
     X = X[:, 1:]  # the first column is frame id and you no longer need it
+    _, counts = np.unique(epochs, return_counts=True)
+    if np.logical_or(np.amin(counts) < self.session.video.fps,
+                    len(np.unique(epochs)<2)):
+        prediction_accuracy = 0
+    else:
+        # LDA
+        for counter, i in enumerate(np.unique(epochs).astype(int)):
+            test_idx = epochs == (i)
+            train_idx = epochs != (i)
 
-    # LDA
-    for counter, i in enumerate(np.unique(epochs).astype(int)):
-        test_idx = epochs == (i)
-        train_idx = epochs != (i)
+            # figure set up
+            if plotting:
+                plt.figure(figsize=(20, 16))
+                plt.subplots_adjust(hspace=0.3)
 
-        # figure set up
+            # make train matrix of frames x clusters
+            X1 = X[train_idx, :]
+
+            # make test matrix of frames x clusters
+            X2 = X[test_idx, :]
+
+            # train model
+            y = Y[train_idx]
+            if discriminant_type == "linear":
+                clf = LinearDiscriminantAnalysis()
+            elif discriminant_type == "quadratic":
+                clf = QuadraticDiscriminantAnalysis()
+            clf.fit(X1, y)
+
+            # plot confusion matrix of prediction on training data
+            conf_matrix_all_train[:, :, counter] = plotConfusionMatrix(y, clf.predict(X1), "training data", plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
+
+            if plotting:
+                # plot histogram of frames per angle bin
+                ax = plt.subplot2grid(shape=(4, 2), loc=(3, 0))
+                ax.hist(clf.predict(X1), np.arange(1, n_bins + 2))
+                ax.hist(y, np.arange(1, n_bins + 2))
+                ax.set_title("training data")
+
+                # look at data side-by-side
+                ax = plt.subplot2grid(shape=(4, 2), loc=(0, 0), colspan=2)
+                ax.plot(clf.predict(X1))
+                ax.plot(y)
+                ax.legend(["prediction", "real"])
+                ax.set_title("training data")
+                ax.set_ylabel("binned angles")
+                ax.set_xlabel("time")
+
+            # plot confusion matrix of prediction on test data
+            y = Y[test_idx]
+            conf_matrix_all_test[:, :, counter] = plotConfusionMatrix(y, clf.predict(X2), "test data", plt.subplot2grid(shape=(4, 2), loc=(2, 1)))
+
+            if plotting:
+                # plot histogram of frames per angle bin
+                ax = plt.subplot2grid(shape=(4, 2), loc=(3, 1))
+                ax.hist(clf.predict(X2), np.arange(1, n_bins + 2))
+                ax.hist(y, np.arange(1, n_bins + 2))
+                ax.set_title("test data")
+
+                # look at data side-by-side
+                ax = plt.subplot2grid(shape=(4, 2), loc=(1, 0), colspan=2)
+                ax.plot(clf.predict(X2))
+                ax.plot(y)
+                ax.legend(["prediction", "real"])
+                ax.set_title("test data")
+                ax.set_ylabel("binned angles")
+                ax.set_xlabel("time")
+
+                filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i) + ".png"
+                plt.savefig(filename)
+                if self.show_plots:
+                    plt.show()
+                plt.close()
+
         if plotting:
+            # plot average confusion matrix
             plt.figure(figsize=(20, 16))
             plt.subplots_adjust(hspace=0.3)
+            ax = plt.subplot(1, 2, 1)
+            ax.imshow(np.mean(conf_matrix_all_train, axis=2), cmap="Blues", vmin=0, vmax=1)
+            ax.set_ylabel("real")
+            ax.set_xlabel("predicted")
+            ax.set_title("train")
 
-        # make train matrix of frames x clusters
-        X1 = X[train_idx, :]
+            ax = plt.subplot(1, 2, 2)
+            ax.imshow(np.mean(conf_matrix_all_test, axis=2), cmap="Blues", vmin=0, vmax=1)
+            ax.set_ylabel("real")
+            ax.set_xlabel("predicted")
+            ax.set_title("test")
 
-        # make test matrix of frames x clusters
-        X2 = X[test_idx, :]
-
-        # train model
-        y = Y[train_idx]
-        if discriminant_type == "linear":
-            clf = LinearDiscriminantAnalysis()
-        elif discriminant_type == "quadratic":
-            clf = QuadraticDiscriminantAnalysis()
-        clf.fit(X1, y)
-
-        # plot confusion matrix of prediction on training data
-        conf_matrix_all_train[:, :, counter] = plotConfusionMatrix(y, clf.predict(X1), "training data", plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
-
-        if plotting:
-            # plot histogram of frames per angle bin
-            ax = plt.subplot2grid(shape=(4, 2), loc=(3, 0))
-            ax.hist(clf.predict(X1), np.arange(1, n_bins + 2))
-            ax.hist(y, np.arange(1, n_bins + 2))
-            ax.set_title("training data")
-
-            # look at data side-by-side
-            ax = plt.subplot2grid(shape=(4, 2), loc=(0, 0), colspan=2)
-            ax.plot(clf.predict(X1))
-            ax.plot(y)
-            ax.legend(["prediction", "real"])
-            ax.set_title("training data")
-            ax.set_ylabel("binned angles")
-            ax.set_xlabel("time")
-
-        # plot confusion matrix of prediction on test data
-        y = Y[test_idx]
-        conf_matrix_all_test[:, :, counter] = plotConfusionMatrix(y, clf.predict(X2), "test data", plt.subplot2grid(shape=(4, 2), loc=(2, 1)))
-
-        if plotting:
-            # plot histogram of frames per angle bin
-            ax = plt.subplot2grid(shape=(4, 2), loc=(3, 1))
-            ax.hist(clf.predict(X2), np.arange(1, n_bins + 2))
-            ax.hist(y, np.arange(1, n_bins + 2))
-            ax.set_title("test data")
-
-            # look at data side-by-side
-            ax = plt.subplot2grid(shape=(4, 2), loc=(1, 0), colspan=2)
-            ax.plot(clf.predict(X2))
-            ax.plot(y)
-            ax.legend(["prediction", "real"])
-            ax.set_title("test data")
-            ax.set_ylabel("binned angles")
-            ax.set_xlabel("time")
-
-            filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i) + ".png"
+            filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
             plt.savefig(filename)
             if self.show_plots:
                 plt.show()
             plt.close()
 
-    if plotting:
-        # plot average confusion matrix
-        plt.figure(figsize=(20, 16))
-        plt.subplots_adjust(hspace=0.3)
-        ax = plt.subplot(1, 2, 1)
-        ax.imshow(np.mean(conf_matrix_all_train, axis=2), cmap="Blues", vmin=0, vmax=1)
-        ax.set_ylabel("real")
-        ax.set_xlabel("predicted")
-        ax.set_title("train")
-
-        ax = plt.subplot(1, 2, 2)
-        ax.imshow(np.mean(conf_matrix_all_test, axis=2), cmap="Blues", vmin=0, vmax=1)
-        ax.set_ylabel("real")
-        ax.set_xlabel("predicted")
-        ax.set_title("test")
-
-        filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
-        plt.savefig(filename)
-        if self.show_plots:
-            plt.show()
-        plt.close()
-
-    prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))
+        prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))
 
     return prediction_accuracy

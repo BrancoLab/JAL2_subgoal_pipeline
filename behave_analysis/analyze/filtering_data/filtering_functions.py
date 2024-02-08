@@ -89,7 +89,7 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
     # plt.scatter(homings.onset_frames[homies_in_condition],homings.homing_angles_dic['avg_hdir_bar_goal2'][homies_in_condition],c='g')
     return filtered_video_df
 
-def filter_video_df_homing_number(dataframe, condition, session, good_homie):
+def filter_video_df_homing_number(dataframe, condition, session, good_homie, number_of_homings):
     """
     A function that filters the video dataframe (the behavioural data) based on mousie's homing behaviour
     """
@@ -115,14 +115,16 @@ def filter_video_df_homing_number(dataframe, condition, session, good_homie):
         target_of_homing = target_of_homing == angle_keys.index('avg_hdir_bar_goal2')
     
     good_homies = np.where(target_of_homing)[0]
-    number_of_homings = 2
-    good_behavior_threshold = homings.onset_frames[good_homies[number_of_homings]] # the frame of the nth good homing
-    
+    if len(good_homies) > number_of_homings:
+        good_behavior_threshold = homings.onset_frames[good_homies[number_of_homings-1]] # the frame of the nth good homing
+    else:
+        good_behavior_threshold = dataframe['frames'].to_numpy()[-1]
+  
     if good_homie:
         filtered_video_df = dataframe.filter((dataframe["EscapePeriod"] == False) & (dataframe['frames'] > good_behavior_threshold))
     else:
         filtered_video_df = dataframe.filter((dataframe["EscapePeriod"] == False) & (dataframe['frames'] < good_behavior_threshold))
-
+        
     return filtered_video_df
 
 def identify_conditions(session) -> list:

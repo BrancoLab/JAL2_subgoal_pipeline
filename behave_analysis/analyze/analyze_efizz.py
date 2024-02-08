@@ -11,9 +11,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 
 # from behave_analysis.analyze.decoders.pytorch.lstm_main import main
 from behave_analysis.analyze.TunED.model import TunEdModel
-from behave_analysis.analyze.LDA.LDAmodel import LDA
-from behave_analysis.analyze.LDA.LDA_plotting import across_conditions_LDA_map
-# from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
+from behave_analysis.analyze.LDA.LDAmodel import LDA# from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
@@ -121,7 +119,6 @@ class AnalyzeEfizz:
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:
             LDA(self, Settings)
-            across_conditions_LDA_map(self, Settings)
             logger.success('LDA analysis complete')
 
         # ----------------- Compute Rayleigh and polar plots -------------------------

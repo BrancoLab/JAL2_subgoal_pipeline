@@ -111,8 +111,12 @@ def across_conditions_LDA_map(self, settings):
             with open(LDA_out, "rb") as dill_file:
                 prediction_accuracy = pickle.load(dill_file)
             pa.append([val for key, val in prediction_accuracy.items() if re.search("randP", key)])
-
-    vmin = np.amin(pa)
+    
+    pa = np.array(pa)
+    if len(pa[pa>0]) > 0:
+        vmin = np.amin(pa[pa>0])
+    else:
+        vmin = 0
     vmax = np.amax(pa)
 
     # figure set-up
@@ -125,12 +129,20 @@ def across_conditions_LDA_map(self, settings):
 
     # Add subtitles for each condition in first column
     for c_counter, c in enumerate(settings.compartment_split):
-        axs[c_counter,0].text(0, 0.5, c, rotation="horizontal", va="center", ha="center", fontsize=23)
-        axs[c_counter,0].set_axis_off()
+        if len(settings.compartment_split) > 1:
+            ax_idx = tuple([c_counter,0])
+        else:
+            ax_idx = 0
+        axs[ax_idx].text(0, 0.5, c, rotation="horizontal", va="center", ha="center", fontsize=23)
+        axs[ax_idx].set_axis_off()
 
     data_counter = 0
     for c_idx, comp in enumerate(settings.compartment_split):
         for idx, condition in enumerate(self.all_conditions):
+            if len(settings.compartment_split) > 1:
+                ax_idx = tuple([c_idx, idx + 1])
+            else:
+                ax_idx = idx + 1
             # build heatmap
             ybins, y = np.unique(self.tracking_data["randP_loc"][:, 0], return_inverse=True)
             xbins, x = np.unique(self.tracking_data["randP_loc"][:, 1], return_inverse=True)
@@ -139,28 +151,28 @@ def across_conditions_LDA_map(self, settings):
             data_counter = data_counter + 1
 
             # Plotting logic for the heatmap
-            axs[c_idx, idx + 1] = sns.heatmap(
+            axs[ax_idx] = sns.heatmap(
                 heatmap,
                 cmap="coolwarm",
                 cbar_ax=cbar_ax,
                 robust=True,
-                ax=axs[c_idx, idx + 1],
+                ax=axs[ax_idx],
                 mask=(heatmap == 0),
                 cbar_kws={"label": "Prediction accuracy"},
                 norm=plt.Normalize(vmin=vmin, vmax=vmax),
             )
 
-            add_features(axs[c_idx, idx + 1], condition, self.tracking_data, xbins, ybins)
+            add_features(axs[ax_idx], condition, self.tracking_data, xbins, ybins)
 
             # Remove x and y tick labels and ticks
-            axs[c_idx, idx + 1].set_xticklabels([])
-            axs[c_idx, idx + 1].set_yticklabels([])
-            axs[c_idx, idx + 1].xaxis.set_ticks_position("none")
-            axs[c_idx, idx + 1].yaxis.set_ticks_position("none")
-            axs[c_idx, idx + 1].set_title(condition, fontsize=20)
+            axs[ax_idx].set_xticklabels([])
+            axs[ax_idx].set_yticklabels([])
+            axs[ax_idx].xaxis.set_ticks_position("none")
+            axs[ax_idx].yaxis.set_ticks_position("none")
+            axs[ax_idx].set_title(condition, fontsize=20)
             # The legend is the last axis so this is a hack to change the font size of the legend
-            axs[c_idx, idx + 1].figure.axes[-1].yaxis.label.set_size(16)
-            axs[c_idx, idx + 1].set_aspect("equal")
+            axs[ax_idx].figure.axes[-1].yaxis.label.set_size(16)
+            axs[ax_idx].set_aspect("equal")
 
     # Save and close the figure
     plt.subplots_adjust(wspace=0.05, hspace=0)

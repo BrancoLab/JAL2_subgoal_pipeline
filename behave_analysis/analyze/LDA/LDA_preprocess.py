@@ -27,10 +27,10 @@ def select_relevant_frames(self):
             filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, self.condition, self.session, good_homie=True)
         elif self.condition_types == "bad_behavioral_conditions":
             filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, self.condition, self.session, good_homie=False)
-        elif self.condition_types == "after_2good_homings":
-            filtered_video_df = filter_video_df_homing_number(filtered_video_df, self.condition, self.session, good_homie=True)
-        elif self.condition_types == "before_2good_homings":
-            filtered_video_df = filter_video_df_homing_number(filtered_video_df, self.condition, self.session, good_homie=False)
+        elif self.condition_types == 'after_'+str(self.number_of_homings)+'good_homings':
+            filtered_video_df = filter_video_df_homing_number(filtered_video_df, self.condition, self.session, good_homie=True, number_of_homings = self.number_of_homings)
+        elif self.condition_types == 'before_'+str(self.number_of_homings)+'good_homings':
+            filtered_video_df = filter_video_df_homing_number(filtered_video_df, self.condition, self.session, good_homie=False, number_of_homings = self.number_of_homings)
 
     # subselect relevant frames based on compartment
     if self.compartment == "threat_zone":
