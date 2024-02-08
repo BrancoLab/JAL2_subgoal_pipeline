@@ -82,10 +82,10 @@ class Visualize_behave:
         CoverageStatistics(video_data_frame=self.video_df, settings=settings_v, behave_path=self.behave_path)
 
     ##--------PLOT TRAJECTORIES OF ESCAPE
-    def escape_plotting(self):
+    def escape_plotting(self, stim_type):
         logger.info("Making plots of mouse escape trajectories")
         escape_trajectory_and_shelter_exits(
-            tracking_data=self.tracking_data, video_df=self.video_df, session=self.session, settings=settings_v, save_path=self.behave_path
+            tracking_data=self.tracking_data, video_df=self.video_df, stim_type = stim_type, session=self.session, settings=settings_v, save_path=self.behave_path
         )
 
     ##--------MAKE MOVIS OF ESCAPE WITH DLC TRACKING
