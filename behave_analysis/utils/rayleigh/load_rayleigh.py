@@ -2,6 +2,8 @@ import os
 
 import polars as pl
 
+from settings.settings_analyze_efizz import Settings_ae as settings
+
 # -------------------------- Extract paths to feed into the loading functions --------------------------
 
 
@@ -19,12 +21,20 @@ def extract_rayleigh_path(
     session: object, cluster_type: str, condition: str, file_name: str
 ) -> str:
     """Extract paths to one arrow file for a condition"""
+    
+    if settings.learned_conditions:
+        con_dir = 'learned_condition'
+    else:
+        con_dir = 'object_condition'
+    
+    
     path = os.path.join(
         session.base_path,
         session.processed_path,
         "models",
         "Rayleigh",
         cluster_type,
+        con_dir,
         condition,
         file_name,
     )
@@ -72,7 +82,15 @@ def collect_all_rayleigh_paths(session, cluster_type, conditions) -> dict:
     e.g {'all_time': ['E:\\efizz\\JAL004\\004_...eigh.arrow', 'E:\\efizz\\JAL004\\004_...eigh.arrow', ...],}
 
     TODO: Move to utils
+    
+    
     """
+    if settings.learned_conditions:
+        con_dir = 'learned_condition'
+    else:
+        con_dir = 'object_condition'
+    
+    
     paths = {}
     for condition in conditions:
         # Get path to each condition
@@ -82,6 +100,7 @@ def collect_all_rayleigh_paths(session, cluster_type, conditions) -> dict:
             "models",
             "Rayleigh",
             cluster_type,
+            con_dir,
             condition,
         )
 
