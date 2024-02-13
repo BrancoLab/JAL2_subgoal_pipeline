@@ -13,7 +13,7 @@ from behave_analysis.utils.settings_objects import Settings_visualize
 
 defined_settings_visualize = Settings_visualize(
     # Trials to visualize -----------------
-    homing_trials=False,  # True if you want to visualize homing trials
+    homing_trials=True,  # True if you want to visualize homing trials
     escape_trials=False,  # True if you want to visualize escape trials and there were stimulus escape trials
     # -------------------------------------
     stim_type="None",  # "audio" leave as 'None' if no stims were delivered
@@ -44,5 +44,5 @@ defined_settings_visualize = Settings_visualize(
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],  # JAL3-5
     # conditions=["all_time", "shelter_only", "barrier_present"], # JAL1-2
     user_defined_conditions=False,  # False if you want automatically identified conditions
-    learned_conditions = False, # homing based
+    # learned_conditions = False, # homing based
 )

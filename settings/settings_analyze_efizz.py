@@ -7,7 +7,7 @@ Settings_ae = Settings_analyze_efizz(
     stim_type="None",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=False,  # whether to run linear shift!
                         # This does not effect Tuned, this model needs linear shift to work
-    redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
+    redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=["good"],  # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots=False,
     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
@@ -18,12 +18,12 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
-    user_defined_conditions=False,  # False if you want automatically identified conditions
-    condition_types='behavioral_conditions',  # if 'experimental_conditions' it uses conditions listed above that start with user
+    user_defined_conditions=True,  # False if you want automatically identified conditions
+    condition_types='homing_number_3',  # if 'experimental_conditions' it uses conditions listed above that start with user
                             # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
                             # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
     compartment_split = ['all'], #['threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment'] is the data being split in the two compartments
-    number_of_bins=19,  # number of bins for angles
+    number_of_bins=13,  # number of bins for angles
     
     # ------------- PCA model settings --------------------------
     run_pca_model=False,
