@@ -91,8 +91,8 @@ def binDfbyEpoch(matrix, matriy, binned_pos, epoch_num):
     epochs = np.empty_like(matriy)
     bins = np.unique(unique_pos_ang)
     for i in bins:
-        x_filt = matrix[unique_pos_ang == i, :]
-        binned_frames = data_chunker(np.shape(x_filt)[0], epoch_num)
+        y_filt = matriy[unique_pos_ang == i]
+        binned_frames = data_chunker(np.shape(y_filt)[0], epoch_num)
         epochs[unique_pos_ang == i] = binned_frames
 
     epochs = epochs[np.argsort(matrix[:, 0])]

@@ -40,7 +40,7 @@ def LDA(self, settings):
         condition_types = ['good_behavioral_conditions','bad_behavioral_conditions'] 
         # good means the times when mousie is doing correct homies, 
         # bad is when mouse is doing incorrect homies
-    elif settings.condition_types == 'homing_number_2':
+    elif 'homing_number' in settings.condition_types:
         self.number_of_homings = int(settings.condition_types.replace('homing_number_',''))
         condition_types = ['before_'+str(self.number_of_homings)+'good_homings',
                            'after_'+str(self.number_of_homings)+'good_homings'] 
@@ -198,7 +198,7 @@ def linear_discriminant_analysis(
     X = X[:, 1:]  # the first column is frame id and you no longer need it
     _, counts = np.unique(epochs, return_counts=True)
     if np.logical_or(np.amin(counts) < self.session.video.fps,
-                    len(np.unique(epochs)<2)):
+                    len(np.unique(epochs))<2):
         prediction_accuracy = 0
     else:
         # LDA

@@ -91,9 +91,15 @@ def EqualBins_matrix(x, y, unique_fr):
 
 
 def data_chunker(frame_num, epoch_num):
-    rows = np.arange(frame_num)
-    epoch_edge = np.round(np.linspace(np.amin(rows) - 1, np.amax(rows) + 1, epoch_num + 1))
-    binned_frames = np.digitize(rows, epoch_edge)
+    
+    min_length = frame_num // epoch_num
+    num_longer_bins = frame_num % epoch_num
+    rng = np.random.default_rng()
+    binned_frames = np.hstack((np.repeat(np.arange(epoch_num),min_length),
+                               rng.integers(epoch_num, size=num_longer_bins)))
+    # rows = np.arange(frame_num)
+    # epoch_edge = np.round(np.linspace(np.amin(rows) - 1, np.amax(rows) + 1, epoch_num + 1))
+    # binned_frames = np.digitize(rows, epoch_edge)
     return binned_frames
 
 
