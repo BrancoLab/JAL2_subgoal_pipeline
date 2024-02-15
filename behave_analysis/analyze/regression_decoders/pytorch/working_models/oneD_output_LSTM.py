@@ -1,13 +1,41 @@
 """
+This module contains a PyTorch implementation of an LSTM model for regression tasks, 
+specifically designed to handle sequences of data for predicting a single output dimension. 
+The LSTM model architecture is defined, along with functions for training the model on a given dataset and 
+reshaping input data to fit the sequential nature of the model.
 
-Performance estimations:
-- 5 minutes to train 60k samples on 1d output LSTM with sequence length of 5 and 100 hidden units lr = 0.005
-- So for 150 points this should take 12.5 hours
+Performance estimations indicate that training on 60k samples with a sequence length of 5 and 100 hidden units 
+at a learning rate of 0.005 takes approximately 5 minutes.
 
-#TODO
--- Replace with eigensum for dimension changes
--- Figure out speed of training
+TODO:
+- Replace operations with eigensum for more efficient dimension changes.
 
+Modules and Libraries:
+- numpy: Used for handling arrays and mathematical operations.
+- torch: The main PyTorch library for deep learning model definition, training, and inference.
+- torch.nn: Module for defining layers and models in PyTorch.
+- torch.optim: Provides optimization algorithms for training.
+- torch.cuda.amp: Utilities for mixed-precision training.
+- sklearn.metrics: For calculating the R^2 score to evaluate model performance.
+- sklearn.model_selection: For splitting the dataset into training and testing sets.
+- matplotlib.pyplot: For plotting training and testing losses, and comparing predicted values with actual values.
+- loguru: For logging information and debugging.
+
+Classes and Functions:
+- LSTMModel: A class that defines the LSTM model architecture.
+- run_LSTM: A function that trains the LSTM model on input data X and Y, plots the learning curve, and evaluates the model performance on both training and testing sets.
+- reshape_sequences_1d: A utility function for reshaping input data into sequences suitable for training the LSTM model, ensuring that the number of 
+predictions matches the input size without data leakage.
+
+Usage:
+This module is intended for use in regression tasks where the data is sequential, and the goal is to predict a 
+single output dimension based on a series of input features. It is particularly useful for time-series analysis or any 
+scenario where the relationship between sequential inputs and a target variable needs to be modeled. It expects the X data to be in the shape 
+(num_samples, num_features) and the Y data to be in the shape (num_samples, ).
+
+Example Usage Problem: Decode head direction from neural data
+For neural decoding, typically we work with behavioural data and neural data. And thus each sample can be a spike count of a given neuron in a given video frame.
+Where a feature, for example, refers to the cluster index of a neuron and the target Y is the angle of the animal's head at that frame. 
 """
 
 import numpy as np
@@ -20,9 +48,31 @@ from sklearn.model_selection import train_test_split
 import matplotlib.pyplot as plt
 from loguru import logger
 
-
+# -------------------------- LSTM Model Architecture --------------------------
 class LSTMModel(nn.Module):
-    """An RNN model for regression with a single output dimenion"""
+    """
+    Defines an LSTM model architecture for regression tasks with a single output dimension.
+
+    This model is designed to process sequential data and predict a single output dimension. It uses an LSTM layer followed by a linear 
+    layer to map the hidden states to the output.
+
+    Attributes:
+    - input_dim (int): The number of features in the input data.
+    - hidden_dim (int): The number of features in the hidden state of the LSTM.
+    - num_layers (int): The number of stacked LSTM layers.
+    - device (str): The device ('cuda' or 'cpu') the model is running on.
+
+    Methods:
+    - forward(x): Defines the forward pass of the model.
+
+    Args:
+    - input_dim (int): Dimensionality of the input features.
+    - hidden_dim (int): Number of hidden units in the LSTM layer.
+    - num_layers (int): Number of LSTM layers stacked together.
+
+    Returns:
+    - The LSTMModel instance.
+    """
 
     def __init__(self, input_dim, hidden_dim, num_layers):
         super(LSTMModel, self).__init__()
@@ -62,27 +112,37 @@ class LSTMModel(nn.Module):
         out = torch.tanh(out) * 3.14  # scale the output to be between -pi and pi
         return out
 
+# -------------------------- Use the MODEL --------- --------------------------
 
 def run_LSTM(X, Y):
-    """Run a LSTM modelf for regression with a single output.
+    """
+    Runs the LSTM model for regression on the provided dataset, plots the learning curve, and evaluates the model's performance.
+
+    This function preprocesses the input data, initializes the LSTM model, trains the model on the training dataset, and evaluates 
+    its performance on both the training and testing datasets. The function plots the learning curve and predictions versus actual values for both sets.
 
     Args:
-    - X (numpy.ndarray): Input features with shape (num_samples, num_features).
-    - Y (numpy.ndarray): Corresponding labels with shape (num_samples, )."""
+    - X (numpy.ndarray): Input features with shape (num_samples, num_features), where num_samples is the number of samples and num_features is the number of features.
+    - Y (numpy.ndarray): Corresponding labels with shape (num_samples,), where each entry is the target value for the corresponding sample in X.
+
+    Returns:
+    - None. The function directly prints the loss at specified intervals and plots the learning curve and prediction performance.
+    """
 
     # Select GPU if available
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Parameters ---------------------------------------------------
     test_size = 0.2
-    num_layers = 1
+    num_layers = 1 # Increasing also gives better results but is slower
     input_dim = X.shape[1]
     epoch_saves = 50 # Save and print the loss every 50 epochs
 
     # Hyperparameters ----------------------------------------------
-    hidden_dim = 100  # Number of LSTM cells
-    num_epochs = 250 # Number of iterations to train the model
-    sequence_length = 5  # Number of time steps to consider for each prediction
+    hidden_dim = 100  # Number of LSTM cells - 100 worrks but 256 is better though much slower
+    num_epochs = 250 # Number of iterations to train the model - increasing this gives better results but is slower
+    sequence_length = 5  # Number of time steps to consider for each prediction - increasing this gives better results but is slower
+    # and because not mini-batching you will get an error if model becomes to big
 
     # Preprocess the data -------------------------------------------
     X_train_torch, X_test_torch, Y_train_torch, Y_test_torch = reshape_sequences_1d(X, Y, seq_length=sequence_length, test_size=test_size)
@@ -90,7 +150,7 @@ def run_LSTM(X, Y):
     # Create the LSTM model
     model = LSTMModel(input_dim, hidden_dim, num_layers).to(device)
     loss_fn = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.005) 
+    optimizer = optim.Adam(model.parameters(), lr=0.001) 
 
     # Init --------------------------------------------------------
     train_losses = []
@@ -164,9 +224,7 @@ def run_LSTM(X, Y):
     plt.tight_layout()
     plt.show()
 
-
-# -------------------------- LSTM Helper Functions --------------------------
-
+# -------------------------- Shape the input Data --------------------------
 
 def reshape_sequences_1d(X, Y, seq_length, test_size=0.2, random_state=42, device="cuda"):
     """

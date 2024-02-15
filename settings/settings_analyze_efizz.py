@@ -22,16 +22,16 @@ Settings_ae = Settings_analyze_efizz(
     learned_conditions=False,  # if True it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
     number_of_bins=19,  # number of bins for angles
     # ------------- PCA model settings --------------------------
-    run_dim_reduction=True,
-    run_pca=True,
-    run_umap=True,
+    run_dim_reduction=False,
+    run_pca=False,
+    run_umap=False,
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
     # ------------- Sklearn model settings -----------------------
     run_sklearn_decoders=False,
     # --------------LSTM model settings ------------------------
-    run_LSTM=False,
+    run_LSTM=True,
     # ------------- LDA model settings --------------------------
     run_LDA=[],  # if [] it will not run LDA
     # if 'all' it will run it for all possible angles - else provide list of angles
@@ -43,7 +43,7 @@ Settings_ae = Settings_analyze_efizz(
     # ------------ Rayleigh model settings ----------------------
     run_rayleigh=False,
     rayleigh_significance="linshit",  # can be either linear shift or bootstrap
-    single_cluster_plots=True,  # True: Plot every condition in one figure
+    single_cluster_plots=False,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster
     multi_cluster_plots=False,  # True: Plot every cluster in one figure for one condition
     # False: Do not plot every cluster in one figure

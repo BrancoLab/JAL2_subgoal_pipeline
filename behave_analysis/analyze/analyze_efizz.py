@@ -96,11 +96,11 @@ class AnalyzeEfizz:
 
         if Settings.run_LSTM:
             logger.info("Running LSTM model")
-            angles = identify_angles(self.session)
             X = self.frame_by_cluster_matrix
             Y = self.video_df["hdir"]
             run_LSTM(X, Y)
-
+            logger.success("LSTM analysis complete")
+            
         # ------------------------------ Sklearn decoder models --------------------------------
         if Settings.run_sklearn_decoders:
             sklearn_main(self.session, self.video_df, self.frame_by_cluster_matrix, cluster_labels=self.cluster_Ids)
