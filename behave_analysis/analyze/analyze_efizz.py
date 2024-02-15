@@ -8,14 +8,9 @@ import pickle
 import matplotlib.pyplot as plt
 
 from settings.settings_analyze_efizz import Settings_ae as Settings
-
-# from behave_analysis.analyze.decoders.pytorch.lstm_main import main
+from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
-
-# from behave_analysis.analyze.LDA.LDAmodel_spacebins import run_LDA_model, across_conditions_LDA_map
-
-# from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
@@ -56,7 +51,9 @@ class AnalyzeEfizz:
         self.tracking_data = open_tracking_data(self.session)
 
         # TODO: in postprocess save cluster Ids as separate npy file so you don't have to load in postprocess object
-        self.cluster_Ids = np.load(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy"))
+        self.cluster_Ids = np.load(
+            str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
+        )
 
     def execute_models(self):
         logger.info("Executing models")
@@ -68,14 +65,14 @@ class AnalyzeEfizz:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
                 all_angles = identify_angles(self.session)
                 if Settings.learned_conditions:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'learned_condition'))
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "learned_condition"))
                 else:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'object_condition'))
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "object_condition"))
                 compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
-                
+
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
             self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
 
@@ -96,24 +93,13 @@ class AnalyzeEfizz:
             logger.success("TunED analysis complete")
 
         # ------------------------------ Compute LSTM --------------------------------
-        # TODO: Finish LSTM model
 
-        # if Settings.run_LSTM:
-        #     logger.info("Running LSTM model")
-
-        #     # Use buzacki data instead of ours ------------------------------
-        #     # save spike_rate_cell and angles to a pickle file
-        #     file_location = r"E:\\efizz\\JAL004\\004_flipppuf19sept_2023_09_19T14_10_56\\processed_data\\buzacki_data"
-        #     with open(file_location + "\\" "spike_rate_cell.p", "rb") as f:
-        #         spike_rate_cell = pickle.load(f)
-
-        #     with open(file_location + "\\" + "angles.p", "rb") as f:
-        #         angles = pickle.load(f)
-
-        #     y_reshaped = np.asarray(angles).reshape(len(angles), 1)
-        #     y_adjusted = np.nan_to_num(y_reshaped) - np.pi
-        #     x = spike_rate_cell
-        #     # main(x, y_adjusted)
+        if Settings.run_LSTM:
+            logger.info("Running LSTM model")
+            angles = identify_angles(self.session)
+            X = self.frame_by_cluster_matrix
+            Y = self.video_df["hdir"]
+            run_LSTM(X, Y)
 
         # ------------------------------ Sklearn decoder models --------------------------------
         if Settings.run_sklearn_decoders:
@@ -134,22 +120,21 @@ class AnalyzeEfizz:
             across_conditions_LDA_map(self, Settings)
             logger.success("LDA analysis complete")
 
-
-# ----------------- Compute Rayleigh and polar plots -------------------------
+        # ----------------- Compute Rayleigh and polar plots -------------------------
         if Settings.run_rayleigh:
             if not Settings.single_cluster_plots:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
                 all_angles = identify_angles(self.session)
                 if Settings.learned_conditions:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'learned_condition'))
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "learned_condition"))
                 else:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type,'object_condition'))
+                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "object_condition"))
                 compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
 
-# ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
+        # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if Settings.run_dim_reduction:
             path_to_save = os.path.join(self.dir, "dimentionality_reduction")
             make_directory(path_to_save)
@@ -172,7 +157,7 @@ class AnalyzeEfizz:
                 angles = identify_angles(self.session)
                 # Run UMAP hen HDBSCAN and return the cluster ids to the neuron ids
                 cluster_ids = run_umap_then_hdbscan(Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels, save_path=path_to_save)
-                #TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
+                # TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
 
         logger.success("All models complete")
 
