@@ -114,7 +114,7 @@ class LSTMModel(nn.Module):
 
 # -------------------------- Use the MODEL --------- --------------------------
 
-def run_LSTM(X, Y):
+def run_LSTM(X, Y, verbose=True):
     """
     Runs the LSTM model for regression on the provided dataset, plots the learning curve, and evaluates the model's performance.
 
@@ -143,6 +143,7 @@ def run_LSTM(X, Y):
     num_epochs = 250 # Number of iterations to train the model - increasing this gives better results but is slower
     sequence_length = 5  # Number of time steps to consider for each prediction - increasing this gives better results but is slower
     # and because not mini-batching you will get an error if model becomes to big
+    learning_rate = 0.005 # 0.001 works better but is slower
 
     # Preprocess the data -------------------------------------------
     X_train_torch, X_test_torch, Y_train_torch, Y_test_torch = reshape_sequences_1d(X, Y, seq_length=sequence_length, test_size=test_size)
@@ -150,7 +151,7 @@ def run_LSTM(X, Y):
     # Create the LSTM model
     model = LSTMModel(input_dim, hidden_dim, num_layers).to(device)
     loss_fn = nn.MSELoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001) 
+    optimizer = optim.Adam(model.parameters(), lr=learning_rate) 
 
     # Init --------------------------------------------------------
     train_losses = []
@@ -176,53 +177,62 @@ def run_LSTM(X, Y):
         scaler.update()
 
         # Track the losses ---------------------------------------------
-        if epoch % epoch_saves == 0:
-            train_losses.append(train_loss.item())
-            # ---------------------Track the test loss ----------------
-            model.eval()  # Set the model to evaluation mode
-            with torch.no_grad():  # Turn off the gradients
-                y_pred_test = model(X_test_torch)
-                y_pred_test = torch.squeeze(y_pred_test)
-                test_loss = loss_fn(y_pred_test, Y_test_torch)
-                test_losses.append(test_loss.item())
-                print(f"Epoch {epoch}, Train Loss: {train_loss.item()}, Test Loss: {test_loss.item()}")
+        if verbose:
+            if epoch % epoch_saves == 0:
+                train_losses.append(train_loss.item())
+                # ---------------------Track the test loss ----------------
+                model.eval()  # Set the model to evaluation mode
+                with torch.no_grad():  # Turn off the gradients
+                    y_pred_test = model(X_test_torch)
+                    y_pred_test = torch.squeeze(y_pred_test)
+                    test_loss = loss_fn(y_pred_test, Y_test_torch)
+                    test_losses.append(test_loss.item())
+                    print(f"Epoch {epoch}, Train Loss: {train_loss.item()}, Test Loss: {test_loss.item()}")
 
     # Predicting Y with the trained model -------------------------------------
     with torch.no_grad():
         y_pred_test = model(X_test_torch).cpu().numpy()
         y_pred_train = model(X_train_torch).cpu().numpy()
-
-    # Learning Curve (now spans two columns)
-    plt.subplot(2, 1, 1)
-    plt.plot(np.arange(0, num_epochs, epoch_saves), train_losses, label="Training Loss", color="blue")
-    plt.plot(np.arange(0, num_epochs, epoch_saves), test_losses, label="Test Loss", color="orange")
-    plt.title(f"Learning Curves - Min train loss: {min(train_losses):.2f}, Min test loss: {min(test_losses):.2f}")
-    plt.xlabel("Epoch")
-    plt.ylabel("Loss")
-    plt.legend(loc="upper right")
-
-    # Training data predictions vs actual values
-    plt.subplot(2, 2, 3)
-    plt.plot(y_pred_train[:500], label="Predicted Train", linewidth=2)
-    plt.plot(Y_train_torch.cpu().numpy()[:500], label="Actual Train", linewidth=2)
+    
+    # Evaluate the model -----------------------------------------------------
     train_r2 = r2_score(Y_train_torch.cpu().numpy(), y_pred_train)
-    plt.xlabel("Frame")
-    plt.ylabel("Angle")
-    plt.title(f"LSTM Model Training Set w r2: {train_r2}")
-    plt.legend()
-
-    # Test fit
-    plt.subplot(2, 2, 4)
-    plt.plot(y_pred_test[:500], label="Predicted Test", linewidth=2)
-    plt.plot(Y_test_torch.cpu().numpy()[:500], label="Actual labels", linewidth=2)
     test_r2 = r2_score(Y_test_torch.cpu().numpy(), y_pred_test)
-    plt.xlabel("Frame")
-    plt.ylabel("Angle")
-    plt.title(f"LSTM Model Test Set w r2: {test_r2}")
-    plt.legend()
+    
+    # Plot the learning curve and predictions ---------------------------------
+    if verbose:
 
-    plt.tight_layout()
-    plt.show()
+        # Learning Curve (now spans two columns)
+        plt.subplot(2, 1, 1)
+        plt.plot(np.arange(0, num_epochs, epoch_saves), train_losses, label="Training Loss", color="blue")
+        plt.plot(np.arange(0, num_epochs, epoch_saves), test_losses, label="Test Loss", color="orange")
+        plt.title(f"Learning Curves - Min train loss: {min(train_losses):.2f}, Min test loss: {min(test_losses):.2f}")
+        plt.xlabel("Epoch")
+        plt.ylabel("Loss")
+        plt.legend(loc="upper right")
+
+        # Training data predictions vs actual values
+        plt.subplot(2, 2, 3)
+        plt.plot(y_pred_train[:500], label="Predicted Train", linewidth=2)
+        plt.plot(Y_train_torch.cpu().numpy()[:500], label="Actual Train", linewidth=2)
+        plt.xlabel("Frame")
+        plt.ylabel("Angle")
+        plt.title(f"LSTM Model Training Set w r2: {train_r2}")
+        plt.legend()
+
+        # Test fit
+        plt.subplot(2, 2, 4)
+        plt.plot(y_pred_test[:500], label="Predicted Test", linewidth=2)
+        plt.plot(Y_test_torch.cpu().numpy()[:500], label="Actual labels", linewidth=2)
+        plt.xlabel("Frame")
+        plt.ylabel("Angle")
+        plt.title(f"LSTM Model Test Set w r2: {test_r2}")
+        plt.legend()
+
+        plt.tight_layout()
+        plt.show()
+        plt.close()
+    
+    return test_r2
 
 # -------------------------- Shape the input Data --------------------------
 

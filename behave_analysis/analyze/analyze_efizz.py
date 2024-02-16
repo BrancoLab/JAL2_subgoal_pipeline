@@ -101,6 +101,38 @@ class AnalyzeEfizz:
             run_LSTM(X, Y)
             logger.success("LSTM analysis complete")
             
+            # -------- Hack to make some plots, will be removed later ------------
+
+            # # First select all the random points columns from the video df that contain rand
+            # columns_to_select = [col for col in self.video_df.columns if "head_randP" in col]
+
+            # # Extract locations of random points
+            # rand_points = self.tracking_data["randP_loc"]
+            # x, y = rand_points[:, 0], rand_points[:, 1]  # Split the array into x and y coordinates
+            # num_rand_points = len(rand_points)
+            # assert num_rand_points == len(columns_to_select), "Number of random points does not match the number of columns"
+
+            # # Compute R2 scores using LSTM for each random point
+            # r2_scores = np.zeros(len(rand_points))
+            # for i in range(len(rand_points)):
+            #     Y = self.video_df[columns_to_select[i]]
+            #     r2_scores[i] = run_LSTM(X, Y, verbose=False)
+            #     print(f"R2 score for random point {i} is {r2_scores[i]}")
+                
+            # # Save the r2 scores as a numpy file
+            # np.save(os.path.join(self.dir, "r2_scores.npy"), r2_scores)
+
+            # # Plot
+            # plt.figure(figsize=(10, 6))
+            # sc = plt.scatter(x, y, c=r2_scores, cmap="bwr", edgecolor="k")  # 'bwr' stands for Blue-White-Red
+            # plt.colorbar(sc, label="R2 Score")  # Add a colorbar to show the R2 score
+            # plt.title("Random Points with R2 Scores")
+            # plt.xlabel("X Coordinate")
+            # plt.ylabel("Y Coordinate")
+            # plt.grid(True)
+
+            # plt.show()
+
         # ------------------------------ Sklearn decoder models --------------------------------
         if Settings.run_sklearn_decoders:
             sklearn_main(self.session, self.video_df, self.frame_by_cluster_matrix, cluster_labels=self.cluster_Ids)
