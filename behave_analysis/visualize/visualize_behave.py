@@ -46,6 +46,8 @@ class Visualize_behave:
             conditions=extract_all_or_custom_conditions(settings_v, self.session),
             save_path=self.behave_path,
         )
+        #TODO: This function plots using tracking data, this should be fixed to use video_df as that
+        #is the end of the pipeline after cleaning. So will plot wrong tracking before cleaning right now
         position_by_bsa(
             tracking_data=self.tracking_data,
             outofShelterIdx=np.array(self.video_df["OutofshelterIdx"].to_numpy()),
