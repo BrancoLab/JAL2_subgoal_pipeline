@@ -20,15 +20,10 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
     """
 
     print("\nPress 'q' to quit and 'n' to move to the next video")
-    for trial_num, (onset_frames, stimulus_duration) in enumerate(
-        zip(
-            onsets,
-            stimulus_durations,
-        )
-    ):
+    metadata = zip(onsets, stimulus_durations)
+    for trial_num, (onset_frames, stimulus_duration) in enumerate(metadata):
         fisheye_correction_map = load_fisheye_correction_map(session.video)
         delay_between_frames = int(1000 / session.video.fps * (not settings.rapid) + settings.rapid)
-
         source_video, frames_in_this_trial, stim_status, trial_video = set_up_videos(
             session, settings, stim_type, trial_num, onset_frames, stimulus_duration
         )
@@ -95,9 +90,21 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
 
 
 def read_frame(onset_frames, source_video):
+    """_summary_
+
+    Args:
+        onset_frames (_type_): _description_
+        source_video (VideoCapture class): This class is used in the OpenCV library to capture video from video files
+
+    Returns:
+        _type_: _description_
+    """
     frame_num = int(source_video.get(cv2.CAP_PROP_POS_FRAMES))
     num_frames_past_stim = frame_num - onset_frames[0]
-    successful_read, actual_frame = source_video.read()
+    frame_successfully_read, actual_frame = source_video.read()  # Extract the frame from the video
+    if not frame_successfully_read:
+        logger.error("Failed to read frame, are you sure the video file is not corrupted or missing?")
+        raise ValueError("Failed to read frame")
     return frame_num, actual_frame, num_frames_past_stim
 
 

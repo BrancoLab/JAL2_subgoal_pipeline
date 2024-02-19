@@ -13,10 +13,10 @@ from behave_analysis.utils.settings_objects import Settings_visualize
 
 defined_settings_visualize = Settings_visualize(
     # Trials to visualize -----------------
-    homing_trials=False,  # True if you want to visualize homing trials
-    escape_trials=False,  # True if you want to visualize escape trials and there were stimulus escape trials
+    homing_trials=True,  # True if you want to visualize homing trials
+    escape_trials=True,  # True if you want to visualize escape trials and there were stimulus escape trials
     # -------------------------------------
-    stim_type="None",  # "audio" leave as 'None' if no stims were delivered
+    stim_type="Audio",  # "audio" leave as 'None' if no stims were delivered
     # Movie creation settings -------------
     display_trail=True,
     display_tracking=True,
@@ -37,7 +37,7 @@ defined_settings_visualize = Settings_visualize(
     sessions=[0],  # This session must be the one indexed in the databank
     all_sessions=False,
     efizz=True,  # if you want to visualize efizz also
-    show_plots=False,  # if this is false, it will make and save the plots without showing them
+    show_plots=True,  # if this is false, it will make and save the plots without showing them
     cluster_type="good",
     # cluster_type: "synthetic", "synthetichdir" (only hdir cells in synthetic dataset),
     # "synthetichdirhsa", "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)

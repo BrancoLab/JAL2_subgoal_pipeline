@@ -381,7 +381,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         # -----------------------------------------------------------------------
 
         homings = load_or_extract_homings(session)
-        escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
+        _ = get_Escapes(settings, session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
