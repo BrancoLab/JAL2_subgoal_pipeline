@@ -472,6 +472,7 @@ class QcPreProcessedData:
 
         TODO:
         -- Write a pytest for this function as it is a critical function in the pipeline.
+        -- Handle the NaNs in the video dataframe that are now present after the replacement.
         """
 
         is_outside_arena, dist = QcPreProcessedData._check_for_vals_outside_arena(video_df)
