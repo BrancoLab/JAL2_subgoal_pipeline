@@ -448,7 +448,7 @@ class QcPreProcessedData:
             return False, dist  # Return False if the tracking data is within the bounds of the arena
 
     @staticmethod
-    def handle_tracking_outside_arena(video_df, back_fill=True) -> pl.DataFrame:
+    def handle_tracking_outside_arena(video_df, back_fill=False) -> pl.DataFrame:
         """If tracking outside arena replace with nulls or back fill them.
 
         As a default the function will replace the rows that are outside the bounds

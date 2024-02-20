@@ -20,8 +20,8 @@ would perform better with learnt parameters or hard coded parameters.
 import numpy as np
 
 def filterLDS_SS_withMissingValues_np(y, B, Q, m0, V0, Z, R):
-    """ Kalman filter implementation of the algorithm described in Shumway and
-    Stoffer 2006.
+    """Kalman filter implementation of the algorithm described in Shumway and Stoffer 2006.
+    
     :param: y: time series to be smoothed
     :type: y: numpy array (NxT)
     :param: B: state transition matrix
@@ -103,7 +103,10 @@ def filterLDS_SS_withMissingValues_np(y, B, Q, m0, V0, Z, R):
     return answer
 
 def smoothLDS_SS(B, xnn, Vnn, xnn1, Vnn1, m0, V0):
-    """ Kalman smoother implementation
+    """Offline Kalman smoother implementation
+    
+    
+    Kalman smoother implementation
     :param: B: state transition matrix
     :type: B: numpy matrix (MxM)
     :param: xnn: filtered means (from Kalman filter)
