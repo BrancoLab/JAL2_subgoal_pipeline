@@ -363,7 +363,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
 class DataPostprocessor(BaseDataPostprocessor):
     """
     A child class to support the production data postrocessing pipeline.
-    
+
     TODO: Check if sythetic class has diverged from this class and if so, update it.
     """
 
@@ -377,7 +377,9 @@ class DataPostprocessor(BaseDataPostprocessor):
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
         video_df = QcPreProcessedData.handle_tracking_outside_arena(video_df)
-        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv") # Save the video dataframe
+        video_df.write_csv(
+            os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv"
+        )  # Save the video dataframe
         # -----------------------------------------------------------------------
 
         homings = load_or_extract_homings(session)
@@ -502,7 +504,7 @@ class QcPreProcessedData:
             # Because we back filled the frame numbers are now duplicated because rows are duplicated, so reset the index
             frames = pl.Series(np.arange(1, len(video_df) + 1).astype(np.int64))
             video_df = video_df.with_columns(pl.Series("frames", frames))
-            
+
             return video_df
 
         else:
