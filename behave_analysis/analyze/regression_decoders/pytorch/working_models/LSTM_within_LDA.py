@@ -204,7 +204,7 @@ def predict_LSTM(model, X, sequence_length) -> np.ndarray:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Preprocess the data -----------------------------------------------------
-    Y = X  # This is just to make the function work as a hack
+    Y = np.array([0] * len(X))  # Dummy Y values for reshaping
     X_test_torch, _ = reshape_sequences_1d(X, Y, seq_length=sequence_length)
 
     # Predicting Y with the trained model -------------------------------------
