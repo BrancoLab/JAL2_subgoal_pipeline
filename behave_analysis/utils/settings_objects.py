@@ -157,7 +157,7 @@ class Settings_analyze_efizz:
     run_LDA: list = None
     run_sklearn_decoders: bool = False
     run_LSTM: bool = False
-    epoch_num: int = 6      
+    epoch_num: int = 6
     number_of_bins: int = 19
     use_firing_rate: bool = True
     discriminant_type: str = ""
@@ -172,7 +172,9 @@ class Settings_analyze_efizz:
     user_defined_conditions: bool = False
     analyze_only_the_period_before_shelter: bool = False
     analyze_only_the_period_before_barrier: bool = False
-    run_pca_model: bool = False
+    run_pca: bool = False
+    run_umap: bool = False
+    run_dim_reduction: bool = False
     redo_pca_preprocessing: bool = False
     condition_types: str = ''
     compartment_split: str = ''

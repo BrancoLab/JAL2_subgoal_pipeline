@@ -20,7 +20,7 @@ from behave_analysis.database.Experiments.JAL004_ex import (
     JAL4_19thSept,
 )
 
-from behave_analysis.database.Experiments.JAL005_ex import JAL5_mush1
+from behave_analysis.database.Experiments.JAL005_ex import JAL5_mush1, JAL005_8thSept, JAL005_21stSept
 
 
 # ## -------------JR BEHAVIOR MICE

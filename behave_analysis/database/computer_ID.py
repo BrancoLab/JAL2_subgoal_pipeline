@@ -11,6 +11,7 @@ def get_computer_specific_paths():
         DLC_path = r"C:\Users\jreggiani\Documents\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
     elif hostname == "DESKTOP-FBQJ1VU": #Laurence machine
         base_path = r"E:\efizz"
+        # base_path = r"D:\efizz"
         DLC_path = r"D:\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
     else: # unknown machine
         root = tk.Tk()

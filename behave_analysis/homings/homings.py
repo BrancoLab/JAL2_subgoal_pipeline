@@ -445,8 +445,18 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
         hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
 
     for i, (onset, offset) in enumerate(zip(onsets, offsets)):
-        frame_coords = tracking_data["avg_loc"][int(onset) : int(offset)]
-        frame_index, start_frame = cum_distance(int(onset), int(offset), frame_coords, session.video.pixels_per_cm, cum_threshold)
+        
+        # Jasmine hack - she wrote this not me, laurence
+        if isinstance(onset, np.ndarray):
+            onset = onset[0]
+            offset = offset[0]
+        
+        
+        frame_coords = tracking_data["avg_loc"][onset : offset]
+        frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
+        #frame_coords = tracking_data["avg_loc"][int(onset) : int(offset)]
+        #frame_index, start_frame = cum_distance(int(onset), int(offset), frame_coords, session.video.pixels_per_cm, cum_threshold)
+    
         if frame_index == None:
             continue
         hsa = hsa_data[start_frame : frame_index]
