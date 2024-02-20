@@ -76,7 +76,7 @@ class AnalyzeEfizz:
                 compute_single_cluster_tuning(self, Settings)
                 
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
-            # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
+            self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
 
         # ------------------------------ Compute TUNED --------------------------------
         if Settings.run_tunED:
@@ -141,7 +141,6 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:
-
             LDA(self, Settings)
             logger.success('LDA analysis complete')
 

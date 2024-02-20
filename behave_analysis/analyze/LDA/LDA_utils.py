@@ -7,11 +7,22 @@ from sklearn.metrics import confusion_matrix
 ## --------------- UTILITY FUNCTIONS
 
 def BuildSavingFolder(basepath, settings, cluster_type, condition_types, condition=[], compartment=[]):
+    '''
+    This function builds a folder structure for where the decoder results and plots will be saved
+    under processed_data > models 
+    - a folder named after the model type with addition of whether PCa cleaning and/or firing rates were used
+    - a folder for the cluster type (e.g. 'good', 'synthetic')
+    - a folder for the condition types (e.g. 'experimental_conditions', 'behavioral_condition')
+    - a folder for each compartment (e.g. 'all', 'threat_zone) 
+    - a folder for each condition (e.g. 'shelter_only','barrier_pre_flip')
+    '''
     # folder name
     if settings.discriminant_type == "linear":
         pathh = str(basepath) + "/" + "LDA"
     elif settings.discriminant_type == "quadratic":
         pathh = str(basepath) + "/" + "QDA"
+    elif settings.discriminant_type == "LSTM":
+        pathh = str(basepath) + "/" + "LSTM"
 
     # if PCA, add to folder name
     if len(settings.PCA_process) > 0:
@@ -42,6 +53,12 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     return pathh
 
 def check_if_we_do_LDA(self, settings):
+    '''
+    This function checks whether the decoder and the linear shift has already be run for this set of conditions, clusters, etc.
+    It also checks if the user asked to redo compute
+    
+    returns: two booleans for whether to run decoder and linear shift
+    '''
     # if LDA has already been run and saved, don't redo
     LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
     LS_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
@@ -56,6 +73,18 @@ def check_if_we_do_LDA(self, settings):
     return LDA_out, LS_out, do_LDA, do_LS
 
 def plotConfusionMatrix(y, x, title, axy):
+    '''
+    This function makes a confusion matrix and plots it on the given axes
+    
+    INPUTS:
+    y - real data
+    x - predicted data
+    title - tiel of the plot
+    axy - axes for plotting
+    
+    RETURNS: 
+    conf - confusion matrix
+    '''
     conf = confusion_matrix(y, x)
     conf = conf.astype("float64")
     conf = conf / np.sum(conf, axis=1)

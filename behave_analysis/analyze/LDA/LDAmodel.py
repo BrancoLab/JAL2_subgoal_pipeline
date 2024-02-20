@@ -22,6 +22,7 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
     ProcessPredictors,
     binDfbyEpoch,
 )
+from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_within_LDA import fit_LSTM, predict_LSTM
 
 def LDA(self, settings):
     '''A wrapper function that figures out all the conditions across which to run LDA'''
@@ -219,25 +220,33 @@ def linear_discriminant_analysis(
 
             # train model
             y = Y[train_idx]
-            if discriminant_type == "linear":
-                clf = LinearDiscriminantAnalysis()
-            elif discriminant_type == "quadratic":
-                clf = QuadraticDiscriminantAnalysis()
-            clf.fit(X1, y)
+
+            if discriminant_type == 'LSTM':
+                model, seq_length = fit_LSTM(X1, y)
+                y_hat_train = predict_LSTM(model, X1, seq_length)
+                y_hat_test = predict_LSTM(model, X2, seq_length)
+            else:
+                if discriminant_type == "linear":
+                    clf = LinearDiscriminantAnalysis()
+                elif discriminant_type == "quadratic":
+                    clf = QuadraticDiscriminantAnalysis()
+                clf.fit(X1, y)
+                y_hat_train = clf.predict(X1)
+                y_hat_test = clf.predict(X2)
 
             # plot confusion matrix of prediction on training data
-            conf_matrix_all_train[:, :, counter] = plotConfusionMatrix(y, clf.predict(X1), "training data", plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
+            conf_matrix_all_train[:, :, counter] = plotConfusionMatrix(y, y_hat_train, "training data", plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
 
             if plotting:
                 # plot histogram of frames per angle bin
                 ax = plt.subplot2grid(shape=(4, 2), loc=(3, 0))
-                ax.hist(clf.predict(X1), np.arange(1, n_bins + 2))
+                ax.hist(y_hat_train, np.arange(1, n_bins + 2))
                 ax.hist(y, np.arange(1, n_bins + 2))
                 ax.set_title("training data")
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 2), loc=(0, 0), colspan=2)
-                ax.plot(clf.predict(X1))
+                ax.plot(y_hat_train)
                 ax.plot(y)
                 ax.legend(["prediction", "real"])
                 ax.set_title("training data")
@@ -246,18 +255,18 @@ def linear_discriminant_analysis(
 
             # plot confusion matrix of prediction on test data
             y = Y[test_idx]
-            conf_matrix_all_test[:, :, counter] = plotConfusionMatrix(y, clf.predict(X2), "test data", plt.subplot2grid(shape=(4, 2), loc=(2, 1)))
+            conf_matrix_all_test[:, :, counter] = plotConfusionMatrix(y, y_hat_test, "test data", plt.subplot2grid(shape=(4, 2), loc=(2, 1)))
 
             if plotting:
                 # plot histogram of frames per angle bin
                 ax = plt.subplot2grid(shape=(4, 2), loc=(3, 1))
-                ax.hist(clf.predict(X2), np.arange(1, n_bins + 2))
+                ax.hist(y_hat_test, np.arange(1, n_bins + 2))
                 ax.hist(y, np.arange(1, n_bins + 2))
                 ax.set_title("test data")
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 2), loc=(1, 0), colspan=2)
-                ax.plot(clf.predict(X2))
+                ax.plot(y_hat_test)
                 ax.plot(y)
                 ax.legend(["prediction", "real"])
                 ax.set_title("test data")
