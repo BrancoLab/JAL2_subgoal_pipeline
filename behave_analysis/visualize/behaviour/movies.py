@@ -96,7 +96,7 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
 
 def read_frame(onset_frames, source_video):
     frame_num = int(source_video.get(cv2.CAP_PROP_POS_FRAMES))
-    num_frames_past_stim = frame_num - onset_frames[0]
+    num_frames_past_stim = frame_num - int(onset_frames)
     successful_read, actual_frame = source_video.read()
     return frame_num, actual_frame, num_frames_past_stim
 
@@ -449,10 +449,11 @@ def set_up_videos(
 
     seconds_before = settings.__dict__["seconds_before_" + stim_type]
     seconds_after = settings.__dict__["seconds_after_" + stim_type]
-    frames_in_this_trial = range((onset_frames[-1] - onset_frames[0]) + int((seconds_before + stimulus_durations[-1] + seconds_after) * fps))
-    minutes_into_session = np.round(onset_frames[0] / fps / 60)
+    # frames_in_this_trial = range((onset_frames[-1] - int(onset_frames)) + int((seconds_before + stimulus_durations[-1] + seconds_after) * fps))
+    frames_in_this_trial = range((0) + int((seconds_before + stimulus_durations[-1] + seconds_after) * fps))
+    minutes_into_session = np.round(int(onset_frames) / fps / 60)
 
-    source_video.set(cv2.CAP_PROP_POS_FRAMES, onset_frames[0] - seconds_before * fps)  # set source video to trial start
+    source_video.set(cv2.CAP_PROP_POS_FRAMES, int(onset_frames) - seconds_before * fps)  # set source video to trial start
     stim_status = generate_stim_status_array(onset_frames, stimulus_durations, seconds_before, seconds_after, fps)
     # self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 

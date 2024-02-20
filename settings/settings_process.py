@@ -16,6 +16,6 @@ settings_process = Settings_process(
         fisheye_correction_file = os.path.join("sample_data", "fisheye_maps.npy"), # remove setting if n/a
         size = (1024,1024), # (width, height) how big to make the renderings, in pixels
         pixels_per_cm = 10, # for the arena drawn in register.generate_rendered_arena, report here the ratio between size of arena in pixels and actual size in cm
-        efizz = True, # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
+        efizz = False, # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
 
 )

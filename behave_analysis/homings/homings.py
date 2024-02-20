@@ -189,9 +189,9 @@ class get_Homings:
         applicable_runs = sufficient_move_toward_shelter * sufficient_run_duration * (starts_in_threat_area + starts_in_subgoal) * starts_late_enough
 
         # Extract the onset frames and durations of the applicable runs
-        onset_frames = np.array([[onset_frame] for onset_frame in onsets[applicable_runs]])
-        offset_frames = np.array([[offset_frame] for offset_frame in offsets[applicable_runs]])
-        stimulus_durations = np.array([[stimulus_duration] for stimulus_duration in self.stimulus_durations[applicable_runs]])
+        onset_frames = np.array([onset_frame for onset_frame in onsets[applicable_runs]])
+        offset_frames = np.array([offset_frame for offset_frame in offsets[applicable_runs]])
+        stimulus_durations = np.array([stimulus_duration for stimulus_duration in self.stimulus_durations[applicable_runs]])
 
         return onset_frames, offset_frames, stimulus_durations
 
@@ -402,7 +402,7 @@ class get_Homings:
         avg_speed = np.zeros(len(onsets))
 
         for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
-            tracking = tracking_data["avg_loc"][onset[0] : offset[0]]
+            tracking = tracking_data["avg_loc"][onset : offset]
             speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
             speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
             speed_cm_per_sec = speed_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
@@ -454,6 +454,9 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
         
         frame_coords = tracking_data["avg_loc"][onset : offset]
         frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
+        #frame_coords = tracking_data["avg_loc"][int(onset) : int(offset)]
+        #frame_index, start_frame = cum_distance(int(onset), int(offset), frame_coords, session.video.pixels_per_cm, cum_threshold)
+    
         if frame_index == None:
             continue
         hsa = hsa_data[start_frame : frame_index]

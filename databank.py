@@ -12,7 +12,7 @@ from behave_analysis.database.Experiments.JAL002_ex import (
     seq1_1,
     mushroom_3_002,
 )
-from behave_analysis.database.Experiments.JAL003_ex import flip1stSept_003, JAL3_flip_rot
+from behave_analysis.database.Experiments.JAL003_ex import flip1stSept_003, JAL3_flip_rot, flip4stSept_003
 
 from behave_analysis.database.Experiments.JAL004_ex import (
     JAL4_mush1,

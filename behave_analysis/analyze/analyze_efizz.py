@@ -10,7 +10,9 @@ import matplotlib.pyplot as plt
 from settings.settings_analyze_efizz import Settings_ae as Settings
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
-from behave_analysis.analyze.LDA.LDAmodel import run_LDA_model, across_conditions_LDA_map
+from behave_analysis.analyze.LDA.LDAmodel import LDA
+# from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
+# from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
@@ -22,7 +24,6 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
 from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
 from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
-
 
 class AnalyzeEfizz:
     """
@@ -41,7 +42,7 @@ class AnalyzeEfizz:
         self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
 
         self.cluster_type = c_type
-        assert c_type in ["synthetic", "syntheticHdir", "all", "good", "mua", "noise"], "Cluster type not recognised"
+        assert c_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"
         assert os.path.isfile(
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
         ), "Cluster matrix file not found"
@@ -54,6 +55,7 @@ class AnalyzeEfizz:
         self.cluster_Ids = np.load(
             str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
         )
+
 
     def execute_models(self):
         logger.info("Executing models")
@@ -72,9 +74,9 @@ class AnalyzeEfizz:
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
-
+                
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
-            self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
+            # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
 
         # ------------------------------ Compute TUNED --------------------------------
         if Settings.run_tunED:
@@ -139,18 +141,9 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:
-            if np.logical_or(Settings.run_LDA == "all", np.logical_and(type(Settings.run_LDA) is list, Settings.run_LDA[0] == "all")):
-                angles = identify_angles(self.session)
-                angles.append("randP")
-            else:
-                angles = Settings.run_LDA
 
-            for o in self.all_conditions:
-                self.condition = o
-                logger.info(f"Run LDA on {self.cluster_type} data with condition: {self.condition}")
-                run_LDA_model(self, Settings, angles)
-            across_conditions_LDA_map(self, Settings)
-            logger.success("LDA analysis complete")
+            LDA(self, Settings)
+            logger.success('LDA analysis complete')
 
         # ----------------- Compute Rayleigh and polar plots -------------------------
         if Settings.run_rayleigh:
@@ -170,6 +163,7 @@ class AnalyzeEfizz:
         if Settings.run_dim_reduction:
             path_to_save = os.path.join(self.dir, "dimentionality_reduction")
             make_directory(path_to_save)
+
             angles = identify_angles(self.session)
             Preprocess_DimOBJ = Preprocess_for_DimReduction(
                 session=self.session,
@@ -179,7 +173,6 @@ class AnalyzeEfizz:
                 angles=angles,
                 delta_between_conditions=self.mangituide_deltas,
             )
-
             if Settings.run_pca:
                 logger.info("Running PCA model")
                 run_pca_kmeans_plot(path_to_save, Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels)
@@ -190,6 +183,10 @@ class AnalyzeEfizz:
                 # Run UMAP hen HDBSCAN and return the cluster ids to the neuron ids
                 cluster_ids = run_umap_then_hdbscan(Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels, save_path=path_to_save)
                 # TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
+
+            # ----------------------------- Persistent Homology ----------------------------------
+            # if Settings.persistent_homology:
+            #     persistent_homology(self.frame_by_cluster_matrix, self.video_df)
 
         logger.success("All models complete")
 

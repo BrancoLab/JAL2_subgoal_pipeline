@@ -26,7 +26,7 @@ def visualize():
         # ------ BEHAVIORAL VISUALIZATION ------
         if settings_v.escape_trials:
             Visualize_behave(session).make_movies(stim_type="audio")
-            Visualize_behave(session).escape_plotting()
+            Visualize_behave(session).escape_plotting(stim_type="audio")
         if settings_v.homing_trials:
             Visualize_behave(session).make_movies(stim_type="homing")
 

@@ -28,12 +28,11 @@ def compute_all_clusters_rayleigh(self, settings, all_angles, all_conditions, ba
         data_path = make_directory(os.path.join(base_path, c))
 
         # filter data in this condition
-        if not settings.learned_conditions:
+        if settings.condition_types == 'experimental_conditions':
             filtered_video_df = filter_video_dataframe(self.video_df, c)
-        else:
+        elif settings.condition_types == 'behavioral_conditions':
             filtered_video_df = filter_video_dataframe(self.video_df, c, exclude_escape=False)
             filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, c, self.session)
-        # filtered_video_df = filter_video_dataframe(self.video_df, c)
 
         # which compartment of the arena was the mouse in?
         # compartment 1 (in blue) is the side where the shelter is
@@ -61,11 +60,7 @@ def compute_single_cluster_tuning(self, settings):
     # Initialize variables
     all_angles = identify_angles(self.session)
 
-    if settings.learned_conditions:
-        self.condition_family = 'learned_condition'
-    else:
-        self.condition_family = 'object_condition'
-    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,self.condition_family)
+    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,settings.condition_types)
     plot_save_path = make_directory(os.path.join(base_path, 'single_cluster_plots'))
 
     # check that Rayleigh has been computed and saved for all conditions and if not compute it
