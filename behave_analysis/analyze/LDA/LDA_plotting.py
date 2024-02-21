@@ -16,7 +16,9 @@ from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
 
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title):
-    """Function to make a bar plot of the prediction accuracy for each angle"""
+    """
+    Function to make a bar plot of the mean prediction accuracy for each angle
+    """
     fig = go.Figure()
 
     if len(list(filter(lambda x: "randP" in x, title))) < 10:
@@ -44,7 +46,9 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title):
 
 
 def PlotLSPredictionAccuracy(self, LS_compiled, title):
-    """Make a violin plot of the prediction accuracy over all linear shifts"""
+    """
+    Function to make a violin plot of the mean prediction accuracy over all linear shifts
+    """
     fig = go.Figure()
     if len(title) > 10:
         colorz = sample_colorscale("Rainbow", list(np.linspace(0, 1, 10)))
@@ -78,7 +82,9 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
 
 
 def PredictionAccuracyMapped(self, prediction_accuracy):
-    """Make a map of the prediction accuracy for the angle of the head to each point in the arena"""
+    """
+    Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
+    """
     pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
     plt.figure(figsize=(15, 15))
     # add points with prediction accuracy
@@ -99,8 +105,13 @@ def PredictionAccuracyMapped(self, prediction_accuracy):
 
 
 def across_conditions_LDA_map(self, settings):
-    # load i all prediction accuracies for conditions of interest
-    # need to load them all in first to find min and max to normalize color axes
+    """
+    Function to make a figure of the maps of the prediction accuracy for the angle of the head to each point in the arena
+    all the maps for all the conditions are displayed together and color axes are adjusted to match across maps
+    This also turns the map into heatmaps instead of scatterplots
+
+    figure: each row is a compartment, each column is a condition
+    """
 
     pa = []
 
@@ -123,11 +134,12 @@ def across_conditions_LDA_map(self, settings):
     fig, axs = plt.subplots(
         nrows=len(settings.compartment_split), ncols=len(self.all_conditions) + 1, figsize=(24, 6 * len(settings.compartment_split)), sharey=True, sharex=True
     )
-    # where all values are in fractional (0-1) coordinates.
+
     # Where to plot the colorbar, create new axis object at these coordinates
     cbar_ax = fig.add_axes([0.91, 0.13, 0.01, 0.75])  # The list represents [left, bottom, width, height],
 
     # Add subtitles for each condition in first column
+
     for c_counter, c in enumerate(settings.compartment_split):
         if len(settings.compartment_split) > 1:
             ax_idx = tuple([c_counter,0])
@@ -183,6 +195,11 @@ def across_conditions_LDA_map(self, settings):
     plt.close()
 
 def add_features(ax, condition, tracking,xbins,ybins):
+    '''
+    This is a function that draws the arena and the barrier on top of heatmaps or scatterplots
+    It draws different object based on the condition
+    '''
+    
     arena_radius = 460
     # draw shelter
     if 'shelter_loc' in tracking.keys():

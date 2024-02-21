@@ -4,6 +4,7 @@ import numpy as np
 import polars as pl
 import pickle
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
@@ -13,7 +14,12 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticD
 # import functions
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles, generate_bin_angles
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
-from behave_analysis.analyze.LDA.LDA_plotting import PlotLSPredictionAccuracy, PlotPredictionAccuracy, PredictionAccuracyMapped, across_conditions_LDA_map
+from behave_analysis.analyze.LDA.LDA_plotting import (
+    PlotLSPredictionAccuracy,
+    PlotPredictionAccuracy,
+    PredictionAccuracyMapped,
+    across_conditions_LDA_map,
+)
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder, plotConfusionMatrix, compute_prediction_accuracy, check_if_we_do_LDA
 from behave_analysis.analyze.LDA.LDA_preprocess import (
     select_relevant_frames,
@@ -24,9 +30,15 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
 )
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_within_LDA import fit_LSTM, predict_LSTM
 
+
 def LDA(self, settings):
-    '''A wrapper function that figures out all the conditions across which to run LDA'''
-    
+    """
+    A wrapper function that figures out all the conditions across which to run decoding analysis.
+    It will iterate over all conditions and compartments.
+    If the decoding analyss has not yet been run or the user asked to force_redo, the analysis will be run, 
+    if not it will jump straight to plotting the prediction accuracy maps for all conditions
+    """
+
     # figure out which angles we want to decode
     if np.logical_or(settings.run_LDA == "all", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all")):
         angles = identify_angles(self.session)
@@ -35,36 +47,46 @@ def LDA(self, settings):
         angles = settings.run_LDA
 
     # determine condition types
-    if settings.condition_types == 'experimental_conditions':
-        condition_types = ['experimental_conditions']
-    elif settings.condition_types == 'behavioral_conditions':
-        condition_types = ['good_behavioral_conditions','bad_behavioral_conditions'] 
-        # good means the times when mousie is doing correct homies, 
+    if settings.condition_types == "experimental_conditions":
+        condition_types = ["experimental_conditions"]
+    elif settings.condition_types == "behavioral_conditions":
+        condition_types = ["good_behavioral_conditions", "bad_behavioral_conditions"]
+        # good means the times when mousie is doing correct homies,
         # bad is when mouse is doing incorrect homies
-    elif 'homing_number' in settings.condition_types:
-        self.number_of_homings = int(settings.condition_types.replace('homing_number_',''))
-        condition_types = ['before_'+str(self.number_of_homings)+'good_homings',
-                           'after_'+str(self.number_of_homings)+'good_homings'] 
+    elif "homing_number" in settings.condition_types:
+        self.number_of_homings = int(settings.condition_types.replace("homing_number_", ""))
+        condition_types = ["before_" + str(self.number_of_homings) + "good_homings", "after_" + str(self.number_of_homings) + "good_homings"]
 
     # run LDA across condition types, across compartments and across conditions
-    for cond in condition_types: # e.g. 'experimental_conditions', 'behavioral_conditions'
+    for cond in condition_types:  # e.g. 'experimental_conditions', 'behavioral_conditions'
         self.condition_types = cond
-        for comp in settings.compartment_split: # ['all','threat_zone','shelter_compartment']
+        for comp in settings.compartment_split:  # ['all','threat_zone','shelter_compartment']
             self.compartment = comp
-            for c in self.all_conditions: # e.g. 'all_time', 'pre_shelter', 'shelter_present', 'barrier_present', 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip'
+            for (
+                c
+            ) in (
+                self.all_conditions
+            ):  # e.g. 'all_time', 'pre_shelter', 'shelter_present', 'barrier_present', 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip'
                 self.condition = c
                 self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types, self.condition, self.compartment)
                 self.LDA_out, self.LS_out, self.do_LDA, self.do_LS = check_if_we_do_LDA(self, settings)
                 if np.logical_or(self.do_LDA, self.do_LS):
-                    logger.info(f"Run LDA on {self.cluster_type} data with condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}")
+                    logger.info(
+                        f"Run LDA on {self.cluster_type} data with condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
+                    )
                     run_LDA_model(self, settings, angles)
                 else:
-                    logger.info(f"LDA already run on this session for condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}")
+                    logger.info(
+                        f"LDA already run on this session for condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
+                    )
         across_conditions_LDA_map(self, settings)
 
 
 def run_LDA_model(self, settings, angles):
-    """A function that runs discriminant analysis based on user settings"""
+    """
+    A function that iterates across all angles and runs decoder analysis and linear shift statistics based on user settings
+    It will also make bar plots of prediction accuracy across all angles and a map of prediction accuracy for the random points
+    """
 
     prediction_accuracy = {}
     LS_compiled = {}
@@ -90,7 +112,7 @@ def run_LDA_model(self, settings, angles):
                         prediction_accuracy.update({var: pa})
                     if self.do_LS:
                         LS_compiled.update({var: LS_out})
-                    
+
     else:
         binned_pos = BinDfbyPos(self)
         for variable in angles:
@@ -122,14 +144,15 @@ def run_LDA_model(self, settings, angles):
                     LS_compiled.update({variable: LS_output})
                     del LS_output
                 title = np.append(title, variable)
-            
+
             else:
-                n_randP =  self.video_df.select(pl.col('^head_randP_.*$')).width
-                for j in tqdm(np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width),
-                              desc = f'Running LDA on random point out of  {n_randP}'):
+                n_randP = self.video_df.select(pl.col("^head_randP_.*$")).width
+                for j in tqdm(
+                    np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width), desc=f"Running LDA on random point out of  {n_randP}"
+                ):
                     binned_angles, frames, savename = BinDfbyAngle(self, str("head_randP_" + str(j)), settings)
                     X = ProcessPredictors(self, frames, settings)
-                    
+
                     # run LDA on different angles
                     if self.do_LDA:
                         pa = linear_discriminant_analysis(
@@ -179,12 +202,14 @@ def run_LDA_model(self, settings, angles):
     if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
         PredictionAccuracyMapped(self, prediction_accuracy)
 
+
 ## --------------- MAIN LDA FUNCTION
 
-def linear_discriminant_analysis(
-    X, Y, binned_pos, discriminant_type="linear", plotting=False, settings=None, self=None, title=None):
+
+def linear_discriminant_analysis(X, Y, binned_pos, discriminant_type="linear", plotting=False, settings=None, self=None, title=None):
     """
-    A function for doing LDA on data
+    A function for doing LDA on data.
+    This function iterates over the crossvalidation epochs, runs the decoder, computes the confusion matrix and the average prediction accuracy
 
     WARNING: currently this function can be used for linear shift statistics but will do LDA
     """
@@ -199,8 +224,7 @@ def linear_discriminant_analysis(
     X, Y, epochs = binDfbyEpoch(X, Y, binned_pos, epoch_num)
     X = X[:, 1:]  # the first column is frame id and you no longer need it
     _, counts = np.unique(epochs, return_counts=True)
-    if np.logical_or(np.amin(counts) < self.session.video.fps,
-                    len(np.unique(epochs))<2):
+    if np.logical_or(np.amin(counts) < self.session.video.fps, len(np.unique(epochs)) < 2):
         prediction_accuracy = 0
     else:
         # LDA
@@ -223,26 +247,26 @@ def linear_discriminant_analysis(
             y1 = Y[train_idx]
             y2 = Y[test_idx]
 
-            if discriminant_type == 'LSTM':
+            if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
                 bin_angles, bin_angle_center = generate_bin_angles(settings.number_of_bins)
                 bin_angle_center = bin_angle_center[1:-1]
-                
+
                 # run LSTM
-                model, seq_length = fit_LSTM(X1, bin_angle_center[y1-1])
+                model, seq_length = fit_LSTM(X1, bin_angle_center[y1 - 1])
                 y_hat_train = predict_LSTM(model, X1, seq_length).reshape(-1)
                 y_hat_test = predict_LSTM(model, X2, seq_length).reshape(-1)
-                
+
                 # convert predicted output back to bins
                 y_hat_train = np.digitize(y_hat_train, bin_angles)
                 y_hat_test = np.digitize(y_hat_test, bin_angles)
-                
+
                 # crop y to match predicted output
                 if len(y_hat_train) != len(y1):
-                    y1 = y1[:len(y_hat_train)]
+                    y1 = y1[: len(y_hat_train)]
                 if len(y_hat_test) != len(y2):
-                    y2 = y2[:len(y_hat_test)]
-                    
+                    y2 = y2[: len(y_hat_test)]
+
             else:
                 if discriminant_type == "linear":
                     clf = LinearDiscriminantAnalysis()
@@ -272,7 +296,7 @@ def linear_discriminant_analysis(
                 ax.set_xlabel("time")
 
             # plot confusion matrix of prediction on test data
-            
+
             conf_matrix_all_test[:, :, counter] = plotConfusionMatrix(y2, y_hat_test, "test data", plt.subplot2grid(shape=(4, 2), loc=(2, 1)))
 
             if plotting:
