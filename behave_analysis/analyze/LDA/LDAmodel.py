@@ -11,7 +11,7 @@ from tqdm import tqdm
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
 
 # import functions
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles
+from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles, generate_bin_angles
 from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
 from behave_analysis.analyze.LDA.LDA_plotting import PlotLSPredictionAccuracy, PlotPredictionAccuracy, PredictionAccuracyMapped, across_conditions_LDA_map
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder, plotConfusionMatrix, compute_prediction_accuracy, check_if_we_do_LDA
@@ -182,10 +182,11 @@ def run_LDA_model(self, settings, angles):
 ## --------------- MAIN LDA FUNCTION
 
 def linear_discriminant_analysis(
-    X, Y, binned_pos, discriminant_type="linear", plotting=False, settings=None, self=None, title=None
-):  # self, df, title, settings, X):
+    X, Y, binned_pos, discriminant_type="linear", plotting=False, settings=None, self=None, title=None):
     """
     A function for doing LDA on data
+
+    WARNING: currently this function can be used for linear shift statistics but will do LDA
     """
 
     # initialize variables
@@ -223,14 +224,24 @@ def linear_discriminant_analysis(
             y2 = Y[test_idx]
 
             if discriminant_type == 'LSTM':
-                model, seq_length = fit_LSTM(X1, y1)
+                # convert y to values from -pi to pi
+                bin_angles, bin_angle_center = generate_bin_angles(settings.number_of_bins)
+                bin_angle_center = bin_angle_center[1:-1]
+                
+                # run LSTM
+                model, seq_length = fit_LSTM(X1, bin_angle_center[y1-1])
                 y_hat_train = predict_LSTM(model, X1, seq_length).reshape(-1)
                 y_hat_test = predict_LSTM(model, X2, seq_length).reshape(-1)
                 
+                # convert predicted output back to bins
+                y_hat_train = np.digitize(y_hat_train, bin_angles)
+                y_hat_test = np.digitize(y_hat_test, bin_angles)
+                
+                # crop y to match predicted output
                 if len(y_hat_train) != len(y1):
                     y1 = y1[:len(y_hat_train)]
-                if len(y_hat_train) != len(y2):
-                    y2 = y2[:len(y_hat_train)]
+                if len(y_hat_test) != len(y2):
+                    y2 = y2[:len(y_hat_test)]
                     
             else:
                 if discriminant_type == "linear":
