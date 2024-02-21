@@ -120,7 +120,16 @@ def EqualBins_matrix(x, y, unique_fr):
 
 
 def data_chunker(frame_num, epoch_num):
+    '''
+    This function creates a vector of length = number of frames in our dataset
+    and randomly divides it into equally populated bins.
+     
+    INPUTS:
+    epoch_num = the number of bins (the number of epochs for crossvalidaiton)
+    frame_num = the length of our dataset
     
+    RETURNS:
+    binned_frames'''
     min_length = frame_num // epoch_num
     num_longer_bins = frame_num % epoch_num
     rng = np.random.default_rng()
