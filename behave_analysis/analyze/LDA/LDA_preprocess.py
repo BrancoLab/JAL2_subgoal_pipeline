@@ -18,7 +18,14 @@ from behave_analysis.analyze.LDA.LDA_utils import EqualBins_matrix, data_chunker
 
 
 def select_relevant_frames(self):
-    # subselect relevant times based on condition types ( experimentally or behaviorally defined)
+    '''
+    Based on the condition types (experimentally or behaviorally defined),
+    and on the compartments the user wants to look at (e.g. 'all','threat_zone')
+    this function subselects relevant frames
+
+    RETURNS: filtered_video_df - a subset of video_df with only the relevant frames
+    '''
+
     if self.condition_types == "experimental_conditions":
         filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
     else:
@@ -43,8 +50,12 @@ def select_relevant_frames(self):
 
 def BinDfbyAngle(self, variable, settings):
     """
-    A function that processes dataframe for discriminant analysis
-    variable: what we're trying to predict (e.g. head_shelter_angle), it needs to be one of the columns of video_df
+    A function that bins the angles of interest extracting them from the behavioral dataframe
+
+    INPUTS: variable - what we're trying to predict (e.g. head_shelter_angle), it needs to be one of the columns of video_df
+
+    RETURNS: binned_angles - a vector of binned angles we're trying to decode
+    frames - a vector of the same length as binned_angles with the frame number of the frames utilized in this condition
     """
     # edges for binning firing rate at different angles
     bin_angles, _ = generate_bin_angles(settings.number_of_bins)
@@ -66,8 +77,7 @@ def BinDfbyAngle(self, variable, settings):
 
 def BinDfbyPos(self):
     """
-    A function that processes dataframe for discriminant analysis
-    variable: what we're trying to predict (e.g. head_shelter_angle), it needs to be one of the columns of video_df
+    A function that bins the x-y position of the mouse extracting them from the behavioral dataframe
     """
     mouse_x = self.filtered_video_df["mouse_x_position"].to_numpy()
     mouse_y = self.filtered_video_df["mouse_y_position"].to_numpy()
@@ -82,6 +92,19 @@ def BinDfbyPos(self):
 
 
 def binDfbyEpoch(matrix, matriy, binned_pos, epoch_num):
+    """
+    A function that splits the data into n epochs for crossvalidation. 
+    It also subsamples the data so that each epoch is populated by uniformly distributed data of angles and positions
+
+    INPUTS: matrix - the frames x cluster matrix
+    matriy - vector of angles to decode
+    binned_pos - vector of same length as matriy with binned position of the mouse
+    epoch_num - number of epochs to divide data in
+
+    RETURNS: matrix - the subsampled frames x cluster matrix
+    matriy - subsampled vector of angles to decode
+    epochs - a vector of the same length as matriy with the epochs that each frame is assigned to
+    """
     _, unique_pos_ang = np.unique(np.vstack((binned_pos, matriy)), axis=1, return_inverse=True)
 
     # make angle + position bins equally populated
@@ -101,6 +124,9 @@ def binDfbyEpoch(matrix, matriy, binned_pos, epoch_num):
 
 
 def ProcessPredictors(self, frames, settings):
+    '''
+    This is a function for processing the frames x cluster matrix to get it ready for decodr analysis
+    '''
     # select frames that have been filtered
     X = self.frame_by_cluster_matrix
     X = X[frames, :]

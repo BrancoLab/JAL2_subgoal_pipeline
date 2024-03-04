@@ -9,7 +9,9 @@ from behave_analysis.utils.data_loading import load_or_extract_homings
 
 def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_escape=True):
     """
-    A function that filters the video dataframe (the behavioural data) by object presence (whether the barrier or shelter is present or not)
+    A function that filters the video dataframe (the behavioural data) and finds the periods of time in each condition (defined by object presence (whether the barrier or shelter is present or not))
+    Time in shelter is removed
+    optionally times when the mouse is escaping (x seconds after threat) are also removed
     """
 
     filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == outofshelter))
@@ -44,7 +46,11 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
 
 def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
     """
-    A function that filters the video dataframe (the behavioural data) based on mousie's homing behaviour
+    A function that filters the video dataframe (the behavioural data) based on mousie's homing behaviour.
+    This function identifies homings in each condition, then determines which goal or subgoal the homing targeted. 
+    If that is the correct target for this condition that is called a good homing.
+    Here the time in this condition is split up into times when the mouse is doing at least 2 consecutive good homings, 
+    and when the mouse is doing at least 2 consecutive bad homings.
     """
     # get homings
     homings = load_or_extract_homings(session)
@@ -91,7 +97,10 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
 
 def filter_video_df_homing_number(dataframe, condition, session, good_homie, number_of_homings):
     """
-    A function that filters the video dataframe (the behavioural data) based on mousie's homing behaviour
+    A function that filters the video dataframe (the behavioural data) based on mousie's homing behaviour.
+    This function identifies homings in each condition, then determines which goal or subgoal the homing targeted. 
+    If that is the correct target for this condition that is called a good homing.
+    Here the time in this condition is split up into before the mouse does number_of_homings good homings and after the mouse does number_of_homings good homings.
     """
     # get homings
     homings = load_or_extract_homings(session)
@@ -128,9 +137,11 @@ def filter_video_df_homing_number(dataframe, condition, session, good_homie, num
     return filtered_video_df
 
 def identify_conditions(session) -> list:
-    """Determine which conditions are available in this session
+    """
+    Determine which conditions are available in this session
 
-    e.g. shelter_only, barrier_present, barrier_pre_flip, barrier_post_flip"""
+    e.g. shelter_only, barrier_present, barrier_pre_flip, barrier_post_flip
+    """
 
     condition = ["all_time"]
 
@@ -151,7 +162,11 @@ def identify_conditions(session) -> list:
 
 
 def extract_all_or_custom_conditions(settings, session):
-    """Identify all conditions to analyze or use custom conditions from settings file"""
+    """
+    Identify all conditions to analyze or use custom conditions from settings file
+    if settings.user_defined_conditions a list of conditions is used that the user manually inputed
+    otherwise relevant conditions are determined for this session based on what objects were present
+    """
     # this sets conditions based on when objects were introduced to arena
     if settings.user_defined_conditions:
         conditions = settings.conditions
@@ -164,7 +179,10 @@ def extract_all_or_custom_conditions(settings, session):
 
 
 def identify_conditions_based_on_behave(session):
-    """This function subselects which conditions to look at homing behaviour in"""
+    """
+    This function subselects which conditions to look at homing behaviour in
+    RETURNS: a list of conditions
+    """
     condition = []
 
     if len(session.shelter_time) > 0:
@@ -188,6 +206,7 @@ def identify_conditions_based_on_behave(session):
 def identify_angles(session):
     """
     A function that looks at shelter_time and barrier_time and determines what angles are interesting in this session
+    RETURNS: a list of angles
     """
     angles = ["hdir"]
 
@@ -203,20 +222,44 @@ def identify_angles(session):
 
 
 def generate_bin_angles(number_of_bins):
+    '''
+    This function creates bin edges and a vector of bin center values ranging from -pi to pi
+    
+    INPUT: number of bins
+    
+    RETURNS: bin_angles - the bin edges, a vector of length number_of_bins, when passed to np.digitize it will create a number of bins = number_of_bins-1
+    bin_angle_center - the value of the mean of each angle bin created using bin_angles as the edges. it's length is number_of_bins+1 as -pi is added at the start and pi is added at the beginning
+    '''
     bin_angles = np.linspace(-np.pi, np.pi, number_of_bins)
     bin_angle_center = np.sort(np.append([-np.pi, np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles)) / 2)]))
     return bin_angles, bin_angle_center
 
 
 def generate_bin_positions(min, max, number_of_bins):
-    """Bin the mouse's position in xy"""
+    '''
+    This function creates bin edges and a vector of bin center values of the mouse's position
+    
+    INPUT: min and max - the range that the bins cover
+    number of bins
+    
+    RETURNS: bin_pos - the bin edges, a vector of length number_of_bins, when passed to np.digitize it will create a number of bins = number_of_bins-1
+    bin_pos_center - the value of the mean of each angle bin created using bin_angles as the edges. it's length is number_of_bins-1.
+    '''
     bin_pos = np.linspace(min, max, number_of_bins)
     bin_pos_center = bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)
     return bin_pos, bin_pos_center
 
 
-def generate_bin_positions_ego(min, max, number_of_bins):
-    """Bin the mouse's position in xy"""
-    bin_pos = np.linspace(min, max, number_of_bins)
-    bin_pos_center = np.sort(np.append([min, max], [bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)]))
-    return bin_pos, bin_pos_center
+# def generate_bin_positions_ego(min, max, number_of_bins):
+#     '''
+#     This function creates bin edges and a vector of bin center values of the mouse's position
+    
+#     INPUT: min and max - the range that the bins cover
+#     number of bins
+    
+#     RETURNS: bin_pos - the bin edges, a vector of length number_of_bins, when passed to np.digitize it will create a number of bins = number_of_bins-1
+#     bin_pos_center - the value of the mean of each angle bin created using bin_angles as the edges. it's length is number_of_bins+1 as min is added at the start and max is added at the beginning
+#     '''
+#     bin_pos = np.linspace(min, max, number_of_bins)
+#     bin_pos_center = np.sort(np.append([min, max], [bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)]))
+#     return bin_pos, bin_pos_center

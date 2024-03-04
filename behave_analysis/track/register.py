@@ -122,21 +122,22 @@ class Register():
     def get_shelter_position(self,session,video,video_object,fps):
         """ Ask user where shelter and barrier were positioned"""
 
-        self.actual_arena = []
-        self.get_image_of_registered_arena(session, video, video_object, (session.shelter_time[0]+10)*60*fps)
-        self.clicked_points = []
-        # ask user where the shelter is
-        print("Where is the shelter? Click first the top left, then the bottom right corner of the shelter. ATTENTION: if mushroom mark the base, not the roof")
-        cv2.namedWindow('where is shelter')
-        cv2.setMouseCallback('where is shelter', self.position_click_targets)
-        while True:
-            cv2.imshow('where is shelter', self.actual_arena)
-            if len(self.clicked_points) == 2: break # once both points are clicked
-            key = cv2.waitKey(10)
-            if key == ord('q'): print('quit.'); sys.exit()
-        cv2.destroyAllWindows()
-        
-        session.shelter_location = self.clicked_points
+        if len(session.shelter_time) > 0:
+            self.actual_arena = []
+            self.get_image_of_registered_arena(session, video, video_object, (session.shelter_time[0]+10)*60*fps)
+            self.clicked_points = []
+            # ask user where the shelter is
+            print("Where is the shelter? Click first the top left, then the bottom right corner of the shelter. ATTENTION: if mushroom mark the base, not the roof")
+            cv2.namedWindow('where is shelter')
+            cv2.setMouseCallback('where is shelter', self.position_click_targets)
+            while True:
+                cv2.imshow('where is shelter', self.actual_arena)
+                if len(self.clicked_points) == 2: break # once both points are clicked
+                key = cv2.waitKey(10)
+                if key == ord('q'): print('quit.'); sys.exit()
+            cv2.destroyAllWindows()
+            
+            session.shelter_location = self.clicked_points
 
     def get_barrier_position(self,session,video,video_object,fps):
         """ Ask user where shelter and barrier were positioned"""

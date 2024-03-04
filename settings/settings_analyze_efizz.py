@@ -19,11 +19,11 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_post_flip',
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
-    condition_types='homing_number_3',  # if 'experimental_conditions' it uses conditions listed above that start with user
+    condition_types='experimental_conditions',  # if 'experimental_conditions' it uses conditions listed above that start with user
                             # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
                             # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
     compartment_split = ['all'], #['threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment'] is the data being split in the two compartments
-    number_of_bins=13,  # number of bins for angles
+    number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers 
     
     # ------------- PCA model settings --------------------------
     run_dim_reduction=False,
@@ -38,7 +38,7 @@ Settings_ae = Settings_analyze_efizz(
     run_sklearn_decoders=False,
     
     # --------------LSTM model settings ------------------------
-    run_LSTM=True,
+    run_LSTM=False,
 
     # ------------- LDA model settings --------------------------
     run_LDA="all",  # if [] it will not run LDA
@@ -46,7 +46,7 @@ Settings_ae = Settings_analyze_efizz(
                     # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
     epoch_num=6,  # number of epochs for cross validation
     use_firing_rate=True,
-    discriminant_type="linear",  # 'linear' or 'quadratic'
+    discriminant_type="LSTM",  # 'linear' or 'quadratic' or 'LSTM'
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     
     # ------------ Rayleigh model settings ----------------------
