@@ -75,19 +75,18 @@ class LSTMModel(nn.Module):
     - The LSTMModel instance.
     """
 
-    def __init__(self, input_dim, hidden_dim, num_layers):
+    def __init__(self, input_dim, hidden_dim, num_layers, dropout_prob=0.5):
         super(LSTMModel, self).__init__()
         _output_dim = 1
         self.hidden_dim = hidden_dim
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         self.num_layers = num_layers
-        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True)
+        self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers, batch_first=True, dropout=dropout_prob)
+        self.dropout = nn.Dropout(dropout_prob)
         self.linear = nn.Linear(hidden_dim, _output_dim)
 
-        if self.device == "cuda":
-            logger.info("Using GPU")
-        else:
-            logger.info("Using CPU")
+        if self.device != "cuda":
+            logger.warning("CUDA is not available. The model will run on CPU.")
 
     def forward(self, x):
         """Forward pass through the network.
@@ -108,14 +107,14 @@ class LSTMModel(nn.Module):
         out, (_, _) = self.lstm(x, (h0, c0))  # where out.shape = (Batch size, sequence length, hidden_dimens)
         # Given that we are using batch gradient descent batch size == total number of samples
         # Now Squash the output of the hidden to the output layer (Samples, output_dim)
-        out = self.linear(out[:, -1, :])  # Take the last sequence output
+        out = self.linear(self.dropout(out[:, -1, :]))  # Take the last sequence output
         # Shape of out is now (Samples, output_dim)
         out = torch.tanh(out) * 3.14  # scale the output to be between -pi and pi
         return out
 
 
 # ---------------------------- fit the model ----------------------------
-def fit_LSTM(X, Y) -> tuple[object, int]:
+def fit_LSTM(X, Y, X_test, Y_test) -> tuple[object, int]:
     """Returns a fitted LSTM model for the given training input data.
 
     This function expects training data as the X and Y input.
@@ -133,22 +132,27 @@ def fit_LSTM(X, Y) -> tuple[object, int]:
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Parameters ---------------------------------------------------
-    test_size = 0.2
-    num_layers = 1  # Increasing also gives better results but is slower
+    num_layers = 2  # Increasing also gives better results but is slower
     input_dim = X.shape[1]
     epoch_saves = 50  # Save and print the loss every 50 epochs
 
     # Hyperparameters ----------------------------------------------
     hidden_dim = 100  # Number of LSTM cells - 100 worrks but 256 is better though much slower
-    num_epochs = 250  # Number of iterations to train the model - increasing this gives better results but is slower
-    sequence_length = 5  # Number of time steps to consider for each prediction - increasing this gives better results but is slower
+    num_epochs = 1000  # Number of iterations to train the model - increasing this gives better results but is slower
+    sequence_length = 10  # Number of time steps to consider for each prediction - increasing this gives better results but is slower
     # and because not mini-batching you will get an error if model becomes to big
-    learning_rate = 0.005  # 0.001 works better but is slower
+    learning_rate = 0.001  # 0.001 works better but is slower
 
     # Preprocess the data -------------------------------------------
     X_train_torch, Y_train_torch = reshape_sequences_1d(
         X,
         Y,
+        seq_length=sequence_length,
+    )
+
+    X_test_torch, Y_test_torch = reshape_sequences_1d(
+        X_test,
+        Y_test,
         seq_length=sequence_length,
     )
 
@@ -181,7 +185,29 @@ def fit_LSTM(X, Y) -> tuple[object, int]:
         scaler.update()
 
         # logg the loss
-        logger.info(f"Epoch {epoch}, Train Loss: {train_loss.item()}")
+        if epoch % epoch_saves == 0:
+            # logger.info(f"Epoch {epoch}, Train Loss: {train_loss.item()}")
+            train_losses.append(train_loss.item())
+
+            # ---------------------Track the test loss ----------------
+            model.eval()  # Set the model to evaluation mode
+            with torch.no_grad():  # Turn off the gradients
+                y_pred_test = model(X_test_torch)
+                y_pred_test = torch.squeeze(y_pred_test)
+                test_loss = loss_fn(y_pred_test, Y_test_torch)
+                test_losses.append(test_loss.item())
+                print(f"Epoch {epoch}, Train Loss: {train_loss.item()}, Test Loss: {test_loss.item()}")
+
+    # Plot the learning curve ----------------------------------------
+    # Learning Curve (now spans two columns)
+    plt.subplot(2, 1, 1)
+    plt.plot(np.arange(0, num_epochs, epoch_saves), train_losses, label="Training Loss", color="blue")
+    plt.plot(np.arange(0, num_epochs, epoch_saves), test_losses, label="Test Loss", color="orange")
+    plt.title(f"Learning Curves - Min train loss: {min(train_losses):.2f}, Min test loss: {min(test_losses):.2f}")
+    plt.xlabel("Epoch")
+    plt.ylabel("Loss")
+    plt.legend(loc="upper right")
+    plt.show()
 
     return model, sequence_length
 

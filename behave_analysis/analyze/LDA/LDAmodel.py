@@ -35,7 +35,7 @@ def LDA(self, settings):
     """
     A wrapper function that figures out all the conditions across which to run decoding analysis.
     It will iterate over all conditions and compartments.
-    If the decoding analyss has not yet been run or the user asked to force_redo, the analysis will be run, 
+    If the decoding analyss has not yet been run or the user asked to force_redo, the analysis will be run,
     if not it will jump straight to plotting the prediction accuracy maps for all conditions
     """
 
@@ -253,7 +253,7 @@ def linear_discriminant_analysis(X, Y, binned_pos, discriminant_type="linear", p
                 bin_angle_center = bin_angle_center[1:-1]
 
                 # run LSTM
-                model, seq_length = fit_LSTM(X1, bin_angle_center[y1 - 1])
+                model, seq_length = fit_LSTM(X1, bin_angle_center[y1 - 1], X2, bin_angle_center[y2 - 1])
                 y_hat_train = predict_LSTM(model, X1, seq_length).reshape(-1)
                 y_hat_test = predict_LSTM(model, X2, seq_length).reshape(-1)
 
@@ -263,9 +263,9 @@ def linear_discriminant_analysis(X, Y, binned_pos, discriminant_type="linear", p
 
                 # crop y to match predicted output
                 if len(y_hat_train) != len(y1):
-                    y1 = y1[: len(y_hat_train)]
+                    y1 = y1[len(y1) - len(y_hat_train) :]
                 if len(y_hat_test) != len(y2):
-                    y2 = y2[: len(y_hat_test)]
+                    y2 = y2[len(y2) - len(y_hat_test) :]
 
             else:
                 if discriminant_type == "linear":
