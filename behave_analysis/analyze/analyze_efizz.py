@@ -66,17 +66,14 @@ class AnalyzeEfizz:
             if not Settings.single_cluster_plots:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
                 all_angles = identify_angles(self.session)
-                if Settings.learned_conditions:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "learned_condition"))
-                else:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "object_condition"))
+                base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,Settings.condition_types)
                 compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
                 
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
-            self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
+            # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
 
         # ------------------------------ Compute TUNED --------------------------------
         if Settings.run_tunED:

@@ -63,7 +63,8 @@ class Process():
                                                              camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
                                                              lastPulse = lastPulse,
                                                              firstPulse = firstPulse)
-            
+        
+        logger.info("Finished process, saving session metadata")
         self.save_session()
         
         return self.session

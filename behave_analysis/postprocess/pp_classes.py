@@ -98,19 +98,22 @@ class BaseDataPostprocessor(ABC):
 
         Returns: Video_df
         """
-        # if mushroom, estend size to outer circle
-        if np.logical_and(
-            self.tracking_data["shelter_loc"][1][0] - self.tracking_data["shelter_loc"][0][0] < 50,
-            self.tracking_data["shelter_loc"][1][1] - self.tracking_data["shelter_loc"][0][1] < 50,
-        ):
-            self.tracking_data["shelter_loc"][0] = [x - 35 for x in self.tracking_data["shelter_loc"][0]]
-            self.tracking_data["shelter_loc"][1] = [x + 35 for x in self.tracking_data["shelter_loc"][1]]
+        if len(self.session.shelter_time) > 0:
+            # if mushroom, estend size to outer circle
+            if np.logical_and(
+                self.tracking_data["shelter_loc"][1][0] - self.tracking_data["shelter_loc"][0][0] < 50,
+                self.tracking_data["shelter_loc"][1][1] - self.tracking_data["shelter_loc"][0][1] < 50,
+            ):
+                self.tracking_data["shelter_loc"][0] = [x - 35 for x in self.tracking_data["shelter_loc"][0]]
+                self.tracking_data["shelter_loc"][1] = [x + 35 for x in self.tracking_data["shelter_loc"][1]]
 
-        # if side shelter make sure it goes all the way to the edge of image, mouse can't be 'behind' shelter
-        if self.tracking_data["shelter_loc"][1][1] > 900:
-            self.tracking_data["shelter_loc"][1][1] = 1024
+            # if side shelter make sure it goes all the way to the edge of image, mouse can't be 'behind' shelter
+            if self.tracking_data["shelter_loc"][1][1] > 900:
+                self.tracking_data["shelter_loc"][1][1] = 1024
 
-        OutofShelterIdx = out_of_shelter_filter(tracking_data=self.tracking_data)
+            OutofShelterIdx = out_of_shelter_filter(tracking_data=self.tracking_data)
+        else:
+            OutofShelterIdx = np.ones(len(self.tracking_data["hdir"]))
 
         # when was the shelter in the arena?
         if len(self.session.shelter_time) > 0:
@@ -157,7 +160,6 @@ class BaseDataPostprocessor(ABC):
             {
                 "frames": np.arange(1, len(self.tracking_data["hdir"]) + 1).astype(np.int64),
                 "hdir": self.tracking_data["hdir"],
-                "hsa": self.tracking_data["hdir_shelt"],
                 "mouse_x_position": self.tracking_data["avg_loc"][:, 0],
                 "mouse_y_position": self.tracking_data["avg_loc"][:, 1],
                 "OutofshelterIdx": OutofShelterIdx,  # was the mouse in the shelter?
@@ -167,6 +169,10 @@ class BaseDataPostprocessor(ABC):
                 "barrier_flipped": barrier_flipped,
             }
         )  # true after the shelter was flipped
+
+        # if barrier in session, add the angles to video_df
+        if "hdir_shelt" in self.tracking_data:
+            video_df = video_df.hstack([pl.Series("hsa", self.tracking_data["hdir_shelt"])])
 
         # if barrier in session, add the angles to video_df
         if "hdir_barrier" in self.tracking_data:
@@ -369,8 +375,9 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
-        homings = load_or_extract_homings(session)
-        escapes = get_Escapes(settings,session, tracking_data, video_df, homings)
+        if len(self.session.shelter_time) > 0:
+            homings = load_or_extract_homings(session)
+            escapes = get_Escapes(settings,session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
