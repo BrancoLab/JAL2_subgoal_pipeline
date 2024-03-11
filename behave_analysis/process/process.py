@@ -5,11 +5,13 @@ from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.photoresistor import get_Photoresistor
 from behave_analysis.process.electrophysiology.ttl_sync import get_TTL
+from behave_analysis.process.electrophysiology.spike_interface import SpikeInterface
 from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
 from behave_analysis.process.session import NEW_Session, get_experiment # Testing refactored dataclass structure
 from behave_analysis.database.computer_ID import get_computer_specific_paths
+
 
 #Import OS libraries
 import os
@@ -41,7 +43,8 @@ class Process():
         
         if settings_p.efizz:
             self.session.efizzDataLoaded = LoadEfizz(self.session)
-            self.session.ttl = get_TTL(self.session, self.session.efizzDataLoaded.TTL_bin_path)
+            SpikeInterface()
+            self.session.ttl = get_TTL(self.session, self.session.efizzDataLoaded.imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
