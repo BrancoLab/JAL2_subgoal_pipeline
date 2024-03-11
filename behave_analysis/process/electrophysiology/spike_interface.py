@@ -1,6 +1,12 @@
 """ The point of this script is to run the necessary preprocessing spike interface functions 
 and then run Kilosort2.5 on the preprocessed recording object. There is also scope to do more 
-such as drift correction, post processing and validation of the sorting output. """
+such as drift correction, post processing and validation of the sorting output. 
+
+#TODO:
+-- Change kilosort path
+-- Check other functions
+-- Get to work on SLURM
+"""
 
 import spikeinterface.full as si
 import matplotlib.pyplot as plt
