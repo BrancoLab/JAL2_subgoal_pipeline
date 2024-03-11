@@ -43,8 +43,10 @@ class Process():
         
         if settings_p.efizz:
             self.session.efizzDataLoaded = LoadEfizz(self.session)
-            SpikeInterface()
-            self.session.ttl = get_TTL(self.session, self.session.efizzDataLoaded.imec_sync_path)
+            imec_sync_path = Path(self.session.efizzDataLoaded.imec_sync_path)
+            spike_glxFolder = imec_sync_path.parents[1]
+            SpikeInterface(spike_glxFolder)
+            self.session.ttl = get_TTL(self.session, imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]

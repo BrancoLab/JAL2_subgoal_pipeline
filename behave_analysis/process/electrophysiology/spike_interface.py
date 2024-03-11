@@ -6,6 +6,7 @@ import spikeinterface.full as si
 import matplotlib.pyplot as plt
 from loguru import logger
 import numpy as np
+from pathlib import Path
 
 # Parameters for Kilosort2.5 change these to suit your data
 PARAMS_KS_25 = {
@@ -38,8 +39,8 @@ class SpikeInterface:
     Ouput:
     -- The output of the Kilosort2.5 spike sorting algorithm is saved"""
 
-    def __init__(self):
-        self.spikeglx_folder = r"E:\efizz\JAL007\JAL007_empty_shelter_2024_03_05T13_45_47\empty_shelter_5mar2024_g0"
+    def __init__(self, spike_glxFolder):
+        self.spikeglx_folder = spike_glxFolder
         self.raw_rec = self.load_imec_bin(self.spikeglx_folder)
         self.filt_rec = self.preprocess_spike_interface()
         # self.run_kilosort25()
@@ -91,7 +92,7 @@ class SpikeInterface:
         _, ax = plt.subplots(figsize=(15, 10))
         si.plot_probe_map(self.raw_rec, ax=ax, with_channel_ids=True)
         ax.set_ylim(-300, 2500)
-        plt.savefig(self.spikeglx_folder + r"\channel_map.png")
+        plt.savefig(self.spikeglx_folder / Path("channel_map.png"))
         plt.close()
 
     def plot_noise_estimation(self):
@@ -101,7 +102,7 @@ class SpikeInterface:
         _, ax = plt.subplots()
         _ = ax.hist(noise_levels_microv, bins=np.arange(5, 30, 2.5))
         ax.set_xlabel("noise  [microV]")
-        plt.savefig(self.spikeglx_folder + r"\noise_estimation.png")
+        plt.savefig(self.spikeglx_folder / Path("noise_estimation.png"))
         plt.close()
         return noise_levels_int16
 
