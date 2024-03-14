@@ -19,6 +19,7 @@ global_job_kwargs = dict(n_jobs=10, chunk_duration="1s", progress_bar=True)
 si.set_global_job_kwargs(**global_job_kwargs)
 
 # Parameters for Kilosort2.5 change these to suit your data
+# TODO: Are we happy that none of these paramteres are clashing with the preprocessing steps?
 PARAMS_KS_25 = {
     "detect_threshold": 6,
     "projection_threshold": [8, 4],  # Spike detection threshold
