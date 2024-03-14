@@ -24,7 +24,7 @@ PARAMS_KS_25 = {
     "projection_threshold": [8, 4],  # Spike detection threshold
     "AUCsplit": 0.8,  # Splitting cluster threshold, 0.9 is stricter, 0.7 is looser
     "preclust_threshold": 8,
-    "car": False, # Common average reference setting to False as we do this with spikeinterface
+    "car": False,  # Common average reference setting to False as we do this with spikeinterface
     "minFR": 0.1,
     "minfr_goodchannels": 0.1,
     "nblocks": 5,
@@ -35,7 +35,7 @@ PARAMS_KS_25 = {
     "ntbuff": 64,
     "nfilt_factor": 4,
     "NT": None,
-    "do_correction": True, # Drift correction
+    "do_correction": True,  # Drift correction
     "wave_length": 61,
     "keep_good_only": False,
     "n_jobs": 40,
@@ -47,11 +47,15 @@ PARAMS_KS_25 = {
 class SpikeInterface:
     """A class that calls the spike interface API and conducts a full pipeline of processing efizz data"""
 
-    def __init__(self, spike_glx_folder, path_to_ks, binary_file_path):
-        self.spikeglx_folder = spike_glx_folder
+    def __init__(self, path_to_ks, binary_file_path):
+
+        # Set the paths
+        self.save_path = binary_file_path.parent[0]
+        self.spikeglx_folder = binary_file_path.parent[1]
         self.path_to_ks = path_to_ks
         self.path_to_binary = binary_file_path
 
+        # Run the pipeline
         self.raw_rec = self.load_imec_bin(self.spikeglx_folder)
         self.extract_and_save_sync_channel()
         self.filt_rec = self.preprocess_spike_interface()
@@ -75,7 +79,7 @@ class SpikeInterface:
         """Extract and save the sync channel from the raw recording object"""
         sync_channel = si.read_binary(self.path_to_binary, num_channels=385, dtype="int16", sampling_frequency=30000).channel_slice(channel_ids=[384])
         sync_trace = sync_channel.get_traces()
-        np.save(self.spikeglx_folder / "sync_channel.npy", sync_trace)
+        np.save(self.save_path / "sync_channel.npy", sync_trace)
 
     def preprocess_spike_interface(self):
         """Preprocess the raw recording using spikeinterface.
@@ -111,7 +115,7 @@ class SpikeInterface:
             sorting_obj = si.run_sorter(
                 "kilosort2_5",
                 self.filt_rec,
-                output_folder=self.spikeglx_folder / "SI_KS_output",
+                output_folder= self.save_path / "SI_KS_output",
                 verbose=True,
                 remove_existing_folder=True,
                 **PARAMS_KS_25,
@@ -120,14 +124,14 @@ class SpikeInterface:
 
         # Check if Kilosort2.5 has already been run if not then run it
         else:
-            if (self.spikeglx_folder / "SI_KS_output").is_dir():
-                sorting_obj = si.read_sorter_folder(self.spikeglx_folder / "SI_KS_output")
+            if (self.save_path / "SI_KS_output").is_dir():
+                sorting_obj = si.read_sorter_folder(self.save_path / "SI_KS_output")
                 print("Kilosort 2.5 has already been run and the output has been read from the spike interface folder")
             else:
                 sorting_obj = si.run_sorter(
                     "kilosort2_5",
                     self.filt_rec,
-                    output_folder=self.spikeglx_folder / "SI_KS_output",
+                    output_folder= self.save_path / "SI_KS_output",
                     verbose=True,
                     remove_existing_folder=True,
                     **PARAMS_KS_25,
@@ -142,38 +146,14 @@ class SpikeInterface:
         """The core of postprocessing and quality metrice computations
         revolves around extracting waveforms from paired recording-sorting objects."""
         print("Extracting waveforms")
-        we = si.extract_waveforms(self.filt_rec, self.sorting, folder=self.spikeglx_folder / "waveforms", load_if_exists=True, **global_job_kwargs)
+        we = si.extract_waveforms(self.filt_rec, self.sorting, folder=self.save_path / "waveforms", load_if_exists=True, **global_job_kwargs)
         return we
 
-    # def post_processing_spike_interface(self):
-    #     """
-
-    #     Note that most of the post-processing functions require a SortingAnalyzer as input. Thus
-    #     the sorting object must be availabl"""
-
-    #     analyzer = si.create_sorting_analyzer(self.sorting, self.filt_rec, sparse=True, format="memory")
-    #     analyzer.compute("random_spikes", method="uniform", max_spikes_per_unit=500)
-    #     analyzer.compute("waveforms", ms_before=1.5, ms_after=2.0, **global_job_kwargs)
-    #     analyzer.compute("templates", operators=["average", "median", "std"])
-    #     analyzer.compute("noise_levels")
-    #     analyzer.compute("correlograms")
-    #     analyzer.compute("unit_locations")
-    #     analyzer.compute("spike_amplitudes", **global_job_kwargs)
-    #     analyzer.compute("template_similarity")
-    #     analyzer_saved = analyzer.save_as(folder=self.spikeglx_folder / "analyzer", format="binary_folder")
-    #     return analyzer_saved
-
-    def quality_metrics_spike_interface(self):
-        """Create a pandas dataframe of quality metrics for each unit in the sorting output. This includes:
-        firing_rate',
-        'presence_ratio',
-        'snr',
-        'isi_violation',
-        'amplitude_cutoff
-        """
+    def quality_metrics_spike_interface(self) -> None:
+        """Create a pandas dataframe of quality metrics for each unit in the sorting output."""
         print("Compuyting quality metrics for the sorting output")
         qm = si.compute_quality_metrics(self.we, verbose=True, n_jobs=global_job_kwargs["n_jobs"])
-        print(qm)
+        qm.to_csv(self.save_path / "quality_metrics.csv")
 
     # --------------------------------- PLOTTING ---------------------------------
 
@@ -183,7 +163,7 @@ class SpikeInterface:
         _, ax = plt.subplots(figsize=(15, 10))
         si.plot_probe_map(self.raw_rec, ax=ax, with_channel_ids=True)
         ax.set_ylim(-300, 2500)
-        plt.savefig(self.spikeglx_folder / Path("channel_map.png"))
+        plt.savefig(self.save_path / Path("channel_map.png"))
         plt.close()
 
     def plot_noise_estimation(self):
@@ -203,32 +183,19 @@ class SpikeInterface:
         ax.set_xlabel("noise  [microV]")
         ax.set_ylabel("Channel count")
         ax.set_title("Variation in noise levels across channels for filtered and unfiltered data")
-        plt.savefig(self.spikeglx_folder / Path("noise_estimation.png"))
+        plt.savefig(self.save_path / Path("noise_estimation.png"))
         plt.close()
         return
-
-    # --------------------------------- Not working ---------------------------------
-
-    # def check_for_drifts(rec, noise_levels_int16):
-    #     logger.info("Checking for drifts in the recording")
-    #     job_kwargs = dict(n_jobs=40, chunk_duration="1s", progress_bar=True)
-    #     peaks = detect_peaks(rec, method="locally_exclusive", noise_levels=noise_levels_int16, detect_threshold=5, radius_um=50.0, **job_kwargs)
-    #     peak_locations = localize_peaks(rec, peaks, method="center_of_mass", radius_um=50.0, **job_kwargs)
-    #     fs = rec.sampling_frequency
-    #     _, ax = plt.subplots(figsize=(10, 8))
-    #     ax.scatter(peaks["sample_ind"] / fs, peak_locations["y"], color="k", marker=".", alpha=0.002)
-    #     plt.show()
 
 
 if __name__ == "__main__":
     print("Running SpikeInterface piepline. This will preprocess and spike sort the data")
 
     # Change these paths
-    spike_glxFolder = Path("E:\efizz\JAL007\JAL007_empty_shelter_2024_03_05T13_45_47\empty_shelter_5mar2024_g0")
     binary_file_path = Path(
-        "E:\efizz\JAL007\JAL007_empty_shelter_2024_03_05T13_45_47\empty_shelter_5mar2024_g0\empty_shelter_5mar2024_g0_imec0\empty_shelter_5mar2024_g0_t0.imec0.ap.bin"
+        r"E:\efizz\JAL007\JAL007_empty_shelter_2024_03_05T13_45_47\empty_shelter_5mar2024_g0\empty_shelter_5mar2024_g0_imec0\empty_shelter_5mar2024_g0_t0.imec0.ap.bin"
     )
     path_to_ks = r"C:\Users\laurence\Documents\Kilosort-2.5"
 
-    SpikeInterface(spike_glxFolder, path_to_ks, binary_file_path)
+    SpikeInterface(path_to_ks, binary_file_path)
     print("SpikeInterface has run successfully")

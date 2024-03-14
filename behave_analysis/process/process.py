@@ -43,7 +43,6 @@ class Process():
         if settings_p.efizz:
             self.session.efizzDataLoaded = LoadEfizz(self.session)
             imec_sync_path = Path(self.session.efizzDataLoaded.imec_sync_path)
-            spike_glxFolder = imec_sync_path.parents[1]
             self.session.ttl = get_TTL(self.session, imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
