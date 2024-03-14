@@ -7,7 +7,6 @@ to run on HPC and thus this is a indepedent module. To run on HPC, the paths nee
 -- Currently no post processing functions are being used
 """
 
-import os
 from pathlib import Path
 
 import spikeinterface.full as si
