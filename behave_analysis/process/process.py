@@ -5,7 +5,6 @@ from behave_analysis.process.audio import get_Audio
 from behave_analysis.process.video import get_Video
 from behave_analysis.process.photoresistor import get_Photoresistor
 from behave_analysis.process.electrophysiology.ttl_sync import get_TTL
-from behave_analysis.process.electrophysiology.spike_interface import SpikeInterface
 from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
@@ -45,7 +44,6 @@ class Process():
             self.session.efizzDataLoaded = LoadEfizz(self.session)
             imec_sync_path = Path(self.session.efizzDataLoaded.imec_sync_path)
             spike_glxFolder = imec_sync_path.parents[1]
-            SpikeInterface(spike_glxFolder)
             self.session.ttl = get_TTL(self.session, imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
