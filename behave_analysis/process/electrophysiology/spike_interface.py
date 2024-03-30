@@ -1,10 +1,16 @@
-""" A local test variantion of our spike interface pipeline. The point of this script is to run the necessary 
+"""A local test variantion of our spike interface pipeline. The point of this script is to run the necessary 
 preprocessing, sorting, postprocessing and quality metric computation spike interface functions. It is designed
 to run on HPC and thus this is a indepedent module. To run on HPC, the paths need to be changed to suit the HPC.
+In the very likely event that the cluster and ceph are down, this can be run locally.
 
 #NOTE:
 -- There are many more functions in the interface to be used and looked at, this is a basic pipeline
 -- Currently no post processing functions are being used
+-- The sync channel extraction is not working for some reason so have to do this manually for now
+-- If debugging sorter might be worth to save preprocess .bin to save recompute every time
+
+Usage guidelines:
+-- Do not export the sync file from spike glx first, as this will break loader as it will find too many files
 """
 
 from pathlib import Path
@@ -50,14 +56,14 @@ class SpikeInterface:
     def __init__(self, path_to_ks, binary_file_path):
 
         # Set the paths
-        self.save_path = binary_file_path.parent[0]
-        self.spikeglx_folder = binary_file_path.parent[1]
+        self.save_path = binary_file_path.parents[0]
+        self.spikeglx_folder = binary_file_path.parents[1]
         self.path_to_ks = path_to_ks
         self.path_to_binary = binary_file_path
 
         # Run the pipeline
         self.raw_rec = self.load_imec_bin(self.spikeglx_folder)
-        self.extract_and_save_sync_channel()
+        # self.extract_and_save_sync_channel() # Not working for somereason
         self.filt_rec = self.preprocess_spike_interface()
         self.plot_channel_map()
         self.plot_noise_estimation()
@@ -77,9 +83,11 @@ class SpikeInterface:
 
     def extract_and_save_sync_channel(self) -> None:
         """Extract and save the sync channel from the raw recording object"""
+        print("Extracting and saving the sync channel")
         sync_channel = si.read_binary(self.path_to_binary, num_channels=385, dtype="int16", sampling_frequency=30000).channel_slice(channel_ids=[384])
-        sync_trace = sync_channel.get_traces()
-        np.save(self.save_path / "sync_channel.npy", sync_trace)
+        # sync_channel.save(folder=self.save_path / "sync_channel", format='binary', **global_job_kwargs)
+        si.write_binary_recording(recording=sync_channel, file_paths=self.save_path / "sync_channel.bin")
+        print(f"Sync channel saved to the spikeglx folder: {self.save_path / 'sync_channel.bin'}")
 
     def preprocess_spike_interface(self):
         """Preprocess the raw recording using spikeinterface.
@@ -106,37 +114,19 @@ class SpikeInterface:
         print("Preprocessing complete")
         return rec
 
-    def run_kilosort25(self, rerun_sorter=False):
+    def run_kilosort25(self):
         """Run Kilosort2.5 on the preprocessed recording object and save the output to the spike interface folder."""
         print("Running Kilosort 2.5 from spikeinterface")
         si.Kilosort2_5Sorter.set_kilosort2_5_path(self.path_to_ks)
 
-        if rerun_sorter:
-            sorting_obj = si.run_sorter(
-                "kilosort2_5",
-                self.filt_rec,
-                output_folder= self.save_path / "SI_KS_output",
-                verbose=True,
-                remove_existing_folder=True,
-                **PARAMS_KS_25,
-            )
-            print(f"Kilosort 2.5 has been re-run and the output has been saved to the spikeglx folder: {sorting_obj}")
-
-        # Check if Kilosort2.5 has already been run if not then run it
-        else:
-            if (self.save_path / "SI_KS_output").is_dir():
-                sorting_obj = si.read_sorter_folder(self.save_path / "SI_KS_output")
-                print("Kilosort 2.5 has already been run and the output has been read from the spike interface folder")
-            else:
-                sorting_obj = si.run_sorter(
-                    "kilosort2_5",
-                    self.filt_rec,
-                    output_folder= self.save_path / "SI_KS_output",
-                    verbose=True,
-                    remove_existing_folder=True,
-                    **PARAMS_KS_25,
-                )
-                print(f"Kilosort 2.5 has been run and the output has been saved to the spikeglx folder: {sorting_obj}")
+        sorting_obj = si.run_sorter(
+            "kilosort2_5",
+            self.filt_rec,
+            output_folder=self.save_path / "SI_KS_output",
+            verbose=True,
+            remove_existing_folder=True,
+            **PARAMS_KS_25,
+        )
 
         print(f"Loaded Kilosort 2.5 output: {sorting_obj}")
 
@@ -191,11 +181,14 @@ class SpikeInterface:
 if __name__ == "__main__":
     print("Running SpikeInterface piepline. This will preprocess and spike sort the data")
 
-    # Change these paths
+    # Change the path to the binary file to suit your data
     binary_file_path = Path(
-        r"E:\efizz\JAL007\JAL007_empty_shelter_2024_03_05T13_45_47\empty_shelter_5mar2024_g0\empty_shelter_5mar2024_g0_imec0\empty_shelter_5mar2024_g0_t0.imec0.ap.bin"
+        r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\barrier_flip6_g0\barrier_flip6_g0_imec0\barrier_flip6_g0_t0.imec0.ap.bin"
     )
+    
+    # Change the path to the kilosort folder to suit your data
     path_to_ks = r"C:\Users\laurence\Documents\Kilosort-2.5"
-
+    
+    # Run the pipeline
     SpikeInterface(path_to_ks, binary_file_path)
     print("SpikeInterface has run successfully")

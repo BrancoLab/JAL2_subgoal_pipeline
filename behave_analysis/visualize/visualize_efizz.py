@@ -54,6 +54,7 @@ class Visualize_efizz:
         )  
 
         # egocentric view of features where a neuron fires
+        # TODO ego firing map failed for me (laurence) need to debug
         cluster_Ids = self.processed_data.clu_label["spike_clusters"].unique().to_numpy()
         egocentric_firing_map(
             self.processed_data.frame_by_cluster_matrix,

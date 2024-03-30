@@ -41,7 +41,7 @@ class LoadEfizz:
             logger.info(f"The number of spikes is: {len(self.spike_times)}")
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
             self.spike_clusters = np.hstack(self.spike_clusters)
-            self.imec_sync_path = self.filter_by_ending(self.files, "_t0.exported.imec0.ap.bin")[0]
+            self.imec_sync_path = self.filter_by_ending(self.files, "exported.imec0.ap.bin")[0]
             self.imec_bin_path = self.filter_by_ending(self.files, "_t0.imec0.ap.bin")[0]
             self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter="\t", skiprows=1, dtype=str)
             self.num_of_good_units = self.count_number_of_label_units("good")
