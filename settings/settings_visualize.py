@@ -41,8 +41,8 @@ defined_settings_visualize = Settings_visualize(
     cluster_type="good",
     # cluster_type: "synthetic", "synthetichdir" (only hdir cells in synthetic dataset),
     # "synthetichdirhsa", "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)
-    conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],  # JAL3-5
-    # conditions=["all_time", "shelter_only", "barrier_present"], # JAL1-2
-    user_defined_conditions=False,  # False if you want automatically identified conditions
+    # conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],  # JAL3-5
+    conditions=["all_time"], # JAL1-2
+    user_defined_conditions=True,  # False if you want automatically identified conditions
     # learned_conditions = False, # homing based
 )

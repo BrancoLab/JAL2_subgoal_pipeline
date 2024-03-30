@@ -38,8 +38,7 @@ def compute_all_clusters_rayleigh(self, settings, all_angles, all_conditions, ba
         # compartment 1 (in blue) is the side where the shelter is
         # compartment 2 (in purple) is the side wherethe threat zone is
         compartment = np.ones([len(filtered_video_df)])
-        if len(self.session.barrier_time) > 0:
-            compartment[filtered_video_df["mouse_y_position"].to_numpy() > 512] = 2
+        compartment[filtered_video_df["mouse_y_position"].to_numpy() > 512] = 2
 
         for a in all_angles:
             if np.logical_or(not os.path.isfile(data_path + "/" + str(a) + "_Rayleigh.arrow"), settings.redo_compute):
@@ -253,7 +252,7 @@ def all_clusters_polar_plots(rayleigh_results, save_path, show_plots):
         ax = plt.subplot(nrows, ncols, 1 + counter - (nrows * ncols * (fnum - 1)), projection="polar")
 
         # polar plots!
-        polar_plot(rayleigh_results.filter(np.arange(len(rayleigh_results)) == counter), ax)
+        polar_plot(rayleigh_results.filter(np.arange(len(rayleigh_results)) == counter), ax, figg, pcentile = 0)
 
         # save the whole figure
         if np.logical_or(counter - (nrows * ncols * (fnum - 1)) == (ncols * nrows) - 1, counter == number_of_clusters - 1):
