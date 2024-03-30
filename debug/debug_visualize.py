@@ -1,3 +1,4 @@
+
 """A debug script for visualizing mouse behavior and efizz data""" ""
 
 from loguru import logger

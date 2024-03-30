@@ -138,6 +138,9 @@ class Register():
             cv2.destroyAllWindows()
             
             session.shelter_location = self.clicked_points
+            
+            # Check that session.shelter_location is not empty
+            assert len(session.shelter_location) > 0, "Shelter location is empty. Please click on the top left and bottom right corners of the shelter."
 
     def get_barrier_position(self,session,video,video_object,fps):
         """ Ask user where shelter and barrier were positioned"""

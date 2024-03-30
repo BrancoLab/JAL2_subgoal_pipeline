@@ -18,3 +18,20 @@ JAL7_hab_1mar = Experiment(  # Mouse specific
     barrier_flip_time=None,
     experiment_path=Path(r"JAL007_Habituation_2024_03_01T14_13_42"),
 )
+
+JAL7_empty_shelter = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="empty_shelter",
+    experiment_idx=0,
+    experiment_date="2024_03_05",
+    experiment_time="13_45_47",
+    shelter_time=[91.17, -1],
+    barrier_time=[],
+    barrier_flip_time=None,
+    experiment_path=Path(r"JAL007_empty_shelter_2024_03_05T13_45_47"),
+)
