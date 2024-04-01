@@ -32,6 +32,6 @@ JAL6_flip6 = Experiment(  # Mouse specific
     experiment_time="10_54_20",
     shelter_time=[0, -1],
     barrier_time=[60.26, 281.18],
-    barrier_flip_time=236,
+    barrier_flip_time=176,
     experiment_path=Path(r"JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20"),
 )
