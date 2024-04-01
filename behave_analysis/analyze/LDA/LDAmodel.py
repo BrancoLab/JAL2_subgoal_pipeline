@@ -186,7 +186,10 @@ def run_LDA_model(self, settings, angles):
     else:
         with open(self.LDA_out, "rb") as dill_file:
             prediction_accuracy = pickle.load(dill_file)
-    PlotPredictionAccuracy(self, prediction_accuracy, title)
+            
+    # NOTE - Commenting this out of main branch as it doesn't work on Laurence's machine
+    # BUG - Let's fix this 
+    # PlotPredictionAccuracy(self, prediction_accuracy, title)
 
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:
