@@ -11,6 +11,7 @@ import pickle
 
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder
 from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
+from behave_analysis.utils.heatplot_utils import add_features
 
 ## --------------- PLOTTING FUNCTIONS
 
@@ -193,38 +194,3 @@ def across_conditions_LDA_map(self, settings):
     if settings.show_plots:
         plt.show()
     plt.close()
-
-def add_features(ax, condition, tracking,xbins,ybins):
-    '''
-    This is a function that draws the arena and the barrier on top of heatmaps or scatterplots
-    It draws different object based on the condition
-    '''
-    
-    arena_radius = 460
-    # draw shelter
-    if 'shelter_loc' in tracking.keys():
-        shelt = [np.digitize(tracking["shelter_loc"][0],xbins), np.digitize(tracking["shelter_loc"][1],ybins)]
-        for i in [0,1]:
-            ax.plot([shelt[0][0],shelt[1][0]],[shelt[i][1],shelt[i][1]],color = 'k')
-            ax.plot([shelt[i][0],shelt[i][0]],[shelt[0][1],shelt[1][1]],color = 'k')
-    
-    if not np.logical_or(condition == 'shelter_only', condition == 'pre_shelter'):
-        if len(tracking['barrier_loc']) > 0:
-            if np.logical_or(np.logical_or(condition == 'barrier_present',condition == 'all_time'),condition == 'shelter_present'):
-                # draw old two-sided barrier
-                bar_loc = [tracking["barrier_loc"][0][0],tracking["barrier_loc"][1][0]]
-            
-            if condition == 'barrier_pre_flip':
-                # draw barrier from first point to the edge
-                if tracking["barrier_loc"][0][0] < 512: bar_loc = [tracking["barrier_loc"][0][0],512+arena_radius]
-                else: bar_loc = [512-arena_radius,tracking["barrier_loc"][0][0]]
-            
-            if condition == 'barrier_post_flip':
-                # draw barrier from second point to the edge
-                if tracking["barrier_loc"][1][0] < 512: bar_loc = [tracking["barrier_loc"][1][0],512+arena_radius]
-                else: bar_loc = [512-arena_radius,tracking["barrier_loc"][1][0]]
-            
-            bar_loc = np.digitize(bar_loc,xbins)
-            ax.plot([bar_loc[0],bar_loc[1]],
-                    [np.digitize(tracking["barrier_loc"][0][1],ybins),np.digitize(tracking["barrier_loc"][1][1],ybins)],
-                    color = 'k')
