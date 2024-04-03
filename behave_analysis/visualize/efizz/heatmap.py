@@ -5,7 +5,6 @@ import gc
 import os
 
 import polars as pl
-import numpy as np
 from matplotlib import pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -30,7 +29,7 @@ COLUMNS_TO_KEEP = [
 ]
 
 
-def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions, save_base, session) -> None:
+def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions: list, save_base: str, session: object) -> None:
     """Generate heatmaps for each unit split by condition and save each to a file.
 
     Logic:
@@ -61,6 +60,7 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions, s
 
     # Loop through each unit and create a heatmap for each condition
     for clu in unit_ids:
+        total_spikes = 0
         fig, axs = plt.subplots(nrows=1, ncols=len(conditions), figsize=(15, 7), sharey=True, sharex=True)
         cbar_ax = fig.add_axes([0.91, 0.3, 0.02, 0.4])  # The list represents [left, bottom, width, height]
         for idx, condition in enumerate(conditions):
@@ -74,8 +74,9 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions, s
             pddf = clu_df.to_pandas()
 
             # Bin the x and y positions
-            x_bins, x_bin_nums = pd.cut(pddf["mouse_x_position"], bins=30, labels=False, retbins=True)
-            y_bins, y_bin_nums = pd.cut(pddf["mouse_y_position"], bins=30, labels=False, retbins=True)
+            num_bins = 30  # Adjust bins as needed
+            x_bins, x_bin_nums = pd.cut(pddf["mouse_x_position"], bins=num_bins, labels=False, retbins=True)
+            y_bins, y_bin_nums = pd.cut(pddf["mouse_y_position"], bins=num_bins, labels=False, retbins=True)
             pddf["x_bins"] = x_bins
             pddf["y_bins"] = y_bins
 
@@ -88,8 +89,16 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions, s
             # Merge the aggregated spike counts with the bin counts
             normalized_df = pd.merge(spike_counts_in_bin, total_entries_in_bins, on=["x_bins", "y_bins"])
 
-            # Normalize the spike counts by the number of entries in each bin - where 40 is frames per second
-            normalized_df["normalized_spike_count"] = (normalized_df["spike_count"] / normalized_df["total_entries"]) * 40
+            # Normalize the spike counts by the number of entries in each bin
+            normalized_df["normalized_spike_count"] = normalized_df["spike_count"] / normalized_df["total_entries"]
+
+            # Check that total entries is not longer than the inital dataframe
+            assert sum(normalized_df["total_entries"]) <= len(pddf), "Total entries in bins is greater than the initial dataframe, can not be!"
+
+            if condition != "all_time":
+                total_spikes += sum(normalized_df["spike_count"])
+
+            condition_spikes = sum(normalized_df["spike_count"])
 
             # Pivot the DataFrame for heatmap creation
             # Y bins are the rows, x bins are the columns and the values are firing rates
@@ -97,9 +106,11 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions, s
 
             # Create the heatmap
             add_features(axs[idx], condition, tracking_data, x_bin_nums, y_bin_nums)
-            single_unit_heatmap_plotting(axs=axs, idx=idx, heatmap_data=pivot_df, cbar_ax=cbar_ax, condition=condition)
+            single_unit_heatmap_plotting(
+                axs=axs, idx=idx, heatmap_data=pivot_df, cbar_ax=cbar_ax, condition=condition, condition_spikes=condition_spikes
+            )
 
-        fig.suptitle(f"Unit {clu}: heatmap", fontsize=20)
+        fig.suptitle(f"Unit {clu}: heatmap - Total spikes across conditions {total_spikes:.1f}", fontsize=20)
         file_name = f"unit{clu}_heatmap.png"
         fig.savefig(save_path + "\\" + file_name)
         plt.clf()
@@ -108,7 +119,7 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions, s
     logger.success("Single unit heatmaps created successfully!")
 
 
-def single_unit_heatmap_plotting(axs, idx: int, heatmap_data: pl.DataFrame, cbar_ax, condition: str) -> None:
+def single_unit_heatmap_plotting(axs, idx: int, heatmap_data: pl.DataFrame, cbar_ax, condition: str, condition_spikes) -> None:
     """Logic for plotting a single unit heatmap for a given condition
 
     Args:
@@ -127,16 +138,17 @@ def single_unit_heatmap_plotting(axs, idx: int, heatmap_data: pl.DataFrame, cbar
     )
     axs[idx].set_xticklabels([])
     axs[idx].set_yticklabels([])
-    axs[idx].set_title(condition, fontsize=20)
+    axs[idx].set_title(condition + " \n spike #:" + str(int(condition_spikes)), fontsize=20)
     axs[idx].xaxis.set_ticks_position("none")
     axs[idx].yaxis.set_ticks_position("none")
     axs[idx].set_aspect("equal")
-    # cbar_ax.set_ticks([])  # Colour bar is last axis
     cbar_ax.set_yticklabels([])
+
 
 # -----------------------------------------------------------------------------------------------------------------------------
 # - Don't seem too interesting for now but leaving code below for reference, might be useful in the future
 # - Will primarily refactor and focus on the single unit level heatmaps
+# - Will remove from the executing function so it won't be called
 
 
 def population_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions, save_base) -> None:

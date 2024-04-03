@@ -24,7 +24,7 @@ def visualize():
         logger.info("Loaded a session with the following details: {}".format(session_id))
         Visualize_behave(session).plot_behavioral_stats()
 
-        # ------ BEHAVIORAL VISUALIZATION ------
+        # # ------ BEHAVIORAL VISUALIZATION ------
         if settings_v.escape_trials:
             Visualize_behave(session).make_movies(stim_type="audio")
             Visualize_behave(session).escape_plotting(stim_type="audio")
