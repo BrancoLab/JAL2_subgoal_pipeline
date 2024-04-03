@@ -1,4 +1,5 @@
 import numpy as np
+import polars as pl
 
 
 def remove_points_away_from_center_of_circle(x, y, session_height) -> tuple:
@@ -13,6 +14,28 @@ def remove_points_away_from_center_of_circle(x, y, session_height) -> tuple:
     filt_x = x[dist < 460]  # 460 is size of arena circle radius, see register
     filt_y = y[dist < 460]
     return filt_x, filt_y
+
+def filter_outside_arena_tracking_for_video_and_spike_data(video_and_spike_data: pl.DataFrame, session) -> pl.DataFrame:
+    """Filter out all tracking data that is outside of the arena circle. This is the remove pooints away from center 
+    of circle but for polars DataFrame.
+    
+    Args:
+        video_and_spike_data (pl.DataFrame): A DataFrame containing spike counts per frame and neuron in a single session
+        session (Session): A Session object containing metadata about the session
+    
+    Returns:
+        pl.DataFrame: A DataFrame containing spike counts per frame and neuron in a single session with tracking data outside of the arena circle removed"""
+    
+    # Remove all rows that are outside of the arena circle
+    video_and_spike_data = video_and_spike_data.with_columns(
+        np.sqrt(((pl.col("mouse_x_position") - session.video.height / 2) ** 2) + ((pl.col("mouse_y_position") - session.video.height / 2) ** 2)).alias("dist")
+    )
+    
+    # Now filter out the mouse x positions where distance is less than 460 and same for y
+    video_and_spike_data = video_and_spike_data.filter(pl.col("dist") < 460)
+    video_and_spike_data = video_and_spike_data.drop("dist")
+    
+    return video_and_spike_data
 
 
 def add_features(ax, condition: str, tracking: dict, xbins: np.array, ybins: np.array) -> None:
