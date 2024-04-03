@@ -72,7 +72,10 @@ class BaseDataPostprocessor(ABC):
 
         clu_label = self.spike_data.groupby(["spike_clusters"]).first()
         clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
-        np.save(str(os.path.join(self.session.base_path,self.session.processed_path) + "/" + self.select_clusters + "_cluster_Ids"), clu_label["spike_clusters"].unique().to_numpy())
+        np.save(
+            str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_clusters + "_cluster_Ids"),
+            clu_label["spike_clusters"].unique().to_numpy(),
+        )
         return clu_label
 
     def load_spike_data(self) -> pl.DataFrame:
@@ -93,7 +96,7 @@ class BaseDataPostprocessor(ABC):
     def track_to_polars(self) -> pl.DataFrame:
         """
         Adds all the behavioral variables from track to a polars dataframe, video_df - and saves it
-        
+
         This function also saves so you can run just this function to regenerate it
 
         Returns: Video_df
@@ -142,7 +145,7 @@ class BaseDataPostprocessor(ABC):
         else:
             barrier_present = np.zeros(len(OutofShelterIdx)) == 1
             print("no barrier in this session")
-        
+
         # when was the barrier flipped?
         if self.session.barrier_flip_time:
             barrier_flipped = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barrierfliptime * self.session.video.fps)
@@ -214,6 +217,7 @@ class BaseDataPostprocessor(ABC):
         except FileNotFoundError:
             logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
             logger.info("Commencing long computation to count spikes for each cluster for each frame")
+            logger.info("This can take up to 1.5 hours depending on the size of the data")
             query = (
                 self.spike_data.lazy()
                 .groupby(["spike_aligned_to_frame", "spike_clusters"])
@@ -222,17 +226,28 @@ class BaseDataPostprocessor(ABC):
             start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
             spikecountbyframe_neuron = query.collect()
             print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            # spikecountbyframe_neuron.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + "spike_count_by_frame_and_" + self.select_cluster_labels +"cluster.csv")
+            spikecountbyframe_neuron.write_csv(
+                os.path.join(self.session.base_path, self.session.processed_path)
+                + "/"
+                + "spike_count_by_frame_and_"
+                + self.select_cluster_labels
+                + "cluster.csv"
+            )
             return spikecountbyframe_neuron
 
     def merge_and_save_spike_count_df_with_frame_data(self, spikeCountByFrameAndCluster, video_df):
+        """Merges the video dataframe with the spike count by frame and cluster dataframe and saves the result as a parquet file.
+        
+        Dataframe output:
+        -- rows: frames
+        -- columns: all angles, postition, spike counts, cluster ids"""
         logger.info("merging video df and spike df into a super df")
         video_df = video_df.select(
             [pl.col("frames").apply(float), pl.exclude("frames")]
         )  # Cast frames to float to permit join and remove old frames column with wrong type
         large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
         large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
-        # large_dataFrame.write_csv(os.path.join(self.session.base_path,self.session.processed_path) + "/" + str(self.select_clusters) + "_large_dataframe.csv")
+        large_dataFrame.write_parquet(os.path.join(self.session.base_path, self.session.processed_path + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet"))
         return large_dataFrame
 
     def export_large_df_to_frame_by_cluster_matrix(self, spikeCountByFrameAndCluster, video_df) -> None:
@@ -377,17 +392,14 @@ class DataPostprocessor(BaseDataPostprocessor):
         video_df = self.track_to_polars()
         if len(self.session.shelter_time) > 0:
             homings = load_or_extract_homings(session)
-            escapes = get_Escapes(settings,session, tracking_data, video_df, homings)
+            escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
             self.clu_label = self.extract_cluster_labels()
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
             self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
-
-            # This is slow can we speed it up?
-            self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
-
+            self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df) # This is slow can we speed it up?
 
     def filter_spike_data(self, df):
         """
