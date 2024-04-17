@@ -1,8 +1,21 @@
-"""A settings class for the analyze_efizz.py script which is currently used to turn on or off the different models"""
+"""
+A settings class for the analyze_efizz.py script which is currently used to turn on or off the different models
+
+Possible conditions to input as user defined conditions:
+
+    'all_time' (don't filter based on shelter or barrier),
+    'pre_shelter' (empty arena),
+    'shelter_present',
+    'barrier_present'
+    'shelter_only',
+    'barrier_pre_flip',
+    'barrier_post_flip
+"""
 
 from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 
 Settings_ae = Settings_analyze_efizz(
+
     # ------------- General settings --------------------------
     stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=False,  # whether to run linear shift!
@@ -10,7 +23,7 @@ Settings_ae = Settings_analyze_efizz(
     redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=["good"],  # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots=False,
-    # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
+     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),
     #                                         'shelter_present',
     #                                         'barrier_present'
@@ -26,10 +39,12 @@ Settings_ae = Settings_analyze_efizz(
     compartment_split=["all"],  # ['threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
+
     # ------------- PCA model settings --------------------------
     run_dim_reduction=False,
     run_pca=False,
     run_umap=False,
+#     run_pca_model=False,
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
@@ -47,7 +62,7 @@ Settings_ae = Settings_analyze_efizz(
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     # ------------ Rayleigh model settings ----------------------
     run_rayleigh=True,
-    rayleigh_significance="linshit",  # can be either linear shift or bootstrap
+    rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=True,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster
     multi_cluster_plots=False,  # True: Plot every cluster in one figure for one condition
