@@ -174,6 +174,7 @@ class Verifications():
         plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_visualize.png")
         plt.legend()
         plt.show()
+        plt.close()
         
         # Last pulse to check that efizz spikes are not longer than this in another module
         # LastPulse = self.Process.session.ttl.bonsai_sync_offsets[-1]
@@ -211,3 +212,4 @@ class Verifications():
         if show:
             plt.plot(xs, residuals)
             plt.show()
+        plt.close()
