@@ -5,7 +5,10 @@ potentially post processing?
 
 BUG:
 -- Sometimes the meta file is not saved correctly and process has to be rerun
+-- Does not work on sessions with no barrier
+
 """
+
 import os
 from statistics import mean
 from dataclasses import dataclass
@@ -41,13 +44,13 @@ class get_Homings:
     -- Saves the Homings object as a pickle file within the session folder
 
     Misc:
-    -- Reference locations = [shelter, subgoal1, subgoal2] ignoring central barrier location
+    -- Reference locations = [shelter, subgoal1, subgoal2] ignoring central barrier locatios
     """
 
     def __init__(self, settings, session):
         self.settings = settings
         self.session = session
-        self.reference_locations = [self.session.video.shelter_location]+ self.session.barrier_location[:-1]
+        self.reference_locations = [self.session.video.shelter_location] + self.session.barrier_location[:-1]
         self.tracking_data = open_tracking_data(self.session)
 
         # Begin extracting variables for homings
@@ -62,8 +65,8 @@ class get_Homings:
             tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
         )
         avg_speed = self.get_avg_speed(self.onset_frames, self.offset_frames, self.tracking_data)
-        homing_angles_dic = get_avg_homing_angle_for_start_of_run(self.session,
-            self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
+        homing_angles_dic = get_avg_homing_angle_for_start_of_run(
+            self.session, self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
         )
 
         # Return main homings object
@@ -189,9 +192,9 @@ class get_Homings:
         applicable_runs = sufficient_move_toward_shelter * sufficient_run_duration * (starts_in_threat_area + starts_in_subgoal) * starts_late_enough
 
         # Extract the onset frames and durations of the applicable runs
-        onset_frames = np.array([[onset_frame] for onset_frame in onsets[applicable_runs]])
-        offset_frames = np.array([[offset_frame] for offset_frame in offsets[applicable_runs]])
-        stimulus_durations = np.array([[stimulus_duration] for stimulus_duration in self.stimulus_durations[applicable_runs]])
+        onset_frames = np.array([onset_frame for onset_frame in onsets[applicable_runs]])
+        offset_frames = np.array([offset_frame for offset_frame in offsets[applicable_runs]])
+        stimulus_durations = np.array([stimulus_duration for stimulus_duration in self.stimulus_durations[applicable_runs]])
 
         return onset_frames, offset_frames, stimulus_durations
 
@@ -306,7 +309,7 @@ class get_Homings:
         # Choosing max speed relative to any reference location per frame is debatable and a bit arbitrary
         homing_speed_pixel_per_frame = np.max(speed_relative_to_reference_locations, axis=1)
         homing_speed_cm_per_sec = homing_speed_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-        smoothed_homing_speed_cm_per_sec = gaussian_filter1d(homing_speed_cm_per_sec, sigma=self.session.video.fps / 2, mode = "nearest")
+        smoothed_homing_speed_cm_per_sec = gaussian_filter1d(homing_speed_cm_per_sec, sigma=self.session.video.fps / 2, mode="nearest")
 
         # Add a zero needed to ensure len as np.diff returns len-1
         homing_speed = np.concatenate((np.zeros(1), smoothed_homing_speed_cm_per_sec))
@@ -364,7 +367,7 @@ class get_Homings:
         -- homing_speed_angular: np.array of shape (n_frames, ) with the angular speed in degrees per second"""
         angular_speed_deg_per_frame = -np.diff(self.homing_angle)
         angular_speed_deg_per_sec = angular_speed_deg_per_frame * self.session.video.fps
-        smoothed_angular_speed_deg_per_sec = gaussian_filter1d(angular_speed_deg_per_sec, sigma=self.session.video.fps / 10, mode = "nearest")
+        smoothed_angular_speed_deg_per_sec = gaussian_filter1d(angular_speed_deg_per_sec, sigma=self.session.video.fps / 10, mode="nearest")
         homing_speed_angular = np.concatenate((np.zeros(1), smoothed_angular_speed_deg_per_sec))
         return homing_speed_angular
 
@@ -375,7 +378,7 @@ class get_Homings:
         -- speed_along_y_axis: np.array of shape (n_frames, ) with the speed in cm/s along the y axis"""
         speed_y_pixel_per_frame = np.diff(self.tracking_data["avg_loc"][:, 1], axis=0)
         speed_y_cm_per_sec = speed_y_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-        smoothed_speed_y_cm_per_sec = gaussian_filter1d(speed_y_cm_per_sec, sigma=self.session.video.fps / 10, mode = "nearest")
+        smoothed_speed_y_cm_per_sec = gaussian_filter1d(speed_y_cm_per_sec, sigma=self.session.video.fps / 10, mode="nearest")
         speed_along_y_axis = np.concatenate((np.zeros(1), smoothed_speed_y_cm_per_sec))
         return speed_along_y_axis
 
@@ -402,15 +405,16 @@ class get_Homings:
         avg_speed = np.zeros(len(onsets))
 
         for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
-            tracking = tracking_data["avg_loc"][onset[0] : offset[0]]
+            tracking = tracking_data["avg_loc"][onset:offset]
             speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
             speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
             speed_cm_per_sec = speed_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-            smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=self.session.video.fps / 10, mode = "nearest")
+            smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=self.session.video.fps / 10, mode="nearest")
             avg_speed[homing] = np.mean(smoothed_speed_cm_per_sec)
 
         assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
         return avg_speed
+
 
 def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
     """For the first 15cm of each homing, compute the average angles to reference locations
@@ -444,17 +448,26 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
         hdir_bar_goal1 = tracking_data["hdir_barrier"][:, 0]
         hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
 
-    for i, (onset, offset) in enumerate(zip(int(onsets), int(offsets))):
-        frame_coords = tracking_data["avg_loc"][onset : offset]
+    for i, (onset, offset) in enumerate(zip(onsets, offsets)):
+
+        # Jasmine hack - she wrote this not me, laurence
+        if isinstance(onset, np.ndarray):
+            onset = onset[0]
+            offset = offset[0]
+
+        frame_coords = tracking_data["avg_loc"][onset:offset]
         frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
+        # frame_coords = tracking_data["avg_loc"][int(onset) : int(offset)]
+        # frame_index, start_frame = cum_distance(int(onset), int(offset), frame_coords, session.video.pixels_per_cm, cum_threshold)
+
         if frame_index == None:
             continue
-        hsa = hsa_data[start_frame : frame_index]
+        hsa = hsa_data[start_frame:frame_index]
         # plt.plot(np.arange(onset[0],frame_index),hsa)
         # plt.plot(np.arange(start_frame,frame_index),hsa_data[start_frame : frame_index])
         if len(session.barrier_time) > 0:
-            g1 = hdir_bar_goal1[start_frame : frame_index]
-            g2 = hdir_bar_goal2[start_frame : frame_index]
+            g1 = hdir_bar_goal1[start_frame:frame_index]
+            g2 = hdir_bar_goal2[start_frame:frame_index]
         avg_hsa[i] = np.mean(hsa)
         if len(session.barrier_time) > 0:
             avg_hdir_bar_goal1[i] = np.mean(g1)
@@ -470,12 +483,13 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     return dic
 
+
 def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int) -> int:
     """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold
 
     Returns:
     -- i: int, the index of the frame where the mouse has travelled cum_threshold cm
-    
+
     TODO: This could be improved by also finding a strating frame we want to use (instead of including the head turn movement in the avg hsa)
     """
     start_frame = []

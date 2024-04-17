@@ -1,3 +1,4 @@
+
 """A debug script for visualizing mouse behavior and efizz data""" ""
 
 from loguru import logger
@@ -23,10 +24,10 @@ def visualize():
         logger.info("Loaded a session with the following details: {}".format(session_id))
         Visualize_behave(session).plot_behavioral_stats()
 
-        # ------ BEHAVIORAL VISUALIZATION ------
+        # # ------ BEHAVIORAL VISUALIZATION ------
         if settings_v.escape_trials:
             Visualize_behave(session).make_movies(stim_type="audio")
-            Visualize_behave(session).escape_plotting()
+            Visualize_behave(session).escape_plotting(stim_type="audio")
         if settings_v.homing_trials:
             Visualize_behave(session).make_movies(stim_type="homing")
 

@@ -7,10 +7,12 @@ def get_computer_specific_paths():
     hostname = socket.gethostname()
 
     if hostname == "W10-221I": # Jasmine machine
-        base_path = r"E:\Experimental_Data"
+        # base_path = r"E:\Experimental_Data"
+        base_path = r"Z:\Jasmine_Laurence\Experimental_Data"
         DLC_path = r"C:\Users\jreggiani\Documents\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
     elif hostname == "DESKTOP-FBQJ1VU": #Laurence machine
         base_path = r"E:\efizz"
+        # base_path = r"D:\efizz"
         DLC_path = r"D:\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
     else: # unknown machine
         root = tk.Tk()

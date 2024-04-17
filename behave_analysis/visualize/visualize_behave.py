@@ -39,20 +39,21 @@ class Visualize_behave:
         """Excute behaviour plotting functions"""
 
         logger.info("Making plots summarizing the exploratory behavior of the mouse ")
-        shelter_occupancy(
-            video_df=self.video_df,
-            session=self.session,
-            settings=settings_v,
-            conditions=extract_all_or_custom_conditions(settings_v, self.session),
-            save_path=self.behave_path,
-        )
-        position_by_bsa(
-            tracking_data=self.tracking_data,
-            outofShelterIdx=np.array(self.video_df["OutofshelterIdx"].to_numpy()),
-            settings=settings_v,
-            save_path=self.behave_path,
-        )
-        location_occupancy(tracking_data=self.tracking_data, session=self.session, settings=settings_v, save_path=self.behave_path)
+        if len(self.session.shelter_time) > 0:
+            shelter_occupancy(
+                video_df=self.video_df,
+                session=self.session,
+                settings=settings_v,
+                conditions=extract_all_or_custom_conditions(settings_v, self.session),
+                save_path=self.behave_path,
+            )
+            position_by_bsa(
+                tracking_data=self.tracking_data,
+                outofShelterIdx=np.array(self.video_df["OutofshelterIdx"].to_numpy()),
+                settings=settings_v,
+                save_path=self.behave_path,
+            )
+            location_occupancy(tracking_data=self.tracking_data, session=self.session, settings=settings_v, save_path=self.behave_path)
 
         # Plotting angle distriubtions must go before plotting the circular rho
         plot_angle_distributions(
@@ -82,10 +83,10 @@ class Visualize_behave:
         CoverageStatistics(video_data_frame=self.video_df, settings=settings_v, behave_path=self.behave_path)
 
     ##--------PLOT TRAJECTORIES OF ESCAPE
-    def escape_plotting(self):
+    def escape_plotting(self, stim_type):
         logger.info("Making plots of mouse escape trajectories")
         escape_trajectory_and_shelter_exits(
-            tracking_data=self.tracking_data, video_df=self.video_df, session=self.session, settings=settings_v, save_path=self.behave_path
+            tracking_data=self.tracking_data, video_df=self.video_df, stim_type = stim_type, session=self.session, settings=settings_v, save_path=self.behave_path
         )
 
     ##--------MAKE MOVIS OF ESCAPE WITH DLC TRACKING
