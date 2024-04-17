@@ -113,7 +113,7 @@ class BaseDataPostprocessor(ABC):
 
             OutofShelterIdx = out_of_shelter_filter(tracking_data=self.tracking_data)
         else:
-            OutofShelterIdx = np.ones(len(self.tracking_data["hdir"]))
+            OutofShelterIdx = np.logical_not(np.zeros(len(self.tracking_data["hdir"])))
 
         # when was the shelter in the arena?
         if len(self.session.shelter_time) > 0:
