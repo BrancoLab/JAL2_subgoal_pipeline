@@ -69,8 +69,16 @@ def compute_single_cluster_tuning(self, settings):
 
 
 def single_cluster_plots(self, settings, all_angles, all_conditions, base_path, plot_save_path):
-    """Make a figure for each cluster with polar plots for all angles in all conditions of interest"""
-
+    """Generate a polar plot per condition and angle for a single cluster
+    
+    Arguments:
+        settings (dataclass): settings for the analysis
+        all_angles (list): list of angles to consider, each element is a string
+        all_conditions (list): list of conditions to consider, each element is a string
+        base_path (str): path to the directory where the data is stored
+        plot_save_path (str): path to the directory where the plots will be saved
+    """
+    
     logger.info("Making individual cluster polar plots")
     clusters = self.cluster_Ids
 
@@ -101,24 +109,49 @@ def single_cluster_plots(self, settings, all_angles, all_conditions, base_path, 
                 ax = plt.subplot(gs[c_counter + 1, 0])
                 ax.text(0, 0.5, c, rotation="horizontal", va="center", ha="center", fontsize=axs_fontsize)
                 ax.set_axis_off()
-
+                
+            # Extract the max firing rate across all conditions and angles for this cluster
+            max_firing_rate = extract_max_hz(clu, all_angles, all_conditions, base_path)
+  
             # Create actual polar plots for each condition and angle
-            for c_counter, c in enumerate(all_conditions):
+            for c_counter, condition in enumerate(all_conditions):
                 counter = ((ncols) * (c_counter + 1)) + 1
-                data_path = os.path.join(base_path, c)
+                data_path = os.path.join(base_path, condition)
                 for a_counter, a in enumerate(all_angles):
                     counter = counter + 1
                     ax = plt.subplot(nrows, ncols, counter, projection="polar")
                     rayleigh_results = pl.read_ipc(data_path + "/" + str(a) + "_Rayleigh.arrow")
                     pcentile = compute_95th_percentile_rayleigh(rayleigh_results)
                     # make actual polar plot for a given angle in a given condition
-                    polar_plot(rayleigh_results.filter(rayleigh_results["clusterID"] == clu), ax, fig, pcentile=pcentile, cluster_title=False)
+                    polar_plot(rayleigh_results.filter(rayleigh_results["clusterID"] == clu), ax, fig, pcentile=pcentile, cluster_title=False, max_firing_rate=max_firing_rate)
+                    
             # Save and close the figure
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
             if settings.show_plots:
                 plt.show()
             plt.close()
+            
+def extract_max_hz(clu: int, all_angles: list, all_conditions: list, base_path: str) -> int:
+    """Extract the max firing rate across all conditions and angles for this cluster
+    such that the polar plots can be scaled accordingly.
+
+    Args:
+        clu (int): What cluster to extract the max firing rate for
+        all_angles (list): a list of angles to consider, each a string
+        all_conditions (list): a list of conditions to consider, each a string
+        base_path (str): path to the directory where the data is stored
+    """
+    max_firing_rate = 0
+    for _, condition in enumerate(all_conditions):
+        data_path = os.path.join(base_path, condition)
+        for _, angle in enumerate(all_angles):
+            rayleigh_results = pl.read_ipc(data_path + "/" + str(angle) + "_Rayleigh.arrow")
+            rayleigh_results = rayleigh_results.filter(rayleigh_results["clusterID"] == clu)
+            max_element = np.max([np.max(sub_array) for sub_array in rayleigh_results["angle_firing_hist"].to_numpy()])
+            if max_element > max_firing_rate:
+                max_firing_rate = max_element
+    return int(max_firing_rate)
 
 
 def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_path, compartment, compute_significance=None):
@@ -317,23 +350,17 @@ def compute_95th_percentile_rayleigh(rayleigh_results):
 ## ---------------------PLOTTING -----------------------------
 
 
-def polar_plot(df, ax, fig, pcentile, cluster_title=True, plot_type="line") -> None:
+def polar_plot(df, ax, fig, pcentile, max_firing_rate, cluster_title=True, plot_type="line") -> None:
     """Creates a polar plot for a single cluster in a single condition
 
     Visulises the firing rate at each angle (e.g. HD or HSA) for different
     compartments of the arena (e.g. shelter or threat zone).
 
     Arguments:
-    df -- a dataframe with the following columns:
-        clusterID,
-        Rayleigh,
-        Rayleigh_theta,
-        Rayleigh_sig,
-        angle_firing_hist,
-        angles
-    counter -- the index of the cluster you want to plot
-    ax -- the axis index of the subplot
-    plot_type - line, bar, fill
+        df (pl.DataFrame) with columns clusterID, Rayleigh, Rayleigh_theta, Rayleigh_sig, angle_firing_hist, angles
+        counter (int) the index of the cluster you want to plot
+        ax (object) the axis index of the subplot
+        plot_type (str) e.g line, bar, fill
     """
 
     # Check if the dataframe is empty
@@ -386,6 +413,7 @@ def polar_plot(df, ax, fig, pcentile, cluster_title=True, plot_type="line") -> N
             # Polar plot area with no fill, just outline
             elif plot_type == "line":
                 ax.plot(angles, values, color=col[compartment], linewidth=1.5)
+                ax.set_ylim(bottom=0, top=max_firing_rate) # set the y-axis limits to the max firing rate to make the plot more readable
 
     # Settings for the polar plot grid
     ax.grid(True, linestyle="--", linewidth=0.5, color="gray", alpha=0.5, markevery=3)

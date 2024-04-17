@@ -1,13 +1,13 @@
-# Import standard lib
+"""Creates a heatplot of mouse exploration for each condition, behaviour only no efizz data"""
+
 import os
 
-# Import 3rd party Lib
 import numpy as np
 import seaborn as sns
 from matplotlib import pyplot as plt
 
-# Import custom lib
 from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
+from behave_analysis.utils.heatplot_utils import remove_points_away_from_center_of_circle
 
 def plot_heat_map_of_position(session, settings, video_data_frame, conditions, session_height, save_path) -> None:
     """Create heatplot of mouse exploration for each condition"""
@@ -57,20 +57,4 @@ def plot_heat_map_of_position(session, settings, video_data_frame, conditions, s
     plt.close()
 
 
-# Utils for heatplot
-def remove_points_away_from_center_of_circle(x, y, session_height) -> tuple:
-    """
-    Ensures there are no positions outside of the areana by removing them from the x and y coordinates based
-    on the fact that the radius of the arena is 460 pixels.
 
-    TODO:
-    + Make this function global
-    + Make the radius of the arena a variable not hard coded
-    """
-
-    dist = np.sqrt(
-        ((x - session_height / 2) ** 2) + ((y - session_height / 2) ** 2)
-    )  # Use the euclidean distance formula to find the distance from the center of the arena
-    filtX = x[dist < 460]  # 460 is size of arena circle radius, see register
-    filtY = y[dist < 460]
-    return filtX, filtY

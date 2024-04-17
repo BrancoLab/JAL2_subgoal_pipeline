@@ -18,13 +18,14 @@ from behave_analysis.database.Experiments.JAL004_ex import (
     JAL4_mush1,
     JAL4_3rdSept,
     JAL4_19thSept,
+    JAL4_11thSept
 )
 
 from behave_analysis.database.Experiments.JAL005_ex import JAL5_mush1, JAL005_8thSept, JAL005_21stSept
 
-from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_shelt_4mar
+from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_shelt_4mar, JAL6_flip6
 
-from behave_analysis.database.Experiments.JAL007_ex import JAL7_hab_1mar
+from behave_analysis.database.Experiments.JAL007_ex import JAL7_hab_1mar, JAL7_empty_shelter
 
 # ## -------------JR BEHAVIOR MICE
 
@@ -33,3 +34,4 @@ from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3
 # Currently the code only works with one experiment at a time, so place that experiment in the below list for analysis
 
 experiments_objects = [JAL4_3rdSept]
+

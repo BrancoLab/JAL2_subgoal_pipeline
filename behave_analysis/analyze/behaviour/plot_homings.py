@@ -79,7 +79,7 @@ def plot_homings(session, tracking_data, video_df) -> None:
                     break
 
                 # Get homing details
-                onset_frame, stimulus_durations = homings_obj.onset_frames[trial_counter][0], homings_obj.stimulus_durations[trial_counter][0][0]
+                onset_frame, stimulus_durations = homings_obj.onset_frames[trial_counter], homings_obj.stimulus_durations[trial_counter][0]
                 trial_condition = identify_condition_of_trial(video_df.filter(video_df["frames"] == onset_frame), session)
 
                 # Create subplot

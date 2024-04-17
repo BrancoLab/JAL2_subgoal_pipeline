@@ -11,6 +11,7 @@ from behave_analysis.process.electrophysiology.process_electrophysiology import 
 from behave_analysis.process.session import NEW_Session, get_experiment # Testing refactored dataclass structure
 from behave_analysis.database.computer_ID import get_computer_specific_paths
 
+
 #Import OS libraries
 import os
 import numpy as np
@@ -41,7 +42,8 @@ class Process():
         
         if settings_p.efizz:
             self.session.efizzDataLoaded = LoadEfizz(self.session)
-            self.session.ttl = get_TTL(self.session, self.session.efizzDataLoaded.TTL_bin_path)
+            imec_sync_path = Path(self.session.efizzDataLoaded.imec_sync_path)
+            self.session.ttl = get_TTL(self.session, imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]

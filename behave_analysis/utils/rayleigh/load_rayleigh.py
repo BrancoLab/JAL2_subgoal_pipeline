@@ -22,12 +22,8 @@ def extract_rayleigh_path(
 ) -> str:
     """Extract paths to one arrow file for a condition"""
     
-    if settings.learned_conditions:
-        con_dir = 'learned_condition'
-    else:
-        con_dir = 'object_condition'
-    
-    
+    con_dir = settings.condition_types
+
     path = os.path.join(
         session.base_path,
         session.processed_path,

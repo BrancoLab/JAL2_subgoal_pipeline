@@ -16,7 +16,7 @@ two_tailed_test = True,
 leftside_only = False,
 rightside_only = False,
 reflect_trajectories = False,
-stim_type = 'None',
+stim_type = 'audio',
 show_plots = False,
 color_by = 'session', # What should the trajectory color be?
 # 'default' 'session' 'trial' 'target'  ''  || for all
