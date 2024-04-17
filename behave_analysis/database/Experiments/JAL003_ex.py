@@ -44,7 +44,7 @@ flip4stSept_003 =   Experiment(# Mouse specific
                     root_path = JAL003.root_path,
 
                     # Experiment specific
-                    experiment_name = 'flip1stSept_003',
+                    experiment_name = 'flip4thSept_003',
                     experiment_idx = 0,
                     experiment_date = "2023_09_04",
                     experiment_time = "13_38_31",
