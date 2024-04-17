@@ -163,7 +163,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     Rayleigh's R close to 1 = very tuned, fires only when head is in one orientation"""
 
     # edges for binning firing rate at different angles
-    bin_angles, bin_angle_center = generate_bin_angles(number_of_bins=Settings_ae.number_of_bins)
+    bin_angles, bin_angle_center = generate_bin_angles(number_of_bins=settings.number_of_bins)
 
     # Catch empty video dataframes
     if len(filtered_video_df) == 0:
@@ -185,7 +185,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
         Rayleigh_cluster[count] = c
         for c_count, comp in enumerate(np.unique(compartment)):
             Rayleigh[count, c_count], Rayleigh_theta[count, c_count], angle_firing_hist[count, :, c_count] = compute_rayleigh_cluster(
-                X[compartment == comp, count], binned_angles[compartment == comp], return_all_stats=True
+                X[compartment == comp, count], binned_angles[compartment == comp],nbins = settings.number_of_bins, return_all_stats=True
             )
 
             # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations
@@ -210,7 +210,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
                     # shuffled linear shifts performed at a random offset between 0 and 100 seconds
                     shift = int(np.random.uniform(1, 100)) * self.session.video.fps  # temporal shift in video frames
                     ang_roll = np.roll(binned_angles, shift)
-                    shift_dist[it] = compute_rayleigh_cluster(X[compartment == comp, count], ang_roll[compartment == comp])
+                    shift_dist[it] = compute_rayleigh_cluster(X = X[compartment == comp, count], y = ang_roll[compartment == comp],nbins = settings.number_of_bins)
                 # significance logical
                 if Rayleigh[count] > np.percentile(shift_dist, 95):
                     Rayleigh_sig[count] = 1
@@ -321,18 +321,18 @@ def rayleigh(angles, firing) -> tuple:
 
 
 def firing_by_angle_bin(angles, neural_activity, nbins):
-    angles_firing = np.zeros(nbins)
+    angles_firing = np.zeros(nbins-1)
     unique_groups, group_counts = np.unique(angles, return_counts=True)
     group_sums = np.bincount(angles, weights=neural_activity)
     angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
     return angles_firing
 
 
-def compute_rayleigh_cluster(X, y, return_all_stats=False):
+def compute_rayleigh_cluster(X, y, nbins = Settings_ae.number_of_bins,return_all_stats=False):
     """This only works if there are no angle bins that are completely empty (angles that never occur)"""
     # compute firing in angle bins
-    angle_firing_hist = firing_by_angle_bin(y, X, len(np.unique(y)))
-    _, bin_angle_center = generate_bin_angles(number_of_bins=Settings_ae.number_of_bins)
+    angle_firing_hist = firing_by_angle_bin(y, X, nbins) #len(np.unique(y)))
+    _, bin_angle_center = generate_bin_angles(number_of_bins=nbins)
     # compute rayleigh
     Rval, Rtheta = rayleigh(bin_angle_center[1:-1], angle_firing_hist)
     if return_all_stats:

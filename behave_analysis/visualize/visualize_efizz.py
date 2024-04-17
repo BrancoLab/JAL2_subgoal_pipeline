@@ -86,8 +86,9 @@ class Visualize_efizz:
             show_plots=settings_v.show_plots,
         )
 
+        # TODO: the two plots below are very nice but ver very slow to make
+        # egocentric view of features where a neuron fires
         cluster_Ids = self.processed_data.clu_label["spike_clusters"].unique().to_numpy()
-
         # egocentric view of features where a neuron fires
         # TODO ego firing map failed for me (laurence) need to debug
         # egocentric_firing_map(
@@ -100,18 +101,18 @@ class Visualize_efizz:
         #     settings=settings_v,
         # )
 
-        # a map of where rayleighs point to
-        rayleigh_map(
-            self.processed_data.frame_by_cluster_matrix,
-            self.video_df,
-            self.processed_data.clu_label,
-            self.session,
-            conditions=extract_all_or_custom_conditions(settings_v, self.session),
-            cluster_Ids=cluster_Ids[cluster_Ids > 0],
-            settings=settings_v,
-            tracking_data=self.processed_data.tracking_data,
-        )
-        logger.info(f"Finished! Making some efizz tuning plots...")
+        # # a map of where rayleighs point to
+        # rayleigh_map(
+        #     self.processed_data.frame_by_cluster_matrix,
+        #     self.video_df,
+        #     self.processed_data.clu_label,
+        #     self.session,
+        #     conditions=extract_all_or_custom_conditions(settings_v, self.session),
+        #     cluster_Ids=cluster_Ids[cluster_Ids > 0],
+        #     settings=settings_v,
+        #     tracking_data=self.processed_data.tracking_data,
+        # )
+        # logger.info(f"Finished! Making some efizz tuning plots...")
 
     ##------------STIMULUS RESPONSE PLOTTING
     def run_stim_resp_plotting(self):
