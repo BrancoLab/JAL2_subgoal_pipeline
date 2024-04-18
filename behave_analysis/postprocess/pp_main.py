@@ -27,7 +27,8 @@ class Postprocessor:
         self.session = session
         self.tracking_data = self.open_tracking_data()
         preprocessObect = self.output_postprocessing_class(settings = defined_settings_postprocess)
-        self.save_postprocessed_object(preprocessObect, settings = defined_settings_postprocess)
+        # Don't save for space
+        # self.save_postprocessed_object(preprocessObect, settings = defined_settings_postprocess)
         
     def open_tracking_data(self):
         """ 

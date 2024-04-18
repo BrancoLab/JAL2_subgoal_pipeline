@@ -39,6 +39,7 @@ class Visualize_behave:
         """Excute behaviour plotting functions"""
 
         logger.info("Making plots summarizing the exploratory behavior of the mouse ")
+
         if len(self.session.shelter_time) > 0:
             shelter_occupancy(
                 video_df=self.video_df,
