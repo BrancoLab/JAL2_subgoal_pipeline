@@ -103,7 +103,7 @@ class Verifications():
         if abs(np.mean(self.Process.session.ttl.bonsai_TTL) - 2.5) > 1:
             logger.error("Bonsai signal mean very far from expected average, cant be!")
             return
-        if abs(np.mean(self.Process.session.ttl.imec_TTL) - 38.0) > 10:
+        if abs(np.mean(self.Process.session.ttl.imec_TTL)) > 1 or abs(np.mean(self.Process.session.ttl.imec_TTL)) < 0.2:
             logger.error("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.Process.session.ttl.imec_TTL)))
             return
     
@@ -174,6 +174,7 @@ class Verifications():
         plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_visualize.png")
         plt.legend()
         plt.show()
+        plt.close()
         
         # Last pulse to check that efizz spikes are not longer than this in another module
         # LastPulse = self.Process.session.ttl.bonsai_sync_offsets[-1]
@@ -211,3 +212,4 @@ class Verifications():
         if show:
             plt.plot(xs, residuals)
             plt.show()
+        plt.close()

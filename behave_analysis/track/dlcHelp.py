@@ -47,9 +47,20 @@ class DLC:
         if self.settings.save_labeled_video:
             from deeplabcut import create_labeled_video
 
-            video_file = os.path.join(session.base_path, session.file_path, session.video.camFilePath)
-            create_labeled_video(dlc_settings_file, video_file, save_frames=True, keypoints_only=True)
-
+            # move dlc files to folder with avi
+            run_name = os.path.split(session.file_path)[1]
+            for files in glob.glob(os.path.join(session.base_path,session.processed_path,"*" + run_name + "*")):
+                    os.rename(files,os.path.join(session.base_path, session.file_path,os.path.basename(files)))
+            # create labeled video
+            path = os.path.join(session.base_path,session.file_path,session.video.camFilePath)      
+            create_labeled_video(dlc_settings_file, path) # for some ungodly reason these settings don't work: fastmode=True,save_frames=True,keypoints_only=True
+            # move dlc files back to processed path
+            for files in glob.glob(os.path.join(session.base_path,session.file_path, "*resnet*")):
+                    os.rename(files,os.path.join(session.base_path,session.processed_path,os.path.basename(files)))
+            
+            # video_file = os.path.join(session.base_path,session.file_path,session.video.camFilePath) 
+            # create_labeled_video(dlc_settings_file, video_file, save_frames = True, keypoints_only=True)
+    
     def create_dlc_tracking_array(self, session) -> None:
         """
         Create and fill an array of tracking data from DLC.

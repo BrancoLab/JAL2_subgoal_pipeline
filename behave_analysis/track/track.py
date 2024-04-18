@@ -247,22 +247,23 @@ class Track(DLC):
         """
         A function to compute the angle between the heading of the mouse and the shelter.
         """
-
-        # calculate body to shelter angle
-        # this used to be calculated with self.region_tracking_data['avg_loc']
-        self.region_tracking_data['shelter_loc'] = session.shelter_location
-        xdist = -self.region_tracking_data['head_loc'][:, 0]+int(np.mean([self.region_tracking_data['shelter_loc'][0][0],self.region_tracking_data['shelter_loc'][1][0]]))
-        ydist = -self.region_tracking_data['head_loc'][:, 1]+int(np.mean([self.region_tracking_data['shelter_loc'][0][1],self.region_tracking_data['shelter_loc'][1][1]]))
-        # the next line gives you angles that are positive counterclockwise and negative clockwise
-        self.region_tracking_data['bod_shelt_dir'] = - np.arctan2(ydist, xdist) # Radians
-        bod_shelt_dir = - np.arctan2(ydist, xdist)
-        # the next two lines ensure that 0deg is to the right and that 0 to pi is clockwise and 0 to pi is counterclockwise
-        self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] + np.pi
-        self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] - np.pi
-        # now add the hdir to get the head shelter angle (from pi to -pi)
-        self.region_tracking_data['hdir_shelt'] = np.pi + (-self.region_tracking_data['hdir'] + self.region_tracking_data['bod_shelt_dir'])
-        self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi)
-
+        if len(session.shelter_time) > 0:
+            # calculate body to shelter angle
+            # this used to be calculated with self.region_tracking_data['avg_loc']
+            self.region_tracking_data['shelter_loc'] = session.shelter_location
+            xdist = -self.region_tracking_data['head_loc'][:, 0]+int(np.mean([self.region_tracking_data['shelter_loc'][0][0],self.region_tracking_data['shelter_loc'][1][0]]))
+            ydist = -self.region_tracking_data['head_loc'][:, 1]+int(np.mean([self.region_tracking_data['shelter_loc'][0][1],self.region_tracking_data['shelter_loc'][1][1]]))
+            # the next line gives you angles that are positive counterclockwise and negative clockwise
+            self.region_tracking_data['bod_shelt_dir'] = - np.arctan2(ydist, xdist) # Radians
+            bod_shelt_dir = - np.arctan2(ydist, xdist)
+            # the next two lines ensure that 0deg is to the right and that 0 to pi is clockwise and 0 to pi is counterclockwise
+            self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] + np.pi
+            self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] - np.pi
+            # now add the hdir to get the head shelter angle (from pi to -pi)
+            self.region_tracking_data['hdir_shelt'] = np.pi + (-self.region_tracking_data['hdir'] + self.region_tracking_data['bod_shelt_dir'])
+            self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi)
+        else:
+            self.region_tracking_data['shelter_loc'] = []
         logger.info("Shelter angle computed")
 
     def compute_angle_barrier(self, session):

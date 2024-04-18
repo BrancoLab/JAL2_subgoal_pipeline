@@ -37,6 +37,23 @@ JAL4_3rdSept = Experiment(  # Mouse specific
     experiment_path=Path(r"004_flip_2023_09_03T12_04_16"),
 )
 
+JAL4_11thSept = Experiment(  # Mouse specific
+    nick_name=JAL004.nick_name,
+    total_sessions=JAL004.total_sessions,
+    mouse_number_pyrat=JAL004.mouse_number_pyrat,
+    experiment_file_names=JAL004.experiment_file_names,
+    root_path=JAL004.root_path,
+    # Experiment specific
+    experiment_name="flip",
+    experiment_idx=0,
+    experiment_date="x",
+    experiment_time="x",
+    shelter_time=[0.33, -1],
+    barrier_time=[67.08, -1],  # seconds needed to be more precise
+    barrier_flip_time=233.25,
+    experiment_path=Path(r"004_flip_puff2_2023_09_11T09_32_25"),
+)
+
 JAL4_19thSept = Experiment(  # Mouse specific
     nick_name=JAL004.nick_name,
     total_sessions=JAL004.total_sessions,

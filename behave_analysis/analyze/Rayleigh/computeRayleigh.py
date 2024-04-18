@@ -1,3 +1,5 @@
+"""Create all things rayleigh vector related"""
+
 import os
 
 from tqdm import tqdm
@@ -5,17 +7,16 @@ from loguru import logger
 import numpy as np
 import polars as pl
 import matplotlib
-
-matplotlib.use("TkAgg")
 from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+
+matplotlib.use("TkAgg")
 
 from settings.settings_analyze_efizz import Settings_ae
 from behave_analysis.analyze.stats.linshit import LinearShift
 from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, filter_video_df_mouse_behaviour
 from behave_analysis.utils.creating_directories import make_directory
-
 
 def compute_all_clusters_rayleigh(self, settings, all_angles, all_conditions, base_path):
     """
@@ -28,19 +29,16 @@ def compute_all_clusters_rayleigh(self, settings, all_angles, all_conditions, ba
         data_path = make_directory(os.path.join(base_path, c))
 
         # filter data in this condition
-        if not settings.learned_conditions:
+        if settings.condition_types == 'experimental_conditions':
             filtered_video_df = filter_video_dataframe(self.video_df, c)
-        else:
+        elif settings.condition_types == 'behavioral_conditions':
             filtered_video_df = filter_video_dataframe(self.video_df, c, exclude_escape=False)
             filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, c, self.session)
-        # filtered_video_df = filter_video_dataframe(self.video_df, c)
 
         # which compartment of the arena was the mouse in?
+        compartment = identify_which_compartment(self, filtered_video_df)
         # compartment 1 (in blue) is the side where the shelter is
         # compartment 2 (in purple) is the side wherethe threat zone is
-        compartment = np.ones([len(filtered_video_df)])
-        if len(self.session.barrier_time) > 0:
-            compartment[filtered_video_df["mouse_y_position"].to_numpy() > 512] = 2
 
         for a in all_angles:
             if np.logical_or(not os.path.isfile(data_path + "/" + str(a) + "_Rayleigh.arrow"), settings.redo_compute):
@@ -61,11 +59,7 @@ def compute_single_cluster_tuning(self, settings):
     # Initialize variables
     all_angles = identify_angles(self.session)
 
-    if settings.learned_conditions:
-        self.condition_family = 'learned_condition'
-    else:
-        self.condition_family = 'object_condition'
-    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,self.condition_family)
+    base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,settings.condition_types)
     plot_save_path = make_directory(os.path.join(base_path, 'single_cluster_plots'))
 
     # check that Rayleigh has been computed and saved for all conditions and if not compute it
@@ -75,8 +69,16 @@ def compute_single_cluster_tuning(self, settings):
 
 
 def single_cluster_plots(self, settings, all_angles, all_conditions, base_path, plot_save_path):
-    """Make a figure for each cluster with polar plots for all angles in all conditions of interest"""
-
+    """Generate a polar plot per condition and angle for a single cluster
+    
+    Arguments:
+        settings (dataclass): settings for the analysis
+        all_angles (list): list of angles to consider, each element is a string
+        all_conditions (list): list of conditions to consider, each element is a string
+        base_path (str): path to the directory where the data is stored
+        plot_save_path (str): path to the directory where the plots will be saved
+    """
+    
     logger.info("Making individual cluster polar plots")
     clusters = self.cluster_Ids
 
@@ -107,40 +109,85 @@ def single_cluster_plots(self, settings, all_angles, all_conditions, base_path, 
                 ax = plt.subplot(gs[c_counter + 1, 0])
                 ax.text(0, 0.5, c, rotation="horizontal", va="center", ha="center", fontsize=axs_fontsize)
                 ax.set_axis_off()
-
+                
+            # Extract the max firing rate across all conditions and angles for this cluster
+            max_firing_rate = extract_max_hz(clu, all_angles, all_conditions, base_path)
+  
             # Create actual polar plots for each condition and angle
-            for c_counter, c in enumerate(all_conditions):
+            for c_counter, condition in enumerate(all_conditions):
                 counter = ((ncols) * (c_counter + 1)) + 1
-                data_path = os.path.join(base_path, c)
+                data_path = os.path.join(base_path, condition)
                 for a_counter, a in enumerate(all_angles):
                     counter = counter + 1
                     ax = plt.subplot(nrows, ncols, counter, projection="polar")
                     rayleigh_results = pl.read_ipc(data_path + "/" + str(a) + "_Rayleigh.arrow")
                     pcentile = compute_95th_percentile_rayleigh(rayleigh_results)
                     # make actual polar plot for a given angle in a given condition
-                    polar_plot(rayleigh_results.filter(rayleigh_results["clusterID"] == clu), ax, fig, pcentile=pcentile, cluster_title=False)
+                    polar_plot(rayleigh_results.filter(rayleigh_results["clusterID"] == clu), ax, fig, pcentile=pcentile, cluster_title=False, max_firing_rate=max_firing_rate)
+                    
             # Save and close the figure
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
             if settings.show_plots:
                 plt.show()
             plt.close()
+            
+def extract_max_hz(clu: int, all_angles: list, all_conditions: list, base_path: str) -> int:
+    """Extract the max firing rate across all conditions and angles for this cluster
+    such that the polar plots can be scaled accordingly.
+
+    Args:
+        clu (int): What cluster to extract the max firing rate for
+        all_angles (list): a list of angles to consider, each a string
+        all_conditions (list): a list of conditions to consider, each a string
+        base_path (str): path to the directory where the data is stored
+    """
+    max_firing_rate = 0
+    for _, condition in enumerate(all_conditions):
+        data_path = os.path.join(base_path, condition)
+        for _, angle in enumerate(all_angles):
+            rayleigh_results = pl.read_ipc(data_path + "/" + str(angle) + "_Rayleigh.arrow")
+            rayleigh_results = rayleigh_results.filter(rayleigh_results["clusterID"] == clu)
+            max_element = np.max([np.max(sub_array) for sub_array in rayleigh_results["angle_firing_hist"].to_numpy()])
+            if max_element > max_firing_rate:
+                max_firing_rate = max_element
+    return int(max_firing_rate)
 
 
-def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_path, compartment, compute_significance=None):
-    """A function that calculates the Rayleigh vector (amplitude and angle) for each cluster with respect to the angles given (e.g. HD or HSA)
-    It only considers times when the mouse was outside the shelter
-    It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
-    The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes
-    Rayleigh's R close to zero = untuned, fires at all head directions
-    Rayleigh's R close to 1 = very tuned, fires only when head is in one orientation"""
+def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_path, compartment: np.array, compute_significance=None) -> None:
+    """Calculate the rayleigh vector (amplitude and anlge) for each cluster w.r.t the angles given (e.g. HD or HSA)
+
+    Considerations:
+    -- It only considers times when the mouse was outside the shelter
+    -- It also performs bootstrapping by computing the rayleigh vector at random time shifts of the spikes with respect to the angles
+    -- The Rayleigh vector is significant if the amplitude is above the 95th percentile of boostrapped amplitudes
+    -- Rayleigh's R close to zero = untuned, fires at all head directions
+    -- Rayleigh's R close to 1 = very tuned, fires only when head is in one orientation
+
+    Arguments:
+    -- compartment: a numpy array of ones and twos of the same length as the filtered_video_df
+            where 1 is the shelter side and 2 is the threat zone side
+    TODO - Add more details on what each input argument is
+
+    Returns (Saves to the processed folder):
+    -- A dataframe with the following columns:
+        clusterID,
+        Rayleigh,
+        Rayleigh_theta,
+        Rayleigh_sig,
+        angle_firing_hist,
+        angles
+
+    TODO:
+    -- Add whole arena values to the dataframe
+    -- Add sig test for whole arena rayleigh values
+    """
 
     # edges for binning firing rate at different angles
-    bin_angles, bin_angle_center = generate_bin_angles(number_of_bins=Settings_ae.number_of_bins)
+    bin_angles, bin_angle_center = generate_bin_angles(number_of_bins=settings.number_of_bins)
 
     # Catch empty video dataframes
-    if len(filtered_video_df) == 0:
-        raise ValueError("Video dataframe is empty, bug.")
+    assert len(filtered_video_df) > 0, "Video dataframe is empty, bug."
 
     # bin angles
     binned_angles = np.array(filtered_video_df[angle_filt].to_numpy())
@@ -149,45 +196,57 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     # initialize variables to compute the Rayleigh vector
     # Remove cluster 0 from ks only - synthetic starts at cluster id 1
     cluster_Ids = self.cluster_Ids[self.cluster_Ids > 0]
-    Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist = init_rayleigh(
+    Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist, arena_rayleigh_theta, arena_rayleigh, arena_sig = init_rayleigh(
         cluster_Ids, len(np.unique(compartment)), bin_angle_center
     )
 
     # assign spike times of each cluster to the corresponding video frame, then assign HD
     for count, c in enumerate(cluster_Ids):
         Rayleigh_cluster[count] = c
+
+        # ----------------------------Whole arena computations-----------------------------------------------------------
+        arena_rayleigh[count], arena_rayleigh_theta[count], _ = compute_rayleigh_cluster(X=X[:, count], y=binned_angles, return_all_stats=True)
+
+        # Significance test for whole arena
+        if compute_significance == "bootstrap":
+            arena_sig[count] = bootstrap_rayleigh_significance(
+                binned_angles=binned_angles,
+                count=count,
+                rayleigh=arena_rayleigh,
+                X=X[:, count],
+                fps=self.session.video.fps,
+                flag="whole_arena",
+            )
+            
+        if compute_significance == "linshit":
+            arena_sig[count] = linearshift_rayleigh_significance(X=X[:, count], binned_angles=binned_angles)
+
+        # ---------------------- Specific compartment computations ------------------------------------------------------
         for c_count, comp in enumerate(np.unique(compartment)):
             Rayleigh[count, c_count], Rayleigh_theta[count, c_count], angle_firing_hist[count, :, c_count] = compute_rayleigh_cluster(
-                X[compartment == comp, count], binned_angles[compartment == comp], return_all_stats=True
+                X[compartment == comp, count], binned_angles[compartment == comp],nbins = settings.number_of_bins, return_all_stats=True
             )
 
             # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations
             if compute_significance == "linshit":
-                LS_output = LinearShift(
-                    X[compartment == comp, count],
-                    y=binned_angles[compartment == comp],
-                    stat_computation_func=compute_rayleigh_cluster,
-                    size_of_central_chunk=np.round(np.shape(X[compartment == comp, count])[0] / 3),
+                Rayleigh_sig[count, c_count] = linearshift_rayleigh_significance(
+                    X=X[compartment == comp, count],
+                    binned_angles=binned_angles[compartment == comp],
                 )
-
-                # significance logical
-                if LS_output.reject_null:
-                    Rayleigh_sig[count] = 1
-                    # print('yay! ' + str(c) + ' is significant')
 
             # alternative method with bootstrap
             if compute_significance == "bootstrap":
-                x = 100
-                shift_dist = np.empty(x)
-                for it in np.arange(x):
-                    # shuffled linear shifts performed at a random offset between 0 and 100 seconds
-                    shift = int(np.random.uniform(1, 100)) * self.session.video.fps  # temporal shift in video frames
-                    ang_roll = np.roll(binned_angles, shift)
-                    shift_dist[it] = compute_rayleigh_cluster(X[compartment == comp, count], ang_roll[compartment == comp])
-                # significance logical
-                if Rayleigh[count] > np.percentile(shift_dist, 95):
-                    Rayleigh_sig[count] = 1
-                    # print('yay! ' + str(c) + ' is significant')
+                Rayleigh_sig[count, c_count] = bootstrap_rayleigh_significance(
+                    binned_angles=binned_angles,
+                    comp=comp,
+                    count=count,
+                    nbins = settings.number_of_bins,
+                    rayleigh=Rayleigh,
+                    X=X[compartment == comp, count],
+                    fps=self.session.video.fps,
+                    compartment=compartment,
+                    flag="compartments",
+                )
 
     # histogram of rayleighs
     plt.figure()
@@ -205,6 +264,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
         angle_firing_hist = np.reshape(
             angle_firing_hist, [np.shape(angle_firing_hist)[0], np.shape(angle_firing_hist)[1] * np.shape(angle_firing_hist)[2]]
         )
+
     rayleigh_results = pl.DataFrame(
         {
             "clusterID": Rayleigh_cluster,
@@ -213,17 +273,79 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
             "Rayleigh_sig": Rayleigh_sig,
             "angle_firing_hist": angle_firing_hist,
             "angles": np.tile(bin_angle_center[1:-1], (len(Rayleigh), 1)),
+            "arena_rayleigh_theta": arena_rayleigh_theta,
+            "arena_rayleigh": arena_rayleigh,
+            "arena_sig": arena_sig,
         }
     )
 
+    # Save the rayleigh results to a file. This is the main output of this function
     rayleigh_results.write_ipc(plot_save_path + "/" + str(angle_filt) + "_Rayleigh.arrow")
 
-    logger.info(f"Finished calculating Rayleigh vectors, moving on to polar plots")
+    logger.info("Finished calculating Rayleigh vectors, moving on to polar plots")
     if settings.multi_cluster_plots:
         folder_name = os.path.join(plot_save_path, str(angle_filt) + "_cluster_tuning_plots")
         if not (os.path.exists(folder_name)):
             os.makedirs(folder_name)
         all_clusters_polar_plots(rayleigh_results, folder_name, settings.show_plots)
+
+
+def bootstrap_rayleigh_significance(
+    binned_angles, count: int, rayleigh, X, fps: int, flag: str, nbins, comp: int = None, compartment: np.array = None
+) -> int:
+    """A function that computes the significance of the rayleigh magnitude using bootstrapping"""
+    # logger.info(f"Computing significance of Rayleigh vector using bootstrapping for neuron index {count}")
+    x = 100
+    shift_dist = np.empty(x)
+
+    if flag == "compartments":
+        # shuffled linear shifts performed at a random offset between 0 and 100 seconds
+        for it in np.arange(x):
+            shift = int(np.random.uniform(1, 100)) * fps
+            ang_roll = np.roll(binned_angles, shift)
+            shift_dist[it] = compute_rayleigh_cluster(X = X[compartment == comp, count], y = ang_roll[compartment == comp],nbins = number_of_bins)
+
+        significance = 0
+        if rayleigh[count][int(comp) - 1] > np.percentile(shift_dist, 95):
+            significance = 1
+            # logger.success("Significant rayleigh vector found")
+
+    if flag == "whole_arena":
+        # shuffled linear shifts performed at a random offset between 0 and 100 seconds
+        for it in np.arange(x):
+            shift = int(np.random.uniform(1, 100)) * fps
+            ang_roll = np.roll(binned_angles, shift)
+            shift_dist[it] = compute_rayleigh_cluster(X, ang_roll)
+
+        significance = 0
+        if rayleigh[count] > np.percentile(shift_dist, 95):
+            significance = 1
+
+    # logger.info(f"Significance of Rayleigh vector using bootstrapping for neuron index {count} is {significance}")
+    return significance
+
+
+def linearshift_rayleigh_significance(X: np.array, binned_angles: np.array) -> int:
+    """Compute the significance of the rayleigh magnitude using linear shift
+
+    Returns:
+    -- significance: 1 if the rayleigh vector is significant, 0 if not"""
+    # logger.info("starting linear shift significance test")
+    LS_output = LinearShift(
+        X,
+        y=binned_angles,
+        stat_computation_func=compute_rayleigh_cluster,
+        size_of_central_chunk=np.round(np.shape(X)[0] / 3),
+    )
+
+    significance = 0
+    # significance logical
+    if LS_output.reject_null:
+        significance = 1
+    #     logger.success("Significant rayleigh vector found")
+    # logger.info("finished linear shift significance test")
+
+    return significance
 
 
 def all_clusters_polar_plots(rayleigh_results, save_path, show_plots):
@@ -258,7 +380,7 @@ def all_clusters_polar_plots(rayleigh_results, save_path, show_plots):
         ax = plt.subplot(nrows, ncols, 1 + counter - (nrows * ncols * (fnum - 1)), projection="polar")
 
         # polar plots!
-        polar_plot(rayleigh_results.filter(np.arange(len(rayleigh_results)) == counter), ax)
+        polar_plot(rayleigh_results.filter(np.arange(len(rayleigh_results)) == counter), ax, figg, pcentile = 0)
 
         # save the whole figure
         if np.logical_or(counter - (nrows * ncols * (fnum - 1)) == (ncols * nrows) - 1, counter == number_of_clusters - 1):
@@ -273,15 +395,23 @@ def all_clusters_polar_plots(rayleigh_results, save_path, show_plots):
 
 
 def init_rayleigh(number_of_clusters, compartments, bin_angle_center):
-    """
-    Initializes the variables needed to compute the Rayleigh test
-    """
-    Rayleigh_theta = np.empty([len(number_of_clusters), compartments])  # preferred angle
-    Rayleigh = np.empty([len(number_of_clusters), compartments])  # amplitude of Rayleigh vector
-    Rayleigh_sig = np.zeros([len(number_of_clusters), compartments])  # is the Ryleigh significant?
-    Rayleigh_cluster = np.empty([len(number_of_clusters)])  # which cluster ID is this Rayleigh value for?
+    """Initializes the variables needed to compute the Rayleigh test
+
+    Arguments:
+    -- comparmentts (int): the number of compartments in the arena which is 2"""
+
+    rayleigh_theta = np.empty([len(number_of_clusters), compartments])  # preferred angle
+    rayleigh = np.empty([len(number_of_clusters), compartments])  # amplitude of Rayleigh vector
+    rayleigh_sig = np.zeros([len(number_of_clusters), compartments])  # is the Ryleigh significant?
+    rayleigh_cluster = np.empty([len(number_of_clusters)])  # which cluster ID is this Rayleigh value for?
     angle_firing_hist = np.empty([len(number_of_clusters), len(bin_angle_center) - 2, compartments])
-    return Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist
+
+    # Whole arena values
+    arena_rayleigh_theta = np.empty([len(number_of_clusters)])  # preferred angle for the whole arena
+    arena_rayleigh = np.empty([len(number_of_clusters)])  # amplitude of Rayleigh vector for the whole arena
+    arena_sig = np.zeros([len(number_of_clusters)])  # is the Ryleigh significant for the whole arena?
+
+    return rayleigh_theta, rayleigh, rayleigh_sig, rayleigh_cluster, angle_firing_hist, arena_rayleigh_theta, arena_rayleigh, arena_sig
 
 
 def rayleigh(angles, firing) -> tuple:
@@ -294,18 +424,18 @@ def rayleigh(angles, firing) -> tuple:
 
 
 def firing_by_angle_bin(angles, neural_activity, nbins):
-    angles_firing = np.zeros(nbins)
+    angles_firing = np.zeros(nbins-1)
     unique_groups, group_counts = np.unique(angles, return_counts=True)
     group_sums = np.bincount(angles, weights=neural_activity)
     angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
     return angles_firing
 
 
-def compute_rayleigh_cluster(X, y, return_all_stats=False):
+def compute_rayleigh_cluster(X, y, nbins = Settings_ae.number_of_bins,return_all_stats=False):
     """This only works if there are no angle bins that are completely empty (angles that never occur)"""
     # compute firing in angle bins
-    angle_firing_hist = firing_by_angle_bin(y, X, len(np.unique(y)))
-    _, bin_angle_center = generate_bin_angles(number_of_bins=Settings_ae.number_of_bins)
+    angle_firing_hist = firing_by_angle_bin(y, X, nbins) #len(np.unique(y)))
+    _, bin_angle_center = generate_bin_angles(number_of_bins=nbins)
     # compute rayleigh
     Rval, Rtheta = rayleigh(bin_angle_center[1:-1], angle_firing_hist)
     if return_all_stats:
@@ -319,27 +449,35 @@ def compute_95th_percentile_rayleigh(rayleigh_results):
     flat_list = [item for sublist in rayleigh_results["Rayleigh"].to_list() for item in sublist]  # unpack a series of lists into a single list
     return np.percentile(flat_list, 95)
 
+def identify_which_compartment(self, filtered_video_df: pl.DataFrame) -> np.ndarray:
+    """Identify which compartment the mouse is in based on y position
+
+    Compartments:
+    -- compartment 1 (in blue) is the side where the shelter is
+    -- compartment 2 (in purple) is the side wherethe threat zone is
+
+    Returns:
+    -- compartment: a numpy array of ones and twos of the same length as the filtered_video_df"""
+
+    compartment = np.ones([len(filtered_video_df)])
+    if len(self.session.barrier_time) > 0:
+        compartment[filtered_video_df["mouse_y_position"].to_numpy() > 512] = 2
+    return compartment
 
 ## ---------------------PLOTTING -----------------------------
 
 
-def polar_plot(df, ax, fig, pcentile, cluster_title=True, plot_type="line") -> None:
+def polar_plot(df, ax, fig, pcentile, max_firing_rate, cluster_title=True, plot_type="line") -> None:
     """Creates a polar plot for a single cluster in a single condition
 
     Visulises the firing rate at each angle (e.g. HD or HSA) for different
     compartments of the arena (e.g. shelter or threat zone).
 
     Arguments:
-    df -- a dataframe with the following columns:
-        clusterID,
-        Rayleigh,
-        Rayleigh_theta,
-        Rayleigh_sig,
-        angle_firing_hist,
-        angles
-    counter -- the index of the cluster you want to plot
-    ax -- the axis index of the subplot
-    plot_type - line, bar, fill
+        df (pl.DataFrame) with columns clusterID, Rayleigh, Rayleigh_theta, Rayleigh_sig, angle_firing_hist, angles
+        counter (int) the index of the cluster you want to plot
+        ax (object) the axis index of the subplot
+        plot_type (str) e.g line, bar, fill
     """
 
     # Check if the dataframe is empty
@@ -392,6 +530,7 @@ def polar_plot(df, ax, fig, pcentile, cluster_title=True, plot_type="line") -> N
             # Polar plot area with no fill, just outline
             elif plot_type == "line":
                 ax.plot(angles, values, color=col[compartment], linewidth=1.5)
+                ax.set_ylim(bottom=0, top=max_firing_rate) # set the y-axis limits to the max firing rate to make the plot more readable
 
     # Settings for the polar plot grid
     ax.grid(True, linestyle="--", linewidth=0.5, color="gray", alpha=0.5, markevery=3)

@@ -91,7 +91,8 @@ class Settings_visualize:
     stim_type: str = ""
     conditions: list = None
     user_defined_conditions: bool = False
-    learned_conditions: bool = False
+    compartment_split: bool = False
+    condition_types: str = ''
 
 
 @dataclass(frozen=True)
@@ -175,7 +176,8 @@ class Settings_analyze_efizz:
     run_umap: bool = False
     run_dim_reduction: bool = False
     redo_pca_preprocessing: bool = False
-    learned_conditions: bool = False
+    condition_types: str = ''
+    compartment_split: str = ''
 
 
 @dataclass(frozen=True)
