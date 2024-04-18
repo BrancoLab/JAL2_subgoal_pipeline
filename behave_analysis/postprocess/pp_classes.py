@@ -376,7 +376,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         # -----------------------------------------------------------------------
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
-        video_df = QcPreProcessedData.handle_tracking_outside_arena(video_df)
+        QcPreProcessedData._check_for_vals_outside_arena(video_df) # For now just log the warning and don't touch the data
         video_df.write_csv(
             os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv"
         )  # Save the video dataframe
@@ -420,7 +420,7 @@ class QcPreProcessedData:
     """
 
     SIZE = 1024  # This is a hardcoded variant of np.shape(self.rendered_arena)[0] from tracking module
-    CENTER = 460  # This is the pixel value of the center of the arena
+    CENTER = 512  # This is the pixel value of the center of the arena
 
     @staticmethod
     def _check_for_vals_outside_arena(video_df) -> tuple[bool, np.ndarray]:
@@ -430,7 +430,6 @@ class QcPreProcessedData:
         -- tuple[bool, np.ndarray]: A tuple containing a boolean and a numpy array.
             The boolean is True if the tracking data is outside the bounds of the arena and False if the tracking data is within the bounds of the arena.
             The numpy array contains the distance of the mouse from the center of the arena."""
-        # Extract the mouse position data from the video dataframe
         all_posX = video_df["mouse_x_position"].to_numpy()
         all_posY = video_df["mouse_y_position"].to_numpy()
         dist = np.sqrt(
@@ -447,6 +446,8 @@ class QcPreProcessedData:
             logger.success("The tracking data is within the bounds of the arena")
             return False, dist  # Return False if the tracking data is within the bounds of the arena
 
+    # NOTE - Below function is not used in the pipeline yet, but it is a critical function in the pipeline to implement soon
+    # Commented it out as need to agree on how we handle the tracking data outside the arena and PR has been stale for a while
     @staticmethod
     def handle_tracking_outside_arena(video_df, back_fill=False) -> pl.DataFrame:
         """If tracking outside arena replace with nulls or back fill them.
