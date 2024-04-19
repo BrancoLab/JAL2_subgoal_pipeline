@@ -10,7 +10,7 @@ def get_computer_specific_paths(session_path = ''):
     base_path = ''
 
     if hostname == "W10-221I": # Jasmine machine
-        my_machine = r"E:\Experimental_Data"
+        # my_machine = r"E:\Experimental_Data"
         ceph_path = r"Z:\Jasmine_Laurence\Experimental_Data"
         winstor_path = r"W:\branco\Laurence"
         DLC_path = r"C:\Users\jreggiani\Documents\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
