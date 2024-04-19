@@ -178,6 +178,7 @@ class Settings_analyze_efizz:
     redo_pca_preprocessing: bool = False
     condition_types: str = ''
     compartment_split: str = ''
+    exclude_proximal: bool = False
 
 
 @dataclass(frozen=True)

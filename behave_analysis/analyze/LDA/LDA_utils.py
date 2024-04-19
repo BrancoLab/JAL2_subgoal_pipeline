@@ -33,6 +33,10 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     if settings.use_firing_rate:
         pathh = str(pathh) + "_fr"
 
+    # if excluding proximal points for head angle decoding, add to folder name
+    if settings.exclude_proximal > 0:
+        pathh = str(pathh) + "_excl_prox_" + str(settings.exclude_proximal) + 'cm' 
+
     # add subfolder for cluster type
     pathh = str(pathh) + "/" + str(cluster_type)
 
@@ -169,3 +173,15 @@ def compute_prediction_accuracy(matrixx):
         x = np.roll(matrixx[i.astype(int), :], pos - i)
         pred_acc[i] = np.sum(x[pos - 1 : pos + 2])
     return np.mean(pred_acc)
+
+def fill_dict_with_zeros(self,prediction_accuracy,LS_compiled,variable):
+    '''If no frames meet the criteria (the video_df is blank for this condition), make this condition blank'''
+    pa = 0
+    LS_out = 0
+
+    if self.do_LDA:
+        prediction_accuracy.update({variable: pa})
+    if self.do_LS:
+        LS_compiled.update({variable: LS_out})
+
+    return prediction_accuracy,LS_compiled

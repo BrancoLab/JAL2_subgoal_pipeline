@@ -36,7 +36,7 @@ Settings_ae = Settings_analyze_efizz(
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
     # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
     # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
-    compartment_split=["all"],  # ['threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment']
+    compartment_split=["left_arena","right_arena"],#,'threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
 
@@ -53,15 +53,16 @@ Settings_ae = Settings_analyze_efizz(
     # --------------LSTM model settings ------------------------
     run_LSTM=False,
     # ------------- LDA model settings --------------------------
-    run_LDA=[],  # if [] it will not run LDA
+    run_LDA='all',  # if [] it will not run LDA
     # if 'all' it will run it for all possible angles - else provide list of angles
     # 'hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP'
     epoch_num=6,  # number of epochs for cross validation
     use_firing_rate=True,
     discriminant_type="linear",  # 'linear' or 'quadratic' or 'LSTM'
+    exclude_proximal = 0, # this determines how far the mouse has to be from each point for head angle point decoding, if 0 LDA uses all head angles regardless of distance to the target
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     # ------------ Rayleigh model settings ----------------------
-    run_rayleigh=True,
+    run_rayleigh=False,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=True,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster

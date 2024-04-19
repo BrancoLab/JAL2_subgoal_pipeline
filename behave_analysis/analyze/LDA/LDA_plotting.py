@@ -87,23 +87,53 @@ def PredictionAccuracyMapped(self, prediction_accuracy):
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
     """
     pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
-    plt.figure(figsize=(15, 15))
-    # add points with prediction accuracy
-    s = np.mean(np.diff(np.unique(self.tracking_data["randP_loc"][:, 0]))) * 2
-    sc = plt.scatter(self.tracking_data["randP_loc"][:, 0], self.tracking_data["randP_loc"][:, 1], c=pa, s=s, marker="s", cmap="Blues")
-    plt.colorbar(sc)
-    plt.axis("off")
-    # prettify with arena features
-    ax = plt.gca()
-    base_plotting(ax, self.tracking_data, self.condition)
-    ax.invert_yaxis()
+    
+    fig = plt.figure(figsize=(15, 15))
+    ax = fig.add_subplot(1, 1, 1)
+    cbar_ax = fig.add_axes([0.91, 0.13, 0.01, 0.75])
+    pa = np.array(pa)
+    if len(pa[pa>0]) > 0:
+        vmin = np.amin(pa[pa>0])
+    else:
+        vmin = 0
+    vmax = np.amax(pa)
+
+    # build heatmap
+    ybins, y = np.unique(self.tracking_data["randP_loc"][:, 0], return_inverse=True)
+    xbins, x = np.unique(self.tracking_data["randP_loc"][:, 1], return_inverse=True)
+    heatmap = np.zeros(shape=(len(np.unique(self.tracking_data["randP_loc"][:, 0])), len(np.unique(self.tracking_data["randP_loc"][:, 1]))))
+    heatmap[x, y] = pa
+
+    # Plotting logic for the heatmap
+    ax = sns.heatmap(
+        heatmap,
+        cmap="coolwarm",
+        cbar_ax=cbar_ax,
+        robust=True,
+        ax=ax,
+        mask=(heatmap == 0),
+        cbar_kws={"label": "Prediction accuracy"},
+        norm=plt.Normalize(vmin=vmin, vmax=vmax),
+    )
+
+    add_features(ax, self.condition, self.tracking_data, xbins, ybins)
+
+    # Remove x and y tick labels and ticks
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.xaxis.set_ticks_position("none")
+    ax.yaxis.set_ticks_position("none")
+    ax.set_title(self.condition, fontsize=20)
+    # The legend is the last axis so this is a hack to change the font size of the legend
+    ax.figure.axes[-1].yaxis.label.set_size(16)
     ax.set_aspect("equal")
+
+    # save plot
     filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy_map" + ".png"
     plt.savefig(filename)
     if self.show_plots:
         plt.show()
     plt.close()
-
 
 def across_conditions_LDA_map(self, settings):
     """
@@ -192,5 +222,32 @@ def across_conditions_LDA_map(self, settings):
     savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types)
     plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.png")
     if settings.show_plots:
+        plt.show()
+    plt.close()
+
+## --------OLD VERSIONS
+
+def PredictionAccuracyMapped_old(self, prediction_accuracy):
+    """
+    Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
+    """
+    pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
+    
+    plt.figure(figsize=(15, 15))
+    # add points with prediction accuracy
+    s = np.mean(np.diff(np.unique(self.tracking_data["randP_loc"][:, 0]))) * 2
+    sc = plt.scatter(self.tracking_data["randP_loc"][:, 0], self.tracking_data["randP_loc"][:, 1], c=pa, s=s, marker="s", cmap="Blues")
+    plt.colorbar(sc)
+    plt.axis("off")
+    # prettify with arena features
+    ax = plt.gca()
+    base_plotting(ax, self.tracking_data, self.condition)
+    ax.invert_yaxis()
+    ax.set_aspect("equal")
+
+    # save plot
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy_map" + ".png"
+    plt.savefig(filename)
+    if self.show_plots:
         plt.show()
     plt.close()

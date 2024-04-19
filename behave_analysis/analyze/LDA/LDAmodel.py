@@ -20,13 +20,20 @@ from behave_analysis.analyze.LDA.LDA_plotting import (
     PredictionAccuracyMapped,
     across_conditions_LDA_map,
 )
-from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder, plotConfusionMatrix, compute_prediction_accuracy, check_if_we_do_LDA
+from behave_analysis.analyze.LDA.LDA_utils import (
+    BuildSavingFolder,
+    plotConfusionMatrix,
+    compute_prediction_accuracy,
+    check_if_we_do_LDA,
+    fill_dict_with_zeros,
+)
 from behave_analysis.analyze.LDA.LDA_preprocess import (
     select_relevant_frames,
     BinDfbyPos,
     BinDfbyAngle,
     ProcessPredictors,
     binDfbyEpoch,
+    exclude_proximal_frames,
 )
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_within_LDA import fit_LSTM, predict_LSTM
 
@@ -92,32 +99,29 @@ def run_LDA_model(self, settings, angles):
     LS_compiled = {}
     title = []
 
-    self.filtered_video_df = select_relevant_frames(self)
-    # if no frames meet the criteria, make this condition blank
-    if len(self.filtered_video_df) == 0:
-        pa = 0
-        LS_out = 0
-        for variable in angles:
-            if variable != "randP":
-                title = np.append(title, variable)
-                if self.do_LDA:
-                    prediction_accuracy.update({variable: pa})
-                if self.do_LS:
-                    LS_compiled.update({variable: LS_out})
-            else:
-                for j in np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width):
-                    title = np.append(title, str("randP" + str(j)))
-                    var = str(variable + str(j))
-                    if self.do_LDA:
-                        prediction_accuracy.update({var: pa})
-                    if self.do_LS:
-                        LS_compiled.update({var: LS_out})
+    # filter video_df for this condition
+    filtered_video_df = select_relevant_frames(self)
 
-    else:
-        binned_pos = BinDfbyPos(self)
-        for variable in angles:
-            if variable != "randP":
-                logger.info(f"Running LDA on {variable}")
+    for variable in angles:
+
+        if variable != "randP":
+            logger.info(f"Running LDA on {variable}")
+            # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
+            if np.logical_and(settings.exclude_proximal>0, variable != "hdir"):
+                logger.warning(
+                    "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
+                )
+                self.filtered_video_df = exclude_proximal_frames(
+                    filtered_video_df, variable, self.tracking_data, dist_thresh=settings.exclude_proximal * self.session.video.pixels_per_cm
+                )
+            else:
+                self.filtered_video_df = filtered_video_df
+            # if no frames meet the criteria, make this condition blank
+            if len(self.filtered_video_df) == 0:
+                prediction_accuracy, LS_compiled = fill_dict_with_zeros(self, prediction_accuracy, LS_compiled, variable)
+            else:
+                # TODO: is there a more elegant way to not remake binned_pos each time?
+                binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
                 binned_angles, frames, savename = BinDfbyAngle(self, variable, settings)
                 X = ProcessPredictors(self, frames, settings)
 
@@ -145,11 +149,27 @@ def run_LDA_model(self, settings, angles):
                     del LS_output
                 title = np.append(title, variable)
 
-            else:
-                n_randP = self.video_df.select(pl.col("^head_randP_.*$")).width
-                for j in tqdm(
-                    np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width), desc=f"Running LDA on random point out of  {n_randP}"
-                ):
+        else:  # if the variable is a random point
+            n_randP = self.video_df.select(pl.col("^head_randP_.*$")).width
+            for j in tqdm(np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width), desc=f"Running LDA on random point out of  {n_randP}"):
+                # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
+                if settings.exclude_proximal > 0:
+                    # logger.warning('You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions')
+                    self.filtered_video_df = exclude_proximal_frames(
+                        filtered_video_df,
+                        variable + str(j),
+                        self.tracking_data,
+                        dist_thresh=settings.exclude_proximal * self.session.video.pixels_per_cm,
+                    )
+                else:
+                    self.filtered_video_df = filtered_video_df
+
+                # if no frames meet the criteria, make this condition blank
+                if len(self.filtered_video_df) == 0:
+                    prediction_accuracy, LS_compiled = fill_dict_with_zeros(self, prediction_accuracy, LS_compiled, variable + str(j))
+
+                else:
+                    binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
                     binned_angles, frames, savename = BinDfbyAngle(self, str("head_randP_" + str(j)), settings)
                     X = ProcessPredictors(self, frames, settings)
 
@@ -186,10 +206,10 @@ def run_LDA_model(self, settings, angles):
     else:
         with open(self.LDA_out, "rb") as dill_file:
             prediction_accuracy = pickle.load(dill_file)
-            
+
     # NOTE - Commenting this out of main branch as it doesn't work on Laurence's machine
-    # BUG - Let's fix this 
-    # PlotPredictionAccuracy(self, prediction_accuracy, title)
+    # BUG - Let's fix this
+    PlotPredictionAccuracy(self, prediction_accuracy, title)
 
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:

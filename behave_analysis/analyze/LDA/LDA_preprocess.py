@@ -44,9 +44,40 @@ def select_relevant_frames(self):
         filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() > 512))
     elif self.compartment == "shelter_compartment":
         filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() < 512))
+    if self.compartment == "left_arena":
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() > 512))
+    elif self.compartment == "right_arena":
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() < 512))
 
     return filtered_video_df
 
+def exclude_proximal_frames(video_df, variable, tracking, dist_thresh):
+    '''This function takes a video_df and a point as inputs. 
+    It computes the distance of the mouse to that point at every frame. 
+    It then reduces the video_df to only include points where the mouse was > dist_thresh away from that point'''
+    # find coordinates of the relevant point
+    if variable == 'hsa':
+        point = [int(np.mean([tracking['shelter_loc'][0][0],tracking['shelter_loc'][1][0]])),
+                 int(np.mean([tracking['shelter_loc'][0][1],tracking['shelter_loc'][1][1]]))]
+    elif variable == 'h_bar_north_a':
+        point = tracking['barrier_loc'][0]
+    elif variable == 'h_bar_south_a':
+        point = tracking['barrier_loc'][1]
+    elif variable == 'h_bar_centre_a':
+        point = tracking['barrier_loc'][2]
+    elif 'randP' in variable:
+        num = int(variable[len('randP'):])
+        point = tracking["randP_loc"][num, :]
+    
+    # measure the distance of the mouse from that point
+    X = video_df['mouse_x_position'].to_numpy()
+    Y = video_df['mouse_y_position'].to_numpy()
+    dist = np.sqrt(((X-point[0])**2)+((Y-point[1])**2))
+
+    # filter video_df
+    video_df = video_df.filter(dist > dist_thresh)
+
+    return video_df
 
 def BinDfbyAngle(self, variable, settings):
     """
@@ -75,16 +106,16 @@ def BinDfbyAngle(self, variable, settings):
     return binned_angles, frames, title
 
 
-def BinDfbyPos(self):
+def BinDfbyPos(filtered_video_df,video_height,video_width):
     """
     A function that bins the x-y position of the mouse extracting them from the behavioral dataframe
     """
-    mouse_x = self.filtered_video_df["mouse_x_position"].to_numpy()
-    mouse_y = self.filtered_video_df["mouse_y_position"].to_numpy()
+    mouse_x = filtered_video_df["mouse_x_position"].to_numpy()
+    mouse_y = filtered_video_df["mouse_y_position"].to_numpy()
 
     # bin into quadrants
-    mouse_x = mouse_x > (self.session.video.height / 2)
-    mouse_y = mouse_y > (self.session.video.width / 2)
+    mouse_x = mouse_x > (video_height / 2)
+    mouse_y = mouse_y > (video_width / 2)
 
     _, binned_pos = np.unique(np.vstack((mouse_x, mouse_y)), axis=1, return_inverse=True)
 
