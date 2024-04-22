@@ -2,10 +2,12 @@
 - process the angles by subselecting the frames to use
 - process the neural data
  """
-
+import os
+import dill as pickle
 import numpy as np
 from sklearn.decomposition import PCA
 
+from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.filtering_data.filtering_functions import (
     filter_video_dataframe,
     generate_bin_angles,
@@ -41,13 +43,13 @@ def select_relevant_frames(self):
 
     # subselect relevant frames based on compartment
     if self.compartment == "threat_zone":
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() > 512))
-    elif self.compartment == "shelter_compartment":
         filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() < 512))
+    elif self.compartment == "shelter_compartment":
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() > 512))
     if self.compartment == "left_arena":
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() > 512))
-    elif self.compartment == "right_arena":
         filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() < 512))
+    elif self.compartment == "right_arena":
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() > 512))
 
     return filtered_video_df
 
@@ -171,14 +173,35 @@ def ProcessPredictors(self, frames, settings):
     # X = X/np.amax(X,axis=0)
 
     # z-score firing rates
-    X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
+    # X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
 
     # optional: run PCA
     if settings.PCA_process:
         pca = PCA(n_components=15)
         X = pca.fit_transform(X)
 
-    # first column of X is frame num
+    if settings.exclude_hdir:
+        path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "cells"))
+        file_name = os.path.join(path, "hdir_cells.pkl")
+        # TODO: write conditional that if there are no classified cells you need to classify
+        with open(file_name, "rb") as dill_file:
+            hdir_cells = pickle.load(dill_file)
+        # TODO: match columns to cluster_Ids
+        boolean_cluster = np.isin(self.cluster_Ids, hdir_cells)
+        # delete those columns
+        X = X[:,boolean_cluster == False]
+
+    # add a first column to X to be frame num
     X = np.c_[frames, X]
 
+    return X
+
+def zscore_predictors(X):
+    '''This function z-scores an input matrix'''
+    # z-score firing rates
+    X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
+    # nanclusters should be zero clusters
+    nanclusters = np.where(np.sum(np.isnan(X),axis=0) == np.shape(X)[0])[0]
+    if len(nanclusters) > 0:
+        X[:,nanclusters] = np.zeros((np.shape(X)[0],1))
     return X

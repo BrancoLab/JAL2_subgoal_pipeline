@@ -21,7 +21,7 @@ Settings_ae = Settings_analyze_efizz(
     linear_shift=False,  # whether to run linear shift!
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
-    cluster_type=["good"],  # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
+    cluster_type=['good'],  # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots=False,
      # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),
@@ -30,13 +30,13 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'shelter_only',
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
-    conditions=["all_time", "shelter_only", "barrier_pre_flip", "barrier_post_flip"],
+    conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     # conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
     # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
     # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
-    compartment_split=["left_arena","right_arena"],#,'threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment']
+    compartment_split=['all'],#,'threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
 
@@ -59,7 +59,8 @@ Settings_ae = Settings_analyze_efizz(
     epoch_num=6,  # number of epochs for cross validation
     use_firing_rate=True,
     discriminant_type="linear",  # 'linear' or 'quadratic' or 'LSTM'
-    exclude_proximal = 0, # this determines how far the mouse has to be from each point for head angle point decoding, if 0 LDA uses all head angles regardless of distance to the target
+    exclude_proximal = 15, # this determines how far the mouse has to be from each point for head angle point decoding, if 0 LDA uses all head angles regardless of distance to the target
+    exclude_hdir = False,
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     # ------------ Rayleigh model settings ----------------------
     run_rayleigh=False,

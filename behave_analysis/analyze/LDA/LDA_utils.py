@@ -37,6 +37,10 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     if settings.exclude_proximal > 0:
         pathh = str(pathh) + "_excl_prox_" + str(settings.exclude_proximal) + 'cm' 
 
+    # if excluding hdir
+    if settings.exclude_hdir:
+        pathh = str(pathh) + "_excl_hdir"
+
     # add subfolder for cluster type
     pathh = str(pathh) + "/" + str(cluster_type)
 

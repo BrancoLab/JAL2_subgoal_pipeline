@@ -19,6 +19,7 @@ from behave_analysis.analyze.LDA.LDA_plotting import (
     PlotPredictionAccuracy,
     PredictionAccuracyMapped,
     across_conditions_LDA_map,
+    plot_LDA_model,
 )
 from behave_analysis.analyze.LDA.LDA_utils import (
     BuildSavingFolder,
@@ -34,6 +35,7 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
     ProcessPredictors,
     binDfbyEpoch,
     exclude_proximal_frames,
+    zscore_predictors,
 )
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_within_LDA import fit_LSTM, predict_LSTM
 
@@ -86,6 +88,7 @@ def LDA(self, settings):
                     logger.info(
                         f"LDA already run on this session for condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
                     )
+                # plot_LDA_model()
         across_conditions_LDA_map(self, settings)
 
 
@@ -199,6 +202,9 @@ def run_LDA_model(self, settings, angles):
                         del LS_output
                     title = np.append(title, str("randP" + str(j)))
 
+    # with open(self.LDA_out, "wb") as fp:
+    #     pickle.dump(prediction_accuracy, fp)
+
     # make a plot of prediction accuracy across variables
     if self.do_LDA:
         with open(self.LDA_out, "wb") as fp:
@@ -261,10 +267,10 @@ def linear_discriminant_analysis(X, Y, binned_pos, discriminant_type="linear", p
                 plt.subplots_adjust(hspace=0.3)
 
             # make train matrix of frames x clusters
-            X1 = X[train_idx, :]
+            X1 = zscore_predictors(X[train_idx, :])
 
             # make test matrix of frames x clusters
-            X2 = X[test_idx, :]
+            X2 = zscore_predictors(X[test_idx, :])
 
             # train model
             y1 = Y[train_idx]

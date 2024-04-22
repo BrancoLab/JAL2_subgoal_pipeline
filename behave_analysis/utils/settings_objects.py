@@ -179,6 +179,7 @@ class Settings_analyze_efizz:
     condition_types: str = ''
     compartment_split: str = ''
     exclude_proximal: bool = False
+    exclude_hdir: bool = False
 
 
 @dataclass(frozen=True)
