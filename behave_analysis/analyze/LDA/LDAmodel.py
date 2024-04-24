@@ -88,7 +88,8 @@ def LDA(self, settings):
                     logger.info(
                         f"LDA already run on this session for condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
                     )
-                # plot_LDA_model()
+                logger.info(f"Time for some overview plots")
+                plot_LDA_model(self, settings)
         across_conditions_LDA_map(self, settings)
 
 
@@ -100,7 +101,6 @@ def run_LDA_model(self, settings, angles):
 
     prediction_accuracy = {}
     LS_compiled = {}
-    title = []
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
@@ -150,7 +150,6 @@ def run_LDA_model(self, settings, angles):
                     )
                     LS_compiled.update({variable: LS_output})
                     del LS_output
-                title = np.append(title, variable)
 
         else:  # if the variable is a random point
             n_randP = self.video_df.select(pl.col("^head_randP_.*$")).width
@@ -200,36 +199,13 @@ def run_LDA_model(self, settings, angles):
                         )
                         LS_compiled.update({str(variable + str(j)): LS_output})
                         del LS_output
-                    title = np.append(title, str("randP" + str(j)))
 
-    # with open(self.LDA_out, "wb") as fp:
-    #     pickle.dump(prediction_accuracy, fp)
-
-    # make a plot of prediction accuracy across variables
-    if self.do_LDA:
-        with open(self.LDA_out, "wb") as fp:
-            pickle.dump(prediction_accuracy, fp)
-    else:
-        with open(self.LDA_out, "rb") as dill_file:
-            prediction_accuracy = pickle.load(dill_file)
-
-    # NOTE - Commenting this out of main branch as it doesn't work on Laurence's machine
-    # BUG - Let's fix this
-    PlotPredictionAccuracy(self, prediction_accuracy, title)
-
-    # make a plot of prediction accuracy across variables with linear shift stats
-    if settings.linear_shift:
-        if self.do_LS:
-            with open(self.LS_out, "wb") as fp:
-                pickle.dump(LS_compiled, fp)
-        else:
-            with open(self.LS_out, "rb") as dill_file:
-                LS_compiled = pickle.load(dill_file)
-        PlotLSPredictionAccuracy(self, LS_compiled, title)
-
-    # map random points on arena:
-    if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
-        PredictionAccuracyMapped(self, prediction_accuracy)
+    with open(self.LDA_out, "wb") as fp:
+        pickle.dump(prediction_accuracy, fp)
+    
+    if self.do_LS:
+        with open(self.LS_out, "wb") as fp:
+            pickle.dump(LS_compiled, fp)
 
 
 ## --------------- MAIN LDA FUNCTION

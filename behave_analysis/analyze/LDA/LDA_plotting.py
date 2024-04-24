@@ -15,6 +15,27 @@ from behave_analysis.utils.heatplot_utils import add_features
 
 ## --------------- PLOTTING FUNCTIONS
 
+def plot_LDA_model(self, settings):
+    '''A function to call all plotting functions'''
+    # make a plot of prediction accuracy across variables
+    with open(self.LDA_out, "rb") as dill_file:
+        prediction_accuracy = pickle.load(dill_file)
+    title = prediction_accuracy.keys()
+
+    # NOTE - Commenting this out of main branch as it doesn't work on Laurence's machine
+    # BUG - Let's fix this
+    PlotPredictionAccuracy(self, prediction_accuracy, title)
+
+    # make a plot of prediction accuracy across variables with linear shift stats
+    if settings.linear_shift:
+        with open(self.LS_out, "rb") as dill_file:
+            LS_compiled = pickle.load(dill_file)
+        PlotLSPredictionAccuracy(self, LS_compiled, title)
+
+    # map random points on arena:
+    if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
+        PredictionAccuracyMapped(self, prediction_accuracy)
+
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title):
     """
@@ -107,7 +128,7 @@ def PredictionAccuracyMapped(self, prediction_accuracy):
     # Plotting logic for the heatmap
     ax = sns.heatmap(
         heatmap,
-        cmap="coolwarm",
+        cmap="viridis",#"coolwarm",
         cbar_ax=cbar_ax,
         robust=True,
         ax=ax,
@@ -196,7 +217,7 @@ def across_conditions_LDA_map(self, settings):
             # Plotting logic for the heatmap
             axs[ax_idx] = sns.heatmap(
                 heatmap,
-                cmap="coolwarm",
+                cmap="viridis",#"coolwarm",
                 cbar_ax=cbar_ax,
                 robust=True,
                 ax=axs[ax_idx],
