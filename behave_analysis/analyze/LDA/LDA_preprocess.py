@@ -124,7 +124,7 @@ def BinDfbyPos(filtered_video_df,video_height,video_width):
     return binned_pos
 
 
-def binDfbyEpoch(matrix, matriy, binned_pos, epoch_num):
+def binDfbyEpoch(matrix, pos_ang, epoch_num):
     """
     A function that splits the data into n epochs for crossvalidation. 
     It also subsamples the data so that each epoch is populated by uniformly distributed data of angles and positions
@@ -138,7 +138,8 @@ def binDfbyEpoch(matrix, matriy, binned_pos, epoch_num):
     matriy - subsampled vector of angles to decode
     epochs - a vector of the same length as matriy with the epochs that each frame is assigned to
     """
-    _, unique_pos_ang = np.unique(np.vstack((binned_pos, matriy)), axis=1, return_inverse=True)
+    _, unique_pos_ang = np.unique(pos_ang, axis=1, return_inverse=True)
+    matriy = pos_ang[0,:]
 
     # make angle + position bins equally populated
     matrix, matriy, unique_pos_ang = EqualBins_matrix(matrix, matriy, unique_pos_ang)  # this step randomly subsamples!!
@@ -186,7 +187,7 @@ def ProcessPredictors(self, frames, settings):
         # TODO: write conditional that if there are no classified cells you need to classify
         with open(file_name, "rb") as dill_file:
             hdir_cells = pickle.load(dill_file)
-        # TODO: match columns to cluster_Ids
+        # match columns to cluster_Ids
         boolean_cluster = np.isin(self.cluster_Ids, hdir_cells)
         # delete those columns
         X = X[:,boolean_cluster == False]
@@ -197,11 +198,16 @@ def ProcessPredictors(self, frames, settings):
     return X
 
 def zscore_predictors(X):
-    '''This function z-scores an input matrix'''
+    '''This function z-scores an input matrix
+    if a cluster (column) has all zero values than the output will be a column of zeros
+    the z-scoring will not be computed because the std(0) is 0 and we can't divide by 0'''
+    ZscoredX = np.zeros_like(X)
+    nonzero_clu = np.where(np.sum(X == 0, axis = 0) < np.shape(X)[0])
     # z-score firing rates
-    X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
+    ZscoredX[:,nonzero_clu] = (X[:,nonzero_clu] - np.mean(X[:,nonzero_clu], axis=0)) / np.std(X[:,nonzero_clu], axis=0)
+    
     # nanclusters should be zero clusters
-    nanclusters = np.where(np.sum(np.isnan(X),axis=0) == np.shape(X)[0])[0]
-    if len(nanclusters) > 0:
-        X[:,nanclusters] = np.zeros((np.shape(X)[0],1))
-    return X
+    # nanclusters = np.where(np.sum(np.isnan(X),axis=0) == np.shape(X)[0])[0]
+    # if len(nanclusters) > 0:
+    #     X[:,nanclusters] = np.zeros((np.shape(X)[0],1))
+    return ZscoredX

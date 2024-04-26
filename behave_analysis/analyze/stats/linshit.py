@@ -21,9 +21,10 @@ class LinearShift:
     def __init__(self, X, y, stat_computation_func, size_of_central_chunk=300):
         """
         X : 2-d array
-            Data of size (elements, timetrials)
+            Data of size (time,clusters) [NB: @LF I don't think it's = (elements, timetrials)]
         y : 1-d array
             predicted variable of size (timetrials)
+            it can be 2-d but then it is assumed that it's of size (elements,time) [it will therefore be transposed for part of this]
         stat_computation_metric : function
             takes arguments (X, y) and returns a scalar statistical measure of how well X decodes y
             this is the "user defined function" referred to in Harris 2021. It is assumed that for
@@ -37,22 +38,22 @@ class LinearShift:
         self.alpha_thresh = 0.01  # threshold for determining a significant p-value
         self.step = 400  # this should be at least 40 (fps)
         self.user_defined_function = stat_computation_func
-        self.__check_inputs(y)
-        self.T, self.N, shifts = self.init_params(y)
-        self.real_stat = self.compute_V0_statistic(X, y)
-        self.pseudo_stats = self.compute_shifted_statistics(X, y, shifts)
+        self.__check_inputs(X)
+        self.T, self.N, shifts = self.init_params(X)
+        self.real_stat = self.compute_V0_statistic(X, y.T) # the transposed matrix is necessary for LDA!
+        self.pseudo_stats = self.compute_shifted_statistics(X, y.T, shifts)
         self.reject_null, self.alpha, self.M, self.sig_level = self.compute_significance()
 
-    def __check_inputs(self, y):
+    def __check_inputs(self, X):
         """
         Check the user defined arguments are valid
         """
         assert (
-            len(y) >= self.D + 2
-        ), f"The combination of data size {len(y)} with central chunk size {self.D} is incompatible"
-        assert len(y) != 0, "The data provided has no length"
+            len(X) >= self.D + 2
+        ), f"The combination of data size {len(X)} with central chunk size {self.D} is incompatible"
+        assert len(X) != 0, "The data provided has no length"
 
-    def init_params(self, y):
+    def init_params(self, X):
         """
         Set up the parameters.
         + T: Total length of data
@@ -60,7 +61,7 @@ class LinearShift:
         + shifts: An nd.array of how much to shift the central chunk to compare from the start to the end of the array. Number of shifts
         is len(shifts)
         """
-        T = len(y)
+        T = len(X)
         N = int((T - self.D) / 2)
         shifts = np.arange(-N, N + 1, self.step)
 
@@ -70,7 +71,6 @@ class LinearShift:
         """
         Compute the real statistic for the simulatenously recorded central chunk
         """
-        # return self.user_defined_function(self.X[self.N : self.T - self.N], self.y[self.N:self.T - self.N])[0]
         if type(X) == np.ndarray:
             X_filtered = X[self.N : self.T - self.N]
             y_filtered = y[self.N : self.T - self.N]
@@ -79,7 +79,7 @@ class LinearShift:
             X_filtered = X.slice(self.N, self.T - 2 * self.N)  # starts from self.N and takes (self.T - 2*self.N) rows
             y_filtered = y.slice(self.N, self.T - 2 * self.N)  # same for y
 
-        return self.user_defined_function(X_filtered, y_filtered)
+        return self.user_defined_function(X_filtered, y_filtered.T)
 
     def compute_shifted_statistics(self, X, y, shifts):
         """
@@ -89,7 +89,6 @@ class LinearShift:
 
         pseudo_stats = np.zeros(len(shifts)) # How many pseudo statistics to compute
 
-        # pseudo_stats = {}
         for shift_idx in range(len(shifts)):
             s = shifts[shift_idx]  # How much to shift the central chunk by
             # print(f"shift {shift_idx} of {len(shifts)}")
@@ -104,7 +103,8 @@ class LinearShift:
             else:
                 xFiltered = X.slice(self.N, self.T - 2 * self.N)
                 yFiltered = y.slice(s + self.N, self.T - 2 * self.N)
-            pseudo_stats[shift_idx] = self.user_defined_function(xFiltered, yFiltered)
+            
+            pseudo_stats[shift_idx] = self.user_defined_function(xFiltered, yFiltered.T)
 
         return pseudo_stats
 
@@ -117,6 +117,13 @@ class LinearShift:
         + M (int): how often is the shifted pseudo statistic greater than the real
         """
         M = np.sum(self.pseudo_stats >= self.real_stat)  # m = sum I(V_S >_ V_0)
+        
+        # TODO: is this an alternative approach to significance?
+        # alpha = M / len(self.pseudo_stats)
+        # reject_null = False
+        # if M <= alpha*(self.N + 1): # If true, reject the Null hypothesis. Your data is 'probably' significant. Rejoice.
+        #     reject_null = True
+        
         p_val = M / ((len(self.pseudo_stats) / 2) + 1)  # alpha = M / (N+1)
         reject_null = False
         if p_val < self.alpha_thresh:

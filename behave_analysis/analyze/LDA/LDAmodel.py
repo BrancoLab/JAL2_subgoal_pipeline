@@ -13,11 +13,8 @@ from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticD
 
 # import functions
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles, generate_bin_angles
-from behave_analysis.analyze.LDA.LDAlinearshift import LinearShift
+from behave_analysis.analyze.stats.linshit import LinearShift
 from behave_analysis.analyze.LDA.LDA_plotting import (
-    PlotLSPredictionAccuracy,
-    PlotPredictionAccuracy,
-    PredictionAccuracyMapped,
     across_conditions_LDA_map,
     plot_LDA_model,
 )
@@ -110,7 +107,7 @@ def run_LDA_model(self, settings, angles):
         if variable != "randP":
             logger.info(f"Running LDA on {variable}")
             # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
-            if np.logical_and(settings.exclude_proximal>0, variable != "hdir"):
+            if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
                 logger.warning(
                     "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
                 )
@@ -127,13 +124,13 @@ def run_LDA_model(self, settings, angles):
                 binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
                 binned_angles, frames, savename = BinDfbyAngle(self, variable, settings)
                 X = ProcessPredictors(self, frames, settings)
+                pos_ang = np.vstack((binned_angles.T, binned_pos))
 
                 # run LDA on different angles
                 if self.do_LDA:
                     pa = linear_discriminant_analysis(
                         X,
-                        Y=binned_angles.T,
-                        binned_pos=binned_pos,
+                        Y=pos_ang,
                         discriminant_type=settings.discriminant_type,
                         plotting=True,
                         settings=settings,
@@ -146,7 +143,7 @@ def run_LDA_model(self, settings, angles):
                 if self.do_LS:
                     logger.info(f"Running linear shift on LDA on {variable}")
                     LS_output = LinearShift(
-                        X, y=binned_angles.T, stat_computation_func=linear_discriminant_analysis, size_of_central_chunk=np.round(np.shape(X)[0] / 3)
+                        X, y=pos_ang, stat_computation_func=linear_discriminant_analysis, size_of_central_chunk=np.round(np.shape(X)[0] / 3)
                     )
                     LS_compiled.update({variable: LS_output})
                     del LS_output
@@ -174,13 +171,13 @@ def run_LDA_model(self, settings, angles):
                     binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
                     binned_angles, frames, savename = BinDfbyAngle(self, str("head_randP_" + str(j)), settings)
                     X = ProcessPredictors(self, frames, settings)
+                    pos_ang = np.vstack((binned_angles.T, binned_pos))
 
                     # run LDA on different angles
                     if self.do_LDA:
                         pa = linear_discriminant_analysis(
                             X,
-                            Y=binned_angles.T,
-                            binned_pos=binned_pos,
+                            Y=pos_ang,
                             discriminant_type=settings.discriminant_type,
                             plotting=False,
                             settings=settings,
@@ -193,16 +190,17 @@ def run_LDA_model(self, settings, angles):
                     if self.do_LS:
                         LS_output = LinearShift(
                             X,
-                            y=binned_angles.T,
+                            y=pos_ang,
                             stat_computation_func=linear_discriminant_analysis,
                             size_of_central_chunk=np.round(np.shape(X)[0] / 3),
                         )
                         LS_compiled.update({str(variable + str(j)): LS_output})
                         del LS_output
 
-    with open(self.LDA_out, "wb") as fp:
-        pickle.dump(prediction_accuracy, fp)
-    
+    if self.do_LDA:
+        with open(self.LDA_out, "wb") as fp:
+            pickle.dump(prediction_accuracy, fp)
+
     if self.do_LS:
         with open(self.LS_out, "wb") as fp:
             pickle.dump(LS_compiled, fp)
@@ -211,25 +209,32 @@ def run_LDA_model(self, settings, angles):
 ## --------------- MAIN LDA FUNCTION
 
 
-def linear_discriminant_analysis(X, Y, binned_pos, discriminant_type="linear", plotting=False, settings=None, self=None, title=None):
+def linear_discriminant_analysis(X, pos_ang, discriminant_type="linear", plotting=False, settings=None, self=None, title=None):
     """
     A function for doing LDA on data.
     This function iterates over the crossvalidation epochs, runs the decoder, computes the confusion matrix and the average prediction accuracy
 
     WARNING: currently this function can be used for linear shift statistics but will do LDA
+
+    Y can have multiple columns - only the first column is used to predictions, but the other columns are used for binning the data (e.g. by position)
     """
 
     # initialize variables
-    n_bins = len(np.unique(Y))
-    epoch_num = settings.epoch_num
+    n_bins = len(np.unique(pos_ang[0, :]))
+    epoch_num = 6
+    if settings != None:
+        epoch_num = settings.epoch_num
+    fr = 40
+    if self != None:
+        fr = self.session.video.fps
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
 
     # chunk into epochs
-    X, Y, epochs = binDfbyEpoch(X, Y, binned_pos, epoch_num)
+    X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num)  # after this Y is just the angles to predict
     X = X[:, 1:]  # the first column is frame id and you no longer need it
     _, counts = np.unique(epochs, return_counts=True)
-    if np.logical_or(np.amin(counts) < self.session.video.fps, len(np.unique(epochs)) < 2):
+    if np.logical_or(np.amin(counts) < fr, len(np.unique(epochs)) < 2):
         prediction_accuracy = 0
     else:
         # LDA
@@ -254,7 +259,7 @@ def linear_discriminant_analysis(X, Y, binned_pos, discriminant_type="linear", p
 
             if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
-                bin_angles, bin_angle_center = generate_bin_angles(settings.number_of_bins)
+                bin_angles, bin_angle_center = generate_bin_angles(n_bins+1)
                 bin_angle_center = bin_angle_center[1:-1]
 
                 # run LSTM
