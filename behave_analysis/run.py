@@ -91,17 +91,21 @@ def visualize():
     logger.success("Visualisation complete")
 
 def analyze():
-    """
-    A function that calls all the analysis modules and is designed to be run last and for the whole dataset.
-    """
+    """A function that calls all the analysis modules and is designed to be run last and for the whole dataset."""
     logger.info("The analysis pipeline has started")
-    for session_ID in experiments_objects:
-        session = Process(session_ID).load_session()
-        logger.info("Loaded a session with the following details: {}".format(session_ID))
-        # AnalyzeBehave(session)
+    for session_id in experiments_objects:
+        session = Process(session_id).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_id))
+        # if settings_a.stim_type != "None":
+        #     AnalyzeBehave(session).behaviour_analyses()
+        
         if settings_a.efizz:
             for c_type in Settings_ae.cluster_type:
+                
+                # AnalyzeEfizz(session, c_type).classify_cells()
                 AnalyzeEfizz(session, c_type).execute_models()
+                
+    logger.success("Analysis pipeline complete")
                 
 
     
