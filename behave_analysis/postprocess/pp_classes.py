@@ -392,7 +392,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
         video_df = self.track_to_polars()
-        if len(self.session.shelter_time) > 0:
+        if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
             homings = load_or_extract_homings(session)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
         if settings.efizz:
