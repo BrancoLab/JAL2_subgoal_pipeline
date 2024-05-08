@@ -27,11 +27,13 @@ from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_s
 
 from behave_analysis.database.Experiments.JAL007_ex import JAL7_hab_1mar, JAL7_empty_shelter, JAL7_sesh8_9apr
 
+from behave_analysis.database.Experiments.JAL008_ex import JAL8_shelt_22apr
+
 # ## -------------JR BEHAVIOR MICE
 
 from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
 # Currently the code only works with one experiment at a time, so place that experiment in the below list for analysis
 
-experiments_objects = [JAL7_sesh8_9apr]
+experiments_objects = [JAL4_3rdSept]
 
