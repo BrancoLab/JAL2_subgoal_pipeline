@@ -97,6 +97,7 @@ def run_LDA_model(self, settings, angles):
     """
 
     prediction_accuracy = {}
+    prediction_coef = {}
     LS_compiled = {}
 
     # filter video_df for this condition
@@ -106,6 +107,8 @@ def run_LDA_model(self, settings, angles):
 
         if variable != "randP":
             logger.info(f"Running LDA on {variable}")
+            import time
+            # start_time = time.time()
             # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
             if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
                 logger.warning(
@@ -118,34 +121,46 @@ def run_LDA_model(self, settings, angles):
                 self.filtered_video_df = filtered_video_df
             # if no frames meet the criteria, make this condition blank
             if len(self.filtered_video_df) == 0:
-                prediction_accuracy, LS_compiled = fill_dict_with_zeros(self, prediction_accuracy, LS_compiled, variable)
+                prediction_coef, prediction_accuracy, LS_compiled = fill_dict_with_zeros(self, prediction_coef, prediction_accuracy, LS_compiled, variable)
             else:
                 # TODO: is there a more elegant way to not remake binned_pos each time?
                 binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
                 binned_angles, frames, savename = BinDfbyAngle(self, variable, settings)
                 X = ProcessPredictors(self, frames, settings)
                 pos_ang = np.vstack((binned_angles.T, binned_pos))
+                preprocess_time = time.time()
+                # print('Time to preprocess is ' + str(preprocess_time - start_time))
 
                 # run LDA on different angles
                 if self.do_LDA:
-                    pa = linear_discriminant_analysis(
+                    X = [X, pos_ang]
+                    pa, coef = linear_discriminant_analysis(
                         X,
-                        Y=pos_ang,
+                        pos_ang = pos_ang,
+                        epoch_num = settings.epoch_num,
+                        fr = self.session.video.fps,
+                        return_coef = True,
                         discriminant_type=settings.discriminant_type,
                         plotting=True,
-                        settings=settings,
                         self=self,
                         title=savename,
                     )
                     prediction_accuracy.update({variable: pa})
-
+                    prediction_coef.update({variable: coef})
+                
                 # run linear shift on different angles
                 if self.do_LS:
                     logger.info(f"Running linear shift on LDA on {variable}")
                     LS_output = LinearShift(
-                        X, y=pos_ang, stat_computation_func=linear_discriminant_analysis, size_of_central_chunk=np.round(np.shape(X)[0] / 3)
+                        X, 
+                        y=pos_ang, 
+                        stat_computation_func=linear_discriminant_analysis, 
+                        step = 40,
+                        size_of_central_chunk=np.round(np.shape(X)[0] * .9)
                     )
                     LS_compiled.update({variable: LS_output})
+                    lda_time = time.time()
+                    print('Total Time to fit is ' + str(lda_time - preprocess_time))
                     del LS_output
 
         else:  # if the variable is a random point
@@ -165,7 +180,7 @@ def run_LDA_model(self, settings, angles):
 
                 # if no frames meet the criteria, make this condition blank
                 if len(self.filtered_video_df) == 0:
-                    prediction_accuracy, LS_compiled = fill_dict_with_zeros(self, prediction_accuracy, LS_compiled, variable + str(j))
+                    prediction_coef, prediction_accuracy, LS_compiled = fill_dict_with_zeros(self, prediction_coef, prediction_accuracy, LS_compiled, variable + str(j))
 
                 else:
                     binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
@@ -175,16 +190,19 @@ def run_LDA_model(self, settings, angles):
 
                     # run LDA on different angles
                     if self.do_LDA:
-                        pa = linear_discriminant_analysis(
+                        pa, coef = linear_discriminant_analysis(
                             X,
-                            Y=pos_ang,
+                            pos_ang = pos_ang,
+                            epoch_num = settings.epoch_num,
+                            fr = self.session.video.fps,
+                            return_coef = True,
                             discriminant_type=settings.discriminant_type,
                             plotting=False,
-                            settings=settings,
                             self=self,
                             title=savename,
                         )
                         prediction_accuracy.update({str(variable + str(j)): pa})
+                        prediction_coef.update({str(variable + str(j)): coef})
 
                     # run linear shift on different angles
                     if self.do_LS:
@@ -192,7 +210,8 @@ def run_LDA_model(self, settings, angles):
                             X,
                             y=pos_ang,
                             stat_computation_func=linear_discriminant_analysis,
-                            size_of_central_chunk=np.round(np.shape(X)[0] / 3),
+                            step = 40,
+                            size_of_central_chunk=np.round(np.shape(X)[0] * .9),
                         )
                         LS_compiled.update({str(variable + str(j)): LS_output})
                         del LS_output
@@ -200,6 +219,10 @@ def run_LDA_model(self, settings, angles):
     if self.do_LDA:
         with open(self.LDA_out, "wb") as fp:
             pickle.dump(prediction_accuracy, fp)
+        coef_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_coef" + ".pkl"
+        with open(coef_out, "wb") as fp:
+            pickle.dump(prediction_coef, fp)
+        
 
     if self.do_LS:
         with open(self.LS_out, "wb") as fp:
@@ -209,24 +232,22 @@ def run_LDA_model(self, settings, angles):
 ## --------------- MAIN LDA FUNCTION
 
 
-def linear_discriminant_analysis(X, pos_ang, discriminant_type="linear", plotting=False, settings=None, self=None, title=None):
+def linear_discriminant_analysis(X, pos_ang = [], epoch_num = 6, fr = 40, return_coef = False, discriminant_type="linear", plotting=False, self=None, title=None):
     """
     A function for doing LDA on data.
     This function iterates over the crossvalidation epochs, runs the decoder, computes the confusion matrix and the average prediction accuracy
 
-    WARNING: currently this function can be used for linear shift statistics but will do LDA
+    WARNING: currently this function can be used for linear shift statistics but will do LDA, not QDA
 
-    Y can have multiple columns - only the first column is used to predictions, but the other columns are used for binning the data (e.g. by position)
+    pos_ang can have multiple columns - only the first column is used to predictions, but the other columns are used for binning the data (e.g. by position)
+
     """
 
     # initialize variables
+    # import time
+    # start_time = time.time()
     n_bins = len(np.unique(pos_ang[0, :]))
-    epoch_num = 6
-    if settings != None:
-        epoch_num = settings.epoch_num
-    fr = 40
-    if self != None:
-        fr = self.session.video.fps
+    coef_matrix = np.empty((n_bins,np.shape(X)[1]-1,epoch_num)) # -1 on the number of clusters, because we have an extra column in X
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
 
@@ -234,6 +255,7 @@ def linear_discriminant_analysis(X, pos_ang, discriminant_type="linear", plottin
     X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num)  # after this Y is just the angles to predict
     X = X[:, 1:]  # the first column is frame id and you no longer need it
     _, counts = np.unique(epochs, return_counts=True)
+    
     if np.logical_or(np.amin(counts) < fr, len(np.unique(epochs)) < 2):
         prediction_accuracy = 0
     else:
@@ -256,6 +278,8 @@ def linear_discriminant_analysis(X, pos_ang, discriminant_type="linear", plottin
             # train model
             y1 = Y[train_idx]
             y2 = Y[test_idx]
+            # pre_time = time.time()
+            # print('Time to prep LDa is ' + str(pre_time - start_time))  
 
             if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
@@ -285,6 +309,7 @@ def linear_discriminant_analysis(X, pos_ang, discriminant_type="linear", plottin
                 clf.fit(X1, y1)
                 y_hat_train = clf.predict(X1)
                 y_hat_test = clf.predict(X2)
+                coef_matrix[:,:,counter] = clf.coef_
 
             # plot confusion matrix of prediction on training data
             conf_matrix_all_train[:, :, counter] = plotConfusionMatrix(y1, y_hat_train, "training data", plt.subplot2grid(shape=(4, 2), loc=(2, 0)))
@@ -354,5 +379,17 @@ def linear_discriminant_analysis(X, pos_ang, discriminant_type="linear", plottin
             plt.close()
 
         prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))
+        coef = np.mean(coef_matrix, axis = 2)
 
-    return prediction_accuracy
+        # if you want to look at how similar the weights are across epochs
+        # peak_weight = np.amax(coef_matrix[:,:,0],axis = 0)
+        # fig, axs = plt.subplots(1, np.shape(coef_matrix)[2])
+        # for i in np.arange(np.shape(coef_matrix)[2]):
+        #     axs[i].imshow(coef_matrix[:,np.argsort(peak_weight),i].T, aspect = 'auto')
+
+        # fit_time = time.time()
+        # print('Time to fit&predict LDA is ' + str(fit_time - pre_time))
+    if return_coef:
+        return prediction_accuracy, coef
+    else:
+        return prediction_accuracy

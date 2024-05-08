@@ -15,10 +15,11 @@ crypto paper: https://peercommunityjournal.org/item/10.24072/pcjournal.30.pdf
 
 import numpy as np
 from scipy.stats import pearsonr
-
+from multiprocessing.pool import Pool
+import multiprocessing
 
 class LinearShift:
-    def __init__(self, X, y, stat_computation_func, size_of_central_chunk=300):
+    def __init__(self, X, y, stat_computation_func, step = 400, size_of_central_chunk=300, step_n = 100):
         """
         X : 2-d array
             Data of size (time,clusters) [NB: @LF I don't think it's = (elements, timetrials)]
@@ -35,13 +36,14 @@ class LinearShift:
             number of samples for the middle chunk.
         """
         self.D = size_of_central_chunk
+        self.step_n = step_n # number of steps you want to take
         self.alpha_thresh = 0.01  # threshold for determining a significant p-value
-        self.step = 400  # this should be at least 40 (fps)
+        self.step = step  # this should be at least 40 (fps)
         self.user_defined_function = stat_computation_func
         self.__check_inputs(X)
-        self.T, self.N, shifts = self.init_params(X)
+        self.T, self.N, self.shifts = self.init_params(X)
         self.real_stat = self.compute_V0_statistic(X, y.T) # the transposed matrix is necessary for LDA!
-        self.pseudo_stats = self.compute_shifted_statistics(X, y.T, shifts)
+        self.pseudo_stats = self.parallel_compute_shifted_statistics(X, y.T, self.shifts)
         self.reject_null, self.alpha, self.M, self.sig_level = self.compute_significance()
 
     def __check_inputs(self, X):
@@ -63,7 +65,10 @@ class LinearShift:
         """
         T = len(X)
         N = int((T - self.D) / 2)
-        shifts = np.arange(-N, N + 1, self.step)
+        
+        # ensure 0 step is not included 
+        shifts = np.arange(-(((self.step_n/2)*self.step)), (((self.step_n/2)*self.step))+1, self.step)   
+        shifts = np.delete(shifts,shifts == 0)    
 
         return T, N, shifts
 
@@ -81,6 +86,44 @@ class LinearShift:
 
         return self.user_defined_function(X_filtered, y_filtered.T)
 
+    def parallel_compute_shifted_statistics(self, X, y, shifts):
+        """
+        Shift the central chunk and compute the user defined statistic on non simulatenously recorded segments of X and y.
+        Hold X stationary.
+        """
+
+        # prep X matrix
+        if type(X) == np.ndarray:
+            xFiltered = X[self.N : self.T - self.N]
+        else:
+            xFiltered = X.slice(self.N, self.T - 2 * self.N)
+
+        # prep Y matrix of shifts
+        y_matrix = []
+        for i, this_shift in enumerate(shifts):
+            if type(X) == np.ndarray:
+                # y could be a vector or a matrix
+                y_matrix.append(y[int(this_shift + self.N) : int(this_shift + self.T - self.N)])  # transpose y so it is in the shape n x time (where n is the number of variables in y)
+            else:
+                assert type(X) == np.ndarray, "Your data is in polars - I'm not sure parallel processing can currently handle that"
+                # y_matrix[i,:] = y.slice(this_shift + self.N, self.T - 2 * self.N)
+
+        # zip the vars
+        args_list = [(xFiltered, y) for y in y_matrix]
+
+        # parallel process
+        # Define the number of processes to use
+        num_processes = multiprocessing.cpu_count()-1  # Adjust as needed
+        with Pool(num_processes) as pool:
+            pseudo_stats = pool.map(self.parallel_function, args_list)
+
+        return pseudo_stats
+
+    def parallel_function(self,args):
+        X,y = args
+        out = self.user_defined_function(X, y.T) # np.array([np.shape(X),np.shape(y.T)])
+        return out
+
     def compute_shifted_statistics(self, X, y, shifts):
         """
         Shift the central chunk and compute the user defined statistic on non simulatenously recorded segments of X and y.
@@ -91,11 +134,6 @@ class LinearShift:
 
         for shift_idx in range(len(shifts)):
             s = shifts[shift_idx]  # How much to shift the central chunk by
-            # print(f"shift {shift_idx} of {len(shifts)}")
-
-            # Remove central chunk
-            if s == 0:
-                continue
 
             if type(X) == np.ndarray:
                 xFiltered = X[self.N : self.T - self.N]

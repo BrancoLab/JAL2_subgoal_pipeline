@@ -178,14 +178,15 @@ def compute_prediction_accuracy(matrixx):
         pred_acc[i] = np.sum(x[pos - 1 : pos + 2])
     return np.mean(pred_acc)
 
-def fill_dict_with_zeros(self,prediction_accuracy,LS_compiled,variable):
+def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,LS_compiled,variable):
     '''If no frames meet the criteria (the video_df is blank for this condition), make this condition blank'''
     pa = 0
     LS_out = 0
 
     if self.do_LDA:
         prediction_accuracy.update({variable: pa})
+        prediction_coef.update({variable: None})
     if self.do_LS:
         LS_compiled.update({variable: LS_out})
 
-    return prediction_accuracy,LS_compiled
+    return prediction_coef,prediction_accuracy,LS_compiled
