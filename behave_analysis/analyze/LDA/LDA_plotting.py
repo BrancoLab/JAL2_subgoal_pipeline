@@ -161,7 +161,7 @@ def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None):
     if LS_thresh != None:
         # significant points are the ones where predictiona ccuracy is greater than thresh
         significant_points = (pa - LS_thresh) > 0
-        plt.scatter(x[significant_points],y[significant_points],s = 3, c = 'w')
+        ax.scatter(x[significant_points]+.5,y[significant_points]+.5,s = 3, c = 'w')
 
     add_features(ax, self.condition, self.tracking_data, xbins, ybins)
 
