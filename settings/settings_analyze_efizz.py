@@ -18,19 +18,19 @@ Settings_ae = Settings_analyze_efizz(
 
     # ------------- General settings --------------------------
     stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
-    linear_shift=False,  # whether to run linear shift!
+    linear_shift=True,  # whether to run linear shift!
     # This does not effect Tuned, this model needs linear shift to work
-    redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
+    redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=['good'],  # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots=False,
-     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
+    # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),
     #                                         'shelter_present',
     #                                         'barrier_present'
     #                                         'shelter_only',
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
-    conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
+    conditions=["pre_shelter", "shelter_present"],#, "barrier_removed"],
     # conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
@@ -61,6 +61,7 @@ Settings_ae = Settings_analyze_efizz(
     discriminant_type="linear",  # 'linear' or 'quadratic' or 'LSTM'
     exclude_proximal = 15, # this determines how far the mouse has to be from each point for head angle point decoding, if 0 LDA uses all head angles regardless of distance to the target
     exclude_hdir = False,
+    dropout = True, # this will iteratively dropout each cluster and recompute the LDA prediction accuracy to see how much that cluster matters
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     # ------------ Rayleigh model settings ----------------------
     run_rayleigh=False,

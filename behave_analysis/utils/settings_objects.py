@@ -180,6 +180,7 @@ class Settings_analyze_efizz:
     compartment_split: str = ''
     exclude_proximal: bool = False
     exclude_hdir: bool = False
+    dropout: bool = False
 
 
 @dataclass(frozen=True)
