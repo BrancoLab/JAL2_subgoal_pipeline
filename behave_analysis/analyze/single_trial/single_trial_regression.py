@@ -9,8 +9,11 @@ import polars as pl
 from sklearn.model_selection import GroupKFold
 from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
+from scipy import stats
+import statsmodels.api as sm
 
 from behave_analysis.utils.creating_directories import make_directory
+
 
 class UnitTests:
     """Unit tests for the SingleTrialRegression class"""
@@ -66,15 +69,21 @@ class UnitTests:
 
         logger.success("All tests passed for the compute_predictor function")
 
+
 class PreprocessSingleTrialRegression:
     """A class to preprocess the data for single trial regression analysis"""
 
-    def __init__(self, video_df, homings_obj, video_and_spike_data, frame_by_cluster_matrix, save_path, similar_homings=False):
+    def __init__(
+        self, video_df, homings_obj, video_and_spike_data, frame_by_cluster_matrix, save_path, similar_homings=False, orthogonalise_index=False
+    ):
         self.homings_obj = homings_obj
         self.video_and_spike_data = video_and_spike_data
         self.frame_by_cluster_matrix = frame_by_cluster_matrix
         self.save_path = save_path
         self.video_df = self.remove_columns_from_video_df(video_df)
+        self.should_we_orthogonalise_index = orthogonalise_index
+
+        # Settings
         self.similar_homings = similar_homings
 
         # Unit tests
@@ -82,11 +91,11 @@ class PreprocessSingleTrialRegression:
         UnitTests.check_index_is_valid(self.compute_index)
 
         # Preprocessing homing data
-        self.homing_data_single_dataframe = self.preprocess_homing_data(select_similar_homings = self.similar_homings)
+        self.homing_data_single_dataframe = self.preprocess_homing_data(select_similar_homings=self.similar_homings)
 
         # Add the dependent variable to the data
-        self.homing_data_single_dataframe = self.add_dependent_variable_to_data()
-        
+        self.homing_data_single_dataframe = self.add_dependent_index_variable_to_data(orthogonalise_index=self.should_we_orthogonalise_index)
+
         # Create the design matrix
         self.design_matrix = self.create_the_design_matrix(self.homing_data_single_dataframe, self.frame_by_cluster_matrix)
 
@@ -95,6 +104,7 @@ class PreprocessSingleTrialRegression:
         self.plot_y_coords_distribution()
         self.plot_the_index_distribution()
         self.plot_the_index_per_homing()
+        self.plot_the_distribution_of_the_dependent_variables()
 
     # ------- Descriptive exploratory plots based on preprocessing -------------------------
 
@@ -173,6 +183,19 @@ class PreprocessSingleTrialRegression:
     def create_descriptive_plots(self):
         """Creating the descriptive plots"""
         raise NotImplementedError
+
+    def plot_the_distribution_of_the_dependent_variables(self):
+        """In order to check the scale of the dependent variables, we plot the distribution of the dependent variables.
+        If the dependent variables are not normally distributed then we may need to transform them to make them normally distributed
+        or at least on the same scale. This is important for the regression analysis as the dependent variables should be on the same scale"""
+
+        for dependent_variable in self.here_are_all_the_columns:
+            plt.hist(self.design_matrix[dependent_variable].to_numpy())
+            plt.xlabel(dependent_variable)
+            plt.ylabel("Number of frames")
+            plt.title(f"Distribution of {dependent_variable}")
+            plt.savefig(self.save_path / f"{dependent_variable}_distribution.png")
+            plt.close()
 
     # ----------- Preprocessing -------------------------------------
 
@@ -337,11 +360,22 @@ class PreprocessSingleTrialRegression:
         denominator = self.circular_sum(angle1, angle2)
         return numerator / denominator
 
-    def add_dependent_variable_to_data(self):
+    def add_dependent_index_variable_to_data(self, orthogonalise_index: bool = False):
         """Adding the dependent variable to the data"""
 
         hsa = self.homing_data_single_dataframe["hsa"].to_numpy().copy()
         goal = self.homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
+
+        # Orthogonalise the angles to see if the correlations between the angles alone can explain the index
+        if orthogonalise_index:
+
+            # rotate the goal and hsa by pi/2 to make the angles orthogonal
+            goal = goal + np.pi / 2
+            hsa = hsa + np.pi / 2
+
+            # Now make sure the angles are between -pi and pi
+            hsa = np.where(hsa > np.pi, hsa - 2 * np.pi, hsa)
+            goal = np.where(goal > np.pi, goal - 2 * np.pi, goal)
 
         # Quality check
         # Check arrays are not above or below -pi and pi
@@ -369,96 +403,166 @@ class PreprocessSingleTrialRegression:
 
         counter = 0
         for idx in range(len(np.unique(data["homing_id"]))):
-        
+
             # Get the frames for the homing id for slicing
             frames = data.filter(data["homing_id"] == idx)["frames"].to_numpy()
-            
+
             # Get the corresponding frame by cluster matrix
-            spike_data = frame_by_cluster_matrix[frames[0]:frames[-1]+1]
-            
+            spike_data = frame_by_cluster_matrix[frames[0] : frames[-1] + 1]
+
             # Add the spike data to the design matrix
-            design_matrix[counter:counter+len(spike_data)] = spike_data
+            design_matrix[counter : counter + len(spike_data)] = spike_data
             counter += len(spike_data)
-            
-        # turn the design matrix into a pandas dataframe
+
+        # Normalise the design matrix using a simple scale by the standard deviation
+        np_std = np.std(design_matrix, axis=0)
+        design_matrix = np.divide(design_matrix, np_std)
         design_matrix = pd.DataFrame(design_matrix)
-        
-        np.save("refactor_design_matrix.npy", design_matrix.to_numpy())
-        
-        # horizontally add the homing_id and index to the design matrix
-        index = data["index"].to_numpy()
-        homing_id = data["homing_id"].to_numpy()
-        
-        design_matrix["index"] = index
-        design_matrix["homing_id"] = homing_id
-                
+
+        # Add all columns as a dependent variable
+        all_columns_names = data.columns
+
+        # Add a bunch of dependent variables to the design matrix
+        for idx, column_name in enumerate(all_columns_names):
+            design_matrix[column_name]= data[column_name].to_numpy()
+
+        self.here_are_all_the_columns = all_columns_names
+
         return design_matrix
+
 
 class SingleTrialRegression:
     """A class that performs single trial regression analysis on the data"""
 
-    def __init__(self, design_matrix: pd.DataFrame, save_path: Path):
+    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, run_shifts: bool, all_dependent_names: list):
         self.design_matrix = design_matrix
         self.save_path = save_path
-        
-        make_directory(self.save_path / "ols_regression")
-        make_directory(self.save_path / "svr_regression")
-        
-        # Run all the regression models
-        self.main_execution(self.design_matrix)
-        
-    def main_execution(self, design_matrix: pd.DataFrame):
-                
-        # Convert Polars DataFrame to NumPy for compatibility with sklearn
+        self.dependent_names = all_dependent_names
+
+        # Has to start from 0 to capture the original R2 score
+        self.shifts = range(0, 401, 50)  # Shift amounts (0, 50, 100, ..., 400)
+        self.original_r2 = None  # To store R2 score for the non-shifted matrix
+
+        # Store the R2 scores for different shifts
+        self.shift_r2_ols = []
+        self.shift_r2_svr = []
+
+        # Run the regression models for different shifts
+        if run_shifts:
+            self.run_all_shifts()
+            self.plot_shift_results()
+
+        self.r2_score_dic = self.run_all_dependent_variables()
+
+        # Plot the results
+        self.plot_the_r2_scores()
+
+    def shift_spikes(self, design_matrix: pd.DataFrame, shift_amount: int) -> pd.DataFrame:
+        """Shifts the spikes in the design matrix by a certain amount, wrapping around the end of the matrix"""
+        new_index = (design_matrix.index + shift_amount) % len(design_matrix)
+        return design_matrix.reindex(new_index).reset_index(drop=True)
+
+    def run_the_model_with_all_dependent_variables_in_design_matrix(self, design_matrix: pd.DataFrame, dependent_variable: np.ndarray):
+        raise NotImplementedError
+
+    def run_all_dependent_variables(self):
+        """Run the model for different dependent variables and store the mean R2 scores"""
+
+        list_of_dependent_vars = []
+        for dependent_var_name in self.dependent_names:
+            list_of_dependent_vars.append(self.design_matrix[dependent_var_name].to_numpy())
+            make_directory(self.save_path / "ols_regression" / dependent_var_name)
+            make_directory(self.save_path / "svr_regression" / dependent_var_name)
+
+        r2_scores = {}
+
+        for var_idx, dependent_var in enumerate(list_of_dependent_vars):
+            logger.info("Running the model for dependent variable: {}", self.dependent_names[var_idx])
+            mean_ols_r2, mean_svr_r2 = self.run_models(self.design_matrix, dependent_var, self.dependent_names[var_idx])
+            r2_scores[self.dependent_names[var_idx]] = (mean_ols_r2, mean_svr_r2)
+
+        return r2_scores
+
+    def run_all_shifts(self):
+        """Run regression models for all shifts and store mean R2 scores"""
+
+        dependent_variable = self.design_matrix["index"].to_numpy()  # Target variable
+
+        for shift_amount in self.shifts:
+            print(f"Running models for shift amount: {shift_amount}")
+
+            if shift_amount == 0:
+                shifted_design_matrix = self.design_matrix
+            else:
+                shifted_design_matrix = self.shift_spikes(self.design_matrix, shift_amount)
+
+            mean_ols_r2, mean_svr_r2 = self.run_models(shifted_design_matrix, dependent_variable)
+
+            print("Mean OLS R2 test print: ", mean_ols_r2)
+            print("Mean SVR R2 test print: ", mean_svr_r2)
+
+            if shift_amount == 0:
+                self.original_r2 = (mean_ols_r2, mean_svr_r2)
+
+            self.shift_r2_ols.append(mean_ols_r2)
+            self.shift_r2_svr.append(mean_svr_r2)
+
+    def run_models(self, design_matrix: pd.DataFrame, dependent_variable: np.ndarray, dependent_var_name: str):
+        """Run OLS and SVR models and return mean R2 scores"""
+
         df = design_matrix
-        columns_to_drop = ['index', 'homing_id']
-        
-        X = df.drop(columns = columns_to_drop).to_numpy()  # Feature matrix
-        y = df['index'].to_numpy()  # Target variable
-        groups = df['homing_id'].to_numpy()  # Grouping according to homing_id
-        
-        # overfit
-        # reg = LinearRegression()
-        # reg.fit(X, y)
-        # r2 = reg.score(X, y)
-        # print(f"Overfit R2 for OLS score: {np.around(r2, 2)}")
-        
-        # # Set up GroupKFold
+        # columns_to_drop = ["index", "homing_id", "hdir"]
+        X = df.drop(columns=self.dependent_names).to_numpy()  # Feature matrix
+        y = dependent_variable  # Target variable
+        groups = df["homing_id"].to_numpy()  # Grouping according to homing_id
+
+        # Set up GroupKFold
         group_kfold = GroupKFold(n_splits=4)
-        assert len(np.unique(groups)) == len(np.unique(df['homing_id'])), "Number of groups is not equal to the number of homing ids"
-        
-        # storage
+        assert len(np.unique(groups)) == len(np.unique(df["homing_id"])), "Number of groups is not equal to the number of homing ids"
+
         ols_test_r2 = []
         svr_test_r2 = []
-        
+
+        ols_save_path = self.save_path / "ols_regression" / dependent_var_name
+        svr_save_path = self.save_path / "svr_regression" / dependent_var_name
+
         # Split using GroupKFold, ensuring groups do not overlap between folds
         for fold, (train_index, test_index) in enumerate(group_kfold.split(X, y, groups)):
             print(f"Fold {fold}:")
             print(f"  Train Indices: {train_index}, Train Groups: {groups[train_index]}")
             print(f"  Test Indices: {test_index}, Test Groups: {groups[test_index]}")
-            
+
             # Extract train and test data based on GroupKFold indices
             X_train, X_test = X[train_index], X[test_index]
             y_train, y_test = y[train_index], y[test_index]
-            
-            ols_test_r2.append(self.ols_regression(X_train, y_train, fold, self.save_path, X_test, y_test))
-            svr_test_r2.append(self.svr_regression(X_train, y_train, fold, self.save_path, X_test, y_test))
-            
-        print(f"Mean ols test R2 score: {np.around(np.mean(ols_test_r2), 2)}")
-        print(f"Mean svr test R2 score: {np.around(np.mean(svr_test_r2), 2)}")
-        
+
+            ols_test_r2.append(self.ols_regression(X_train, y_train, fold, ols_save_path, X_test, y_test))
+            svr_test_r2.append(self.svr_regression(X_train, y_train, fold, svr_save_path, X_test, y_test))
+
+        mean_ols_r2 = np.mean(ols_test_r2)
+        mean_svr_r2 = np.mean(svr_test_r2)
+
+        print(f"Mean OLS test R2 score: {np.around(mean_ols_r2, 2)}")
+        print(f"Mean SVR test R2 score: {np.around(mean_svr_r2, 2)}")
+
+        return mean_ols_r2, mean_svr_r2
+
     def ols_regression(self, X_train, y_train, fold, save_path: Path, X_test, y_test):
         """Performing the OLS regression"""
-        
+
         # Create a linear regression model
-        reg = LinearRegression()
-        reg.fit(X_train, y_train)
-        
+        # reg = LinearRegression()
+        # reg.fit(X_train, y_train)
+        X = sm.add_constant(X_train)
+        Y = y_train
+        mod = sm.OLS(Y, X)
+        results = mod.fit()
+
         # Predict and calculate R2 for training data
         train_pred = reg.predict(X_train)
         train_r2 = reg.score(X_train, y_train)
         print(f"Fold {fold + 1} Training R2 score: {np.around(train_r2, 2)}")
-        
+
         # Plot training predictions
         plt.figure(figsize=(10, 4))
         plt.subplot(121)
@@ -466,40 +570,39 @@ class SingleTrialRegression:
         plt.plot(np.arange(len(train_pred)), train_pred, label="Predicted")
         plt.legend()
         plt.title(f"Fold {fold + 1} Train Data")
-   
-        
+
         # Predict and calculate R2 for test data
         test_pred = reg.predict(X_test)
         test_r2 = reg.score(X_test, y_test)
         print(f"Fold {fold + 1} Testing R2 score: {np.around(test_r2, 2)}")
-        
+
         # Plot test predictions
         plt.subplot(122)
         plt.plot(np.arange(len(y_test)), y_test, label="True")
         plt.plot(np.arange(len(test_pred)), test_pred, label="Predicted")
         plt.legend()
         plt.title(f"Fold {fold + 1} Test Data")
-        plt.savefig(save_path / "ols_regression" / f"fold_{fold + 1}_train_vs_test.png")
+        plt.savefig(save_path / f"fold_{fold + 1}_train_vs_test.png")
         plt.close()
-        
+
         return test_r2
-        
+
     def svr_regression(self, X_train, y_train, fold, save_path: Path, X_test, y_test):
         """Performing the SVR regression"""
-        
-        svr_model = SVR(kernel='rbf', C=0.8, epsilon=0.05)  # You can tune these parameters
+
+        svr_model = SVR(kernel="rbf", C=0.8, epsilon=0.05)  # You can tune these parameters
         svr_model.fit(X_train, y_train)
-        
+
         # Predict and calculate R2 for training data
         train_pred = svr_model.predict(X_train)
         train_r2 = svr_model.score(X_train, y_train)
         print(f"Svr Fold {fold + 1} Training R2 score: {np.around(train_r2, 2)}")
-        
+
         # test data
         test_pred = svr_model.predict(X_test)
         test_r2 = svr_model.score(X_test, y_test)
         print(f"Svr Fold {fold + 1} Testing R2 score: {np.around(test_r2, 2)}")
-        
+
         # Plot train and test predictions into one plot, different subplots
         plt.figure(figsize=(10, 4))
         plt.subplot(121)
@@ -507,15 +610,68 @@ class SingleTrialRegression:
         plt.plot(np.arange(len(train_pred)), train_pred, label="Predicted")
         plt.legend()
         plt.title(f"svr Fold {fold + 1} Train Data")
-        
+
         plt.subplot(122)
         plt.plot(np.arange(len(y_test)), y_test, label="True")
         plt.plot(np.arange(len(test_pred)), test_pred, label="Predicted")
         plt.legend()
         plt.title(f"Svr Fold {fold + 1} Test Data")
-        plt.savefig(save_path / "svr_regression" / f"fold_{fold + 1}_train_vs_test.png")
-        
+        plt.savefig(save_path / f"fold_{fold + 1}_train_vs_test.png")
+
         return test_r2
+
+    def plot_shift_results(self):
+        """Plot the mean R2 scores for different shifts"""
+
+        shifts = np.array(self.shifts)
+        ols_r2 = np.array(self.shift_r2_ols)
+        svr_r2 = np.array(self.shift_r2_svr)
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(shifts, ols_r2, label="OLS R2", marker="o")
+        plt.plot(shifts, svr_r2, label="SVR R2", marker="x")
+        plt.axhline(y=self.original_r2[0], color="b", linestyle="--", label="OLS Original R2")
+        plt.axhline(y=self.original_r2[1], color="r", linestyle="--", label="SVR Original R2")
+        plt.xlabel("Shift Amount by frame")
+        plt.ylabel("Mean R2 Score")
+        plt.title("Mean R2 Score vs. Shift Amount")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(self.save_path / "shifted_mean_r2_scores.png")
+        plt.close()
+
+    def plot_the_r2_scores(self):
+        """Plot the R2 scores for the different dependent variables"""
+
+        # plot the r2 scores as a bar chart with x axis as the dependent variables and y axis as the r2 scores
+        # have two bars for each dependent variable, one for OLS and one for SVR
+        # dependent_vars = ["index", "hdir"]
+        # ols_r2_scores = [self.r2_score_dic["index"][0], self.r2_score_dic["hdir"][0]]
+        # svr_r2_scores = [self.r2_score_dic["index"][1], self.r2_score_dic["hdir"][1]]
+
+        # loop through the dictionary and plot the r2 scores
+        dependent_vars = list(self.r2_score_dic.keys())
+        ols_r2_scores = [self.r2_score_dic[dependent_var][0] for dependent_var in dependent_vars]
+        svr_r2_scores = [self.r2_score_dic[dependent_var][1] for dependent_var in dependent_vars]
+
+        plt.figure(figsize=(10, 6))
+        x = np.arange(len(dependent_vars))
+        bar_width = 0.35
+        plt.bar(x, ols_r2_scores, bar_width, label="OLS")
+        plt.bar(x + bar_width, svr_r2_scores, bar_width, label="SVR")
+        plt.xlabel("Dependent Variable")
+        plt.ylabel("Mean R2 Score")
+        plt.title("Mean R2 Score for Different Dependent Variables")
+        plt.xticks(x + bar_width / 2, dependent_vars)
+        # rotate the x axis labels
+        plt.xticks(rotation=30)
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(self.save_path / "dependent_variable_r2_scores.png")
+        plt.close()
+
+
+# ------------------------------------------------- Hard code some data to test the classes -----------------------------------------------------------------------
 
 if __name__ == "__main__":
 
@@ -530,8 +686,8 @@ if __name__ == "__main__":
     video_and_spike_data = pl.read_parquet(
         r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\good_video_spike_count_df.parquet"
     )
-    save_path = Path(r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\single_trial")
 
+    save_path = Path(r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\single_trial")
     pp = PreprocessSingleTrialRegression(
         video_df=video_df,
         homings_obj=homings,
@@ -539,8 +695,6 @@ if __name__ == "__main__":
         frame_by_cluster_matrix=frame_by_cluster_matrix,
         save_path=save_path,
         similar_homings=False,
+        orthogonalise_index=False,
     )
-    
-    print(pp.design_matrix)
-    
-    SingleTrialRegression(design_matrix=pp.design_matrix, save_path=save_path)
+    SingleTrialRegression(design_matrix=pp.design_matrix, save_path=save_path, run_shifts=False, all_dependent_names=pp.here_are_all_the_columns)
