@@ -52,3 +52,20 @@ JAL7_sesh8_9apr = Experiment(  # Mouse specific
     barrier_flip_time=227,
     experiment_path=Path(r"JAL007_shelter_barrier_flip_8_2024_04_09T10_07_45"),
 )
+
+JAL7_sesh9_16apr = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="sesh8",
+    experiment_idx=0,
+    experiment_date="2024_04_16",
+    experiment_time="11_13_05",
+    shelter_time=[3.75, -1],
+    barrier_time=[73.5, -1],
+    barrier_flip_time=200,
+    experiment_path=Path(r"JAL007_shelter_barrier_flip_9_2024_04_16T11_13_05"),
+)
