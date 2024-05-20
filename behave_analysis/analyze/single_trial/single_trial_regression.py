@@ -12,6 +12,7 @@ from sklearn.svm import SVR
 from scipy import stats
 import statsmodels.api as sm
 from sklearn.metrics import r2_score
+from scipy.stats import ttest_rel
 
 
 from behave_analysis.utils.creating_directories import make_directory
@@ -481,63 +482,24 @@ class SingleTrialRegression:
 
             index_r2_score, index_coefficients, index_p_values = self.run_just_one_dependent_variable("index")
             more_r2_score, more_predictors_coeffs, more_predictors_p_value = self.run_the_model_with_all_dependent_variables_in_design_matrix()
-            
+
             # Select only the neural data coefficients and p values
-            index_coefficients = index_coefficients[:self.number_of_neurons]
-            index_p_values = index_p_values[:self.number_of_neurons]
-            more_predictors_coeffs = more_predictors_coeffs[:self.number_of_neurons]
-            more_predictors_p_value = more_predictors_p_value[:self.number_of_neurons]
-            
-            # Plotting the coefficients on first plot
-            fig, ax = plt.subplots()
+            index_coefficients = index_coefficients[: self.number_of_neurons]
+            index_p_values = index_p_values[: self.number_of_neurons]
+            more_predictors_coeffs = more_predictors_coeffs[: self.number_of_neurons]
+            more_predictors_p_value = more_predictors_p_value[: self.number_of_neurons]
+
+            # Check the number of coefficients that remain significant
+            self.plot_proportion_of_coeffs_that_remain_significant(index_p_values, more_predictors_p_value)
+
+            # Check whether the significant coefficients change significantly between the two models
+            sig_index_coefficients_indices = np.where(index_p_values < 0.05)
             x1 = np.ones(len(index_coefficients))
             x2 = 2 * np.ones(len(more_predictors_coeffs))
-            
-            ax.scatter(x1, index_coefficients, label="Neural data only")
-            ax.scatter(x2, more_predictors_coeffs, label="Neural data + all predictors")
-            ax.legend()
-            ax.set_xticks([1, 2])
-            ax.set_xticklabels(["Neural data only", "Neural data + \n all predictors"])
-            ax.set_ylabel("Coefficients")
-            ax.set_title(f"Coefficients for neural data only (R2 score of {index_r2_score:1f}) vs neural data + all predictors (R2 score of {more_r2_score:1f}) \n with the target being the index")
-            
-            # Draw lines connecting the corresponding indices
-            for i in range(len(index_coefficients)):
-                ax.plot([x1[i], x2[i]], [index_coefficients[i], more_predictors_coeffs[i]], color='gray', linestyle='--', linewidth=0.5)
-                
-            plt.show()
-            
-            # Check the number of cells that are significant
-            neural_only_significant = np.sum(index_p_values < 0.05)
-            all_predictors_significant = np.sum(more_predictors_p_value < 0.05)
-            
-            # Check the numebr of cells that remain sig after adding all predictors
-            count = 0
-            for i in range(len(index_p_values)):
-                if index_p_values[i] < 0.05 and more_predictors_p_value[i] < 0.05:
-                    count += 1
-            
-            # Plotting the p values on the second plot
-            fig, ax = plt.subplots()
-            ax.scatter(x1, index_p_values, label="Neural data only")
-            ax.scatter(x2, more_predictors_p_value, label="Neural data + all predictors")
-            ax.legend()
-            ax.set_xticks([1, 2])
-            ax.set_xticklabels(["Neural data only", "Neural data + \n all predictors"])
-            ax.set_ylabel("P values")
-            ax.set_title(f"P values for neural data only ({neural_only_significant} / {len(index_p_values)} are sig) vs neural data + all predictors ({all_predictors_significant} / {len(more_predictors_p_value)} are sig) with the target being the index. \n ( {count} remain sig) after adding all predictors")
-            
-            # Draw lines connecting the corresponding indices
-            for i in range(len(index_p_values)):
-                ax.plot([x1[i], x2[i]], [index_p_values[i], more_predictors_p_value[i]], color='gray', linestyle='--', linewidth=0.5)
-                
-            # draw a line at 0.05
-            ax.axhline(y=0.05, color='r', linestyle='--', linewidth=0.5)
-                
-            plt.show()
-            
+            self.plot_coefficients_between_models(x1, x2, index_coefficients, more_predictors_coeffs, sig_index_coefficients_indices)
+
         return None
-    
+
     def unpack_fold_results_and_average(self, fold_results: dict):
         """For each fold, average the results and return the average"""
         r2_scores = []
@@ -553,7 +515,7 @@ class SingleTrialRegression:
 
     def run_just_one_dependent_variable(self, dependent_var_name: str):
         """Run the model for just one dependent variable"""
-        
+
         # Create a save location for the dependent variable
         make_directory(self.save_path / "ols_regression" / dependent_var_name)
 
@@ -590,25 +552,26 @@ class SingleTrialRegression:
                 design_matrix=self.design_matrix, dependent_variable=dependent_var, dependent_var_name=self.dependent_names[var_idx]
             )
 
-            # Unpack the results and average them      
-            r2_scores[self.dependent_names[var_idx]], p_values[self.dependent_names[var_idx]], coefficients[self.dependent_names[var_idx]] =  self.unpack_fold_results_and_average(ols_fold_results)
+            # Unpack the results and average them
+            r2_scores[self.dependent_names[var_idx]], p_values[self.dependent_names[var_idx]], coefficients[self.dependent_names[var_idx]] = (
+                self.unpack_fold_results_and_average(ols_fold_results)
+            )
 
         return r2_scores, p_values, coefficients
 
     def run_the_model_with_all_dependent_variables_in_design_matrix(self):
         """Run the model with all dependent variables but the index to check what the effect is on the coefficients and the p values"""
 
-
         design_matrix = self.design_matrix.copy()
-        
+
         # dont_include = ["index", "homing_id", "hsa", "h_bar_north_a", "h_bar_south_a", "hdir", "mouse_x_position", "mouse_y_position", "frames"] # SO they are the same as a test
-        dont_include = ["index", "homing_id", "h_bar_north_a", "h_bar_south_a", "mouse_x_position", "frames"] # SO they are the same as a test
+        dont_include = ["index", "homing_id", "h_bar_north_a", "h_bar_south_a", "mouse_x_position", "frames"]  # SO they are the same as a test
 
         # Add all columns as a dependent variable
         for _, column_name in enumerate(self.targets_df.columns):
             if column_name not in dont_include:
                 design_matrix[column_name] = self.targets_df[column_name].to_numpy()
-                
+
         # check correlation between the new dependent variables
         # correlation_matrix = design_matrix.iloc[:, self.number_of_neurons -1:].corr()
         # plt.imshow(correlation_matrix)
@@ -616,13 +579,11 @@ class SingleTrialRegression:
         # plt.title("Correlation matrix between dependent variables")
         # plt.savefig(self.save_path / "correlation_matrix_formany_dependent_variables.png")
         # plt.show()
-                
 
         # Run the model
         ols_fold_results = self.run_ols_model_with_cross_val(design_matrix, self.targets_df["index"], "index")
 
         r2_scores, coefficients, p_values = self.unpack_fold_results_and_average(ols_fold_results)
-
 
         return r2_scores, coefficients, p_values
 
@@ -650,6 +611,22 @@ class SingleTrialRegression:
             ols_fold_results[fold] = self.ols_regression_statsmodel(X_train, y_train, fold, ols_save_path, X_test, y_test)
 
         return ols_fold_results
+
+    # ------------------- Statistical functions -------------------
+
+    def repeat_observation_ttest(
+        self, indices_of_sig_coeffs: np.ndarray, original_model_coeffs: np.ndarray, comparison_model_coeffs: np.ndarray
+    ) -> tuple:
+        """Perform a paired t test to see if the coefficients between the original model and the comparison model are significantly different
+
+        The null hypothesis is that the coefficients are the same between the two models.
+            If the p value is less than 0.05 then the change is significant which is bad.
+            If the p value is greater than 0.05 then the change is not significant which is good
+
+        Returns:
+            tuple: t_stat, p_value both floats"""
+        t_stat, p_value = ttest_rel(original_model_coeffs[indices_of_sig_coeffs], comparison_model_coeffs[indices_of_sig_coeffs])
+        return t_stat, p_value
 
     # ------------------- Regression functions -------------------
 
@@ -728,8 +705,8 @@ class SingleTrialRegression:
         X_train = sm.add_constant(X_train)
         train_mod = sm.OLS(y_train, X_train)
         train_results = train_mod.fit()
-        train_coefficients = train_results.params[1:] # Exclude the intercept which is the first coefficient
-        train_p_values = train_results.pvalues[1:] # Exclude the intercept which is the first p-value
+        train_coefficients = train_results.params[1:]  # Exclude the intercept which is the first coefficient
+        train_p_values = train_results.pvalues[1:]  # Exclude the intercept which is the first p-value
         train_r2 = train_results.rsquared
         # print(train_results.summary())
 
@@ -852,6 +829,78 @@ class SingleTrialRegression:
         plt.grid(True)
         plt.savefig(self.save_path / "dependent_variable_r2_scores.png")
         plt.close()
+
+    def plot_lines_between_points_on_plot(
+        self, ax, x1: np.ndarray, x2: np.ndarray, original_model_coeffs: np.ndarray, comparison_model_coeffs: np.ndarray, iterator: np.ndarray
+    ) -> None:
+        """Connect the corresponding points with lines on a 2d plot to see changes across different models
+
+        Args:
+            ax: The axis to plot on
+            x1: The x values for the first model
+            x2: The x values for the second model
+            original_model_coeffs: The coefficients for the first model
+            comparison_model_coeffs: The coefficients for the second model
+            iterator: The indices to iterate over to connect the points"""
+
+        assert len(x1) == len(x2) == len(original_model_coeffs) == len(comparison_model_coeffs), "Lengths of arrays are not the same"
+        for i in iterator:
+            ax.plot([x1[i], x2[i]], [original_model_coeffs[i], comparison_model_coeffs[i]], color="gray", linestyle="--", linewidth=0.5)
+
+    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices):
+        """Plot all and only the significant coefficients between the two models in separate plots"""
+
+        # Create two axes
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8))
+
+        # Plot all coefficients on the first plot
+        ax1.scatter(x1, original_model_coeffs, label="Neural data only")
+        ax1.scatter(x2, comparison_model_coeffs, label="Neural data + other predictors correlated with the index")
+        ax1.legend()
+        ax1.set_xticks([1, 2])
+        ax1.set_xticklabels(["Neural data only", "Neural data + \n other predictors"])
+        ax1.set_ylabel("Coefficients")
+        ax1.set_title("Coefficients for neural data only vs neural data + other predictors correlated with the index")
+        self.plot_lines_between_points_on_plot(ax1, x1, x2, original_model_coeffs, comparison_model_coeffs, range(len(original_model_coeffs)))
+
+        # Plot only the significant coefficients on the second plot
+        ax2.scatter(x1[sig_og_model_coeffs_indices], original_model_coeffs[sig_og_model_coeffs_indices], label="Neural data only")
+        ax2.scatter(
+            x2[sig_og_model_coeffs_indices],
+            comparison_model_coeffs[sig_og_model_coeffs_indices],
+            label="Neural data + other predictors that are correlated with the index",
+        )
+        ax2.legend()
+        ax2.set_xticks([1, 2])
+        ax2.set_xticklabels(["Neural data only", "Neural data + \n other predictors"])
+        ax2.set_ylabel("Coefficients")
+        ax2.set_title("Significant coefficients for neural data only vs neural data + other predictors correlated with the index")
+        self.plot_lines_between_points_on_plot(ax2, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices)
+        plt.show()
+        plt.savefig(self.save_path / "coefficients_between_models.png")
+
+    def plot_proportion_of_coeffs_that_remain_significant(self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, alpha=0.05) -> None:
+        """Plots a bar chart showing the proportion of coefficients that remain significant between the two models, neural coefficients only"""
+
+        # Check the number of coefficients that are significant in each model
+        og_moel_significant_coeffs = np.sum(original_model_pvalues < alpha)
+        all_predictors_significant = np.sum(comparison_model_pvalues < alpha)
+
+        # Check the numebr of cells that remain sig after adding all predictors
+        num_sig = 0
+        num_sig = np.sum([
+            num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05
+        ])
+
+        # Plot the number of cells that remain significant
+        _, ax = plt.subplots()
+        ax.bar(
+            ["Neural data only", "Neural data + other predictors", "consistently sig"],
+            [og_moel_significant_coeffs, all_predictors_significant, num_sig],
+        )
+        ax.set_ylabel("Number of significant coefficients")
+        ax.set_title(f"Out of the {len(original_model_pvalues)} total coefficients, {num_sig} are significant under both models after adding additional predictors. Alpha = 0.05")
+        plt.show()
 
     # -------------------- Shifted data analysis --------------------
 
