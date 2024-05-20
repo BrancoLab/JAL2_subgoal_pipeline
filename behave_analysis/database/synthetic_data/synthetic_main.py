@@ -17,10 +17,12 @@ from glob import glob
 # Globals
 np.random.seed(42)  # For reproducibility, you can remove this line for true randomnes
 
-# Collect session data currently in the databank
-for session_ID in experiments_objects:
-    session = Process(session_ID).load_session()
-    break
+'''THIS IS THE CHUNK OF EVIL CODE THAT HAS BEEN HAUNTING US FOR MONTHS!!!!!
+'''
+# # Collect session data currently in the databank
+# for session_ID in experiments_objects:
+#     session = Process_obj(session_ID).load_session()
+#     break
 
 def extract_tuning_request(cell_type_to_generate, tracking_data):
     """
