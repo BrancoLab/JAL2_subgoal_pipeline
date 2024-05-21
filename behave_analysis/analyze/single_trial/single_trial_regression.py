@@ -13,7 +13,7 @@ from scipy import stats
 import statsmodels.api as sm
 from sklearn.metrics import r2_score
 from scipy.stats import ttest_rel
-
+from tqdm import tqdm
 
 from behave_analysis.utils.creating_directories import make_directory
 
@@ -174,11 +174,12 @@ class PreprocessSingleTrialRegression:
             # convert to pandas for the text
             homing_pd = homing.to_pandas()
 
-            for _, row in homing_pd.iterrows():
-                plt.text(x=row["mouse_x_position"] + 50, y=row["mouse_y_position"] + 10, s=str(np.around(row["index"], 1)), color="red", fontsize=6)
+            # Add the index every 3rd frame to reduce clutter
+            for i, row in homing_pd.iloc[::3].iterrows():
+                plt.text(x=row["mouse_x_position"] + 20, y=row["mouse_y_position"] + 10, s=str(np.around(row["index"], 1)), color="red", fontsize=6)
 
-            plt.xlim(xs.min() - 1, xs.max() + 1)
-            plt.ylim(ys.min() - 1, ys.max() + 1)
+            plt.xlim(100, 900)
+            plt.ylim(100, 900)
             plt.grid(True)
             plt.xlabel("X Coordinate")
             plt.ylabel("Y Coordinate")
@@ -366,7 +367,7 @@ class PreprocessSingleTrialRegression:
         return numerator / denominator
 
     def add_dependent_index_variable_to_data(self, orthogonalise_index: bool = False):
-        """Adding the dependent variable to the data"""
+        """Adding the dependent variable to the data. Where current -1 is facing shelter, 1 is facing goal and 0 is facing neither"""
 
         hsa = self.homing_data_single_dataframe["hsa"].to_numpy().copy()
         goal = self.homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
@@ -446,17 +447,18 @@ class PreprocessSingleTrialRegression:
 class SingleTrialRegression:
     """A class that performs single trial regression analysis on the data"""
 
-    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, run_shifts: bool, all_dependent_names: list, targets_df: pd.DataFrame):
+    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, all_dependent_names: list, targets_df: pd.DataFrame):
         self.design_matrix = design_matrix
         self.save_path = save_path
         self.dependent_names = all_dependent_names
-        self.run_shifts = run_shifts
         self.targets_df = targets_df
         self.number_of_neurons = self.design_matrix.shape[1] - 1  # Subtract 1 for the homing id column
 
-        self.run(run_all_dependent_variables=False, shift_neural_data=self.run_shifts, explore_coeffs_with_other_predictors=True)
+        self.run(run_all_dependent_variables=True, shift_neural_data=False, explore_coeffs_with_other_predictors=True)
 
-    def run(self, run_all_dependent_variables=False, shift_neural_data=False, explore_coeffs_with_other_predictors=False):
+    # --------------------- Functions for running the regression ---------------------
+
+    def run(self, run_all_dependent_variables: bool, shift_neural_data: bool, explore_coeffs_with_other_predictors: bool) -> None:
         """This function runs the regression with different modes depending on the analysis you want to conduct:
 
         Modes:
@@ -465,66 +467,44 @@ class SingleTrialRegression:
         - explore_coeffs_with_other_predictors: Explore the coefficients with other predictors to see how they change"""
 
         if run_all_dependent_variables:
-            self.r2_score_dic, p_values, coefficients = self.run_all_dependent_variables()
+            self.r2_score_dic, _, _ = self.run_all_dependent_variables()
             self.plot_the_r2_scores_for_all_dependents()
 
-        elif shift_neural_data:
-            self.shifts = range(0, 401, 50)  # Shift amounts (0, 50, 100, ..., 400)
-            self.original_r2 = None  # To store R2 score for the non-shifted matrix
-
-            # Store the R2 scores for different shifts
-            # self.shift_r2_ols = []
-            # self.shift_r2_svr = []
-            self.run_all_shifts()
-            self.plot_shift_results()
+        if shift_neural_data:
+            shifts, og_r2, shifted_r2_ols = self.run_all_shifts()
+            self.plot_shift_results(shifts, og_r2, shifted_r2_ols)
 
         if explore_coeffs_with_other_predictors:
 
-            index_r2_score, index_coefficients, index_p_values = self.run_just_one_dependent_variable("index")
-            more_r2_score, more_predictors_coeffs, more_predictors_p_value = self.run_the_model_with_all_dependent_variables_in_design_matrix()
+            # Where og is the original gangster and comp is the comparison model
+            og_r2_score, og_coefficients, og_p_values = self.run_just_one_dependent_variable("index", self.design_matrix)
+            comparison_design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix)
+            comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable("index", comparison_design_matrix)
 
-            # Select only the neural data coefficients and p values
-            index_coefficients = index_coefficients[: self.number_of_neurons]
-            index_p_values = index_p_values[: self.number_of_neurons]
-            more_predictors_coeffs = more_predictors_coeffs[: self.number_of_neurons]
-            more_predictors_p_value = more_predictors_p_value[: self.number_of_neurons]
-
-            # Check the number of coefficients that remain significant
-            self.plot_proportion_of_coeffs_that_remain_significant(index_p_values, more_predictors_p_value)
-
+            # Select only the neural data coefficients and p values (Excluding intercept and non neural coeffs)
+            og_coefficients = og_coefficients[: self.number_of_neurons]
+            og_p_values = og_p_values[: self.number_of_neurons]
+            comp_predictors_coeffs = comp_predictors_coeffs[: self.number_of_neurons]
+            comp_predictors_p_value = comp_predictors_p_value[: self.number_of_neurons]
+            
+            sig_index_coefficients_indices = np.where(og_p_values < 0.05) # Which coefficients are significant in the original model
+            self.plot_proportion_of_coeffs_that_remain_significant(og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score)
             # Check whether the significant coefficients change significantly between the two models
-            sig_index_coefficients_indices = np.where(index_p_values < 0.05)
-            x1 = np.ones(len(index_coefficients))
-            x2 = 2 * np.ones(len(more_predictors_coeffs))
-            self.plot_coefficients_between_models(x1, x2, index_coefficients, more_predictors_coeffs, sig_index_coefficients_indices)
+            x1 = np.ones(len(og_coefficients))
+            x2 = 2 * np.ones(len(comp_predictors_coeffs))
+            self.plot_coefficients_between_models(x1, x2, og_coefficients, comp_predictors_coeffs, sig_index_coefficients_indices)
 
         return None
 
-    def unpack_fold_results_and_average(self, fold_results: dict):
-        """For each fold, average the results and return the average"""
-        r2_scores = []
-        coefficients = []
-        p_values = []
-
-        for _, results in fold_results.items():
-            r2_scores.append(results["test_r2"])
-            coefficients.append(results["train_coefficients"])
-            p_values.append(results["train_p_values"])
-
-        return np.mean(r2_scores), np.mean(coefficients, axis=0), np.mean(p_values, axis=0)
-
-    def run_just_one_dependent_variable(self, dependent_var_name: str):
+    def run_just_one_dependent_variable(self, dependent_var_name: str, design_matrix: pd.DataFrame) -> tuple:
         """Run the model for just one dependent variable"""
 
         # Create a save location for the dependent variable
         make_directory(self.save_path / "ols_regression" / dependent_var_name)
 
-        # Run the model for just one dependent variable
         ols_fold_results = self.run_ols_model_with_cross_val(
-            design_matrix=self.design_matrix, dependent_variable=self.targets_df[dependent_var_name].to_numpy(), dependent_var_name=dependent_var_name
+            design_matrix=design_matrix, dependent_variable=self.targets_df[dependent_var_name].to_numpy(), dependent_var_name=dependent_var_name
         )
-
-        # Unpack the results and average them
         r2_scores, coefficients, p_values = self.unpack_fold_results_and_average(ols_fold_results)
         logger.info("Mean test R2 score for {}: {}", dependent_var_name, r2_scores)
 
@@ -559,33 +539,37 @@ class SingleTrialRegression:
 
         return r2_scores, p_values, coefficients
 
-    def run_the_model_with_all_dependent_variables_in_design_matrix(self):
-        """Run the model with all dependent variables but the index to check what the effect is on the coefficients and the p values"""
+    # ------------------------ Changing the design matrix ------------------
+    
+    def add_other_predictors_to_design_matrix(self, design_matrix: pd.DataFrame) -> pd.DataFrame:
+        """Add other predictors to the design matrix to see how they affect the coefficients and p values compared to the neural data alone
+        Currently hard coded to add the following predictors:
+            - h_bar_north_a
+            - hdir
+            - hsa
+            - h_bar_south_a
+            - mouse_y_position"""
+        design_matrix = design_matrix.copy()
+        dependents_to_add = ["h_bar_north_a", "hdir", "hsa", "h_bar_south_a", "mouse_y_position"]
+        for dependent in dependents_to_add:
+            design_matrix[dependent] = self.targets_df[dependent].to_numpy()
 
-        design_matrix = self.design_matrix.copy()
+        return design_matrix
 
-        # dont_include = ["index", "homing_id", "hsa", "h_bar_north_a", "h_bar_south_a", "hdir", "mouse_x_position", "mouse_y_position", "frames"] # SO they are the same as a test
-        dont_include = ["index", "homing_id", "h_bar_north_a", "h_bar_south_a", "mouse_x_position", "frames"]  # SO they are the same as a test
+    # --------------------- Cross validation functions ---------------------
 
-        # Add all columns as a dependent variable
-        for _, column_name in enumerate(self.targets_df.columns):
-            if column_name not in dont_include:
-                design_matrix[column_name] = self.targets_df[column_name].to_numpy()
+    def unpack_fold_results_and_average(self, fold_results: dict):
+        """For each cross validation fold, average the returned statistics to obtain a single value for each metric"""
+        r2_scores = []
+        coefficients = []
+        p_values = []
 
-        # check correlation between the new dependent variables
-        # correlation_matrix = design_matrix.iloc[:, self.number_of_neurons -1:].corr()
-        # plt.imshow(correlation_matrix)
-        # plt.colorbar()
-        # plt.title("Correlation matrix between dependent variables")
-        # plt.savefig(self.save_path / "correlation_matrix_formany_dependent_variables.png")
-        # plt.show()
+        for _, results in fold_results.items():
+            r2_scores.append(results["test_r2"])
+            coefficients.append(results["train_coefficients"])
+            p_values.append(results["train_p_values"])
 
-        # Run the model
-        ols_fold_results = self.run_ols_model_with_cross_val(design_matrix, self.targets_df["index"], "index")
-
-        r2_scores, coefficients, p_values = self.unpack_fold_results_and_average(ols_fold_results)
-
-        return r2_scores, coefficients, p_values
+        return np.mean(r2_scores), np.mean(coefficients, axis=0), np.mean(p_values, axis=0)
 
     def run_ols_model_with_cross_val(self, design_matrix: pd.DataFrame, dependent_variable: np.ndarray, dependent_var_name: str):
         """Run an OLS statsmodel regression on the data, conducting a 4-fold cross validation"""
@@ -605,7 +589,6 @@ class SingleTrialRegression:
 
         # Split using GroupKFold, ensuring groups do not overlap between folds
         for fold, (train_index, test_index) in enumerate(group_kfold.split(X, y, groups)):
-            print(f"Fold {fold} for {dependent_var_name}:")
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y_train, y_test = y[train_index], y[test_index]
             ols_fold_results[fold] = self.ols_regression_statsmodel(X_train, y_train, fold, ols_save_path, X_test, y_test)
@@ -650,7 +633,6 @@ class SingleTrialRegression:
 
         # Predict data for training data
         train_pred = ols_model.predict(X_train)
-        print(f"Fold {fold + 1} Training R2 score: {np.around(train_r2, 2)}")
 
         # Plot training predictions
         plt.figure(figsize=(10, 4))
@@ -665,8 +647,6 @@ class SingleTrialRegression:
         test_pred = ols_model.predict(X_test)
         test_r2 = r2_score(y_test, test_pred)
         test_coefficients = ols_model.coef_
-
-        print(f"Fold {fold + 1} Testing R2 score: {np.around(test_r2, 2)}")
 
         # Plot test predictions
         plt.subplot(122)
@@ -712,7 +692,6 @@ class SingleTrialRegression:
 
         # Predict data for training data
         train_pred = train_results.predict(X_train)
-        print(f"Fold {fold + 1} Training R2 score: {np.around(train_r2, 2)}")
 
         # Plot training predictions
         plt.figure(figsize=(10, 4))
@@ -726,7 +705,6 @@ class SingleTrialRegression:
         X_test = sm.add_constant(X_test)
         test_pred = train_results.predict(X_test)
         test_r2 = r2_score(y_test, test_pred)
-        print(f"Fold {fold + 1} Testing R2 score: {np.around(test_r2, 2)}")
 
         # Plot test predictions
         plt.subplot(122)
@@ -754,12 +732,10 @@ class SingleTrialRegression:
         # Predict and calculate R2 for training data
         train_pred = svr_model.predict(X_train)
         train_r2 = svr_model.score(X_train, y_train)
-        print(f"Svr Fold {fold + 1} Training R2 score: {np.around(train_r2, 2)}")
 
         # test data
         test_pred = svr_model.predict(X_test)
         test_r2 = svr_model.score(X_test, y_test)
-        print(f"Svr Fold {fold + 1} Testing R2 score: {np.around(test_r2, 2)}")
 
         # Plot train and test predictions into one plot, different subplots
         plt.figure(figsize=(10, 4))
@@ -780,18 +756,14 @@ class SingleTrialRegression:
 
     # ------------------- Plotting functions -------------------
 
-    def plot_shift_results(self):
+    def plot_shift_results(self, shifts, og_r2, shifted_r2_ols):
         """Plot the mean R2 scores for different shifts"""
 
-        shifts = np.array(self.shifts)
-        ols_r2 = np.array(self.shift_r2_ols)
-        svr_r2 = np.array(self.shift_r2_svr)
+        shifts = np.array(shifts)
 
         plt.figure(figsize=(12, 6))
-        plt.plot(shifts, ols_r2, label="OLS R2", marker="o")
-        plt.plot(shifts, svr_r2, label="SVR R2", marker="x")
-        plt.axhline(y=self.original_r2[0], color="b", linestyle="--", label="OLS Original R2")
-        plt.axhline(y=self.original_r2[1], color="r", linestyle="--", label="SVR Original R2")
+        plt.plot(shifts, shifted_r2_ols, label="OLS R2", marker="o")
+        plt.axhline(y=og_r2, color="b", linestyle="--", label="OLS Original R2")
         plt.xlabel("Shift Amount by frame")
         plt.ylabel("Mean R2 Score")
         plt.title("Mean R2 Score vs. Shift Amount")
@@ -803,28 +775,21 @@ class SingleTrialRegression:
     def plot_the_r2_scores_for_all_dependents(self):
         """Plot the R2 scores for the different dependent variables"""
 
-        # plot the r2 scores as a bar chart with x axis as the dependent variables and y axis as the r2 scores
-        # have two bars for each dependent variable, one for OLS and one for SVR
-        # dependent_vars = ["index", "hdir"]
-        # ols_r2_scores = [self.r2_score_dic["index"][0], self.r2_score_dic["hdir"][0]]
-        # svr_r2_scores = [self.r2_score_dic["index"][1], self.r2_score_dic["hdir"][1]]
-
-        # loop through the dictionary and plot the r2 scores
         dependent_vars = list(self.r2_score_dic.keys())
         ols_r2_scores = [self.r2_score_dic[dependent_var] for dependent_var in dependent_vars]
-        # svr_r2_scores = [self.r2_score_dic[dependent_var][1] for dependent_var in dependent_vars]
-
         plt.figure(figsize=(10, 6))
         x = np.arange(len(dependent_vars))
         bar_width = 0.35
-        plt.bar(x, ols_r2_scores, bar_width, label="OLS")
-        # plt.bar(x + bar_width, svr_r2_scores, bar_width, label="SVR")
+        plt.bar(x + bar_width / 2, ols_r2_scores, bar_width, label="OLS")
+        # Plot the r2 score as text above the bar
+        for i, r2 in enumerate(ols_r2_scores):
+            plt.text(x[i], r2 + 0.01, str(np.around(r2, 2)), color="black", ha="center")
         plt.xlabel("Dependent Variable")
         plt.ylabel("Mean R2 Score")
         plt.title("Mean R2 Score for Different Dependent Variables")
         plt.xticks(x + bar_width / 2, dependent_vars)
-        # rotate the x axis labels
-        plt.xticks(rotation=30)
+        plt.xticks(rotation=25)
+        plt.xticks(fontsize=6)
         plt.legend()
         plt.grid(True)
         plt.savefig(self.save_path / "dependent_variable_r2_scores.png")
@@ -876,10 +841,19 @@ class SingleTrialRegression:
         ax2.set_ylabel("Coefficients")
         ax2.set_title("Significant coefficients for neural data only vs neural data + other predictors correlated with the index")
         self.plot_lines_between_points_on_plot(ax2, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices)
-        plt.show()
+
+        # Put sig test of difference in title
+        t_stat, p_value = self.repeat_observation_ttest(sig_og_model_coeffs_indices, original_model_coeffs, comparison_model_coeffs)
+        are_results_significant = "significant" if p_value < 0.05 else "not significant"
+        fig.suptitle(
+            f"Significant coefficients for neural data only vs neural data + other predictors correlated with the index. \n T-stat: {t_stat}, p-value: {p_value}. \n Difference in coefficients is {are_results_significant}"
+        )
+
         plt.savefig(self.save_path / "coefficients_between_models.png")
 
-    def plot_proportion_of_coeffs_that_remain_significant(self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, alpha=0.05) -> None:
+    def plot_proportion_of_coeffs_that_remain_significant(
+        self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, og_r2_score, comp_r2_score, alpha=0.05
+    ) -> None:
         """Plots a bar chart showing the proportion of coefficients that remain significant between the two models, neural coefficients only"""
 
         # Check the number of coefficients that are significant in each model
@@ -888,9 +862,9 @@ class SingleTrialRegression:
 
         # Check the numebr of cells that remain sig after adding all predictors
         num_sig = 0
-        num_sig = np.sum([
-            num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05
-        ])
+        num_sig = np.sum(
+            [num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05]
+        )
 
         # Plot the number of cells that remain significant
         _, ax = plt.subplots()
@@ -899,34 +873,32 @@ class SingleTrialRegression:
             [og_moel_significant_coeffs, all_predictors_significant, num_sig],
         )
         ax.set_ylabel("Number of significant coefficients")
-        ax.set_title(f"Out of the {len(original_model_pvalues)} total coefficients, {num_sig} are significant under both models after adding additional predictors. Alpha = 0.05")
-        plt.show()
+        ax.set_title(
+            f"Out of the {len(original_model_pvalues)} total coefficients, {num_sig} are significant under both models after adding additional predictors. Alpha = 0.05 \n Original R2: {og_r2_score}, Comparison R2: {comp_r2_score}"
+        )
+        plt.savefig(self.save_path / "proportion_of_significant_coeffs.png")
 
     # -------------------- Shifted data analysis --------------------
 
     def run_all_shifts(self):
-        """Run regression models for all shifts and store mean R2 scores"""
-
-        dependent_variable = self.design_matrix["index"].to_numpy()  # Target variable
-
-        for shift_amount in self.shifts:
-            print(f"Running models for shift amount: {shift_amount}")
-
+        """As a quick pass, shift the neural data backwards and forwards and see how the R2 score changes with each shift"""
+        
+        shifted_r2_ols = []
+        og_r2 = None
+        shifts = np.arange(-400, 400, 10) # Shift forwards and backwards by 400 frames (40 frames is 1 second)        
+        for shift_amount in tqdm(shifts, desc="Processing shifts"):
             if shift_amount == 0:
                 shifted_design_matrix = self.design_matrix
             else:
                 shifted_design_matrix = self.shift_spikes(self.design_matrix, shift_amount)
-
-            mean_ols_r2, mean_svr_r2 = self.run_models(shifted_design_matrix, dependent_variable)
-
-            print("Mean OLS R2 test print: ", mean_ols_r2)
-            print("Mean SVR R2 test print: ", mean_svr_r2)
-
-            if shift_amount == 0:
-                self.original_r2 = (mean_ols_r2, mean_svr_r2)
-
-            self.shift_r2_ols.append(mean_ols_r2)
-            self.shift_r2_svr.append(mean_svr_r2)
+            r2, _, _ = self.run_just_one_dependent_variable("index", shifted_design_matrix)
+            if shift_amount == 0: 
+                og_r2 = r2
+            shifted_r2_ols.append(r2)
+        
+        logger.success("Shifts have been completed")
+        
+        return shifts, og_r2, shifted_r2_ols
 
     def shift_spikes(self, design_matrix: pd.DataFrame, shift_amount: int) -> pd.DataFrame:
         """Shifts the spikes in the design matrix by a certain amount, wrapping around the end of the matrix"""
@@ -951,6 +923,8 @@ if __name__ == "__main__":
     )
 
     save_path = Path(r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\single_trial")
+
+    # Run the pipeline
     pp = PreprocessSingleTrialRegression(
         video_df=video_df,
         homings_obj=homings,
@@ -963,7 +937,6 @@ if __name__ == "__main__":
     SingleTrialRegression(
         design_matrix=pp.design_matrix,
         save_path=save_path,
-        run_shifts=False,
         all_dependent_names=pp.here_are_all_the_columns,
         targets_df=pp.targets_df,
     )
