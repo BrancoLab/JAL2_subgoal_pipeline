@@ -19,7 +19,7 @@ from multiprocessing.pool import Pool
 import multiprocessing
 
 class LinearShift:
-    def __init__(self, X, y, stat_computation_func, step = 400, size_of_central_chunk=300, step_n = 100):
+    def __init__(self, X, y, stat_computation_func, PPool = None, step = 400, size_of_central_chunk=300, step_n = 100):
         """
         X : 2-d array
             Data of size (time,clusters) [NB: @LF I don't think it's = (elements, timetrials)]
@@ -43,7 +43,7 @@ class LinearShift:
         self.__check_inputs(X)
         self.T, self.N, self.shifts = self.init_params(X)
         self.real_stat = self.compute_V0_statistic(X, y.T) # the transposed matrix is necessary for LDA!
-        self.pseudo_stats = self.parallel_compute_shifted_statistics(X, y.T, self.shifts)
+        self.pseudo_stats = self.parallel_compute_shifted_statistics(X, y.T, self.shifts, PPool)
         self.reject_null, self.alpha, self.M, self.sig_level = self.compute_significance()
 
     def __check_inputs(self, X):
@@ -86,7 +86,7 @@ class LinearShift:
 
         return self.user_defined_function(X_filtered, y_filtered.T)
 
-    def parallel_compute_shifted_statistics(self, X, y, shifts):
+    def parallel_compute_shifted_statistics(self, X, y, shifts, pool):
         """
         Shift the central chunk and compute the user defined statistic on non simulatenously recorded segments of X and y.
         Hold X stationary.
@@ -113,9 +113,12 @@ class LinearShift:
 
         # parallel process
         # Define the number of processes to use
-        num_processes = multiprocessing.cpu_count()-1  # Adjust as needed
-        with Pool(num_processes) as pool:
-            pseudo_stats = pool.map(self.parallel_function, args_list)
+        if pool == None:
+            num_processes = multiprocessing.cpu_count()-1  # Adjust as needed
+            with Pool(num_processes) as pool:
+                pseudo_stats = pool.map(self.parallel_function, args_list)
+        else:
+            pseudo_stats = pool.mp_pool.map(self.parallel_function, args_list)
 
         return pseudo_stats
 
