@@ -101,6 +101,11 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
         ephys_sync_offset=ephys_sync_offsets,
     )
 
+    # save photoresistor
+    meta_file = os.path.join(session.base_path,session.processed_path,'TTL_file')
+    with open(meta_file, "wb") as dill_file:
+        pickle.dump(ttl_object, dill_file)
+
     return ttl_object
 
 

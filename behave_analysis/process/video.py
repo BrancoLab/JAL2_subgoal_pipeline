@@ -65,7 +65,8 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
                   registration_size, 
                   pixels_per_cm)
     
-    if settings.skip_registration or (isinstance(registration_transform, np.ndarray) and not settings.create_new_registration): 
+    if isinstance(registration_transform, np.ndarray): 
+        logger.info('Registration already exists and you chose not to redo it')
         return video
 
     # registration_transform = Register(session, video, video_object).transform
