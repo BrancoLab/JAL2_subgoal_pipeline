@@ -28,6 +28,7 @@ def process():
     logger.info("Processing started")
     assert len(experiments_objects) != 0, "Session list should not be empty"
     for session_ID in experiments_objects:
+        logger.info("Loaded a session with the following details: {}".format(session_ID))
         processObject = Process(session_ID)
         processObject.create_session(settings_p)
     logger.success("Processing complete")
@@ -79,7 +80,7 @@ def visualize():
         # ------ BEHAVIORAL VISUALIZATION ------
         if settings_v.escape_trials:
             Visualize_behave(session).make_movies(stim_type="audio")
-            Visualize_behave(session).escape_plotting()
+            Visualize_behave(session).escape_plotting(stim_type="audio")
         if settings_v.homing_trials:
             Visualize_behave(session).make_movies(stim_type="homing")
 
@@ -102,8 +103,9 @@ def analyze():
         if settings_a.efizz:
             for c_type in Settings_ae.cluster_type:
                 
-                # AnalyzeEfizz(session, c_type).classify_cells()
-                AnalyzeEfizz(session, c_type).execute_models()
+                if Settings_ae.classify_cells:
+                    AnalyzeEfizz(session, c_type).execute_models()
+                AnalyzeEfizz(session, c_type).classify_cells()
                 
     logger.success("Analysis pipeline complete")
                         
