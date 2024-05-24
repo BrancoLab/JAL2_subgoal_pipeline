@@ -272,6 +272,34 @@ def across_conditions_LDA_map(self, settings):
         plt.show()
     plt.close()
 
+## --------SMALL PLOTTING UTILS
+
+def real_predicted_trace(ax,real, predicted, fps,title):
+    x_time = np.arange(len(real)) / (fps * 60)
+    ax.plot(x_time, predicted)
+    ax.plot(x_time, real)
+    ax.legend(["prediction", "real"])
+    ax.set_xlim((0, len(real) / (fps * 60)))
+    ax.set_title(title)
+    ax.set_ylabel("angles (rad)")
+    ax.set_xlabel("time (mins)")
+
+def real_predicted_hist(ax, real, predicted, title):
+    xlim = [np.amin(real),np.amax(real)]
+    ax.hist(predicted, np.arange(xlim[0], xlim[1]), alpha=0.75)
+    ax.hist(real, np.arange(xlim[0], xlim[1]), alpha=0.75)
+    ax.set_title(title)
+    ax.set_xlabel("angles (rad)")
+    ax.set_ylabel("number of frames")
+
+def residual_distribution(ax,real,predicted):
+    res = np.arctan2(np.sin(predicted - real), np.cos(predicted - real))
+    c = [res[real == angles] for angles in np.unique(real)]
+    ax.violinplot(c, showextrema = False, positions=np.unique(real))
+    ax.set_xlabel("prediction (rad)")
+    ax.set_ylabel("residual (rad)")
+    ax.set_box_aspect(1)
+
 ## --------OLD VERSIONS
 
 def PredictionAccuracyMapped_old(self, prediction_accuracy):
