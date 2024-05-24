@@ -41,15 +41,15 @@ class Process():
         self.load_registration_transform()
         
         if settings_p.efizz:
-            self.session.efizzDataLoaded = LoadEfizz(self.session)
-            imec_sync_path = Path(self.session.efizzDataLoaded.imec_sync_path)
+            self.efizzDataLoaded = LoadEfizz(self.session)
+            imec_sync_path = Path(self.efizzDataLoaded.imec_sync_path)
             self.session.ttl = get_TTL(self.session, imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
-        self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
-        self.session.audio = get_Audio(self.session)
+        # self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
+        # self.session.audio = get_Audio(self.session)
         self.session.video = get_Video(self.session, video_settings, self.loaded_registration_transform)
-        self.session.photo_resistor = get_Photoresistor(self.session)
+        self.photo_resistor = get_Photoresistor(self.session)
                         
         if settings_p.efizz:
             _, slope, intercept, lastPulse, firstPulse = self.quality_check_new_sessions()
@@ -57,7 +57,7 @@ class Process():
             self.quality_check_new_sessions()
             
         if settings_p.efizz:
-            self.session.efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.session.efizzDataLoaded, 
+            efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
                                                              slope = slope, 
                                                              intercept = intercept,
                                                              samplingRate = self.session.ttl.sampling_rate,
@@ -155,7 +155,11 @@ class Process():
         """
         meta_file = os.path.join(self.session.base_path,self.session.metadata_file)
         if os.path.isfile(meta_file) and isinstance(self.load_session().video.registration_transform, np.ndarray):
+            logger.info('Loading existing registration transform!')
             self.loaded_registration_transform = self.load_session().video.registration_transform
+            self.session.shelter_location = self.load_session().shelter_location
+            if hasattr(self.load_session(),'barrier_location'):
+                self.session.barrier_location = self.load_session().barrier_location
         else: 
             self.loaded_registration_transform = None
         return None
