@@ -145,6 +145,7 @@ class Verifications():
         plt.xlabel('bonsai onset (s)')
         plt.ylabel('efizz onset (s)')
         plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_regression.png")
+        plt.close()
 
         # Plot starting, middle and end samples to check alignment
         fig, axs = plt.subplots(3)
@@ -173,7 +174,7 @@ class Verifications():
                 
         plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_visualize.png")
         plt.legend()
-        plt.show()
+        # plt.show()
         plt.close()
         
         # Last pulse to check that efizz spikes are not longer than this in another module
@@ -212,4 +213,4 @@ class Verifications():
         if show:
             plt.plot(xs, residuals)
             plt.show()
-        plt.close()
+            plt.close()

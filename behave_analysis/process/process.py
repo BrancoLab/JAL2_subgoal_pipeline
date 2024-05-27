@@ -51,6 +51,9 @@ class Process():
 
         if os.path.isfile(os.path.join(self.session.base_path,self.session.metadata_file)) and not settings.create_new_registration: 
             self.load_registration_transform()
+        else: 
+            logger.info('Registration will be performed!')
+            self.loaded_registration_transform = None
         self.session.video = get_Video(self.session, settings, self.loaded_registration_transform)
                  
         if settings_p.efizz:
@@ -155,9 +158,11 @@ class Process():
         """
         A function that loads the registration transform if it exists, otherwise it sets it to None
         """
+        import time
+        start = time.time()
         old_sesh = self.load_session()
         if isinstance(old_sesh.video.registration_transform, np.ndarray):
-            logger.info('Loading existing registration transform!')
+            logger.info(f'Loading existing registration transform! It took:  {time.time()-start}')
             self.loaded_registration_transform = old_sesh.video.registration_transform
             self.session.shelter_location = old_sesh.shelter_location
             if hasattr(old_sesh,'barrier_location'):
@@ -165,5 +170,4 @@ class Process():
         else: 
             logger.info('Registration transform does not exist yet')
             self.loaded_registration_transform = None
-        return None
 
