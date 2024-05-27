@@ -19,7 +19,7 @@ from multiprocessing.pool import Pool
 import multiprocessing
 
 class LinearShift:
-    def __init__(self, X, y, stat_computation_func, PPool = None, step = 400, size_of_central_chunk=300, step_n = 100):
+    def __init__(self, X, y, stat_computation_func, PPool = None, step = 400, size_of_central_chunk=300, step_n = 100, min_step = 200):
         """
         X : 2-d array
             Data of size (time,clusters) [NB: @LF I don't think it's = (elements, timetrials)]
@@ -34,11 +34,14 @@ class LinearShift:
             the window length along the center of y used to compute the statistical measure.
             must have room to shift both right and left: len(y) >= D+2 - I believe this is the
             number of samples for the middle chunk.
+        min_step : int
+            the smallest step we make, how far do we shift before we start doing linear shifting
         """
         self.D = size_of_central_chunk
         self.step_n = step_n # number of steps you want to take
         self.alpha_thresh = 0.01  # threshold for determining a significant p-value
         self.step = step  # this should be at least 40 (fps)
+        self.min_step = min_step # this value is in frames
         self.user_defined_function = stat_computation_func
         self.__check_inputs(X)
         self.T, self.N, self.shifts = self.init_params(X)
@@ -67,8 +70,10 @@ class LinearShift:
         N = int((T - self.D) / 2)
         
         # ensure 0 step is not included 
-        shifts = np.arange(-(((self.step_n/2)*self.step)), (((self.step_n/2)*self.step))+1, self.step)   
-        shifts = np.delete(shifts,shifts == 0)    
+        shifts_one_sided = np.arange(self.min_step,self.min_step+((self.step_n/2)*self.step), self.step)
+        shifts = np.sort(np.hstack((shifts_one_sided,-shifts_one_sided)))
+        # shifts = np.arange(-(((self.step_n/2)*self.step)), (((self.step_n/2)*self.step))+1, self.step)   
+        # shifts = np.delete(shifts,shifts == 0)    
 
         return T, N, shifts
 

@@ -19,6 +19,9 @@ from behave_analysis.analyze.stats.linshit import LinearShift
 from behave_analysis.analyze.LDA.LDA_plotting import (
     across_conditions_LDA_map,
     plot_LDA_model,
+    real_predicted_trace,
+    real_predicted_hist,
+    residual_distribution,
 )
 from behave_analysis.analyze.LDA.LDA_utils import (
     BuildSavingFolder,
@@ -37,7 +40,7 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
     zscore_predictors,
 )
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_within_LDA import fit_LSTM, predict_LSTM
-
+from behave_analysis.utils.PersistentPool import PersistentPool
 
 def LDA(self, settings):
     """
@@ -65,6 +68,10 @@ def LDA(self, settings):
         self.number_of_homings = int(settings.condition_types.replace("homing_number_", ""))
         condition_types = ["before_" + str(self.number_of_homings) + "good_homings", "after_" + str(self.number_of_homings) + "good_homings"]
 
+    # if running dropout or linear shift - initialize the pool
+    if np.logical_or(settings.dropout, settings.linear_shift):
+        self.PPool = PersistentPool()
+
     # run LDA across condition types, across compartments and across conditions
     for cond in condition_types:  # e.g. 'experimental_conditions', 'behavioral_conditions'
         self.condition_types = cond
@@ -90,6 +97,8 @@ def LDA(self, settings):
                 logger.info(f"Time for some overview plots")
                 plot_LDA_model(self, settings)
         across_conditions_LDA_map(self, settings)
+    if np.logical_or(settings.dropout, settings.linear_shift):
+        self.PPool.close()
 
 
 def run_LDA_model(self, settings, angles):
@@ -112,7 +121,7 @@ def run_LDA_model(self, settings, angles):
             logger.info(f"Running LDA on {variable}")
             import time
 
-            # start_time = time.time()
+            start_time = time.time()
             # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
             if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
                 logger.warning(
@@ -135,10 +144,11 @@ def run_LDA_model(self, settings, angles):
                 X = ProcessPredictors(self, frames, settings)
                 pos_ang = np.vstack((binned_angles.T, binned_pos))
                 preprocess_time = time.time()
-                # print('Time to preprocess is ' + str(preprocess_time - start_time))
+                print('Time to preprocess is ' + str(preprocess_time - start_time))
 
                 # run LDA on different angles
                 if self.do_LDA:
+                    start_time = time.time()
                     pa, coef = linear_discriminant_analysis(
                         X,
                         pos_ang=pos_ang,
@@ -152,32 +162,38 @@ def run_LDA_model(self, settings, angles):
                     )
                     prediction_accuracy.update({variable: pa})
                     prediction_coef.update({variable: coef})
+                    print('Time to run single LDA iter: ' + str(time.time()-start_time))
 
                 # run LDA with individual cell dropout
                 if self.do_dropout:
+                    start_time = time.time()
                     logger.info(f"Running LDA predictor dropout on {variable}")
                     X_drop = []
                     for drop in np.arange(1, np.shape(X)[1]):
                         X_drop.append(np.delete(X,drop,axis=1))
                     args_list = [(x, pos_ang) for x in X_drop]
-                    num_processes = multiprocessing.cpu_count()-1  # Adjust as needed
-                    with Pool(num_processes) as pool:
-                        dropouts = pool.map(parallel_function, args_list)
+                    dropouts = self.PPool.mp_pool.map(parallel_function, args_list)
+                    # num_processes = multiprocessing.cpu_count()-1  # Adjust as needed
+                    # with Pool(num_processes) as pool:
+                    #     dropouts = pool.map(parallel_function, args_list)
                     dropout_pa.update({variable: dropouts})
+                    print('Time to run LDA on ' + str(np.shape(X)[1]) + ' dropouts: ' + str(time.time()-start_time))
 
                 # run linear shift on different angles
                 if self.do_LS:
+                    start_time = time.time()
                     logger.info(f"Running linear shift on LDA on {variable}")
                     LS_output = LinearShift(
                         X,
                         y=pos_ang,
+                        PPool=self.PPool,
                         stat_computation_func=linear_discriminant_analysis,
                         step=40,
                         size_of_central_chunk=np.round(np.shape(X)[0] * 0.9),
                     )
                     LS_compiled.update({variable: LS_output})
                     lda_time = time.time()
-                    print("Total Time to fit is " + str(lda_time - preprocess_time))
+                    print("Time to LS is " + str(lda_time - start_time))
                     del LS_output
 
         else:  # if the variable is a random point
@@ -228,6 +244,7 @@ def run_LDA_model(self, settings, angles):
                         LS_output = LinearShift(
                             X,
                             y=pos_ang,
+                            PPool=self.PPool,
                             stat_computation_func=linear_discriminant_analysis,
                             step=40,
                             size_of_central_chunk=np.round(np.shape(X)[0] * 0.9),
@@ -235,7 +252,7 @@ def run_LDA_model(self, settings, angles):
                         LS_compiled.update({str(variable + str(j)): LS_output})
                         del LS_output
 
-    logger.info(f"Time to save LDA output on {variable}")
+    logger.info(f"Finally! It's time to save LDA output on {self.condition}")
     if self.do_LDA:
         with open(self.LDA_out, "wb") as fp:
             pickle.dump(prediction_accuracy, fp)
@@ -269,9 +286,11 @@ def linear_discriminant_analysis(
     """
 
     # initialize variables
-    # import time
-    # start_time = time.time()
+    import time
+    start_time = time.time()
     n_bins = len(np.unique(pos_ang[0, :]))
+    bin_angles, bin_angle_center = generate_bin_angles(n_bins + 1)
+    bin_angle_center = bin_angle_center[1:-1]
     coef_matrix = np.empty((n_bins, np.shape(X)[1] - 1, epoch_num))  # -1 on the number of clusters, because we have an extra column in X
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
@@ -293,7 +312,7 @@ def linear_discriminant_analysis(
             if plotting:
                 plt.figure(figsize=(20, 16))
                 plt.subplots_adjust(hspace=0.3)
-
+            start_time = time.time()
             # make train matrix of frames x clusters
             X1 = zscore_predictors(X[train_idx, :])
 
@@ -308,8 +327,6 @@ def linear_discriminant_analysis(
 
             if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
-                bin_angles, bin_angle_center = generate_bin_angles(n_bins + 1)
-                bin_angle_center = bin_angle_center[1:-1]
 
                 # run LSTM
                 model, seq_length = fit_LSTM(X1, bin_angle_center[y1 - 1], X2, bin_angle_center[y2 - 1])
@@ -340,62 +357,40 @@ def linear_discriminant_analysis(
             conf_matrix_all_train[:, :, counter] = plotConfusionMatrix(y1, y_hat_train, "training data", plt.subplot2grid(shape=(4, 4), loc=(2, 0)))
 
             if plotting:
+                y_hat_angles = bin_angle_center[y_hat_train-1]
+                y1_angles = bin_angle_center[y1-1]
+
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 1))
-                ax.scatter(y_hat_train, y_hat_train - y1)
-                ax.set_xlabel("prediction")
-                ax.set_ylabel("residual")
-                ax.set_box_aspect(1)
+                residual_distribution(ax, y1_angles, y_hat_angles)
 
                 # plot histogram of frames per angle bin
                 ax = plt.subplot2grid(shape=(4, 4), loc=(3, 0), colspan=2)
-                ax.hist(y_hat_train, np.arange(1, n_bins + 2), alpha=0.75)
-                ax.hist(y1, np.arange(1, n_bins + 2), alpha=0.75)
-                ax.set_title("training data")
-                ax.set_xlabel("classes")
-                ax.set_ylabel("number of frames")
+                real_predicted_hist(ax, y1_angles, y_hat_angles, 'train data')
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(0, 0), colspan=4)
-                x_time = np.arange(len(y1)) / (self.session.video.fps * 60)
-                ax.plot(x_time, y_hat_train)
-                ax.plot(x_time, y1)
-                ax.legend(["prediction", "real"])
-                ax.set_xlim((0, len(y1) / (self.session.video.fps * 60)))
-                ax.set_title("training data")
-                ax.set_ylabel("classes (binned angles)")
-                ax.set_xlabel("time (mins)")
+                real_predicted_trace(ax, y1_angles, y_hat_angles, self.session.video.fps, 'train data')
 
             # plot confusion matrix of prediction on test data
 
             conf_matrix_all_test[:, :, counter] = plotConfusionMatrix(y2, y_hat_test, "test data", plt.subplot2grid(shape=(4, 4), loc=(2, 2)))
 
             if plotting:
+                y_hat_test_angles = bin_angle_center[y_hat_test-1]
+                y2_angles = bin_angle_center[y2-1]
+
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 3))
-                ax.scatter(y_hat_test, y_hat_test - y2)
-                ax.set_xlabel("prediction")
-                ax.set_ylabel("residual")
-                ax.set_box_aspect(1)
+                residual_distribution(ax,y2_angles, y_hat_test_angles)
 
                 # plot histogram of frames per angle bin
                 ax = plt.subplot2grid(shape=(4, 4), loc=(3, 2), colspan=2)
-                ax.hist(y_hat_test, np.arange(1, n_bins + 2), alpha=0.75)
-                ax.hist(y2, np.arange(1, n_bins + 2), alpha=0.75)
-                ax.set_title("test data")
-                ax.set_xlabel("classes")
-                ax.set_ylabel("number of frames")
+                real_predicted_hist(ax,y2_angles, y_hat_test_angles, 'test data')
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(1, 0), colspan=4)
-                x_time = np.arange(len(y2)) / (self.session.video.fps * 60)
-                ax.plot(x_time, y_hat_test)
-                ax.plot(x_time, y2)
-                ax.legend(["prediction", "real"])
-                ax.set_xlim((0, len(y2) / (self.session.video.fps * 60)))
-                ax.set_title("test data")
-                ax.set_ylabel("classes")
-                ax.set_xlabel("time (mins)")
+                real_predicted_trace(ax,y2_angles, y_hat_test_angles, self.session.video.fps, 'test data')
 
                 plt.tight_layout()
                 filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i) + ".png"
@@ -403,6 +398,9 @@ def linear_discriminant_analysis(
                 if self.show_plots:
                     plt.show()
                 plt.close()
+                
+            # fit_time = time.time()
+            # print('Time to fit&predict LDA is ' + str(fit_time - pre_time))
 
         if plotting:
             # plot average confusion matrix
@@ -427,7 +425,8 @@ def linear_discriminant_analysis(
             plt.close()
 
         prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))
-        coef = np.mean(coef_matrix, axis=2)
+    
+    coef = np.mean(coef_matrix, axis=2)
 
         # if you want to look at how similar the weights are across epochs
         # peak_weight = np.amax(coef_matrix[:,:,0],axis = 0)
@@ -435,8 +434,6 @@ def linear_discriminant_analysis(
         # for i in np.arange(np.shape(coef_matrix)[2]):
         #     axs[i].imshow(coef_matrix[:,np.argsort(peak_weight),i].T, aspect = 'auto')
 
-        # fit_time = time.time()
-        # print('Time to fit&predict LDA is ' + str(fit_time - pre_time))
     if return_coef:
         return prediction_accuracy, coef
     else:
