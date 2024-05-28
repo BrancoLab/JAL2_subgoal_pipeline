@@ -15,7 +15,6 @@ Possible conditions to input as user defined conditions:
 from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 
 Settings_ae = Settings_analyze_efizz(
-
     # ------------- General settings --------------------------
     stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=False,  # whether to run linear shift!
@@ -23,7 +22,7 @@ Settings_ae = Settings_analyze_efizz(
     redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=["good"],  # ['synthetic','synthetichdir','all','good'], # Can choose all, good, mua
     show_plots=False,
-     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
+    # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),
     #                                         'shelter_present',
     #                                         'barrier_present'
@@ -39,12 +38,13 @@ Settings_ae = Settings_analyze_efizz(
     compartment_split=["all"],  # ['threat_zone','shelter_compartment'], # ['all','threat_zone','shelter_compartment']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
-
+    # ------------------- Run single trial analysis -------------------
+    run_single_trial=False,
     # ------------- PCA model settings --------------------------
     run_dim_reduction=False,
     run_pca=False,
     run_umap=False,
-#     run_pca_model=False,
+    #     run_pca_model=False,
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
