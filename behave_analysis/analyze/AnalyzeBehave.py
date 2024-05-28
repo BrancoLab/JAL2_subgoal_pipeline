@@ -43,5 +43,6 @@ class AnalyzeBehave:
             save_dir=self.dir,
         )
 
-        logger.info(f"Making plots of homing trajectories")
-        plot_homings(self.session, self.tracking_data, self.video_df)
+        if len(self.session.barrier_time) > 0:
+            logger.info(f"Making plots of homing trajectories")
+            plot_homings(self.session, self.tracking_data, self.video_df, settings.show_plots)
