@@ -28,4 +28,10 @@ def get_Photoresistor(session: NEW_Session) -> photoresistor_trigger:
     resistor_on = resistor_data < 4.8
     resistor_onset_frames, stimulus_durations, _ = get_onset_and_duration(resistor_on, session, stim_type='resistor', min_frames_between_trials=session.daq_sampling_rate * 30, data_type='samples')
     photoresistor = photoresistor_trigger(num_samples, resistor_onset_frames, stimulus_durations)
+
+    # save photoresistor
+    meta_file = os.path.join(session.base_path,session.processed_path,'photoresistor')
+    with open(meta_file, "wb") as dill_file:
+        pickle.dump(photoresistor, dill_file)
+    
     return (photoresistor)

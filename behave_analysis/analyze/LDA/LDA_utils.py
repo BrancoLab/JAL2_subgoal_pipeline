@@ -33,6 +33,14 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     if settings.use_firing_rate:
         pathh = str(pathh) + "_fr"
 
+    # if excluding proximal points for head angle decoding, add to folder name
+    if settings.exclude_proximal > 0:
+        pathh = str(pathh) + "_excl_prox_" + str(settings.exclude_proximal) + 'cm' 
+
+    # if excluding hdir
+    if settings.exclude_hdir:
+        pathh = str(pathh) + "_excl_hdir"
+
     # add subfolder for cluster type
     pathh = str(pathh) + "/" + str(cluster_type)
 
@@ -62,18 +70,19 @@ def check_if_we_do_LDA(self, settings):
     returns: two booleans for whether to run decoder and linear shift
     """
     # if LDA has already been run and saved, don't redo
-    LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
-    LS_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
-    do_LDA = True
-    do_LS = settings.linear_shift
+    self.LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
+    self.dropout_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_dropout_pa" + ".pkl"
+    self.LS_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
+    self.do_LDA = True
+    self.do_dropout = settings.dropout
+    self.do_LS = settings.linear_shift
     if not settings.redo_compute:
-        if os.path.exists(LDA_out):
-            do_LDA = False
-        if os.path.exists(LS_out):
-            do_LS = False
-
-    return LDA_out, LS_out, do_LDA, do_LS
-
+        if os.path.exists(self.LDA_out):
+            self.do_LDA = False
+        if os.path.exists(self.LS_out):
+            self.do_LS = False
+        if os.path.exists(self.dropout_out):
+            self.do_dropout = False
 
 def plotConfusionMatrix(y, x, title, axy):
     """
@@ -169,3 +178,18 @@ def compute_prediction_accuracy(matrixx):
         x = np.roll(matrixx[i.astype(int), :], pos - i)
         pred_acc[i] = np.sum(x[pos - 1 : pos + 2])
     return np.mean(pred_acc)
+
+def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,dropout_pa,LS_compiled,variable):
+    '''If no frames meet the criteria (the video_df is blank for this condition), make this condition blank'''
+    pa = 0
+    LS_out = 0
+
+    if self.do_LDA:
+        prediction_accuracy.update({variable: pa})
+        prediction_coef.update({variable: None})
+    if self.do_dropout:
+        dropout_pa.update({variable:pa})
+    if self.do_LS:
+        LS_compiled.update({variable: LS_out})
+
+    return prediction_coef,prediction_accuracy,LS_compiled,dropout_pa

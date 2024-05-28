@@ -15,6 +15,41 @@ from behave_analysis.utils.heatplot_utils import add_features
 
 ## --------------- PLOTTING FUNCTIONS
 
+def plot_LDA_model(self, settings):
+    '''A function to call all plotting functions'''
+    # make a plot of prediction accuracy across variables
+    with open(self.LDA_out, "rb") as dill_file:
+        prediction_accuracy = pickle.load(dill_file)
+    title = prediction_accuracy.keys()
+
+    # NOTE - Commenting this out of main branch as it doesn't work on Laurence's machine
+    # BUG - Let's fix this
+    PlotPredictionAccuracy(self, prediction_accuracy, title)
+
+    # make a plot of prediction accuracy across variables with linear shift stats
+    if settings.linear_shift:
+        with open(self.LS_out, "rb") as dill_file:
+            LS_compiled = pickle.load(dill_file)
+        PlotLSPredictionAccuracy(self, LS_compiled, title)
+
+        # map random points on arena:
+        if len(list(filter(lambda x: "randP" in x, LS_compiled.keys()))) > 10:
+            LS_mean = [np.mean(val.pseudo_stats) for key, val in LS_compiled.items() if re.search("randP", key)]
+            PredictionAccuracyMapped(self, LS_mean, 'LS')
+            
+            # now figure out which ones are significant
+            n_randP = np.shape(self.tracking_data["randP_loc"])[0]
+            alpha = 5/2 # two-sided .05 significance thresh
+            alpha_perc = 100 - (alpha/n_randP) # bonferroni corrected percentile
+            LS_thresh = [np.percentile(val.pseudo_stats,alpha_perc) for key, val in LS_compiled.items() if re.search("randP", key)]
+            LS_real = [val.real_stat for key, val in LS_compiled.items() if re.search("randP", key)]
+            PredictionAccuracyMapped(self, LS_real, 'LS_sig', LS_thresh)
+
+    # map random points on arena:
+    if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
+        pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
+        PredictionAccuracyMapped(self, pa)
+
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title):
     """
@@ -57,7 +92,7 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
         colorz = sample_colorscale("Rainbow", list(np.linspace(0, 1, len(title))))
 
     for i, var in enumerate(title):
-        if i >= 10:
+        if 'randP' in var: # don't plot this for random points, we-re going to map them
             break
         fig.add_trace(
             go.Violin(
@@ -82,28 +117,70 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
     fig.write_image(filename)
 
 
-def PredictionAccuracyMapped(self, prediction_accuracy):
+def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None):
     """
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
+    
+    INPUT: 
+    pa = is a list of prediction accuracies for head-angle towards the points listed in self.tracking_data["randP_loc"]
+    it can either be the prediction accuracy for the full datatset, or the mean of the shifted distribution geenrated with linear shift
+    
+    title_add = this is a string that will be added to the title of the figure when saving, it will help distinguish LDA full models from linear shift maps for example
+    
+    LS_thresh = an array of the same length as pa with the threshold for significance for each point, if passed a white dot will be added to each sqaure that is significant
     """
-    pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
-    plt.figure(figsize=(15, 15))
-    # add points with prediction accuracy
-    s = np.mean(np.diff(np.unique(self.tracking_data["randP_loc"][:, 0]))) * 2
-    sc = plt.scatter(self.tracking_data["randP_loc"][:, 0], self.tracking_data["randP_loc"][:, 1], c=pa, s=s, marker="s", cmap="Blues")
-    plt.colorbar(sc)
-    plt.axis("off")
-    # prettify with arena features
-    ax = plt.gca()
-    base_plotting(ax, self.tracking_data, self.condition)
-    ax.invert_yaxis()
+    
+    fig = plt.figure(figsize=(15, 15))
+    ax = fig.add_subplot(1, 1, 1)
+    cbar_ax = fig.add_axes([0.91, 0.13, 0.01, 0.75])
+    pa = np.array(pa)
+    if len(pa[pa>0]) > 0:
+        vmin = np.amin(pa[pa>0])
+    else:
+        vmin = 0
+    vmax = np.amax(pa)
+
+    # build heatmap
+    ybins, y = np.unique(self.tracking_data["randP_loc"][:, 0], return_inverse=True)
+    xbins, x = np.unique(self.tracking_data["randP_loc"][:, 1], return_inverse=True)
+    heatmap = np.zeros(shape=(len(np.unique(self.tracking_data["randP_loc"][:, 0])), len(np.unique(self.tracking_data["randP_loc"][:, 1]))))
+    heatmap[x, y] = pa
+
+    # Plotting logic for the heatmap
+    ax = sns.heatmap(
+        heatmap,
+        cmap="inferno",#"coolwarm",
+        cbar_ax=cbar_ax,
+        robust=True,
+        ax=ax,
+        mask=(heatmap == 0),
+        cbar_kws={"label": "Prediction accuracy"},
+        norm=plt.Normalize(vmin=vmin, vmax=vmax),
+    )
+
+    if LS_thresh != None:
+        # significant points are the ones where predictiona ccuracy is greater than thresh
+        significant_points = (pa - LS_thresh) > 0
+        ax.scatter(x[significant_points]+.5,y[significant_points]+.5,s = 3, c = 'w')
+
+    add_features(ax, self.condition, self.tracking_data, xbins, ybins)
+
+    # Remove x and y tick labels and ticks
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.xaxis.set_ticks_position("none")
+    ax.yaxis.set_ticks_position("none")
+    ax.set_title(self.condition, fontsize=20)
+    # The legend is the last axis so this is a hack to change the font size of the legend
+    ax.figure.axes[-1].yaxis.label.set_size(16)
     ax.set_aspect("equal")
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy_map" + ".png"
+
+    # save plot
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add +"_prediction_accuracy_map" + ".png"
     plt.savefig(filename)
     if self.show_plots:
         plt.show()
     plt.close()
-
 
 def across_conditions_LDA_map(self, settings):
     """
@@ -166,7 +243,7 @@ def across_conditions_LDA_map(self, settings):
             # Plotting logic for the heatmap
             axs[ax_idx] = sns.heatmap(
                 heatmap,
-                cmap="coolwarm",
+                cmap="inferno",#"coolwarm",
                 cbar_ax=cbar_ax,
                 robust=True,
                 ax=axs[ax_idx],
@@ -192,5 +269,60 @@ def across_conditions_LDA_map(self, settings):
     savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types)
     plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.png")
     if settings.show_plots:
+        plt.show()
+    plt.close()
+
+## --------SMALL PLOTTING UTILS
+
+def real_predicted_trace(ax,real, predicted, fps,title):
+    x_time = np.arange(len(real)) / (fps * 60)
+    ax.plot(x_time, predicted)
+    ax.plot(x_time, real)
+    ax.legend(["prediction", "real"])
+    ax.set_xlim((0, len(real) / (fps * 60)))
+    ax.set_title(title)
+    ax.set_ylabel("angles (rad)")
+    ax.set_xlabel("time (mins)")
+
+def real_predicted_hist(ax, real, predicted, title):
+    xlim = [np.amin(real),np.amax(real)]
+    ax.hist(predicted, np.arange(xlim[0], xlim[1]), alpha=0.75)
+    ax.hist(real, np.arange(xlim[0], xlim[1]), alpha=0.75)
+    ax.set_title(title)
+    ax.set_xlabel("angles (rad)")
+    ax.set_ylabel("number of frames")
+
+def residual_distribution(ax,real,predicted):
+    res = np.arctan2(np.sin(predicted - real), np.cos(predicted - real))
+    c = [res[real == angles] for angles in np.unique(real)]
+    ax.violinplot(c, showextrema = False, positions=np.unique(real))
+    ax.set_xlabel("prediction (rad)")
+    ax.set_ylabel("residual (rad)")
+    ax.set_box_aspect(1)
+
+## --------OLD VERSIONS
+
+def PredictionAccuracyMapped_old(self, prediction_accuracy):
+    """
+    Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
+    """
+    pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
+    
+    plt.figure(figsize=(15, 15))
+    # add points with prediction accuracy
+    s = np.mean(np.diff(np.unique(self.tracking_data["randP_loc"][:, 0]))) * 2
+    sc = plt.scatter(self.tracking_data["randP_loc"][:, 0], self.tracking_data["randP_loc"][:, 1], c=pa, s=s, marker="s", cmap="Blues")
+    plt.colorbar(sc)
+    plt.axis("off")
+    # prettify with arena features
+    ax = plt.gca()
+    base_plotting(ax, self.tracking_data, self.condition)
+    ax.invert_yaxis()
+    ax.set_aspect("equal")
+
+    # save plot
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy_map" + ".png"
+    plt.savefig(filename)
+    if self.show_plots:
         plt.show()
     plt.close()

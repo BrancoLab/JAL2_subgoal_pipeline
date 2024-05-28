@@ -29,7 +29,7 @@ class Process():
         self.session = get_experiment(session_id) # Retrieve experimental data
         self.sesion_id = session_id
         
-    def create_session(self, video_settings) -> NEW_Session:
+    def create_session(self, settings) -> NEW_Session:
         """
         A function that creates the session, and saves the metadata file. It also runs the quality checks on the session.
         Resamples and aligns signals etc. Need to refactor as a lot is happening.
@@ -38,29 +38,34 @@ class Process():
         # Create processed path if it doesn't exist
         if not(os.path.exists(os.path.join(self.session.base_path,self.session.processed_path))): 
             os.makedirs(os.path.join(self.session.base_path,self.session.processed_path))
-        self.load_registration_transform()
         
         if settings_p.efizz:
-            self.session.efizzDataLoaded = LoadEfizz(self.session)
-            imec_sync_path = Path(self.session.efizzDataLoaded.imec_sync_path)
-            self.session.ttl = get_TTL(self.session, imec_sync_path)
+            self.efizzDataLoaded = LoadEfizz(self.session)
+            imec_sync_path = Path(self.efizzDataLoaded.imec_sync_path)
+            self.ttl = get_TTL(self.session, imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
         self.session.audio = get_Audio(self.session)
-        self.session.video = get_Video(self.session, video_settings, self.loaded_registration_transform)
-        self.session.photo_resistor = get_Photoresistor(self.session)
-                        
+        self.photo_resistor = get_Photoresistor(self.session)
+
+        if os.path.isfile(os.path.join(self.session.base_path,self.session.metadata_file)) and not settings.create_new_registration: 
+            self.load_registration_transform()
+        else: 
+            logger.info('Registration will be performed!')
+            self.loaded_registration_transform = None
+        self.session.video = get_Video(self.session, settings, self.loaded_registration_transform)
+                 
         if settings_p.efizz:
             _, slope, intercept, lastPulse, firstPulse = self.quality_check_new_sessions()
         elif settings_p.efizz == False:
             self.quality_check_new_sessions()
             
         if settings_p.efizz:
-            self.session.efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.session.efizzDataLoaded, 
+            efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
                                                              slope = slope, 
                                                              intercept = intercept,
-                                                             samplingRate = self.session.ttl.sampling_rate,
+                                                             samplingRate = self.ttl.sampling_rate,
                                                              filePath = os.path.join(self.session.base_path,self.session.processed_path),
                                                              camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
                                                              lastPulse = lastPulse,
@@ -110,7 +115,7 @@ class Process():
         try:
             with open(os.path.join(self.session.base_path, self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
-                session.base_path, _ = get_computer_specific_paths()
+                session.base_path, _ = get_computer_specific_paths(session.file_path)
 
         except FileNotFoundError:
             print(f"Meta data file for path {os.path.join(self.session.base_path, self.session.metadata_file)} not found, aborting script")
@@ -153,10 +158,16 @@ class Process():
         """
         A function that loads the registration transform if it exists, otherwise it sets it to None
         """
-        meta_file = os.path.join(self.session.base_path,self.session.metadata_file)
-        if os.path.isfile(meta_file) and isinstance(self.load_session().video.registration_transform, np.ndarray):
-            self.loaded_registration_transform = self.load_session().video.registration_transform
+        import time
+        start = time.time()
+        old_sesh = self.load_session()
+        if isinstance(old_sesh.video.registration_transform, np.ndarray):
+            logger.info(f'Loading existing registration transform! It took:  {time.time()-start}')
+            self.loaded_registration_transform = old_sesh.video.registration_transform
+            self.session.shelter_location = old_sesh.shelter_location
+            if hasattr(old_sesh,'barrier_location'):
+                self.session.barrier_location = old_sesh.barrier_location
         else: 
+            logger.info('Registration transform does not exist yet')
             self.loaded_registration_transform = None
-        return None
 

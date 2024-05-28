@@ -37,7 +37,7 @@ class Verifications():
         - Repet for efizz box signal check
         - Write pulse count comparison
         """
-        ttl = self.Process.session.ttl.bonsai_TTL #Retrieve raw TTL signal from session object
+        ttl = self.Process.ttl.bonsai_TTL #Retrieve raw TTL signal from session object
         above_errors = len(np.where(ttl > 5.2)[0]) #Count number of recordings where TTL signal is above 5.1 V
         below_errors = len(np.where(ttl < -0.2)[0]) #Count number of recordings where TTL signal is below <-0.1V
         num_errors = above_errors + below_errors #Compute a total number of erroneous recordings
@@ -57,18 +57,18 @@ class Verifications():
             logger.error(f"The number of samples in the audio {self.Process.session.audio.num_samples} and camera trigger {self.Process.session.camera_trigger.num_samples} streams do not match after alignment")
             assert self.Process.session.camera_trigger.num_samples == self.Process.session.audio.num_samples, "The length of camera trigger doesn't match the length of the audio, processing has failed, kill script"
         
-        # if self.Process.session.camera_trigger.num_samples != len(self.Process.session.ttl.bonsai_TTL):
+        # if self.Process.session.camera_trigger.num_samples != len(self.Process.ttl.bonsai_TTL):
         #     print("Length of camera trigger:", self.Process.session.camera_trigger.num_samples)
-        #     print("Length of bonsai TTL:", len(self.Process.session.ttl.bonsai_TTL))
-        #     assert self.Process.session.camera_trigger.num_samples == len(self.Process.session.ttl.bonsai_TTL), "The length of camera trigger data doesn't match the length of the bonsai TTL"
+        #     print("Length of bonsai TTL:", len(self.Process.ttl.bonsai_TTL))
+        #     assert self.Process.session.camera_trigger.num_samples == len(self.Process.ttl.bonsai_TTL), "The length of camera trigger data doesn't match the length of the bonsai TTL"
 
     def verify_onsets_and_offsets(self):
         
         # Get onset and offsets
-        bonsai_sync_onsets  = self.Process.session.ttl.bonsai_sync_onsets
-        bonsai_sync_offsets = self.Process.session.ttl.bonsai_sync_offsets
-        ephys_sync_onsets   = self.Process.session.ttl.ephys_sync_onsets
-        ephys_sync_offsets  = self.Process.session.ttl.ephys_sync_offset
+        bonsai_sync_onsets  = self.Process.ttl.bonsai_sync_onsets
+        bonsai_sync_offsets = self.Process.ttl.bonsai_sync_offsets
+        ephys_sync_onsets   = self.Process.ttl.ephys_sync_onsets
+        ephys_sync_offsets  = self.Process.ttl.ephys_sync_offset
         
         # check if numbers make sense
         if len(bonsai_sync_onsets) != len(bonsai_sync_offsets):
@@ -92,19 +92,19 @@ class Verifications():
             counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
             logger.warning(f"Bonsai sync triggers have variable delay. [Delay: Counts attributed to that delay]: {counts}")
 
-        elif list(onsets_delta)[0] != self.Process.session.ttl.sampling_rate:
+        elif list(onsets_delta)[0] != self.Process.ttl.sampling_rate:
             # check that it lasts as long as it should
-            logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.Process.session.ttl.sampling_rate})")
+            logger.warning(f"Bonsai sync triggers are not 1s apart (got {list(onsets_delta)[0]} instead of {self.Process.ttl.sampling_rate})")
  
     def verify_check_means(self):
         """Check that the means of the bonsai TTL and the imec TTL are not
         too far away from expected mean.
         """
-        if abs(np.mean(self.Process.session.ttl.bonsai_TTL) - 2.5) > 1:
+        if abs(np.mean(self.Process.ttl.bonsai_TTL) - 2.5) > 1:
             logger.error("Bonsai signal mean very far from expected average, cant be!")
             return
-        if abs(np.mean(self.Process.session.ttl.imec_TTL)) > 1 or abs(np.mean(self.Process.session.ttl.imec_TTL)) < 0.2:
-            logger.error("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.Process.session.ttl.imec_TTL)))
+        if abs(np.mean(self.Process.ttl.imec_TTL)) > 1 or abs(np.mean(self.Process.ttl.imec_TTL)) < 0.2:
+            logger.error("Ephys signal mean ({}) very far from exected average, cant be!".format(np.mean(self.Process.ttl.imec_TTL)))
             return
     
     def verify_ttl_len_with_frame_duration(self):
@@ -123,8 +123,8 @@ class Verifications():
         """
         
         # Trucate Signals to the first pulse onset 
-        bonsaiSignal = self.Process.session.ttl.bonsai_TTL
-        imecSignal   = self.Process.session.ttl.imec_TTL
+        bonsaiSignal = self.Process.ttl.bonsai_TTL
+        imecSignal   = self.Process.ttl.imec_TTL
         
         #TODO remove this
         # bonsaiSignal = self.Process.session.laser_sync.probe_Copy_TTL # this makes TTL focus on dev3
@@ -134,52 +134,53 @@ class Verifications():
         imec_samples = np.arange(0, len(imecSignal))
         
         # Align signals
-        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets, 
-                                                                             self.Process.session.ttl.bonsai_sync_onsets)
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.ttl.ephys_sync_onsets, 
+                                                                             self.Process.ttl.bonsai_sync_onsets)
         
         regression = lambda x: (slope * x) + intercept
 
-        plt.scatter(self.Process.session.ttl.bonsai_sync_onsets / self.Process.session.ttl.sampling_rate, \
-                    self.Process.session.ttl.ephys_sync_onsets / self.Process.session.ttl.sampling_rate)
+        plt.scatter(self.Process.ttl.bonsai_sync_onsets / self.Process.ttl.sampling_rate, \
+                    self.Process.ttl.ephys_sync_onsets / self.Process.ttl.sampling_rate)
         plt.title('slope = ' + str(slope) + '\n' + ' and intercept = ' + str(intercept))
         plt.xlabel('bonsai onset (s)')
         plt.ylabel('efizz onset (s)')
         plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_regression.png")
+        plt.close()
 
         # Plot starting, middle and end samples to check alignment
         fig, axs = plt.subplots(3)
         fig.suptitle('Efizz syncing checks')
         axs[0].set_title("Start of sync")
-        axs[0].plot(regression(imec_samples)[:500000] / self.Process.session.ttl.sampling_rate, imecSignal[:500000], color='blue', label = 'Imec')
-        axs[0].plot(bonsai_samples[:500000]/ self.Process.session.ttl.sampling_rate, bonsaiSignal[:500000], color='red', label = 'Bonsai')
+        axs[0].plot(regression(imec_samples)[:500000] / self.Process.ttl.sampling_rate, imecSignal[:500000], color='blue', label = 'Imec')
+        axs[0].plot(bonsai_samples[:500000]/ self.Process.ttl.sampling_rate, bonsaiSignal[:500000], color='red', label = 'Bonsai')
         
-        middlePulseEfizz = int(np.median(self.Process.session.ttl.ephys_sync_onsets))
-        middleBon = int(np.median(self.Process.session.ttl.bonsai_sync_onsets))
+        middlePulseEfizz = int(np.median(self.Process.ttl.ephys_sync_onsets))
+        middleBon = int(np.median(self.Process.ttl.bonsai_sync_onsets))
         
         axs[1].set_title("Middle of sync")
-        axs[1].plot(regression(imec_samples)[middlePulseEfizz : middlePulseEfizz + 500000] / self.Process.session.ttl.sampling_rate, \
+        axs[1].plot(regression(imec_samples)[middlePulseEfizz : middlePulseEfizz + 500000] / self.Process.ttl.sampling_rate, \
                     imecSignal[middlePulseEfizz : middlePulseEfizz + 500000], color='blue', label = 'Imec')
-        axs[1].plot(bonsai_samples[middleBon : middleBon + 500000] / self.Process.session.ttl.sampling_rate, \
+        axs[1].plot(bonsai_samples[middleBon : middleBon + 500000] / self.Process.ttl.sampling_rate, \
                     bonsaiSignal[middleBon : middleBon + 500000], color='red', label = 'Bonsai')
         
-        LastPulsesBon = self.Process.session.ttl.bonsai_sync_onsets[-10]
-        LastPulsesEfizz = self.Process.session.ttl.ephys_sync_onsets[-10]
+        LastPulsesBon = self.Process.ttl.bonsai_sync_onsets[-10]
+        LastPulsesEfizz = self.Process.ttl.ephys_sync_onsets[-10]
 
         axs[2].set_title("End of sync")
-        axs[2].plot(regression(imec_samples)[LastPulsesEfizz : LastPulsesEfizz + 500000] / self.Process.session.ttl.sampling_rate, \
+        axs[2].plot(regression(imec_samples)[LastPulsesEfizz : LastPulsesEfizz + 500000] / self.Process.ttl.sampling_rate, \
                     imecSignal[LastPulsesEfizz : LastPulsesEfizz + 500000], color='blue', label = 'Imec')
-        axs[2].plot(bonsai_samples[LastPulsesBon : LastPulsesBon + 500000] / self.Process.session.ttl.sampling_rate, \
+        axs[2].plot(bonsai_samples[LastPulsesBon : LastPulsesBon + 500000] / self.Process.ttl.sampling_rate, \
                     bonsaiSignal[LastPulsesBon : LastPulsesBon + 500000], color='red', label = 'Bonsai')
                 
         plt.savefig(str(os.path.join(self.Process.session.base_path,self.Process.session.processed_path)) + "/" + "pulse_sync_visualize.png")
         plt.legend()
-        plt.show()
+        # plt.show()
         plt.close()
         
         # Last pulse to check that efizz spikes are not longer than this in another module
-        # LastPulse = self.Process.session.ttl.bonsai_sync_offsets[-1]
-        LastPulse = self.Process.session.ttl.ephys_sync_offset[-1]
-        firstPulse = self.Process.session.ttl.ephys_sync_onsets[0]
+        # LastPulse = self.Process.ttl.bonsai_sync_offsets[-1]
+        LastPulse = self.Process.ttl.ephys_sync_offset[-1]
+        firstPulse = self.Process.ttl.ephys_sync_onsets[0]
         
         return (r_value**2, slope, intercept), LastPulse, firstPulse
         
@@ -198,18 +199,18 @@ class Verifications():
         Caswell says to plot residuals across time points to check for clock drift
         """
         # Align signals
-        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.session.ttl.ephys_sync_onsets, 
-                                                                             self.Process.session.ttl.bonsai_sync_onsets)
+        slope, intercept, r_value, p_value, std_err = scipy.stats.linregress(self.Process.ttl.ephys_sync_onsets, 
+                                                                             self.Process.ttl.bonsai_sync_onsets)
         
         regression = lambda x: (slope * x) + intercept
         
-        imec_regressed = regression(self.Process.session.ttl.ephys_sync_onsets)
+        imec_regressed = regression(self.Process.ttl.ephys_sync_onsets)
         
-        residuals = self.Process.session.ttl.bonsai_sync_onsets - imec_regressed
+        residuals = self.Process.ttl.bonsai_sync_onsets - imec_regressed
         
         xs = np.arange(0, len(residuals))
         
         if show:
             plt.plot(xs, residuals)
             plt.show()
-        plt.close()
+            plt.close()

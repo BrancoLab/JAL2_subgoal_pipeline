@@ -321,7 +321,9 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
 
     def activate_synthetic_data_generation(self, video_df) -> None:
         logger.info("Synthetic spike data doesn't exist and will now be generated")
-        tuning = ["hdir"]
+        tuning = []
+        if "hdir" in self.select_clusters:
+            tuning.append("hdir")
         if np.logical_or(
             np.logical_and(len(self.session.shelter_time) > 0, self.select_clusters == "synthetic"),
             "hsa" in self.select_clusters,
@@ -395,8 +397,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
         QcPreProcessedData._check_for_vals_outside_arena(video_df) # For now just log the warning and don't touch the data
-
-        if len(self.session.shelter_time) > 0:
+        if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
             homings = load_or_extract_homings(session)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
         if settings.efizz:

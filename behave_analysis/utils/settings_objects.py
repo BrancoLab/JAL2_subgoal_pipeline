@@ -8,7 +8,6 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings_process:
     create_new_registration: bool = False
-    skip_registration: bool = True
     registration: str = "partial affine"
     fisheye_correction_file: str = None
     size: int = 1024
@@ -178,6 +177,10 @@ class Settings_analyze_efizz:
     redo_pca_preprocessing: bool = False
     condition_types: str = ''
     compartment_split: str = ''
+    exclude_proximal: bool = False
+    exclude_hdir: bool = False
+    dropout: bool = False
+    classify_cells: bool = False
 
 
 @dataclass(frozen=True)

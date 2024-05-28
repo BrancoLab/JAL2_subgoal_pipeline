@@ -17,6 +17,7 @@ import os
 import numpy as np
 from loguru import logger
 import dill as pickle
+import matplotlib.pyplot as plt
 
 from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
 from behave_analysis.utils.creating_directories import make_directory
@@ -48,7 +49,11 @@ def classify_hdir(session: object, cluster_type: str) -> list:
 
     logger.info(f"Found {len(head_direction_cells)} head direction cells")
 
-    save_cell_ids(session, head_direction_cells)
+    path = make_directory(os.path.join(session.base_path, session.processed_path, "cells"))
+
+    plot_hdir_tuning(data, head_direction_cells, path)
+
+    save_cell_ids(path, head_direction_cells)
 
     return head_direction_cells
 
@@ -102,10 +107,54 @@ def angle_similarity(theta1: float, theta2: float) -> float:
 
     return similarity_score
 
+def plot_hdir_tuning(data,head_direction_cells, path):
+    '''
+    Takes the tuning curves for hdir and not hdir and plots them to show similarity across compartments - just a visual check of the classification
+    '''
+    # unpack the data and the histograms (polar plots)
+    n_bins = int(len(data['angle_firing_hist'][0]))
+    alls = np.array([x for x in data['angle_firing_hist']])
+    shelt = (alls[:,np.arange(0,n_bins,2)].T/np.amax(alls[:,np.arange(0,n_bins,2)],axis=1)).T
+    threat = (alls[:,np.arange(1,n_bins,2)].T/np.amax(alls[:,np.arange(1,n_bins,2)],axis=1)).T
 
-def save_cell_ids(session, cell_ids) -> None:
+    # which ones are hdirs
+    hdir = np.isin(data['clusterID'].to_numpy().astype(int),np.array(head_direction_cells).astype(int))
+
+    fig, axs = plt.subplots(2,2)
+    fig.set_figheight = 10
+    fig.set_figwidth = 5
+    # first plot rayleigh for hdirs sorted on shelter
+    hh = shelt[hdir,:]
+    sorting = np.argsort(np.argmax(hh, axis = 1))
+    axs[0,0].imshow(hh[sorting,:],aspect = 'auto')
+    axs[0,0].set_title('shelter compartment')
+    hh = threat[hdir,:]
+    axs[0,1].imshow(hh[sorting,:],aspect = 'auto')
+    axs[0,1].set_title('threat compartment')
+
+    # then plot rayleigh for NOT hdirs sorted on shelter
+    hh = shelt[hdir == False,:]
+    sorting = np.argsort(np.argmax(hh, axis = 1))
+    axs[1,0].imshow(hh[sorting,:],aspect = 'auto')
+    hh = threat[hdir == False,:]
+    axs[1,1].imshow(hh[sorting,:],aspect = 'auto')
+
+    # add some labels
+    for i in [0,1]:
+        for j in [0,1]:
+            if i == 0:
+                axs[i,j].set_ylabel('hdir neurons')
+            elif i == 1:
+                axs[i,j].set_ylabel('NOT hdir neurons')
+            axs[i,j].set_xlabel('angles')
+
+    # save figure
+    plt.tight_layout()
+    file_name = os.path.join(path, "hdir_cells.png")
+    fig.savefig(file_name)
+
+def save_cell_ids(path, cell_ids) -> None:
     """Saves the cell ids to a pickle file to a within a folder called cells"""
-    path = make_directory(os.path.join(session.base_path, session.processed_path, "cells"))
     file_name = os.path.join(path, "hdir_cells.pkl")
     with open(file_name, "wb") as dill_file:
         pickle.dump(cell_ids, dill_file)

@@ -81,9 +81,10 @@ def add_features(ax, condition: str, tracking: dict, xbins: np.array, ybins: np.
                 else:
                     bar_loc = [512 - arena_radius, tracking["barrier_loc"][1][0]]
 
-            bar_loc = np.digitize(bar_loc, xbins)
-            ax.plot(
-                [bar_loc[0], bar_loc[1]],
-                [np.digitize(tracking["barrier_loc"][0][1], ybins), np.digitize(tracking["barrier_loc"][1][1], ybins)],
-                color="k",
-            )
+            if condition != "barrier_removed":
+                bar_loc = np.digitize(bar_loc, xbins)
+                ax.plot(
+                    [bar_loc[0], bar_loc[1]],
+                    [np.digitize(tracking["barrier_loc"][0][1], ybins), np.digitize(tracking["barrier_loc"][1][1], ybins)],
+                    color="k",
+                )
