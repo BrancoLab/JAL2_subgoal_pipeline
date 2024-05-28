@@ -4,7 +4,7 @@ A database of all the experiments and mice run in the JJAL team on the big rig
 
 from behave_analysis.database.Experiments.JAL001_ex import seq3, seq1_2, mush_3
 from behave_analysis.database.Experiments.JAL002_ex import (
-    firstConnection,
+    firstConnection,                                            
     mushroom1_002,
     seq1_3_002,  # good session
     seq1_2_002,
@@ -23,9 +23,9 @@ from behave_analysis.database.Experiments.JAL004_ex import (
 
 from behave_analysis.database.Experiments.JAL005_ex import JAL5_mush1, JAL005_8thSept, JAL005_21stSept
 
-from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_shelt_4mar, JAL6_flip6
+from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_shelt_4mar, JAL6_flip6, JAL6_flip5_25mar, JAL6_flip7_1apr, JAL6_flip4_21mar, JAL6_flip3_18mar
 
-from behave_analysis.database.Experiments.JAL007_ex import JAL7_hab_1mar, JAL7_empty_shelter, JAL7_sesh8_9apr, JAL7_sesh9_16apr
+from behave_analysis.database.Experiments.JAL007_ex import JAL7_hab_1mar, JAL7_empty_shelter_5mar, JAL7_sesh8_9apr, JAL7_sesh9_16apr, JAL7_flip2_12mar, JAL7_flip5_22mar
 
 from behave_analysis.database.Experiments.JAL008_ex import JAL8_shelt_22apr, JAL8_flip1_25apr, JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may
 
@@ -33,7 +33,9 @@ from behave_analysis.database.Experiments.JAL008_ex import JAL8_shelt_22apr, JAL
 
 from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
-# Currently the code only works with one experiment at a time, so place that experiment in the below list for analysis
+experiments_objects = [JAL8_shelt_22apr]
+#
+# [JAL8_flip1_25apr, JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may, JAL7_sesh8_9apr, JAL7_sesh9_16apr, JAL6_flip6]
 
-experiments_objects = [JAL8_flip4_10may]
-
+# process, track, postprocess: [JAL7_flip2_12mar,JAL6_flip5_25mar]
+# process after HPC: [JAL6_flip7_1apr, JAL6_flip4_21mar, JAL6_flip3_18mar]

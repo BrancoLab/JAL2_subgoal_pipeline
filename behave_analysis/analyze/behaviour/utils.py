@@ -176,7 +176,9 @@ def plot_trajectories(onset_frames, stimulus_durations, ax, stim_type, tracking_
     """
 
     # Assertions to validate input
-    assert isinstance(onset_frames, np.int64) and onset_frames >= 0, "onset_frames must be a non-negative integer."
+    if not isinstance(onset_frames, np.int64):
+        onset_frames = int(onset_frames)
+    assert onset_frames >= 0, "onset_frames must be a non-negative integer."
     assert stimulus_durations > 0, "stimulus_durations must be a positive integer."
     assert hasattr(ax, "scatter"), "ax must be a valid matplotlib.axes.Axes object."
     assert isinstance(stim_type, str), "stim_type must be a string."

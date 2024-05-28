@@ -65,7 +65,7 @@ Settings_ae = Settings_analyze_efizz(
     dropout = False, # this will iteratively dropout each cluster and recompute the LDA prediction accuracy to see how much that cluster matters
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     # ------------ Rayleigh model settings ----------------------
-    run_rayleigh=True,
+    run_rayleigh=False,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=True,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster

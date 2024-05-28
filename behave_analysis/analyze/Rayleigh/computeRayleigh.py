@@ -209,9 +209,8 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     
     # assign spike times of each cluster to the corresponding video frame, then assign HD
     for count in tqdm(np.arange(len(cluster_Ids)), desc=f"Running Rayleigh on cluster out of  {len(cluster_Ids)}"):
-        c = cluster_Ids[count]
     # for count, c in enumerate(cluster_Ids):
-        Rayleigh_cluster[count] = c
+        Rayleigh_cluster[count] = cluster_Ids[count]
 
         # ----------------------------Whole arena computations-----------------------------------------------------------
         # skip if cluster is all zeros
@@ -246,7 +245,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
             )
 
             # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations
-            if np.logical_and(compute_significance == "linshit", settings.linear_shift):
+            if settings.linear_shift:
                 Rayleigh_sig[count, c_count] = linearshift_rayleigh_significance(
                     X=X[compartment == comp, count],
                     binned_angles=binned_angles[compartment == comp],
