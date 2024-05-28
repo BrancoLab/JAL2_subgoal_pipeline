@@ -543,7 +543,7 @@ class SingleTrialRegression:
         self.encompasing_set = ["h_bar_north_a", "hdir", "hsa", "h_bar_south_a", "mouse_y_position", "velocity"]
 
         self.run(
-            run_all_dependent_variables=False, shift_neural_data=False, explore_coeffs_with_other_predictors=False, run_hiarchical_regression=True
+            run_all_dependent_variables=True, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=True
         )
 
     # --------------------- Functions for running the regression ---------------------
@@ -559,8 +559,8 @@ class SingleTrialRegression:
         - explore_coeffs_with_other_predictors: Explore the coefficients with other predictors to see how they change"""
 
         if run_all_dependent_variables:
-            self.r2_score_dic, _, _ = self.run_all_dependent_variables()
-            self.plot_the_r2_scores_for_all_dependents()
+            r2_score_for_all_dependents, _, _ = self.run_all_dependent_variables()
+            self.plot_the_r2_scores_for_all_dependents(r2_scores = r2_score_for_all_dependents)
 
         if shift_neural_data:
             # NOTE - Still only works for one index location at the moment
@@ -1019,11 +1019,11 @@ class SingleTrialRegression:
         plt.savefig(self.save_path / "shifted_mean_r2_scores.png")
         plt.close()
 
-    def plot_the_r2_scores_for_all_dependents(self):
+    def plot_the_r2_scores_for_all_dependents(self, r2_scores):
         """Plot the R2 scores for the different dependent variables"""
 
-        dependent_vars = list(self.r2_score_dic.keys())
-        ols_r2_scores = [self.r2_score_dic[dependent_var] for dependent_var in dependent_vars]
+        dependent_vars = list(r2_scores.keys())
+        ols_r2_scores = [r2_scores[dependent_var] for dependent_var in dependent_vars]
         plt.figure(figsize=(10, 6))
         x = np.arange(len(dependent_vars))
         bar_width = 0.35
