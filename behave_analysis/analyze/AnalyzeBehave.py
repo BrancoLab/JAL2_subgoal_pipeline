@@ -11,7 +11,6 @@ from behave_analysis.analyze.behaviour.plot_homings import plot_homings
 from settings.settings_analyze import settings_analyze as settings
 
 
-
 class AnalyzeBehave:
     """
     A class that analyzes mouse behavior in a session
