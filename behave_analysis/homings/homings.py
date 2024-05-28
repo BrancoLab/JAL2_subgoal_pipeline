@@ -508,4 +508,5 @@ def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int)
 
     # if the mouse never reachs threshold return error message
     logger.error(f"Mouse never reaches cum threshold {cum_threshold} cm")
-    return None
+    frame = None
+    return frame, start_frame

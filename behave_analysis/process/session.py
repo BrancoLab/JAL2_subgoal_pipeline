@@ -30,7 +30,6 @@ class NEW_Session:
     video: object = None
     ttl: object = None
     ephys: object = None
-    photo_resistor: object = None
     homing: object = None
     threshold_crossing: object = None
     
@@ -42,7 +41,7 @@ def get_experiment(experiment_data_class):
     mouse = experiment_data_class.nick_name
     experiment_repeat = experiment_data_class.experiment_idx
     experiment_description = f"Mouse: {mouse}, Experiment: {experiment_type}, Run number: {experiment_repeat}"
-    base_path, _ =  get_computer_specific_paths()
+    base_path, _ =  get_computer_specific_paths(os.path.join(experiment_data_class.root_path,experiment_data_class.experiment_path))
     file_path = os.path.join(experiment_data_class.root_path,experiment_data_class.experiment_path)
     metadata_file = os.path.join(file_path, "processed_data", "metadata")
         

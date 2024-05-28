@@ -24,10 +24,12 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
         if "barrier_present" in filtered_video_df.columns:
             filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
 
-    elif condition == "shelter_only":  # only the shelter is present
+    elif condition == "shelter_only":  # only the shelter is present (before the barrier!!)
         filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter"] == True))
         if "barrier_present" in filtered_video_df.columns:
-            filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == False))
+            barrier = filtered_video_df["barrier_present"].to_numpy() # present regardless of removal
+            barrier_present = np.arange(1, len(barrier) + 1) < np.where(np.diff(barrier.astype(int)) == 1)[0]
+            filtered_video_df = filtered_video_df.filter((barrier_present))
 
     elif condition == "shelter_present":  # the whole time the shelter is present, but might include the barrier as well
         filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter"] == True))
@@ -40,6 +42,11 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
 
     elif condition == "barrier_post_flip":  # the barrier is present, after we flip it
         filtered_video_df = filtered_video_df.filter((filtered_video_df["barrier_present"] == True) & (filtered_video_df["barrier_flipped"] == True))
+
+    elif condition == "barrier_removed":
+        barrier = filtered_video_df["barrier_present"].to_numpy()
+        barrier_removed = np.arange(1, len(barrier) + 1) > np.where(np.diff(barrier.astype(int)) == -1)[0]
+        filtered_video_df = filtered_video_df.filter((barrier_removed))
 
     return filtered_video_df
 
@@ -157,6 +164,8 @@ def identify_conditions(session) -> list:
         if session.barrier_flip_time:
             condition.append("barrier_pre_flip")
             condition.append("barrier_post_flip")
+        if session.barrier_time[1] != -1:
+            condition.append("barrier_removed")
 
     return condition
 
@@ -199,6 +208,8 @@ def identify_conditions_based_on_behave(session):
             condition.append("barrier_post_flip")
         else:  # there was no flip, so we only have a barrier present time
             condition.append("barrier_present")
+        if session.barrier_time[1] != -1:
+            condition.append("barrier_removed")
 
     return condition
 

@@ -28,6 +28,7 @@ def process():
     logger.info("Processing started")
     assert len(experiments_objects) != 0, "Session list should not be empty"
     for session_ID in experiments_objects:
+        logger.info("Loaded a session with the following details: {}".format(session_ID))
         processObject = Process(session_ID)
         processObject.create_session(settings_p)
     logger.success("Processing complete")
@@ -79,7 +80,7 @@ def visualize():
         # ------ BEHAVIORAL VISUALIZATION ------
         if settings_v.escape_trials:
             Visualize_behave(session).make_movies(stim_type="audio")
-            Visualize_behave(session).escape_plotting()
+            Visualize_behave(session).escape_plotting(stim_type="audio")
         if settings_v.homing_trials:
             Visualize_behave(session).make_movies(stim_type="homing")
 
@@ -91,22 +92,24 @@ def visualize():
     logger.success("Visualisation complete")
 
 def analyze():
-    """
-    A function that calls all the analysis modules and is designed to be run last and for the whole dataset.
-    """
+    """A function that calls all the analysis modules and is designed to be run last and for the whole dataset."""
     logger.info("The analysis pipeline has started")
-    for session_ID in experiments_objects:
-        session = Process(session_ID).load_session()
-        logger.info("Loaded a session with the following details: {}".format(session_ID))
-        # AnalyzeBehave(session)
+    for session_id in experiments_objects:
+        session = Process(session_id).load_session()
+        logger.info("Loaded a session with the following details: {}".format(session_id))
+        if settings_a.stim_type != "None":
+            AnalyzeBehave(session).behaviour_analyses()
+        
         if settings_a.efizz:
             for c_type in Settings_ae.cluster_type:
-                AnalyzeEfizz(session, c_type).execute_models()
                 
-
-    
+                AnalyzeEfizz(session, c_type).execute_models()
+                if Settings_ae.classify_cells:
+                    AnalyzeEfizz(session, c_type).classify_cells()
+                
+                
     logger.success("Analysis pipeline complete")
-        
+                        
     # # print("\n------ ANALYZING DATA ------"); print_settings_analysis(settings_a);
     # # TODO: update this to use the new databank 
     # session_IDs = collect_session_IDs_analysis(settings_a.analysis, databank)
