@@ -188,7 +188,6 @@ class BaseDataPostprocessor(ABC):
             for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
                 video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
 
-        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         return video_df
 
     def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
@@ -384,6 +383,8 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
 class DataPostprocessor(BaseDataPostprocessor):
     """
     A child class to support the production data postrocessing pipeline.
+
+    TODO: Check if sythetic class has diverged from this class and if so, update it.
     """
 
     def __init__(self, cluster_labels_to_filter, tracking_data, session, settings):
@@ -391,7 +392,11 @@ class DataPostprocessor(BaseDataPostprocessor):
         assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
+
+        # -----------------------------------------------------------------------
+        # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
+        QcPreProcessedData._check_for_vals_outside_arena(video_df) # For now just log the warning and don't touch the data
         if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
             homings = load_or_extract_homings(session)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
@@ -417,3 +422,195 @@ class DataPostprocessor(BaseDataPostprocessor):
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
 
         return filtered_spike_data
+
+
+class QcPreProcessedData:
+    """Quality control class for the preprocessed data.
+
+    QC stands for quality control. The purpose of this class is to provide a set of methods that
+    can be used to check the quality of the data produced by the preprocess class. In theory no
+    data augmentation should occur after the preprocess class and thus this class should be the final
+    quality check before any analysis is performed on the data.
+    """
+
+    SIZE = 1024  # This is a hardcoded variant of np.shape(self.rendered_arena)[0] from tracking module
+    CENTER = 512  # This is the pixel value of the center of the arena
+
+    @staticmethod
+    def _check_for_vals_outside_arena(video_df) -> tuple[bool, np.ndarray]:
+        """Log a warning if the tracking data is outside the bounds of the arena.
+
+        Returns:
+        -- tuple[bool, np.ndarray]: A tuple containing a boolean and a numpy array.
+            The boolean is True if the tracking data is outside the bounds of the arena and False if the tracking data is within the bounds of the arena.
+            The numpy array contains the distance of the mouse from the center of the arena."""
+        all_posX = video_df["mouse_x_position"].to_numpy()
+        all_posY = video_df["mouse_y_position"].to_numpy()
+        dist = np.sqrt(
+            ((all_posX - QcPreProcessedData.SIZE / 2) ** 2) + ((all_posY - QcPreProcessedData.SIZE / 2) ** 2)
+        )  # calculate the distance of mouse from the center
+        assert len(dist) > 0, "The tracking data is empty"
+        assert len(dist) == len(all_posX) == len(all_posY), "The tracking data is not the same length"
+        if np.any(dist > QcPreProcessedData.CENTER):
+            logger.warning(
+                "The tracking data is outside the bounds of the arena. This is could be due to lighting issues, poor training of DLC or DLC tracking the cable."
+            )
+            return True, dist  # Return True if the tracking data is outside the bounds of the arena
+        else:
+            logger.success("The tracking data is within the bounds of the arena")
+            return False, dist  # Return False if the tracking data is within the bounds of the arena
+
+    # NOTE - Below function is not used in the pipeline yet, but it is a critical function in the pipeline to implement soon
+    # Commented it out as need to agree on how we handle the tracking data outside the arena and PR has been stale for a while
+    @staticmethod
+    def handle_tracking_outside_arena(video_df, back_fill=False) -> pl.DataFrame:
+        """If tracking outside arena replace with nulls or back fill them.
+
+        As a default the function will replace the rows that are outside the bounds
+        of the arena with the next valid value. This prevents the tracking data from
+        being outside the arena. But this function alone does not prevent tracking errors.
+        For example if the cable is tracked outside the arena for a while whilst the mouse is
+        some where else entirely, it will just track the cable points inside the arena. Thus
+        making sure the following two things are done is important:
+        1) The DLC model is trained well, the tracking data is good and the cable is not tracked
+        2) The body points of the mouse can not jump from one side of the arena to the other side of the arena
+
+        Args:
+        -- replace: (str) which replacement method to use. Options are "null" or "bfill".
+            where "null" replaces the rows that are outside the bounds of the arena with Nans and
+            "bfill" replaces the rows that are outside the bounds of the arena with the next valid value.
+
+        Returns:
+        -- pl.DataFrame: The video dataframe with the rows that are outside the bounds of
+                the arena replaced with Nans. If no rows are outside the bounds of the arena
+                then the original video dataframe is returned.
+
+        TODO:
+        -- Write a pytest for this function as it is a critical function in the pipeline.
+        -- Handle the NaNs in the video dataframe that are now present after the replacement.
+        """
+
+        is_outside_arena, dist = QcPreProcessedData._check_for_vals_outside_arena(video_df)
+
+        # Check to see if the mouse is outside the bounds of the arena
+        if is_outside_arena:
+            logger.warning("Handling tracking data outside the bounds of the arena")
+
+            # Find the indexs of the frames that are outside the bounds of the arena
+            idx = np.where(dist > QcPreProcessedData.CENTER)[0]
+            logger.info(f"{len(idx)} frames outside the bounds of arena out of {len(dist)} frames. -> {len(idx)/len(dist)*100:0.1f}% of the data.")
+
+            # Replace the rows that are outside the bounds of the arena with Nans
+            mask = pl.Series(np.arange(len(video_df))).is_in(pl.Series(idx))  # boolean mask
+            assert sum(mask) == len(idx), "The mask Trues is not the same length as the index"
+
+            # Insert nulls into the dataframe
+            # When mask is true, then assign nans to the whole row, otherwise assign the original value
+            for column in video_df.columns:
+                video_df = video_df.with_column(pl.when(mask).then(pl.lit(None)).otherwise(pl.col(column)).alias(column))
+
+            # If the user wants to back fill the nans then do so
+            if back_fill:
+                video_df = video_df.fill_null(strategy="backward")
+
+            # Check again to see if the tracking data is within the bounds of the arena
+            is_outside_arena, _ = QcPreProcessedData._check_for_vals_outside_arena(video_df)
+            assert is_outside_arena == False, "The tracking data is still outside the bounds of the arena"
+
+            # Because we back filled the frame numbers are now duplicated because rows are duplicated, so reset the index
+            frames = pl.Series(np.arange(1, len(video_df) + 1).astype(np.int64))
+            video_df = video_df.with_columns(pl.Series("frames", frames))
+
+            return video_df
+
+        else:
+            logger.success("The tracking data is within the bounds of the arena")
+            return video_df
+
+    # def _qc_video_data_is_populated(self) -> None:
+    #     """
+    #     A function that checks the video dataframe for any invalid values or states that could cause problems later in the pipeline.
+    #     """
+
+    #     assert False == any(self.preprocessed_data.video_df.null_count().to_numpy()[0] > 0), "The video dataframe contains null values."
+    #     assert False == self.preprocessed_data.video_df.is_empty(), "The video dataframe is empty."
+    #     testOfzeros = self.preprocessed_data.video_df.select(["frames", "hdir", "hsa", "mouse_x_position", "mouse_y_position"])
+    #     assert False == any(testOfzeros.to_numpy()[0] == 0), "The video dataframe contains values that are equal to zero."
+
+    # def qc_video_data_frame_schema_is_correct(dataframe: pl.DataFrame, session: object) -> None:
+    #     if "mush" in session.name:
+    #         assert dataframe.schema == {
+    #             "frames": pl.Int64,
+    #             "hdir": pl.Float64,
+    #             "hsa": pl.Float64,
+    #             "mouse_x_position": pl.Float64,
+    #             "mouse_y_position": pl.Float64,
+    #             "OutofshelterIdx": pl.Boolean,
+    #             "EscapePeriod": pl.Boolean,
+    #             "shelter_only": pl.Boolean,
+    #             "barrier_present": pl.Boolean,
+    #         }, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
+    #     elif "seq" in session.name:
+    #         assert dataframe.schema == {
+    #             "frames": pl.Int64,
+    #             "hdir": pl.Float64,
+    #             "hsa": pl.Float64,
+    #             "mouse_x_position": pl.Float64,
+    #             "mouse_y_position": pl.Float64,
+    #             "OutofshelterIdx": pl.Boolean,
+    #             "EscapePeriod": pl.Boolean,
+    #             "shelter_only": pl.Boolean,
+    #             "barrier_present": pl.Boolean,
+    #             "h_bar_north_a": pl.Float64,
+    #             "h_bar_south_a": pl.Float64,
+    #         }, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
+
+    # def qc_angular_velocity_is_logically_possible(dataframe: pl.DataFrame, session: object) -> None:
+    #     """
+
+    #     Rough logic - The time it takes me to start a milisecond stop watch and stop it is 0.17 seconds. A frame is 0.025 seconds. It should
+    #     be impossible for any angular change of a mouse to be 3 radians (171 degrees) in 0.025 seconds, this is a full spin.
+
+    #     Emperical logic from .describe() - The mean across hdir, hsa, h_bar_north_a and h_bar_south_a is ┆ 0.012057 ┆ 0.014083 ┆ 0.012175 ┆ 0.012256
+    #     highlighting that a delta of 3 radians would be a 300x increase in the mean and thus is unlikely to be a valid value.
+
+    #     Angular velocity logic - The formula for angular velocity which is measured in radians per second is: delta radians / delta time
+    #         + Δ3 radians / Δ0.025 seconds = 120 radians per second
+    #         + Δ2 radians / Δ0.025 seconds = 80 radians per second
+    #         + Δ1 radians / Δ0.025 seconds = 40 radians per second
+    #         + Δ0.5 radians / Δ0.025 seconds = 20 radians per second
+    #     Given 20 radians per second, that would mean the mouse would spin 10x in a second, which is not possible. So the maximum radial change
+    #     proposed should be 0.5 radians per frame which is 50x the mean and thus is likely to be a unconvservative upper bound in error checking.
+
+    #     """
+
+    #     if "mush" in session.name:
+    #         angular_columns = dataframe.select("hdir", "hsa")
+
+    #     elif "seq" in session.name:
+    #         angular_columns = dataframe.select("hdir", "hsa", "h_bar_north_a", "h_bar_south_a")
+
+    #     # A function to calculate the circular distance between two angles - https://gamedev.stackexchange.com/questions/4467/comparing-angles-and-working-out-the-difference
+    #     f = lambda circular_angle_delta: np.pi - abs(abs(circular_angle_delta) - np.pi)
+
+    #     # For all columns calculate the delta between each frame
+    #     angular_delta = angular_columns.with_columns(pl.all().diff())
+    #     circular_dist_delta = angular_delta.with_columns(pl.all().apply(f))
+    #     logger.info(circular_dist_delta.describe())
+
+    #     # Create expectation masks for each column
+    #     failed_qc_hdir = np.where(circular_dist_delta["hdir"] > 0.5)[0]
+    #     failed_qc_hsa = np.where(circular_dist_delta["hsa"] > 0.5)[0]
+    #     failed_qc_north_barrier_edge = np.where(circular_dist_delta["h_bar_north_a"] > 0.5)[0]
+    #     failed_qc_south_barrier_edge = np.where(circular_dist_delta["h_bar_south_a"] > 0.5)[0]
+
+    #     if np.any(failed_qc_hdir) or np.any(failed_qc_hsa) or np.any(failed_qc_north_barrier_edge) or np.any(failed_qc_south_barrier_edge):
+    #         logger.error(
+    #             f"There are {len(failed_qc_hdir) + len(failed_qc_hsa) + len(failed_qc_north_barrier_edge) + len(failed_qc_south_barrier_edge)} frames that have a radial delta greater than 0.5 radians per 0.025 milliseconds"
+    #         )
+
+    #     # assert len(sum(np.where(delta_mask == True))) == 0, "The angular delta  of the mouse is greater than 3 radians in 0.025 seconds."
+    #     # plt.hist(hdir_dif.to_numpy(), bins=100, log = True)
+    #     # plt.title("Log hist showing the delta in hdir in radians from frame to frame")
+
+    #     raise NotImplementedError

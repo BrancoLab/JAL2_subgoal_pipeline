@@ -12,7 +12,10 @@ from behave_analysis.analyze.filtering_data.filtering_functions import filter_vi
 
 
 def position_by_bsa(tracking_data, outofShelterIdx, settings, save_path):
-    """Make a scatter plot of position in arena colored by angle between body and shelter"""
+    """Make a scatter plot of position in arena colored by angle between body and shelter
+    
+    TODO: This function plots using tracking data, this should be fixed to use video_df as that
+    is the end of the pipeline after cleaning."""
 
     # color position by their shelter angle
     mass = tracking_data["avg_loc"][outofShelterIdx, :]
