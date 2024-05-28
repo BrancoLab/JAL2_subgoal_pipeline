@@ -59,7 +59,7 @@ def compute_all_clusters_rayleigh(self, settings, all_angles, all_conditions, ba
                 rayleigh_vector(self, settings, this_df, X, a, data_path, compartment, settings.rayleigh_significance, pool)
 
     if settings.linear_shift:
-        self.PPool.close()
+        pool.close()
 
 def compute_single_cluster_tuning(self, settings):
     """Compute rayleigh and make polar plots for all angles in all conditions for a single cluster"""
@@ -231,7 +231,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
                 flag="whole_arena",
             )
             
-        elif np.logical_and(compute_significance == "linshit", settings.linear_shift):
+        elif settings.linear_shift:
             arena_sig[count] = linearshift_rayleigh_significance(X=X[:, count], binned_angles=binned_angles, pool = pool)
 
         # ---------------------- Specific compartment computations ------------------------------------------------------
