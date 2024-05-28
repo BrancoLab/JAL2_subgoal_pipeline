@@ -1,5 +1,6 @@
 import os
 import time
+from pathlib import Path
 
 import numpy as np
 from loguru import logger
@@ -11,6 +12,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
+
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
@@ -24,6 +26,8 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
 from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
 from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
+from behave_analysis.analyze.single_trial.single_trial_regression import PreprocessSingleTrialRegression, SingleTrialRegression
+
 
 class AnalyzeEfizz:
     """
@@ -40,25 +44,68 @@ class AnalyzeEfizz:
         self.settings = Settings
         self.all_conditions = extract_all_or_custom_conditions(Settings, session)
         self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
-
         self.cluster_type = c_type
-        assert c_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"
+
         assert os.path.isfile(
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
         ), "Cluster matrix file not found"
         self.frame_by_cluster_matrix = np.load(
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
         )
+
         self.tracking_data = open_tracking_data(self.session)
 
-        # TODO: in postprocess save cluster Ids as separate npy file so you don't have to load in postprocess object
+        assert c_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"
         self.cluster_Ids = np.load(
             str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
         )
 
+        # Load the video spike count data
+        try:
+            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
+            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+        except FileNotFoundError:
+            logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
+            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
+            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+
+        # Load the homings object
+        try:
+            homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
+            with open(homing_path, "rb") as f:
+                self.homings_object = pickle.load(f)
+        except FileNotFoundError:
+            logger.warning("Homings object not found")
 
     def execute_models(self):
         logger.info("Executing models")
+
+        # ----------------- Conduct single trial analysis ----------------------------
+
+        if Settings.run_single_trial:
+            logger.info("Running single trial analysis")
+            single_trial_save_path = Path(make_directory(os.path.join(self.dir, "single_trial")))
+
+            # Select velocity data
+            velocity_data = self.tracking_data["avg_Velocity"] # Velocity len one less than video df because its between frames
+    
+                        
+            pp_single_trial_obj = PreprocessSingleTrialRegression(
+                video_df=self.video_df,
+                homings_obj=self.homings_object,
+                video_and_spike_data=self.video_and_spike_data,
+                frame_by_cluster_matrix=self.frame_by_cluster_matrix,
+                save_path=single_trial_save_path,
+                velocity_data = velocity_data,
+                similar_homings=False,
+                orthogonalise_index=False,
+            )
+            SingleTrialRegression(
+                design_matrix=pp_single_trial_obj.design_matrix,
+                save_path=single_trial_save_path,
+                all_dependent_names=pp_single_trial_obj.here_are_all_the_columns,
+                targets_df=pp_single_trial_obj.targets_df,
+            )
 
         # ----------------- Compute Rayleigh, polar plots and delta hists ------------
 
@@ -66,12 +113,12 @@ class AnalyzeEfizz:
             if not Settings.single_cluster_plots:
                 logger.info(f"Compute Rayleigh on {self.cluster_type} data")
                 all_angles = identify_angles(self.session)
-                base_path = os.path.join(self.dir, 'Rayleigh', self.cluster_type,Settings.condition_types)
+                base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type, Settings.condition_types)
                 compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
             else:
                 logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
                 compute_single_cluster_tuning(self, Settings)
-                
+
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
             # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
 
@@ -99,7 +146,7 @@ class AnalyzeEfizz:
             Y = self.video_df["hdir"]
             run_LSTM(X, Y)
             logger.success("LSTM analysis complete")
-            
+
             # -------- Hack to make some plots, will be removed later ------------
 
             # # First select all the random points columns from the video df that contain rand
@@ -117,7 +164,7 @@ class AnalyzeEfizz:
             #     Y = self.video_df[columns_to_select[i]]
             #     r2_scores[i] = run_LSTM(X, Y, verbose=False)
             #     print(f"R2 score for random point {i} is {r2_scores[i]}")
-                
+
             # # Save the r2 scores as a numpy file
             # np.save(os.path.join(self.dir, "r2_scores.npy"), r2_scores)
 
@@ -139,7 +186,7 @@ class AnalyzeEfizz:
         # ------------------------------ Compute LDA --------------------------------
         if len(Settings.run_LDA) > 0:
             LDA(self, Settings)
-            logger.success('LDA analysis complete')
+            logger.success("LDA analysis complete")
 
         # ----------------- Compute Rayleigh and polar plots -------------------------
         if Settings.run_rayleigh:

@@ -15,7 +15,6 @@ Possible conditions to input as user defined conditions:
 from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 
 Settings_ae = Settings_analyze_efizz(
-
     # ------------- General settings --------------------------
     stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=True,  # whether to run linear shift!
@@ -41,11 +40,14 @@ Settings_ae = Settings_analyze_efizz(
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
     classify_cells = False,
 
+    # ------------------- Run single trial analysis -------------------
+    run_single_trial=False,
+
     # ------------- PCA model settings --------------------------
     run_dim_reduction=False,
     run_pca=False,
     run_umap=False,
-#     run_pca_model=False,
+    #     run_pca_model=False,
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     # ------------- Tuned model settings -----------------------
     run_tunED=False,
