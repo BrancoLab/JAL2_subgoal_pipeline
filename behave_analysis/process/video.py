@@ -23,6 +23,7 @@ class Video:
     registration_type: str
     registration_size: tuple
     pixels_per_cm: int
+    radius: int
     
     #! replace these values with your own parameters
     shelter_location: tuple=(512, 921) # CHANGE IF NEEDED (x, y) coordinates of the shelter
@@ -63,7 +64,8 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
                   registration_transform, 
                   registration_type, 
                   registration_size, 
-                  pixels_per_cm)
+                  pixels_per_cm,
+                  settings.radius)
     
     if isinstance(registration_transform, np.ndarray): 
         logger.info('Registration already exists and you chose not to redo it')
@@ -84,6 +86,7 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
                   registration_transform.transform, 
                   registration_type, 
                   registration_size, 
-                  pixels_per_cm)
+                  pixels_per_cm,
+                  settings.radius)
     
     return video

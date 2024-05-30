@@ -10,11 +10,9 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis, QuadraticDiscriminantAnalysis
-from multiprocessing.pool import Pool
-import multiprocessing
+import time
 
 # import functions
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles, generate_bin_angles
 from behave_analysis.analyze.stats.linshit import LinearShift
 from behave_analysis.analyze.LDA.LDA_plotting import (
     across_conditions_LDA_map,
@@ -29,18 +27,20 @@ from behave_analysis.analyze.LDA.LDA_utils import (
     compute_prediction_accuracy,
     check_if_we_do_LDA,
     fill_dict_with_zeros,
+    choose_predictors,
+    list_conditions,
 )
 from behave_analysis.analyze.LDA.LDA_preprocess import (
     select_relevant_frames,
     BinDfbyPos,
-    BinDfbyAngle,
-    ProcessPredictors,
     binDfbyEpoch,
     exclude_proximal_frames,
     zscore_predictors,
+    prep_target_and_predictors,
 )
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_within_LDA import fit_LSTM, predict_LSTM
 from behave_analysis.utils.PersistentPool import PersistentPool
+
 
 def LDA(self, settings):
     """
@@ -51,22 +51,10 @@ def LDA(self, settings):
     """
 
     # figure out which angles we want to decode
-    if np.logical_or(settings.run_LDA == "all", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all")):
-        angles = identify_angles(self.session)
-        angles.append("randP")
-    else:
-        angles = settings.run_LDA
+    target = choose_predictors(settings, self.session)
 
     # determine condition types
-    if settings.condition_types == "experimental_conditions":
-        condition_types = ["experimental_conditions"]
-    elif settings.condition_types == "behavioral_conditions":
-        condition_types = ["good_behavioral_conditions", "bad_behavioral_conditions"]
-        # good means the times when mousie is doing correct homies,
-        # bad is when mouse is doing incorrect homies
-    elif "homing_number" in settings.condition_types:
-        self.number_of_homings = int(settings.condition_types.replace("homing_number_", ""))
-        condition_types = ["before_" + str(self.number_of_homings) + "good_homings", "after_" + str(self.number_of_homings) + "good_homings"]
+    self.number_of_homings, condition_types = list_conditions(settings)
 
     # if running dropout or linear shift - initialize the pool
     if np.logical_or(settings.dropout, settings.linear_shift):
@@ -77,11 +65,8 @@ def LDA(self, settings):
         self.condition_types = cond
         for comp in settings.compartment_split:  # ['all','threat_zone','shelter_compartment']
             self.compartment = comp
-            for (
-                c
-            ) in (
-                self.all_conditions
-            ):  # e.g. 'all_time', 'pre_shelter', 'shelter_present', 'barrier_present', 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip'
+            for c in self.all_conditions:
+                # e.g. 'all_time', 'pre_shelter', 'shelter_present', 'barrier_present', 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip'
                 self.condition = c
                 self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types, self.condition, self.compartment)
                 check_if_we_do_LDA(self, settings)
@@ -89,7 +74,7 @@ def LDA(self, settings):
                     logger.info(
                         f"Run LDA on {self.cluster_type} data with condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
                     )
-                    run_LDA_model(self, settings, angles)
+                    run_LDA_model(self, settings, target)
                 else:
                     logger.info(
                         f"LDA already run on this session for condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
@@ -97,11 +82,11 @@ def LDA(self, settings):
                 logger.info(f"Time for some overview plots")
                 plot_LDA_model(self, settings)
         across_conditions_LDA_map(self, settings)
+    
     if np.logical_or(settings.dropout, settings.linear_shift):
         self.PPool.close()
 
-
-def run_LDA_model(self, settings, angles):
+def run_LDA_model(self, settings, target_name):
     """
     A function that iterates across all angles and runs decoder analysis and linear shift statistics based on user settings
     It will also make bar plots of prediction accuracy across all angles and a map of prediction accuracy for the random points
@@ -114,15 +99,17 @@ def run_LDA_model(self, settings, angles):
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
+    filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", 
+                                                            BinDfbyPos(filtered_video_df, self.session.video.height, self.session.video.width))])
 
-    for variable in angles:
+    for variable in target_name:
 
-        if variable != "randP":
+        if 'randP' not in variable:
             logger.info(f"Running LDA on {variable}")
             import time
-
             start_time = time.time()
-            # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
+            
+            # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
             if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
                 logger.warning(
                     "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
@@ -132,26 +119,23 @@ def run_LDA_model(self, settings, angles):
                 )
             else:
                 self.filtered_video_df = filtered_video_df
+
             # if no frames meet the criteria, make this condition blank
             if len(self.filtered_video_df) == 0:
                 prediction_coef, prediction_accuracy, LS_compiled, dropout_pa = fill_dict_with_zeros(
                     self, prediction_coef, prediction_accuracy, dropout_pa, LS_compiled, variable
                 )
             else:
-                # TODO: is there a more elegant way to not remake binned_pos each time?
-                binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
-                binned_angles, frames, savename = BinDfbyAngle(self, variable, settings)
-                X = ProcessPredictors(self, frames, settings)
-                pos_ang = np.vstack((binned_angles.T, binned_pos))
+                savename, target, X = prep_target_and_predictors(self, variable, settings)
                 preprocess_time = time.time()
-                print('Time to preprocess is ' + str(preprocess_time - start_time))
+                print("Time to preprocess is " + str(preprocess_time - start_time))
 
                 # run LDA on different angles
                 if self.do_LDA:
                     start_time = time.time()
                     pa, coef = linear_discriminant_analysis(
                         X,
-                        pos_ang=pos_ang,
+                        pos_ang=target,
                         epoch_num=settings.epoch_num,
                         fr=self.session.video.fps,
                         return_coef=True,
@@ -162,7 +146,7 @@ def run_LDA_model(self, settings, angles):
                     )
                     prediction_accuracy.update({variable: pa})
                     prediction_coef.update({variable: coef})
-                    print('Time to run single LDA iter: ' + str(time.time()-start_time))
+                    print("Time to run single LDA iter: " + str(time.time() - start_time))
 
                 # run LDA with individual cell dropout
                 if self.do_dropout:
@@ -170,14 +154,11 @@ def run_LDA_model(self, settings, angles):
                     logger.info(f"Running LDA predictor dropout on {variable}")
                     X_drop = []
                     for drop in np.arange(1, np.shape(X)[1]):
-                        X_drop.append(np.delete(X,drop,axis=1))
-                    args_list = [(x, pos_ang) for x in X_drop]
+                        X_drop.append(np.delete(X, drop, axis=1))
+                    args_list = [(x, target) for x in X_drop]
                     dropouts = self.PPool.mp_pool.map(parallel_function, args_list)
-                    # num_processes = multiprocessing.cpu_count()-1  # Adjust as needed
-                    # with Pool(num_processes) as pool:
-                    #     dropouts = pool.map(parallel_function, args_list)
                     dropout_pa.update({variable: dropouts})
-                    print('Time to run LDA on ' + str(np.shape(X)[1]) + ' dropouts: ' + str(time.time()-start_time))
+                    print("Time to run LDA on " + str(np.shape(X)[1]) + " dropouts: " + str(time.time() - start_time))
 
                 # run linear shift on different angles
                 if self.do_LS:
@@ -185,7 +166,7 @@ def run_LDA_model(self, settings, angles):
                     logger.info(f"Running linear shift on LDA on {variable}")
                     LS_output = LinearShift(
                         X,
-                        y=pos_ang,
+                        y=target,
                         PPool=self.PPool,
                         stat_computation_func=linear_discriminant_analysis,
                         step=40,
@@ -201,7 +182,6 @@ def run_LDA_model(self, settings, angles):
             for j in tqdm(np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width), desc=f"Running LDA on random point out of  {n_randP}"):
                 # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
                 if settings.exclude_proximal > 0:
-                    # logger.warning('You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions')
                     self.filtered_video_df = exclude_proximal_frames(
                         filtered_video_df,
                         variable + str(j),
@@ -218,21 +198,18 @@ def run_LDA_model(self, settings, angles):
                     )
 
                 else:
-                    binned_pos = BinDfbyPos(self.filtered_video_df, self.session.video.height, self.session.video.width)
-                    binned_angles, frames, savename = BinDfbyAngle(self, str("head_randP_" + str(j)), settings)
-                    X = ProcessPredictors(self, frames, settings)
-                    pos_ang = np.vstack((binned_angles.T, binned_pos))
+                    savename, target, X = prep_target_and_predictors(self, str(variable + str(j)), settings)
 
                     # run LDA on different angles
                     if self.do_LDA:
                         pa, coef = linear_discriminant_analysis(
                             X,
-                            pos_ang=pos_ang,
+                            pos_ang=target,
                             epoch_num=settings.epoch_num,
                             fr=self.session.video.fps,
                             return_coef=True,
                             discriminant_type=settings.discriminant_type,
-                            plotting=False,
+                            plotting=False, # TODO: needs to be false!
                             self=self,
                             title=savename,
                         )
@@ -243,7 +220,7 @@ def run_LDA_model(self, settings, angles):
                     if self.do_LS:
                         LS_output = LinearShift(
                             X,
-                            y=pos_ang,
+                            y=target,
                             PPool=self.PPool,
                             stat_computation_func=linear_discriminant_analysis,
                             step=40,
@@ -281,16 +258,17 @@ def linear_discriminant_analysis(
 
     WARNING: currently this function can be used for linear shift statistics but will do LDA, not QDA
 
-    pos_ang can have multiple columns - only the first column is used to predictions, but the other columns are used for binning the data (e.g. by position)
+    pos_ang can have multiple columns - only the first column is the target of our predictions, but the other columns are used for binning the data (e.g. by position)
 
     """
+    # confirm that if you have invalid y values, you delete those rows now!
+    # (this can happen when doing LDa for distance if the mouse is in invalid distances)
+    bad_frames = np.logical_or(pos_ang[0,:] < 1, pos_ang[0,:] > len(self.bin_centre))
+    X = X[bad_frames == False,:]
+    pos_ang = pos_ang[:,bad_frames == False]
 
     # initialize variables
-    import time
-    start_time = time.time()
     n_bins = len(np.unique(pos_ang[0, :]))
-    bin_angles, bin_angle_center = generate_bin_angles(n_bins + 1)
-    bin_angle_center = bin_angle_center[1:-1]
     coef_matrix = np.empty((n_bins, np.shape(X)[1] - 1, epoch_num))  # -1 on the number of clusters, because we have an extra column in X
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
@@ -327,15 +305,15 @@ def linear_discriminant_analysis(
 
             if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
-
+                logger.warning(f"You're attempting to run the LDA pipeline with LSTM decoding - this may not work on distance or vectors. It certainly doesn't work with linshift")
                 # run LSTM
-                model, seq_length = fit_LSTM(X1, bin_angle_center[y1 - 1], X2, bin_angle_center[y2 - 1])
+                model, seq_length = fit_LSTM(X1, self.bin_centre[y1 - 1], X2, self.bin_centre[y2 - 1])
                 y_hat_train = predict_LSTM(model, X1, seq_length).reshape(-1)
                 y_hat_test = predict_LSTM(model, X2, seq_length).reshape(-1)
 
                 # convert predicted output back to bins
-                y_hat_train = np.digitize(y_hat_train, bin_angles)
-                y_hat_test = np.digitize(y_hat_test, bin_angles)
+                y_hat_train = np.digitize(y_hat_train, self.bins)
+                y_hat_test = np.digitize(y_hat_test, self.bins)
 
                 # crop y to match predicted output
                 if len(y_hat_train) != len(y1):
@@ -357,40 +335,44 @@ def linear_discriminant_analysis(
             conf_matrix_all_train[:, :, counter] = plotConfusionMatrix(y1, y_hat_train, "training data", plt.subplot2grid(shape=(4, 4), loc=(2, 0)))
 
             if plotting:
-                y_hat_angles = bin_angle_center[y_hat_train-1]
-                y1_angles = bin_angle_center[y1-1]
+                if 'dist' in title:
+                    titleclass = 'dist (cm)'
+                else:
+                    titleclass = 'angle (rad)'
+                y_hat_angles = self.bin_centre[y_hat_train - 1]
+                y1_angles = self.bin_centre[y1 - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 1))
-                residual_distribution(ax, y1_angles, y_hat_angles)
+                residual_distribution(ax, y1_angles, y_hat_angles, titleclass)
 
                 # plot histogram of frames per angle bin
                 ax = plt.subplot2grid(shape=(4, 4), loc=(3, 0), colspan=2)
-                real_predicted_hist(ax, y1_angles, y_hat_angles, 'train data')
+                real_predicted_hist(ax, y1_angles, y_hat_angles, "train data", titleclass)
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(0, 0), colspan=4)
-                real_predicted_trace(ax, y1_angles, y_hat_angles, self.session.video.fps, 'train data')
+                real_predicted_trace(ax, y1_angles, y_hat_angles, self.session.video.fps, "train data", titleclass)
 
             # plot confusion matrix of prediction on test data
 
             conf_matrix_all_test[:, :, counter] = plotConfusionMatrix(y2, y_hat_test, "test data", plt.subplot2grid(shape=(4, 4), loc=(2, 2)))
 
             if plotting:
-                y_hat_test_angles = bin_angle_center[y_hat_test-1]
-                y2_angles = bin_angle_center[y2-1]
+                y_hat_test_angles = self.bin_centre[y_hat_test - 1]
+                y2_angles = self.bin_centre[y2 - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 3))
-                residual_distribution(ax,y2_angles, y_hat_test_angles)
+                residual_distribution(ax, y2_angles, y_hat_test_angles, titleclass)
 
                 # plot histogram of frames per angle bin
                 ax = plt.subplot2grid(shape=(4, 4), loc=(3, 2), colspan=2)
-                real_predicted_hist(ax,y2_angles, y_hat_test_angles, 'test data')
+                real_predicted_hist(ax, y2_angles, y_hat_test_angles, "test data", titleclass)
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(1, 0), colspan=4)
-                real_predicted_trace(ax,y2_angles, y_hat_test_angles, self.session.video.fps, 'test data')
+                real_predicted_trace(ax, y2_angles, y_hat_test_angles, self.session.video.fps, "test data", titleclass)
 
                 plt.tight_layout()
                 filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i) + ".png"
@@ -398,7 +380,7 @@ def linear_discriminant_analysis(
                 if self.show_plots:
                     plt.show()
                 plt.close()
-                
+
             # fit_time = time.time()
             # print('Time to fit&predict LDA is ' + str(fit_time - pre_time))
 
@@ -425,22 +407,23 @@ def linear_discriminant_analysis(
             plt.close()
 
         prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))
-    
+
     coef = np.mean(coef_matrix, axis=2)
 
-        # if you want to look at how similar the weights are across epochs
-        # peak_weight = np.amax(coef_matrix[:,:,0],axis = 0)
-        # fig, axs = plt.subplots(1, np.shape(coef_matrix)[2])
-        # for i in np.arange(np.shape(coef_matrix)[2]):
-        #     axs[i].imshow(coef_matrix[:,np.argsort(peak_weight),i].T, aspect = 'auto')
+    # if you want to look at how similar the weights are across epochs
+    # peak_weight = np.amax(coef_matrix[:,:,0],axis = 0)
+    # fig, axs = plt.subplots(1, np.shape(coef_matrix)[2])
+    # for i in np.arange(np.shape(coef_matrix)[2]):
+    #     axs[i].imshow(coef_matrix[:,np.argsort(peak_weight),i].T, aspect = 'auto')
 
     if return_coef:
         return prediction_accuracy, coef
     else:
         return prediction_accuracy
 
+
 def parallel_function(args):
-    '''A function that unpacks a tuple of X and y and runs LDA'''
-    X,y = args
+    """A function that unpacks a tuple of X and y and runs LDA"""
+    X, y = args
     out = linear_discriminant_analysis(X, y)
     return out

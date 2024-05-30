@@ -229,10 +229,31 @@ def identify_angles(session):
         angles.append("h_bar_south_a")
         angles.append("h_bar_centre_a")
 
+    angles.append("head_randP_")
+
     return angles
 
+def identify_dist(session, add):
+    """
+    A function that looks at shelter_time and barrier_time and determines what points are interesting in this session
+    RETURNS: a list of points to compute distance to
+    """
+    dist = []
 
-def generate_bin_angles(number_of_bins):
+    if len(session.shelter_time) > 0:
+        dist.append("shelt_"+add)
+
+    if len(session.barrier_time) > 0:
+        dist.append("bar_north_"+add)
+        dist.append("bar_south_"+add)
+        dist.append("bar_centre_"+add)
+
+    dist.append('randP_'+add)
+
+    return dist
+
+
+def generate_bins(number_of_bins, start = -np.pi, stop = np.pi):
     '''
     This function creates bin edges and a vector of bin center values ranging from -pi to pi
     
@@ -241,8 +262,9 @@ def generate_bin_angles(number_of_bins):
     RETURNS: bin_angles - the bin edges, a vector of length number_of_bins, when passed to np.digitize it will create a number of bins = number_of_bins-1
     bin_angle_center - the value of the mean of each angle bin created using bin_angles as the edges. it's length is number_of_bins+1 as -pi is added at the start and pi is added at the beginning
     '''
-    bin_angles = np.linspace(-np.pi, np.pi, number_of_bins)
-    bin_angle_center = np.sort(np.append([-np.pi, np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles)) / 2)]))
+    bin_angles = np.linspace(start, stop, number_of_bins)
+    bin_angle_center = bin_angles[:-1] + (np.mean(np.diff(bin_angles)) / 2)
+    # bin_angle_center = np.sort(np.append([start, stop], [bin_angles[:-1] + (np.mean(np.diff(bin_angles)) / 2)]))
     return bin_angles, bin_angle_center
 
 

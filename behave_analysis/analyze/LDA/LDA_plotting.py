@@ -274,30 +274,30 @@ def across_conditions_LDA_map(self, settings):
 
 ## --------SMALL PLOTTING UTILS
 
-def real_predicted_trace(ax,real, predicted, fps,title):
+def real_predicted_trace(ax,real, predicted, fps,title,titleclass):
     x_time = np.arange(len(real)) / (fps * 60)
     ax.plot(x_time, predicted)
     ax.plot(x_time, real)
     ax.legend(["prediction", "real"])
     ax.set_xlim((0, len(real) / (fps * 60)))
     ax.set_title(title)
-    ax.set_ylabel("angles (rad)")
+    ax.set_ylabel(titleclass)
     ax.set_xlabel("time (mins)")
 
-def real_predicted_hist(ax, real, predicted, title):
+def real_predicted_hist(ax, real, predicted, title, titleclass):
     xlim = [np.amin(real),np.amax(real)]
     ax.hist(predicted, np.arange(xlim[0], xlim[1]), alpha=0.75)
     ax.hist(real, np.arange(xlim[0], xlim[1]), alpha=0.75)
     ax.set_title(title)
-    ax.set_xlabel("angles (rad)")
+    ax.set_xlabel(titleclass)
     ax.set_ylabel("number of frames")
 
-def residual_distribution(ax,real,predicted):
+def residual_distribution(ax,real,predicted, titleclass):
     res = np.arctan2(np.sin(predicted - real), np.cos(predicted - real))
     c = [res[real == angles] for angles in np.unique(real)]
     ax.violinplot(c, showextrema = False, positions=np.unique(real))
-    ax.set_xlabel("prediction (rad)")
-    ax.set_ylabel("residual (rad)")
+    ax.set_xlabel("prediction " + titleclass)
+    ax.set_ylabel("residual " + titleclass)
     ax.set_box_aspect(1)
 
 ## --------OLD VERSIONS
