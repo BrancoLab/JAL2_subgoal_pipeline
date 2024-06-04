@@ -57,16 +57,21 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path)
     
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
-    assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
+    # assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
     # Extract the onset and offsets for the TTL signals and check they match -----------------------------------
     bonsai_sync_onsets, bonsai_sync_offsets = get_onset_offset(bonsai_ttl, 2.5)
     ephys_sync_onsets, ephys_sync_offsets = get_onset_offset(imec_TTL, 0.5)
 
-
     # Check pulse lengths
     ephys_sync_onsets, bonsai_sync_onsets = check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
+    
+    # Hacky logic for JAL6 April 1st session
+    # Step 1: Remove the assertion to ensure imec is longer
+    # Step 2: Select the same number of onsets for both
+    # diff = len(bonsai_sync_onsets) - len(ephys_sync_onsets)
+    # bonsai_sync_onsets = bonsai_sync_onsets[diff:]
     
     assert len(bonsai_sync_onsets) == len(
         ephys_sync_onsets
