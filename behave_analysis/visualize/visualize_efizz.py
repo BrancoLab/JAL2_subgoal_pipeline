@@ -30,10 +30,11 @@ class Visualize_efizz:
 
     def __init__(self, session):
         self.session = session
-        # load in processed data
-        self.processed_data = open_postprocess_object(self.session, settings_v.cluster_type)
         base_path = os.path.join(self.session.base_path, self.session.processed_path)
+        self.spike_data = pl.read_csv(os.path.join(base_path, settings_v.cluster_type + "_spike_data.csv"))
         self.video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
+        self.clu_ids = np.load(os.path.join(base_path, settings_v.cluster_type + "_cluster_ids.npy"))
+        self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
         self.video_spike_count_df = pl.read_parquet(
             os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet"), 
             low_memory=True,
@@ -67,34 +68,34 @@ class Visualize_efizz:
         )
 
         # where a neuron fires coloured by hdir
-        save_path = make_directory(os.path.join(spatial_path, "spatial_firing_hdir_color", self.processed_data.select_clusters))
+        save_path = make_directory(os.path.join(spatial_path, "spatial_firing_hdir_color", settings_v.cluster_type))
         spatial_position_firing_hdir(
-            data=self.processed_data.spike_data,
-            clu_label=self.processed_data.clu_label,
+            data=self.spike_data,
+            clu_label=self.clu_label,
             video_df=self.video_df,
-            save_path=save_path + "/" + self.processed_data.select_clusters,
+            save_path=save_path + "/" + settings_v.cluster_type,
             show_plots=settings_v.show_plots,
         )
 
         # where a neuron fires
-        save_path = make_directory(os.path.join(spatial_path, "spatial_firing_maps", self.processed_data.select_clusters))
+        save_path = make_directory(os.path.join(spatial_path, "spatial_firing_maps", settings_v.cluster_type))
         spatial_position_firing(
-            data=self.processed_data.spike_data,
-            clu_label=self.processed_data.clu_label,
+            data=self.spike_data,
+            clu_label=self.clu_label,
             video_spike_count_df=self.video_spike_count_df,
-            save_path=save_path + "/" + self.processed_data.select_clusters,
+            save_path=save_path + "/" + settings_v.cluster_type,
             show_plots=settings_v.show_plots,
         )
 
         # TODO: the two plots below are very nice but ver very slow to make
         # egocentric view of features where a neuron fires
-        cluster_Ids = self.processed_data.clu_label["spike_clusters"].unique().to_numpy()
+        cluster_Ids = self.clu_label["spike_clusters"].unique().to_numpy()
         # egocentric view of features where a neuron fires
         # TODO ego firing map failed for me (laurence) need to debug
         # egocentric_firing_map(
         #     self.processed_data.frame_by_cluster_matrix,
         #     self.video_df,
-        #     self.processed_data.clu_label,
+        #     self.clu_label,
         #     self.session,
         #     conditions=extract_all_or_custom_conditions(settings_v, self.session),
         #     cluster_Ids=cluster_Ids[cluster_Ids > 0],
@@ -105,7 +106,7 @@ class Visualize_efizz:
         # rayleigh_map(
         #     self.processed_data.frame_by_cluster_matrix,
         #     self.video_df,
-        #     self.processed_data.clu_label,
+        #     self.clu_label,
         #     self.session,
         #     conditions=extract_all_or_custom_conditions(settings_v, self.session),
         #     cluster_Ids=cluster_Ids[cluster_Ids > 0],
@@ -120,38 +121,38 @@ class Visualize_efizz:
         logger.info(f"Starting to make some plots of threat stimulus responses.")
         stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "raster"))
         rasters(
-            data=self.processed_data.spike_data,
+            data=self.spike_data,
             session=self.session,
             stim_type=settings_v.stim_type,
             show_plots=settings_v.show_plots,
-            save_path=str(stim_resp_path) + "/" + self.processed_data.select_clusters + "_cluster_raster_trial_" + str(settings_v.stim_type) + ".png",
+            save_path=str(stim_resp_path) + "/" + settings_v.cluster_type + "_cluster_raster_trial_" + str(settings_v.stim_type) + ".png",
         )
         stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "PSTH"))
         PSTH_all_neurons(
             session=self.session,
-            data=self.processed_data.spike_data,
+            data=self.spike_data,
             stim_type=settings_v.stim_type,
             show_plots=settings_v.show_plots,
             save_path=str(stim_resp_path)
             + "/"
-            + self.processed_data.select_clusters
+            + settings_v.cluster_type
             + "_clusters_PSTH_all_neurons_"
             + str(settings_v.stim_type)
             + ".png",
         )
         stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "PSTH_single_cluster"))
         PSTH_single_neurons(
-            data=self.processed_data.spike_data,
+            data=self.spike_data,
             session=self.session,
             stim_type=settings_v.stim_type,
             show_plots=settings_v.show_plots,
-            save_path=str(stim_resp_path) + "/" + str(settings_v.stim_type) + "_single_" + self.processed_data.select_clusters,
+            save_path=str(stim_resp_path) + "/" + str(settings_v.stim_type) + "_single_" + settings_v.cluster_type,
         )
         stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "raster_single_cluster"))
         single_cluster_raster(
-            data=self.processed_data.spike_data,
+            data=self.spike_data,
             session=self.session,
             stim_type=settings_v.stim_type,
             show_plots=settings_v.show_plots,
-            save_path=str(stim_resp_path) + "/" + self.processed_data.select_clusters + "_clusters_" + str(settings_v.stim_type),
+            save_path=str(stim_resp_path) + "/" + settings_v.cluster_type + "_clusters_" + str(settings_v.stim_type),
         )
