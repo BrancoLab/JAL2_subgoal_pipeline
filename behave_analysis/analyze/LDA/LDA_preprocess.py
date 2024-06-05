@@ -16,7 +16,7 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
     filter_video_df_mouse_behaviour,
     filter_video_df_homing_number,
 )
-from behave_analysis.analyze.LDA.LDA_utils import EqualBins_matrix, data_chunker
+from behave_analysis.analyze.LDA.LDA_utils import EqualBins_matrix, data_chunker, correct_variable_name
 
 ## --------------- PROCESS LDA INPUTS
 
@@ -162,8 +162,10 @@ def BinDfbyDistance(self, variable, n_bins):
         dist_to_centre=True,
         centre=[self.session.video.height / 2, self.session.video.width / 2],
     )
+    # this actually uses all available distances for a given point, but that means the max distance is different for different points, so maybe not valid
     # max_dst = (radius + centre_dist) / self.session.video.pixels_per_cm
     max_dst = (radius) / self.session.video.pixels_per_cm
+
     # which bin edge is closest to the max_dst? that is our new biggest allowed big
     max_bin = np.argmin(np.abs(self.bins - max_dst))
     self.bins = self.bins[: max_bin + 1]
@@ -173,21 +175,69 @@ def BinDfbyDistance(self, variable, n_bins):
 
     return binned_dist
 
+def BinDfbyVector(self, variable, dist_n_bins,angle_n_bins):
 
-def BinDfbyPos(filtered_video_df, video_height, video_width):
+    dist_n_bins = 11 # this will be chunked down to 5 bins of 10 cm anyway
+    angle_n_bins = 9 # more than this definitely doesn't give us enough data
+    binned_dist = BinDfbyDistance(self, variable, dist_n_bins)
+    head_var = correct_variable_name(variable)
+    binned_angles,_,bin_centre_angle = BinDfbyAngle(self, head_var, angle_n_bins)
+
+    vect = np.vstack((binned_angles,binned_dist))
+    uni_vect_key, uni_vect = np.unique(vect,axis=1,return_inverse=True) 
+    uni_vect = uni_vect + 1 # don't want 0 indexing!
+    ref_bins = np.unique(uni_vect)
+    # uni_vect is a vector len(frames) in which each value indicates a unique vector bin
+    # uni_vect_key tells us how to interpret the vector bins in terms of distance and angle
+    # now make uni_vect an actually legible value
+    bin_centre_dist = np.hstack((self.bin_centre,95))
+    bin_key = np.vstack((bin_centre_angle[uni_vect_key[0,:]-1],bin_centre_dist[uni_vect_key[1,:]-1]))
+
+    # all frames that have binned_dist > len(self.bin_centre) should be set to zero so they can be eliminated later
+    bad = binned_dist > len(self.bin_centre)
+    uni_vect[bad] = 0
+    self.bin_centre = ref_bins
+
+    return uni_vect, bin_key
+
+def BinDfbyPos(filtered_video_df, video_height, video_width, numpoints = 3, return_bin_centre = False):
     """
     A function that bins the x-y position of the mouse extracting them from the behavioral dataframe
     """
     mouse_x = filtered_video_df["mouse_x_position"].to_numpy()
     mouse_y = filtered_video_df["mouse_y_position"].to_numpy()
 
-    # bin into quadrants
-    mouse_x = mouse_x > (video_height / 2)
-    mouse_y = mouse_y > (video_width / 2)
+    bins, bin_x_centre = generate_bins(numpoints,(video_height/2) - 460,(video_height/2) + 460) # 3 points gives us two spatial bins and four quadrants
+    mouse_x = np.digitize(mouse_x, bins)
+    mouse_x[mouse_x > len(bin_x_centre)] = 0
+    bin_mouse_x = bin_x_centre[mouse_x - 1]
 
-    _, binned_pos = np.unique(np.vstack((mouse_x, mouse_y)), axis=1, return_inverse=True)
+    bins, bin_y_centre = generate_bins(numpoints,(video_width/2) - 460,(video_width/2) + 460) # 3 points gives us two spatial bins and four quadrants
+    mouse_y = np.digitize(mouse_y, bins)
+    mouse_y[mouse_y > len(bin_y_centre)] = 0
+    bin_mouse_y = bin_y_centre[mouse_y - 1]
 
-    return binned_pos
+    # the bad frames
+    bad_frames = np.logical_or(mouse_x == 0, mouse_y == 0)
+    bin_mouse_x[bad_frames] = 0
+    bin_mouse_y[bad_frames] = 0
+
+    dist = np.sqrt(((bin_mouse_x - video_height/2)**2) + ((bin_mouse_y - video_width/2)**2))
+    outside_arena = np.where(dist>460)[0]
+
+    if len(outside_arena) > 0:
+        bin_mouse_x[outside_arena] = 0
+        bin_mouse_y[outside_arena] = 0
+
+    bin_centre, binned_pos = np.unique(np.vstack((bin_mouse_x, bin_mouse_y)), axis=1, return_inverse=True)
+    # binned_pos should be zero where bin_mouse_x and bin_mouse_y are zero
+    assert np.unique(binned_pos[bin_mouse_x == 0])[0] == 0
+
+    if return_bin_centre:
+        bin_centre = bin_centre[:,np.sum(bin_centre == 0, axis = 0) == 0]
+        return binned_pos, bin_centre
+    else:
+        return binned_pos
 
 
 def binDfbyEpoch(matrix, pos_ang, epoch_num):
@@ -287,12 +337,13 @@ def prep_target_and_predictors(self, variable, settings):
     # bin the target values into classes
     if "dist" in variable:
         hdir, _, _ = BinDfbyAngle(self, "hdir", 5)  #  this is kind of dumb, but the order matters here because you need to overwrite self.bins
-        binned_target = BinDfbyDistance(self, variable, settings.number_of_bins)
+        binned_target = BinDfbyDistance(self, variable, self.number_of_bins)
         target = np.vstack((binned_target.T, hdir))  # at each distance make sure we're sampling a somewhat even set of
-    # elif 'vect' in variable:
-    #     binned_target = BinDfbyVector(self, variable, settings.number_of_bins)
+    elif 'vect' in variable:
+        binned_target, self.target_key = BinDfbyVector(self, variable, dist_n_bins = 6,angle_n_bins = 13)
+        target = np.vstack((binned_target.T, np.ones_like(binned_target.T)))  # we're taking all bins, not further equalizing them
     else:
-        binned_target, self.bins, self.bin_centre = BinDfbyAngle(self, variable, settings.number_of_bins)
+        binned_target, self.bins, self.bin_centre = BinDfbyAngle(self, variable, self.number_of_bins)
         target = np.vstack((binned_target.T, self.filtered_video_df["binned_position"].to_numpy()))
 
     # prep the predictor matrix

@@ -22,8 +22,6 @@ def plot_LDA_model(self, settings):
         prediction_accuracy = pickle.load(dill_file)
     title = prediction_accuracy.keys()
 
-    # NOTE - Commenting this out of main branch as it doesn't work on Laurence's machine
-    # BUG - Let's fix this
     PlotPredictionAccuracy(self, prediction_accuracy, title)
 
     # make a plot of prediction accuracy across variables with linear shift stats
@@ -50,6 +48,13 @@ def plot_LDA_model(self, settings):
         pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
         PredictionAccuracyMapped(self, pa)
 
+def plot_LDA_by_position(self, settings, target):
+    with open(self.LDA_out, "rb") as dill_file:
+        prediction_accuracy = pickle.load(dill_file)
+
+    for var in target:
+        pa = [val for key, val in prediction_accuracy.items() if re.search(var, key)]
+        PredictionAccuracyMapped(self, pa, title_add=(var+'_by_pos'), pos = prediction_accuracy['bin_centre'].T)
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title):
     """
@@ -79,7 +84,6 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title):
     fig.update_xaxes(tickangle=-45)
     filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy" + ".png"
     fig.write_image(filename)
-
 
 def PlotLSPredictionAccuracy(self, LS_compiled, title):
     """
@@ -116,8 +120,7 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
     filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".png"
     fig.write_image(filename)
 
-
-def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None):
+def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos = []):
     """
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
     
@@ -141,9 +144,11 @@ def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None):
     vmax = np.amax(pa)
 
     # build heatmap
-    ybins, y = np.unique(self.tracking_data["randP_loc"][:, 0], return_inverse=True)
-    xbins, x = np.unique(self.tracking_data["randP_loc"][:, 1], return_inverse=True)
-    heatmap = np.zeros(shape=(len(np.unique(self.tracking_data["randP_loc"][:, 0])), len(np.unique(self.tracking_data["randP_loc"][:, 1]))))
+    if len(pos) == 0:
+        pos = self.tracking_data["randP_loc"]
+    ybins, y = np.unique(pos[:, 0], return_inverse=True)
+    xbins, x = np.unique(pos[:, 1], return_inverse=True)
+    heatmap = np.zeros(shape=(len(xbins), len(ybins)))
     heatmap[x, y] = pa
 
     # Plotting logic for the heatmap
@@ -286,8 +291,9 @@ def real_predicted_trace(ax,real, predicted, fps,title,titleclass):
 
 def real_predicted_hist(ax, real, predicted, title, titleclass):
     xlim = [np.amin(real),np.amax(real)]
-    ax.hist(predicted, np.arange(xlim[0], xlim[1]), alpha=0.75)
-    ax.hist(real, np.arange(xlim[0], xlim[1]), alpha=0.75)
+    bins = np.hstack((np.unique(real)-(np.mean(np.diff(np.unique(real)))/2),np.unique(real)[-1]+(np.mean(np.diff(np.unique(real)))/2)))
+    ax.hist(predicted, bins, alpha=0.75)
+    ax.hist(real, bins, alpha=0.75)
     ax.set_title(title)
     ax.set_xlabel(titleclass)
     ax.set_ylabel("number of frames")
