@@ -118,6 +118,10 @@ class DLC:
         """A function that creates an array of shape (number of frames, number of body parts, 3)
         where the 3 is for x, y, and likelihood. A potential refactor would be to covert into a dictionary
         where there are more clear defined keys e.g. Leave for now.
+        
+        TODO:
+        -- Unsure whether this function will fail if the DLC fails and produces less values than Frames. Implement this check to ensure it does fail
+            DLC could fail for example on HPC non critically without us knowing. This could cause issues. 
         """
         self.tracking_data_array = np.zeros((session.video.num_frames, len(self.tracking_data_body_parts["bodyparts"]), 3))
 

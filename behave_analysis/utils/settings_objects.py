@@ -91,7 +91,7 @@ class Settings_visualize:
     conditions: list = None
     user_defined_conditions: bool = False
     compartment_split: bool = False
-    condition_types: str = ''
+    condition_types: str = ""
 
 
 @dataclass(frozen=True)
@@ -160,6 +160,7 @@ class Settings_analyze_efizz:
     number_of_bins: int = 19
     use_firing_rate: bool = True
     discriminant_type: str = ""
+    run_single_trial: bool = False
     PCA_process: int = 15
     object_present: bool = True  # we should delete this
     run_rayleigh: bool = False
@@ -181,7 +182,6 @@ class Settings_analyze_efizz:
     exclude_hdir: bool = False
     dropout: bool = False
     classify_cells: bool = False
-
 
 @dataclass(frozen=True)
 class Settings_postprocess:

@@ -43,7 +43,6 @@ from pathlib import Path
 # Globals
 sampling_rate = 30000
 
-
 def get_TTL(session: NEW_Session, TTL_bin_path: str):
     """Returns the TTL_sync dataclass.
 
@@ -54,8 +53,9 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     Returns:
         TTL_Sync: data class
     """
-
+    
     bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path)
+    
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
     assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
@@ -66,6 +66,12 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
 
     # Check pulse lengths
     ephys_sync_onsets, bonsai_sync_onsets = check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
+    
+    # Hacky logic for JAL6 April 1st session
+    # Step 1: Remove the assertion to ensure imec is longer
+    # Step 2: Select the same number of onsets for both
+    # diff = len(bonsai_sync_onsets) - len(ephys_sync_onsets)
+    # bonsai_sync_onsets = bonsai_sync_onsets[diff:]
     
     assert len(bonsai_sync_onsets) == len(
         ephys_sync_onsets
@@ -317,3 +323,22 @@ def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_ra
     logger.info("If pulses have been removed that will create a downstream error as there will be less onsets than offsets. This is expected")
 
     return ephys_sync_onsets, bonsai_sync_onsets
+
+# ====================================================================================================================================================================
+
+# Test old functions
+
+#Load imec bin file
+
+# NOTE - This is an old function that is not used in the current pipeline.
+# I brought it back here to test syncing of a broken session and it worked so leaving it here in case it is needed in the future.
+def get_TTL_from_imec(filename: str):
+    """Load the imec bin file and convert to np memory map
+
+    Args:
+        filename (str): File name of .bin imec file produced by spikeGLX
+    """
+    data = load_or_open(filename, "int16", order="F", dtype="int16")
+    return(data)
+
+
