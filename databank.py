@@ -12,7 +12,7 @@ from behave_analysis.database.Experiments.JAL002_ex import (
     seq1_1,
     mushroom_3_002,
 )
-from behave_analysis.database.Experiments.JAL003_ex import flip1stSept_003, JAL3_flip_rot, flip4stSept_003
+from behave_analysis.database.Experiments.JAL003_ex import JAL3_25aug, JAL3_1sept, JAL3_4sept
 
 from behave_analysis.database.Experiments.JAL004_ex import (
     JAL4_mush1,
@@ -23,7 +23,7 @@ from behave_analysis.database.Experiments.JAL004_ex import (
 
 from behave_analysis.database.Experiments.JAL005_ex import JAL5_mush1, JAL005_8thSept, JAL005_21stSept
 
-from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_shelt_4mar, JAL6_flip6, JAL6_flip5_25mar, JAL6_flip7_1apr, JAL6_flip4_21mar, JAL6_flip3_18mar
+from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_shelt_4mar, JAL6_28mar, JAL6_flip5_25mar, JAL6_flip7_1apr, JAL6_flip4_21mar, JAL6_flip3_18mar
 
 from behave_analysis.database.Experiments.JAL007_ex import JAL7_hab_1mar, JAL7_empty_shelter_5mar, JAL7_sesh8_9apr, JAL7_sesh9_16apr, JAL7_flip2_12mar, JAL7_flip5_22mar
 
@@ -33,9 +33,11 @@ from behave_analysis.database.Experiments.JAL008_ex import JAL8_shelt_22apr, JAL
 
 from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
-experiments_objects = [JAL8_shelt_22apr]
-#
-# [JAL8_flip1_25apr, JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may, JAL7_sesh8_9apr, JAL7_sesh9_16apr, JAL6_flip6]
+experiments_objects = [JAL8_flip1_25apr]
 
-# process, track, postprocess: [JAL7_flip2_12mar,JAL6_flip5_25mar]
-# process after HPC: [JAL6_flip7_1apr, JAL6_flip4_21mar, JAL6_flip3_18mar]
+# HPC: [flip4stSept_003, JAL3_flip_rot, JAL4_11thSept]
+# postprocess: [flip4stSept_003]
+# process after HPC: [JAL6_flip7_1apr, JAL6_flip3_18mar] #  these have bugs!
+# LDA with linshit = [JAL8_shelt_22apr]
+# admire plots: [JAL7_empty_shelter_5mar]
+# redoLDA: [JAL3_flip_rot] [flip4stSept_003] # exclude proximal

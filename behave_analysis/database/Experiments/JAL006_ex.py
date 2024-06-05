@@ -35,7 +35,7 @@ JAL6_shelt_4mar = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL006_empty_shelter_2024_03_04T11_24_29"),
 )
 
-JAL6_flip6 = Experiment(  # Mouse specific
+JAL6_28mar = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
     mouse_number_pyrat=mouse.mouse_number_pyrat,
