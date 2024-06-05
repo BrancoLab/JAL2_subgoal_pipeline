@@ -14,8 +14,7 @@ from PIL import Image
 
 from behave_analysis.analyze.filtering_data.filtering_functions import (
     filter_video_dataframe,
-    generate_bin_angles,
-    generate_bin_positions,
+    generate_bins,
 )
 from behave_analysis.utils.creating_directories import make_directory
 
@@ -71,13 +70,13 @@ def egocentric_firing_map(spike_data, video_data, clusters, session, conditions,
             video_df = video_df.select(["frames", "hdir", "mouse_x_position", "mouse_y_position"])
 
             # extract and bin hdir
-            bin_angles, bin_angle_center = generate_bin_angles(number_of_bins=number_of_bins)
+            bin_angles, bin_angle_center = generate_bins(number_of_bins=number_of_bins, start = -np.pi, stop = np.pi)
             hdir = video_df["hdir"].to_numpy()
             hdir = np.digitize(hdir, bin_angles)
             hdir = bin_angle_center[hdir - 1]
 
             # extract and bin mouse position
-            bin_pos, bin_pos_center = generate_bin_positions(1, session.video.height, num_pos_bins)  # assuming asquare image of the arena
+            bin_pos, bin_pos_center = generate_bins(num_pos_bins, 1, session.video.height)  # assuming asquare image of the arena
             position = np.vstack(
                 [
                     video_df["mouse_x_position"].to_numpy(),

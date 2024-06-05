@@ -19,6 +19,7 @@ class Settings_process:
     all_sessions: bool = False
     efizz: bool = False
     efizzDataPath: str = None
+    radius: int = 460
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,6 @@ class Settings_track:
     tracking_file_location: str = None
     save_labeled_video: bool = False
     random_points: str = None
-
 
 @dataclass(frozen=True)
 class Settings_homings:

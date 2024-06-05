@@ -45,7 +45,6 @@ class AnalyzeEfizz:
         self.all_conditions = extract_all_or_custom_conditions(Settings, session)
         self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
         self.cluster_type = c_type
-
         assert os.path.isfile(
             os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
         ), "Cluster matrix file not found"
@@ -240,9 +239,10 @@ class AnalyzeEfizz:
         hdir_cell_ids = classify_hdir(session=self.session, cluster_type=self.cluster_type)
         logger.debug(f"The hdir cell ids are: {hdir_cell_ids}")
 
-        hsa_cell_ids = classify_hsa(
-            session=self.session,
-            cluster_type=self.cluster_type,
-            hdir_cells=hdir_cell_ids,
-        )
-        logger.debug(f"The hsa cell ids are: {hsa_cell_ids}")
+        logger.warning(f"hsa classification code for hsa is commented out and needs to be tested")
+        # hsa_cell_ids = classify_hsa(
+        #     session=self.session,
+        #     cluster_type=self.cluster_type,
+        #     hdir_cells=hdir_cell_ids,
+        # )
+        # logger.debug(f"The hsa cell ids are: {hsa_cell_ids}")

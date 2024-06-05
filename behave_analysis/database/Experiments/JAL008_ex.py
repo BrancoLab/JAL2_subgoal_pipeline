@@ -86,3 +86,37 @@ JAL8_flip4_10may = Experiment(  # Mouse specific
     barrier_flip_time=213.25,
     experiment_path=Path(r"JAL008_shelter_barrier_flip_4_2024_05_10T11_47_47"),
 )
+
+JAL8_14may = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="flip",
+    experiment_idx=7,
+    experiment_date="2024_05_14",
+    experiment_time="10_18_03",
+    shelter_time=[.25,-1],
+    barrier_time=[70, -1],
+    barrier_flip_time=197.6,
+    experiment_path=Path(r"JAL008_shelter_barrier_flip_5_2024_05_14T10_18_03"),
+)
+
+JAL8_21may = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="flip",
+    experiment_idx=7,
+    experiment_date="2024_05_21",
+    experiment_time="11_10_19",
+    shelter_time=[.25,-1],
+    barrier_time=[74.75, -1],
+    barrier_flip_time=184.2,
+    experiment_path=Path(r"JAL008_shelter_tiny_flip_2_2024_05_21T11_10_19"),
+)

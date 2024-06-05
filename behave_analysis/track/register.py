@@ -26,12 +26,12 @@ def load_fisheye_correction_map(video: object):
         fisheye_correction_map = None
     return fisheye_correction_map
     
-def generate_rendered_arena(session: NEW_Session, size: int) -> object:
+def generate_rendered_arena(session: NEW_Session, size: int, radius: int) -> object:
     rendered_arena = 255 * np.ones(size).astype(np.uint8)
     #! This section must be modified with a new section for each type of arena (default: 92-cm circle with a square shelter and a 50cmx10cm removable rectangle in the middle)
     cv2.rectangle(rendered_arena, (int(size[0]/2 - 250), int(size[1]/2 - 50)), (int(size[0]/2 + 250), int(size[1]/2 + 50)), 190, thickness=1) # rectangle in center
     cv2.rectangle(rendered_arena, (int(size[0]/2 - 50), int(size[1]/2 + 458)), (int(size[0]/2 + 50), int(size[1]/2 + 360)), 210, thickness=-1) # the shelter
-    cv2.circle(rendered_arena, (int(size[0]/2), int(size[1]/2)), 460, 0, 1, lineType = 16) # arena outline
+    cv2.circle(rendered_arena, (int(size[0]/2), int(size[1]/2)), radius, 0, 1, lineType = 16) # arena outline
     click_targets = np.array(([size[0]/2 - 250, size[1]/2 - 50], [size[0]/2 - 250, size[1]/2 + 50], [size[0]/2 + 250, size[1]/2 + 50], [size[0]/2 + 250, size[1]/2 - 50])).astype(int)
     return rendered_arena, click_targets
 
@@ -54,7 +54,7 @@ class Register():
 
 # ----MAIN FUNCTIONS--------------------------------------------------------------------
     def generate_rendered_arena(self, session: NEW_Session):
-        self.rendered_arena, self.click_targets = generate_rendered_arena(session, settings_process.size)
+        self.rendered_arena, self.click_targets = generate_rendered_arena(session, settings_process.size, self.video.radius)
 
     def add_click_targets(self):
         for i, click_target in enumerate(self.click_targets):

@@ -3,9 +3,38 @@
 import os
 import numpy as np
 from sklearn.metrics import confusion_matrix
+from behave_analysis.analyze.filtering_data.filtering_functions import identify_angles, identify_dist
 
 ## --------------- UTILITY FUNCTIONS
 
+def choose_predictors(settings, session, include_rand_points = True):
+    '''This function looks at the settings for LDA and creates a list of the variables we want to predict.
+    The names in this list are either fields in video_df or will be calculated ad hoc'''
+    if np.logical_or(settings.run_LDA == "all_angles", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all_angles")):
+        target = identify_angles(session, include_rand_points = include_rand_points)
+    elif np.logical_or(settings.run_LDA == "all_distance", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all_distance")):
+        target = identify_dist(session,'dist')
+    elif np.logical_or(settings.run_LDA == "all_vectors", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all_vectors")):
+        target = identify_dist(session,'vect')
+    else:
+        # this ould be a list of angles
+        target = settings.run_LDA
+    return target
+
+def list_conditions(settings):
+    '''
+    This function looks at settings and creates a list of the types of conditions that we will be looking at'''
+    number_of_homings = []
+    if settings.condition_types == "experimental_conditions":
+        condition_types = ["experimental_conditions"]
+    elif settings.condition_types == "behavioral_conditions":
+        condition_types = ["good_behavioral_conditions", "bad_behavioral_conditions"]
+        # good means the times when mousie is doing correct homies,
+        # bad is when mouse is doing incorrect homies
+    elif "homing_number" in settings.condition_types:
+        number_of_homings = int(settings.condition_types.replace("homing_number_", ""))
+        condition_types = ["before_" + str(number_of_homings) + "good_homings", "after_" + str(number_of_homings) + "good_homings"]
+    return number_of_homings, condition_types
 
 def BuildSavingFolder(basepath, settings, cluster_type, condition_types, condition=[], compartment=[]):
     """
@@ -24,6 +53,8 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
         pathh = str(basepath) + "/" + "QDA"
     elif settings.discriminant_type == "LSTM":
         pathh = str(basepath) + "/" + "LSTM"
+
+    pathh = str(pathh) + '_' + settings.run_LDA
 
     # if PCA, add to folder name
     if len(settings.PCA_process) > 0:
@@ -60,7 +91,6 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
         os.makedirs(pathh)
 
     return pathh
-
 
 def check_if_we_do_LDA(self, settings):
     """
@@ -107,7 +137,6 @@ def plotConfusionMatrix(y, x, title, axy):
     axy.set_title(title)
     return conf
 
-
 def EqualBins_matrix(x, y, unique_fr):
     """
     This function subsamples the input vectors and matrix such that they are composed of an equal number of samples for each unique angle and position bin
@@ -139,7 +168,6 @@ def EqualBins_matrix(x, y, unique_fr):
     x_new = x_new[np.argsort(x_new[:, 0]), :]
     return x_new, y_new, unique_new
 
-
 def data_chunker(frame_num, epoch_num):
     """
     This function creates a vector of length = number of frames in our dataset
@@ -162,7 +190,6 @@ def data_chunker(frame_num, epoch_num):
     # binned_frames = np.digitize(rows, epoch_edge)
     return binned_frames
 
-
 def compute_prediction_accuracy(matrixx):
     """
     This function computes the prediction accuracy given a confusion matrix.
@@ -179,6 +206,35 @@ def compute_prediction_accuracy(matrixx):
         pred_acc[i] = np.sum(x[pos - 1 : pos + 2])
     return np.mean(pred_acc)
 
+def compute_prediction_accuracy_vect(matrixx, key):
+    """
+    This function computes the prediction accuracy given a confusion matrix.
+    It takes the mean prediction accuracy of all the values on the diagonal and the two bins adjecent to the diagonal.
+
+    INPUT: confusion matrix
+
+    RETURNS: mean prediction accuracy
+    """
+    pos = np.floor(np.shape(matrixx)[1] / 2).astype(int)
+    pred_acc = np.zeros(np.shape(matrixx)[0])
+    for i in np.arange(np.shape(matrixx)[0]):
+        x = np.roll(matrixx[i.astype(int), :], pos - i)
+        idx = [pos]
+        # append the distance bins near it
+        if key[1,0] == np.amin(key[1,:]):
+            idx.append(pos+1) # the distance bin after it
+        elif key[1,0] == np.amax(key[1,:]):
+            idx.append(pos-1)
+        else:
+            idx.append(pos-1)
+            idx.append(pos+1)
+        # append the angle bins near it
+        d_bins = len(np.unique(key[1,:]))
+        idx.append(pos+d_bins)
+        idx.append(pos-d_bins)
+        pred_acc[i] = np.sum(x[idx])
+    return np.mean(pred_acc)
+
 def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,dropout_pa,LS_compiled,variable):
     '''If no frames meet the criteria (the video_df is blank for this condition), make this condition blank'''
     pa = 0
@@ -193,3 +249,18 @@ def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,dropout_pa,LS_
         LS_compiled.update({variable: LS_out})
 
     return prediction_coef,prediction_accuracy,LS_compiled,dropout_pa
+
+def correct_variable_name(variable):
+    '''Take the variable name for distance and transform it into a head_angle column name in video_df'''
+    if "shelt" in variable:
+        head_variable = 'hsa'
+    elif "bar_north" in variable:
+        head_variable = 'h_bar_north_a'
+    elif "bar_south" in variable:
+        head_variable = 'h_bar_south_a'
+    elif "bar_centre" in variable:
+        head_variable = 'h_bar_centre_a'
+    elif "randP" in variable:
+        var = 'randP_vect'
+        head_variable = "head_randP_" + (variable[len(var) :])
+    return head_variable

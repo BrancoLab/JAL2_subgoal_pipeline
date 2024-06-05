@@ -49,7 +49,7 @@ class LoadEfizz:
             num_mua = self.count_number_of_label_units("mua")
             logger.info(f"The number of mua is: {num_mua} out of {len(self.cluster_group)} units")
 
-            assert self.cluster_group[0][0] == "0", "The first cluster should be indexed by 0"  # sort check
+            # assert self.cluster_group[0][0] == "0", "The first cluster should be indexed by 0"  # sort check
 
             return Electrophsyiology(
                 spike_times=self.spike_times,

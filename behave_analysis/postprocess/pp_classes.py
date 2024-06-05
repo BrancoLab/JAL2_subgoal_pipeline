@@ -188,6 +188,7 @@ class BaseDataPostprocessor(ABC):
             for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
                 video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
 
+        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         return video_df
 
     def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
@@ -396,7 +397,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         # -----------------------------------------------------------------------
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
-        QcPreProcessedData._check_for_vals_outside_arena(video_df) # For now just log the warning and don't touch the data
+        QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session) # For now just log the warning and don't touch the data
         if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
             homings = load_or_extract_homings(session)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
@@ -433,25 +434,27 @@ class QcPreProcessedData:
     quality check before any analysis is performed on the data.
     """
 
-    SIZE = 1024  # This is a hardcoded variant of np.shape(self.rendered_arena)[0] from tracking module
-    CENTER = 512  # This is the pixel value of the center of the arena
-
     @staticmethod
-    def _check_for_vals_outside_arena(video_df) -> tuple[bool, np.ndarray]:
+    def _check_for_vals_outside_arena(video_df, session) -> tuple[bool, np.ndarray]:
         """Log a warning if the tracking data is outside the bounds of the arena.
 
         Returns:
         -- tuple[bool, np.ndarray]: A tuple containing a boolean and a numpy array.
             The boolean is True if the tracking data is outside the bounds of the arena and False if the tracking data is within the bounds of the arena.
             The numpy array contains the distance of the mouse from the center of the arena."""
+        
+        # we're assuming  a square image!
+        CENTER = session.video.height/2 # This is the pixel value of the center of the arena
+        SIZE = session.video.height
+
         all_posX = video_df["mouse_x_position"].to_numpy()
         all_posY = video_df["mouse_y_position"].to_numpy()
         dist = np.sqrt(
-            ((all_posX - QcPreProcessedData.SIZE / 2) ** 2) + ((all_posY - QcPreProcessedData.SIZE / 2) ** 2)
+            ((all_posX - SIZE / 2) ** 2) + ((all_posY - SIZE / 2) ** 2)
         )  # calculate the distance of mouse from the center
         assert len(dist) > 0, "The tracking data is empty"
         assert len(dist) == len(all_posX) == len(all_posY), "The tracking data is not the same length"
-        if np.any(dist > QcPreProcessedData.CENTER):
+        if np.any(dist > CENTER):
             logger.warning(
                 "The tracking data is outside the bounds of the arena. This is could be due to lighting issues, poor training of DLC or DLC tracking the cable."
             )
@@ -463,7 +466,7 @@ class QcPreProcessedData:
     # NOTE - Below function is not used in the pipeline yet, but it is a critical function in the pipeline to implement soon
     # Commented it out as need to agree on how we handle the tracking data outside the arena and PR has been stale for a while
     @staticmethod
-    def handle_tracking_outside_arena(video_df, back_fill=False) -> pl.DataFrame:
+    def handle_tracking_outside_arena(video_df, session, back_fill=False) -> pl.DataFrame:
         """If tracking outside arena replace with nulls or back fill them.
 
         As a default the function will replace the rows that are outside the bounds
@@ -490,14 +493,18 @@ class QcPreProcessedData:
         -- Handle the NaNs in the video dataframe that are now present after the replacement.
         """
 
-        is_outside_arena, dist = QcPreProcessedData._check_for_vals_outside_arena(video_df)
+        # we're assuming  a square image!
+        CENTER = session.video.height/2 # This is the pixel value of the center of the arena
+        SIZE = session.video.height
+
+        is_outside_arena, dist = QcPreProcessedData._check_for_vals_outside_arena(video_df, session)
 
         # Check to see if the mouse is outside the bounds of the arena
         if is_outside_arena:
             logger.warning("Handling tracking data outside the bounds of the arena")
 
             # Find the indexs of the frames that are outside the bounds of the arena
-            idx = np.where(dist > QcPreProcessedData.CENTER)[0]
+            idx = np.where(dist > CENTER)[0]
             logger.info(f"{len(idx)} frames outside the bounds of arena out of {len(dist)} frames. -> {len(idx)/len(dist)*100:0.1f}% of the data.")
 
             # Replace the rows that are outside the bounds of the arena with Nans
@@ -521,6 +528,8 @@ class QcPreProcessedData:
             frames = pl.Series(np.arange(1, len(video_df) + 1).astype(np.int64))
             video_df = video_df.with_columns(pl.Series("frames", frames))
 
+            logger.warning("some datapoints were outside the arena - so we're saving a new version of video_df")
+            video_df.write_csv(os.path.join(session.base_path, session.processed_path) + "/" + "full_video_dataframe.csv")
             return video_df
 
         else:

@@ -315,7 +315,8 @@ class get_Homings:
         homing_speed = np.concatenate((np.zeros(1), smoothed_homing_speed_cm_per_sec))
 
         # Speed cant be move than 100cm (arbitrary) per second as that would be ridiculous
-        assert np.max(homing_speed) < 120, "Homing speed is too high, check tracking data"
+        # assert np.max(homing_speed) < 120, "Homing speed is too high, check tracking data"
+        if np.max(homing_speed) > 120: logger.info("Homing speed is too high, check tracking data")
 
         return homing_speed
 

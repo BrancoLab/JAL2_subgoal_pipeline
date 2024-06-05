@@ -15,7 +15,7 @@ matplotlib.use("TkAgg")
 
 from settings.settings_analyze_efizz import Settings_ae
 from behave_analysis.analyze.stats.linshit import LinearShift
-from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bin_angles, filter_video_df_mouse_behaviour
+from behave_analysis.analyze.filtering_data.filtering_functions  import filter_video_dataframe, identify_angles, generate_bins, filter_video_df_mouse_behaviour
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.utils.PersistentPool import PersistentPool
 
@@ -59,7 +59,7 @@ def compute_all_clusters_rayleigh(self, settings, all_angles, all_conditions, ba
                 rayleigh_vector(self, settings, this_df, X, a, data_path, compartment, settings.rayleigh_significance, pool)
 
     if settings.linear_shift:
-        self.PPool.close()
+        pool.close()
 
 def compute_single_cluster_tuning(self, settings):
     """Compute rayleigh and make polar plots for all angles in all conditions for a single cluster"""
@@ -191,7 +191,8 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     """
 
     # edges for binning firing rate at different angles
-    bin_angles, bin_angle_center = generate_bin_angles(number_of_bins=settings.number_of_bins)
+    bin_angles, bin_angle_center = generate_bins(number_of_bins=settings.number_of_bins, start = -np.pi, stop = np.pi)
+
 
     # Catch empty video dataframes
     assert len(filtered_video_df) > 0, "Video dataframe is empty, bug."
@@ -209,9 +210,8 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     
     # assign spike times of each cluster to the corresponding video frame, then assign HD
     for count in tqdm(np.arange(len(cluster_Ids)), desc=f"Running Rayleigh on cluster out of  {len(cluster_Ids)}"):
-        c = cluster_Ids[count]
     # for count, c in enumerate(cluster_Ids):
-        Rayleigh_cluster[count] = c
+        Rayleigh_cluster[count] = cluster_Ids[count]
 
         # ----------------------------Whole arena computations-----------------------------------------------------------
         # skip if cluster is all zeros
@@ -231,7 +231,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
                 flag="whole_arena",
             )
             
-        elif np.logical_and(compute_significance == "linshit", settings.linear_shift):
+        elif settings.linear_shift:
             arena_sig[count] = linearshift_rayleigh_significance(X=X[:, count], binned_angles=binned_angles, pool = pool)
 
         # ---------------------- Specific compartment computations ------------------------------------------------------
@@ -246,7 +246,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
             )
 
             # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations
-            if np.logical_and(compute_significance == "linshit", settings.linear_shift):
+            if settings.linear_shift:
                 Rayleigh_sig[count, c_count] = linearshift_rayleigh_significance(
                     X=X[compartment == comp, count],
                     binned_angles=binned_angles[compartment == comp],
@@ -291,7 +291,7 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
             "Rayleigh_theta": Rayleigh_theta,
             "Rayleigh_sig": Rayleigh_sig,
             "angle_firing_hist": angle_firing_hist,
-            "angles": np.tile(bin_angle_center[1:-1], (len(Rayleigh), 1)),
+            "angles": np.tile(bin_angle_center, (len(Rayleigh), 1)),
             "arena_rayleigh_theta": arena_rayleigh_theta,
             "arena_rayleigh": arena_rayleigh,
             "arena_sig": arena_sig,
@@ -424,7 +424,7 @@ def init_rayleigh(number_of_clusters, compartments, bin_angle_center):
     rayleigh = np.empty([len(number_of_clusters), compartments])  # amplitude of Rayleigh vector
     rayleigh_sig = np.zeros([len(number_of_clusters), compartments])  # is the Ryleigh significant?
     rayleigh_cluster = np.empty([len(number_of_clusters)])  # which cluster ID is this Rayleigh value for?
-    angle_firing_hist = np.empty([len(number_of_clusters), len(bin_angle_center) - 2, compartments])
+    angle_firing_hist = np.empty([len(number_of_clusters), len(bin_angle_center), compartments])
 
     # Whole arena values
     arena_rayleigh_theta = np.empty([len(number_of_clusters)])  # preferred angle for the whole arena
@@ -455,9 +455,9 @@ def compute_rayleigh_cluster(X, y, nbins = Settings_ae.number_of_bins,return_all
     """This only works if there are no angle bins that are completely empty (angles that never occur)"""
     # compute firing in angle bins
     angle_firing_hist = firing_by_angle_bin(y, X, nbins) #len(np.unique(y)))
-    _, bin_angle_center = generate_bin_angles(number_of_bins=nbins)
+    _, bin_angle_center = generate_bins(number_of_bins=nbins, start = -np.pi, stop = np.pi)
     # compute rayleigh
-    Rval, Rtheta = rayleigh(bin_angle_center[1:-1], angle_firing_hist)
+    Rval, Rtheta = rayleigh(bin_angle_center, angle_firing_hist)
     if return_all_stats:
         return Rval, Rtheta, angle_firing_hist
     else:

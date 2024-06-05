@@ -214,7 +214,7 @@ def identify_conditions_based_on_behave(session):
     return condition
 
 
-def identify_angles(session):
+def identify_angles(session, include_rand_points = False):
     """
     A function that looks at shelter_time and barrier_time and determines what angles are interesting in this session
     RETURNS: a list of angles
@@ -229,48 +229,43 @@ def identify_angles(session):
         angles.append("h_bar_south_a")
         angles.append("h_bar_centre_a")
 
+    if include_rand_points:
+        angles.append("head_randP_")
+
     return angles
 
+def identify_dist(session, add):
+    """
+    A function that looks at shelter_time and barrier_time and determines what points are interesting in this session
+    RETURNS: a list of points to compute distance to
+    """
+    dist = []
 
-def generate_bin_angles(number_of_bins):
+    if len(session.shelter_time) > 0:
+        dist.append("shelt_"+add)
+
+    if len(session.barrier_time) > 0:
+        dist.append("bar_north_"+add)
+        dist.append("bar_south_"+add)
+        dist.append("bar_centre_"+add)
+
+    dist.append('randP_'+add)
+
+    return dist
+
+
+def generate_bins(number_of_bins, start = -np.pi, stop = np.pi):
     '''
-    This function creates bin edges and a vector of bin center values ranging from -pi to pi
+    This function creates bin edges and a vector of bin center values ranging from start to stop
     
-    INPUT: number of bins
+    INPUT: start and stop - the range that the bins cover
+           number of bins
     
     RETURNS: bin_angles - the bin edges, a vector of length number_of_bins, when passed to np.digitize it will create a number of bins = number_of_bins-1
-    bin_angle_center - the value of the mean of each angle bin created using bin_angles as the edges. it's length is number_of_bins+1 as -pi is added at the start and pi is added at the beginning
+    bin_angle_center - the value of the mean of each angle bin created using bin_angles as the edges. It is length len(bin_angles)-1 because there is on more edge than bin
     '''
-    bin_angles = np.linspace(-np.pi, np.pi, number_of_bins)
-    bin_angle_center = np.sort(np.append([-np.pi, np.pi], [bin_angles[:-1] + (np.mean(np.diff(bin_angles)) / 2)]))
+    bin_angles = np.linspace(start, stop, number_of_bins)
+    bin_angle_center = bin_angles[:-1] + (np.mean(np.diff(bin_angles)) / 2)
+    # bin_angle_center = np.sort(np.append([start, stop], [bin_angles[:-1] + (np.mean(np.diff(bin_angles)) / 2)]))
     return bin_angles, bin_angle_center
 
-
-def generate_bin_positions(min, max, number_of_bins):
-    '''
-    This function creates bin edges and a vector of bin center values of the mouse's position
-    
-    INPUT: min and max - the range that the bins cover
-    number of bins
-    
-    RETURNS: bin_pos - the bin edges, a vector of length number_of_bins, when passed to np.digitize it will create a number of bins = number_of_bins-1
-    bin_pos_center - the value of the mean of each angle bin created using bin_angles as the edges. it's length is number_of_bins-1.
-    '''
-    bin_pos = np.linspace(min, max, number_of_bins)
-    bin_pos_center = bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)
-    return bin_pos, bin_pos_center
-
-
-# def generate_bin_positions_ego(min, max, number_of_bins):
-#     '''
-#     This function creates bin edges and a vector of bin center values of the mouse's position
-    
-#     INPUT: min and max - the range that the bins cover
-#     number of bins
-    
-#     RETURNS: bin_pos - the bin edges, a vector of length number_of_bins, when passed to np.digitize it will create a number of bins = number_of_bins-1
-#     bin_pos_center - the value of the mean of each angle bin created using bin_angles as the edges. it's length is number_of_bins+1 as min is added at the start and max is added at the beginning
-#     '''
-#     bin_pos = np.linspace(min, max, number_of_bins)
-#     bin_pos_center = np.sort(np.append([min, max], [bin_pos[:-1] + (np.mean(np.diff(bin_pos)) / 2)]))
-#     return bin_pos, bin_pos_center
