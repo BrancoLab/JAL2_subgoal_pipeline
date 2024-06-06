@@ -2,6 +2,7 @@
 TODO:
 -- Remove shelter times?
 -- Handle the different conditions of the homings, i.e split the heatmap by the different conditions
+-- O
 """
 
 from pathlib import Path
@@ -10,8 +11,7 @@ import pandas as pd
 from loguru import logger
 import matplotlib.pyplot as plt
 import numpy as np
-import dill as pickle
-import polars as pl
+
 from sklearn.model_selection import GroupKFold
 from sklearn.linear_model import LinearRegression
 from sklearn.svm import SVR
@@ -21,15 +21,20 @@ from sklearn.metrics import r2_score, mean_squared_error
 from scipy.stats import ttest_rel
 from tqdm import tqdm
 
+from behave_analysis.utils.color_funcs import get_color_based_on_neural_activity
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.single_trial.tests import UnitTests
 
 class SingleTrialRegression:
     """A class that performs single trial regression analysis on the data"""
 
-    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, dependents_df: pd.DataFrame):
+    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, dependents_df: pd.DataFrame, tracking_data, homing_list, spike_homing_list, condition_per_homing):
         logger.info("Initializing the single trial regression analysis object")
         self.design_matrix = design_matrix
+        self.homing_list = homing_list
+        self.spike_homing_list = spike_homing_list
+        self.condition_per_homing = condition_per_homing
+        self.tracking_data = tracking_data
         self.save_path = save_path
         self.dependent_names = list(dependents_df.columns)
         logger.info("The dependent variables to run in this regression are: {}", self.dependent_names)
@@ -42,17 +47,20 @@ class SingleTrialRegression:
             "h_bar_south_a",
         ]  # define here all potential angular variables so we can switch between coordinate systems
         self.encompasing_set = ["h_bar_north_a", "hdir", "hsa", "h_bar_south_a", "mouse_y_position", "velocity"]
+        self.plotter = RegressionPlotting(save_path)
 
         sig_index_coefficients_indices, og_coefficients_sig_in_both = self.run(
             run_all_dependent_variables=False, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=False
         )
 
         # Plot a heatplot of the design matrix for the north index
-        self.plot_clustered_heatmap(self.design_matrix, 
-                                    dependents_df=self.dependents_df, 
-                                    significant_neuron_ids=sig_index_coefficients_indices, 
-                                    og_coefficients=og_coefficients_sig_in_both,
-                                    index_label="index_north")
+        self.plotter.plot_clustered_heatmap(
+            self.design_matrix,
+            dependents_df=self.dependents_df,
+            significant_neuron_ids=sig_index_coefficients_indices,
+            og_coefficients=og_coefficients_sig_in_both,
+            index_label="index_north",
+        )
 
     # --------------------- Functions for running the regression ---------------------
 
@@ -66,15 +74,23 @@ class SingleTrialRegression:
         - shift_neural_data: Shift the neural data and run the model to see how the R2 score changes with chance
         - explore_coeffs_with_other_predictors: Explore the coefficients with other predictors to see how they change"""
 
+        # Plot the escape trajectories with the neural activity
+        self.plotter.plot_all_homings_with_neural_activity(
+            homing_list=self.homing_list, 
+            spike_data_per_homing=self.spike_homing_list, 
+            tracking_data=self.tracking_data, 
+            condition_per_homing=self.condition_per_homing
+        )
+
         if run_all_dependent_variables:
             r2_score_for_all_dependents, _, _, mse = self.run_all_dependent_variables()
-            self.plot_the_r2_scores_for_all_dependents(r2_scores=r2_score_for_all_dependents)
+            self.plotter.plot_the_r2_scores_for_all_dependents(r2_scores=r2_score_for_all_dependents)
             logger.success("The model has been run for all dependent variables")
 
         if shift_neural_data:
             # NOTE - Still only works for one index location at the moment
             shifts, og_r2, shifted_r2_ols = self.run_all_shifts()
-            self.plot_shift_results(shifts, og_r2, shifted_r2_ols)
+            self.plotter.plot_shift_results(shifts, og_r2, shifted_r2_ols)
             logger.success("The model has been run for all shifts")
 
         if explore_coeffs_with_other_predictors:
@@ -97,16 +113,18 @@ class SingleTrialRegression:
             sig_in_both_models = np.where((og_p_values < 0.05) & (comp_predictors_p_value < 0.05))[0]
 
             sig_index_coefficients_indices = np.where(og_p_values < 0.05)  # Which coefficients are significant in the original model
-            self.plot_proportion_of_coeffs_that_remain_significant(og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score)
+            self.plotter.plot_proportion_of_coeffs_that_remain_significant(og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score)
             # Check whether the significant coefficients change significantly between the two models
             x1 = np.ones(len(og_coefficients))
             x2 = 2 * np.ones(len(comp_predictors_coeffs))
-            self.plot_coefficients_between_models(x1, x2, og_coefficients, comp_predictors_coeffs, sig_index_coefficients_indices)
+            self.plotter.plot_coefficients_between_models(
+                x1, x2, og_coefficients, comp_predictors_coeffs, sig_index_coefficients_indices, ttest_func=self.repeat_observation_ttest
+            )
             logger.success("The model has been run to compare base model with encompassing model")
 
         if run_hiarchical_regression:
             h_results = self.run_hiararchical_regression(INDEX)
-            self.plot_adjusted_r2_scores_for_hierarchy(h_results)
+            self.plotter.plot_adjusted_r2_scores_for_hierarchy(h_results)
             logger.success("The model has been run for the hierarchical regression")
 
         # check if sig_index_coefficients_indices is defined
@@ -573,9 +591,44 @@ class SingleTrialRegression:
             "test_predictions": pred_test_y,
             "test_mse": test_mse,
         }
-    # ------------------- Plotting functions -------------------
 
-    def plot_clustered_heatmap(self, design_matrix: np.ndarray, dependents_df: pd.DataFrame, significant_neuron_ids, og_coefficients, index_label: str) -> None:
+    # -------------------- Shifted data analysis --------------------
+
+    def run_all_shifts(self):
+        """As a quick pass, shift the neural data backwards and forwards and see how the R2 score changes with each shift"""
+
+        shifted_r2_ols = []
+        og_r2 = None
+        shifts = np.arange(-400, 400, 10)  # Shift forwards and backwards by 400 frames (40 frames is 1 second)
+        for shift_amount in tqdm(shifts, desc="Processing shifts"):
+            if shift_amount == 0:
+                shifted_design_matrix = self.design_matrix
+            else:
+                shifted_design_matrix = self.shift_spikes(self.design_matrix, shift_amount)
+            r2, _, _ = self.run_just_one_dependent_variable("index_south", shifted_design_matrix)
+            if shift_amount == 0:
+                og_r2 = r2
+            shifted_r2_ols.append(r2)
+
+        logger.success("Shifts have been completed")
+
+        return shifts, og_r2, shifted_r2_ols
+
+    def shift_spikes(self, design_matrix: pd.DataFrame, shift_amount: int) -> pd.DataFrame:
+        """Shifts the spikes in the design matrix by a certain amount, wrapping around the end of the matrix"""
+        new_index = (design_matrix.index + shift_amount) % len(design_matrix)
+        return design_matrix.reindex(new_index).reset_index(drop=True)
+
+
+class RegressionPlotting:
+    """Class to handle the plotting of the regression results"""
+
+    def __init__(self, save_path: Path):
+        self.save_path = save_path
+
+    def plot_clustered_heatmap(
+        self, design_matrix: np.ndarray, dependents_df: pd.DataFrame, significant_neuron_ids, og_coefficients, index_label: str
+    ) -> None:
         """Creates a heatmap of the design matrix ranked by coefficients from largest to smallest along side the index dependent variable
 
         Args:
@@ -603,12 +656,12 @@ class SingleTrialRegression:
         max_firing_rate = design_matrix.max()
         assert len(max_firing_rate) == len(significant_neuron_ids), "The max firing rate array is not the same length as the significant neuron ids"
         normalized_matrix = design_matrix / max_firing_rate
-        normalized_matrix = normalized_matrix.T # Transpose to have the neurons on the y axis
+        normalized_matrix = normalized_matrix.T  # Transpose to have the neurons on the y axis
 
         # take the first 2000 frames as a smaller chunk to make the plot more readable
         if 1:
             np_matrix = normalized_matrix.to_numpy()
-            normalized_matrix = np_matrix[:, :frames] # selct all neurons and the first 2000 frames
+            normalized_matrix = np_matrix[:, :frames]  # selct all neurons and the first 2000 frames
             index = dependents_df[index_label][:frames]
         else:
             index = dependents_df[index_label]
@@ -632,7 +685,7 @@ class SingleTrialRegression:
         ax2.set_title("Heatmap of the Matrix")
         ax2.set_xlabel("Frame Index")
         ax2.set_ylabel("Cluster Index")
-  
+
         plt.tight_layout()
         plt.savefig(self.save_path / f"{index_label}_clustered_heatmap.png")
         plt.show()
@@ -697,7 +750,7 @@ class SingleTrialRegression:
         for i in iterator:
             ax.plot([x1[i], x2[i]], [original_model_coeffs[i], comparison_model_coeffs[i]], color="gray", linestyle="--", linewidth=0.5)
 
-    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices):
+    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func):
         """Plot all and only the significant coefficients between the two models in separate plots"""
 
         # Make coefficients absolute
@@ -724,7 +777,7 @@ class SingleTrialRegression:
         self.plot_lines_between_points_on_plot(ax, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices)
 
         # Put sig test of difference in title
-        t_stat, p_value = self.repeat_observation_ttest(sig_og_model_coeffs_indices, original_model_coeffs, comparison_model_coeffs)
+        t_stat, p_value = ttest_func(sig_og_model_coeffs_indices, original_model_coeffs, comparison_model_coeffs)
         are_results_significant = "significant" if p_value < 0.05 else "not significant"
         formatted_p_value = format(p_value, ".4f")
         rounded_p_value = round(p_value, 4)
@@ -776,30 +829,141 @@ class SingleTrialRegression:
         plt.savefig(self.save_path / "adjusted_r2_scores.png")
         plt.close()
 
-    # -------------------- Shifted data analysis --------------------
+    # ------------------- Plotting functions take from spatial efficienty + mine -------------------
+    # refactor potential to make these shared components
 
-    def run_all_shifts(self):
-        """As a quick pass, shift the neural data backwards and forwards and see how the R2 score changes with each shift"""
+    def plot_all_homings_with_neural_activity(self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing):
+        """Plot all homings with neural activity by neuron
 
-        shifted_r2_ols = []
-        og_r2 = None
-        shifts = np.arange(-400, 400, 10)  # Shift forwards and backwards by 400 frames (40 frames is 1 second)
-        for shift_amount in tqdm(shifts, desc="Processing shifts"):
-            if shift_amount == 0:
-                shifted_design_matrix = self.design_matrix
-            else:
-                shifted_design_matrix = self.shift_spikes(self.design_matrix, shift_amount)
-            r2, _, _ = self.run_just_one_dependent_variable("index_south", shifted_design_matrix)
-            if shift_amount == 0:
-                og_r2 = r2
-            shifted_r2_ols.append(r2)
+        # NOTE should i use hdir location instead of body location
+        """
+        
+        logger.info("Plotting all homings + neural activity by neuron")
 
-        logger.success("Shifts have been completed")
+        # create a figure and axis
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+        num_neurons = spike_data_per_homing[0].shape[1]
 
-        return shifts, og_r2, shifted_r2_ols
+        for neuron in range(num_neurons):
+            print(f"Plotting neuron {neuron}")
+            
+            # Booleans to check if the condition has been plotted - Lazy way to avoid repeating the same plot
+            b1 = False
+            b2 = False
+            b3 = False
+            
+            for idx, (homing, spikes) in enumerate(zip(homing_list, spike_data_per_homing)):
+                con = condition_per_homing[idx]
+                neuron_filter = spikes[:, neuron]  # Select the frames of the corresponding homing for the first neuron only
+                
+                if con == "shelter_only": 
+                    if not b1:
+                        self.base_plotting(ax1, tracking_data, condition=con)
+                        b1 = True
+                    self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax1)
+                    
+                if con == "barrier_pre_flip": 
+                    if not b2:
+                        self.base_plotting(ax2, tracking_data, condition=con)
+                        b2 = True
+                    self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax2)
+                    
+                if con == "barrier_post_flip": 
+                    if not b3:
+                        self.base_plotting(ax3, tracking_data, condition=con)
+                        b3 = True
+                    self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax3)
+                    
+            # Add a title to the plot
+            ax1.set_title("Shelter Only")
+            ax2.set_title("Barrier Pre Flip")
+            ax3.set_title("Barrier Post Flip")
+            fig.suptitle(f"Neural Activity overlaid homings for Neuron {neuron}")    
+                    
+            plt.savefig(self.save_path / f"neural_activity_neuron_{neuron}.png")
+            
+            # Clear the axes for the next neuron
+            ax1.cla()
+            ax2.cla()
+            ax3.cla()
+        
+        plt.close()
 
-    def shift_spikes(self, design_matrix: pd.DataFrame, shift_amount: int) -> pd.DataFrame:
-        """Shifts the spikes in the design matrix by a certain amount, wrapping around the end of the matrix"""
-        new_index = (design_matrix.index + shift_amount) % len(design_matrix)
-        return design_matrix.reindex(new_index).reset_index(drop=True)
+    def plot_escape_trajectories_with_neural_activity(self, neural_data, behavioural_data, ax):
+        """Plot a single homing trajectory with the neural activity colour coded on the trail for a single neuron"""
 
+        assert len(neural_data) == len(behavioural_data), "The length of the neural data and behavioural data is not the same"
+
+        # Extract positional data for each homing
+        # x_loc = tracking_data['head_loc'][onset_frame:offset_frame, 0]
+        # y_loc = tracking_data['head_loc'][onset_frame:offset_frame, 1]
+        # clu_neural_data = neural_data #
+
+        y_loc = behavioural_data["mouse_y_position"]
+        x_loc = behavioural_data["mouse_x_position"]
+
+        length_of_homing = len(neural_data)
+        trail_color = np.empty([length_of_homing, 3]) # 3 for RGB
+
+        # For each frame retrieve the colour of the trail based on the neural activity
+        for frame in range(length_of_homing):
+
+            # reuse the function and see if it works with neural data
+            trail_color[frame, :] = get_color_based_on_neural_activity(
+                neural_data=neural_data[frame], 
+            )
+        
+        ax.scatter(x_loc, y_loc, s=5, c=trail_color, alpha = 0.7) # c is a 2d array where each row is an RGB value
+
+        return ax
+
+    def base_plotting(self, ax, tracking, condition):
+        """hard code condition for ease"""
+
+        arena_radius = 460
+        
+        # If there is a shelter present, draw it
+        if "shelter_loc" in tracking.keys():
+            for i in [0, 1]:
+                ax.plot(
+                    [tracking["shelter_loc"][0][0], tracking["shelter_loc"][1][0]],
+                    [tracking["shelter_loc"][i][1], tracking["shelter_loc"][i][1]],
+                    color=[1, 0, 0],
+                )
+                ax.plot(
+                    [tracking["shelter_loc"][i][0], tracking["shelter_loc"][i][0]],
+                    [tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]],
+                    color=[0, 0, 0],
+                )
+
+        # If there is a barrier present, draw it
+        if not np.logical_or(condition == "shelter_only", condition == "pre_shelter"):
+            if len(tracking["barrier_loc"]) > 0:
+                if np.logical_or(np.logical_or(condition == "barrier_present", condition == "all_time"), condition == "shelter_present"):
+                    # draw old two-sided barrier
+                    bar_loc = [tracking["barrier_loc"][0][0], tracking["barrier_loc"][1][0]]
+
+                if condition == "barrier_pre_flip":
+                    # draw barrier from first point to the edge
+                    if tracking["barrier_loc"][0][0] < 512:
+                        bar_loc = [tracking["barrier_loc"][0][0], 512 + arena_radius]
+                    else:
+                        bar_loc = [512 - arena_radius, tracking["barrier_loc"][0][0]]
+
+                if condition == "barrier_post_flip":
+                    # draw barrier from second point to the edge
+                    if tracking["barrier_loc"][1][0] < 512:
+                        bar_loc = [tracking["barrier_loc"][1][0], 512 + arena_radius]
+                    else:
+                        bar_loc = [512 - arena_radius, tracking["barrier_loc"][1][0]]
+
+                ax.plot([bar_loc[0], bar_loc[1]], [tracking["barrier_loc"][0][1], tracking["barrier_loc"][1][1]], color=[0, 0, 0])
+
+        # draw arena edge
+        a = 512 + (arena_radius * np.cos(np.linspace(0, 2 * np.pi, 150)))
+        b = 512 + (arena_radius * np.sin(np.linspace(0, 2 * np.pi, 150)))
+
+        ax.plot(a, b, color=[0, 0, 0])
+        ax.invert_yaxis()
+        ax.set_aspect("equal")
+        ax.axis("off")

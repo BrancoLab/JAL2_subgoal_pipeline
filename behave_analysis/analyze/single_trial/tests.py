@@ -97,7 +97,7 @@ class UnitTests:
         frame_by_cluster_matrix[4] = [0, 1, 0, 0, 0]  # Fifth frame
         frame_by_cluster_matrix[7] = [0, 0, 1, 0, 0]  # Eighth frame
 
-        design_matrix = func(homing_data, frame_by_cluster_matrix, normalisation=False)
+        design_matrix, _ = func(homing_data, frame_by_cluster_matrix, normalisation=False)
         assert design_matrix.shape == (9, 6), "There should be 9 data points and 5 neurons + homing_id column"
         assert np.array_equal(np.asarray(design_matrix.iloc[0]), [0, 0, 0, 0, 0, 0]), "The first row is incorrect"
         assert np.array_equal(np.asarray(design_matrix.iloc[1]), [1, 0, 0, 0, 0, 0]), "The 2nd row is incorrect"

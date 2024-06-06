@@ -7,6 +7,7 @@ from pathlib import Path
 
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.single_trial.tests import UnitTests
+from behave_analysis.analyze.filtering_data.filtering_functions import discover_condition_based_on_video_df
 
 
 class PreprocessSingleTrialRegression:
@@ -26,6 +27,8 @@ class PreprocessSingleTrialRegression:
          (object) The single trial regression object with two important attributes such as:
              - design_matrix (pd.DataFrame): The design matrix
              - targets_df (pd.DataFrame): The potential dependent variables
+             - homing_list (list): A list of homing dataframes for each homing period
+             - condition_per_homing (list): A list of conditions for each homing period
     """
 
     def __init__(
@@ -50,7 +53,7 @@ class PreprocessSingleTrialRegression:
 
         # Preprocessing homing data
         UnitTests.check_attributes_of_homing_dic(self.homings_obj)
-        homing_df_s1 = self.preprocess_homing_data(select_similar_homings=self.similar_homings)
+        self.homing_list, homing_df_s1, self.condition_per_homing = self.preprocess_homing_data(select_similar_homings=self.similar_homings)
 
         # Add the dependent variable to the data
         homing_df_s2 = self.add_dependent_index_variable_to_homing_info(homing_data_single_dataframe=homing_df_s1)
@@ -60,7 +63,7 @@ class PreprocessSingleTrialRegression:
         self.homing_data_single_dataframe = self.add_velocity_data_to_homing_data(homing_df_s2, velocity_data)
 
         # Create the design matrix
-        self.design_matrix = self.create_the_design_matrix(self.homing_data_single_dataframe, self.frame_by_cluster_matrix)
+        self.design_matrix, self.spike_data_per_homing = self.create_the_design_matrix(self.homing_data_single_dataframe, self.frame_by_cluster_matrix)
         self.targets_df = self.create_dependent_dataframe(self.homing_data_single_dataframe)
         UnitTests.check_the_creation_of_the_design_matrix(self.create_the_design_matrix)
 
@@ -239,8 +242,10 @@ class PreprocessSingleTrialRegression:
         assert video_df["frames"].to_numpy()[0] == 1, "The frames do not start at 1"
 
         homing_info = []
+        condition_per_homing = []
         for onset, offset in zip(homing_object.onset_frames, homing_object.offset_frames):
             homing = video_df[int(onset) - 1 : int(offset) - 1]  # Substract 1 to prevent off by one error
+            condition = discover_condition_based_on_video_df(homing)
             homing = homing.select(
                 [
                     "frames",
@@ -253,11 +258,12 @@ class PreprocessSingleTrialRegression:
                 ]
             )
             homing_info.append(homing)
+            condition_per_homing.append(condition)
 
         for homing in homing_info:
             assert UnitTests.check_frame_indexes_are_incremental(homing["frames"].to_numpy()), "Frames are missing in the homing information"
 
-        return homing_info
+        return homing_info, condition_per_homing
 
     def select_similar_homings(self, extracted_homing_info) -> dict:
         """
@@ -335,14 +341,20 @@ class PreprocessSingleTrialRegression:
                 homing_data = homing_data.vstack(homing)
         return homing_data
 
-    def preprocess_homing_data(self, select_similar_homings) -> pl.DataFrame:
-        """Preprocessing the data into a single dataframe for regression analysis"""
-        extracted_homing_info = self.extract_data_from_homings(homing_object=self.homings_obj, video_df=self.video_df)
+    def preprocess_homing_data(self, select_similar_homings) -> tuple:
+        """Preprocessing the data into a single dataframe for regression analysis
+        
+        Returns:
+            (tuple) of homing_info and concatenated homing data
+                -- homing_info (list): A list of homing dataframes for each homing period
+                -- concatenated_homing_data (pl.DataFrame): The concatenated homing data ready for regression analysis"""
+        extracted_homing_info, condition_per_homing = self.extract_data_from_homings(homing_object=self.homings_obj, video_df=self.video_df)
         if select_similar_homings:
             self.homing_info = self.select_similar_homings(extracted_homing_info)
             extracted_homing_info = self.homing_info
         homing_info = self.add_homing_id_to_homing_data(extracted_homing_info)
-        return self.concatenate_the_homing_data(homing_info)
+        cocatenated_homing_data = self.concatenate_the_homing_data(homing_info)
+        return homing_info, cocatenated_homing_data, condition_per_homing
 
     def add_velocity_data_to_homing_data(self, homing_data_single_dataframe: pl.DataFrame, velocity_data: np.ndarray) -> pd.DataFrame:
         """Adding the velocity data to the homing data
@@ -454,13 +466,18 @@ class PreprocessSingleTrialRegression:
         Args:
             data (pl.DataFrame): The homing data
             frame_by_cluster_matrix (np.ndarray): The frame by cluster matrix with smoothed spike counts in each cell
-            normalisation (bool, optional): Whether to normalise the design matrix. Defaults to True - needed for testing"""
+            normalisation (bool, optional): Whether to normalise the design matrix. Defaults to True - needed for testing
+            
+        returns:
+            (pd.DataFrame) The design matrix with the homing id added as a column
+            (list) A list of spike data for each homing period"""
 
         # Initialising the design matrix
         data = homing_data
         total_frames = len(data)
         total_features = frame_by_cluster_matrix.shape[1] # The number of neurons
         design_matrix = np.zeros((total_frames, total_features)) # (F, N)
+        spike_data_per_homing = []
 
         counter = 0
         homing_ids_len = len(np.unique(data["homing_id"]))
@@ -472,6 +489,7 @@ class PreprocessSingleTrialRegression:
             # Get the corresponding frame by cluster matrix
             # minus 1 to prevent off by one error, +1 to include the last frame
             spike_data = frame_by_cluster_matrix[frames[0] - 1 : frames[-1] -1 + 1] # left the -1 + 1 in the second index to make it more readable
+            spike_data_per_homing.append(spike_data)
 
             # Add the spike data to the design matrix
             design_matrix[counter : counter + len(spike_data)] = spike_data
@@ -487,6 +505,6 @@ class PreprocessSingleTrialRegression:
 
         design_matrix["homing_id"] = data["homing_id"].to_numpy()
 
-        return design_matrix
+        return design_matrix, spike_data_per_homing
 
 
