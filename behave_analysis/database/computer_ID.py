@@ -39,6 +39,6 @@ def get_computer_specific_paths(session_path = ''):
     if os.path.exists(os.path.join(winstor_path,session_path)):
         base_path = winstor_path
     if len(base_path) == 0:
-        logger.warning("You sessions is not on winstor or ceph, please check paths!")
+        logger.warning("You sessions is not on winstor or ceph (or you need to reconnect), please check paths!")
 
     return base_path, DLC_path
