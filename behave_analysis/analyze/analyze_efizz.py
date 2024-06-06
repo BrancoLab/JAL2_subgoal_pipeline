@@ -26,7 +26,8 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
 from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
 from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
-from behave_analysis.analyze.single_trial.single_trial_regression import PreprocessSingleTrialRegression, SingleTrialRegression
+from behave_analysis.analyze.single_trial.single_trial_regression import SingleTrialRegression
+from behave_analysis.analyze.single_trial.preprocess_regression import PreprocessSingleTrialRegression
 
 
 class AnalyzeEfizz:
@@ -87,24 +88,21 @@ class AnalyzeEfizz:
             single_trial_save_path = Path(make_directory(os.path.join(self.dir, "single_trial")))
 
             # Select velocity data
-            velocity_data = self.tracking_data["avg_Velocity"] # Velocity len one less than video df because its between frames
-    
-                        
+            velocity_data = self.tracking_data["avg_Velocity"]  # Velocity len one less than video df because its between frames
+
             pp_single_trial_obj = PreprocessSingleTrialRegression(
                 video_df=self.video_df,
                 homings_obj=self.homings_object,
                 video_and_spike_data=self.video_and_spike_data,
                 frame_by_cluster_matrix=self.frame_by_cluster_matrix,
                 save_path=single_trial_save_path,
-                velocity_data = velocity_data,
+                velocity_data=velocity_data,
                 similar_homings=False,
-                orthogonalise_index=False,
             )
             SingleTrialRegression(
                 design_matrix=pp_single_trial_obj.design_matrix,
                 save_path=single_trial_save_path,
-                all_dependent_names=pp_single_trial_obj.here_are_all_the_columns,
-                targets_df=pp_single_trial_obj.targets_df,
+                dependents_df=pp_single_trial_obj.targets_df,
             )
 
         # ----------------- Compute Rayleigh, polar plots and delta hists ------------
