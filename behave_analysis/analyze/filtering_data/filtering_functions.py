@@ -6,6 +6,27 @@ import polars as pl
 
 from behave_analysis.utils.data_loading import load_or_extract_homings
 
+def discover_condition_based_on_video_df(dataframe):
+    """Insert video df and return the condition based on the bools in the dataframe
+    
+    Args:
+        dataframe: any behave dataframe that contains the required columns
+    
+    Returns:
+        str: The condition based on the bools in the dataframe
+        
+    """
+        
+    # check if all the shelter values = True
+    if dataframe["shelter"].all():
+        if dataframe["barrier_present"].all():
+            if dataframe["barrier_flipped"].all():
+                condition = "barrier_post_flip"
+            else:
+                condition = "barrier_pre_flip"
+        else:
+            condition = "shelter_only"
+    return condition
 
 def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_escape=True):
     """

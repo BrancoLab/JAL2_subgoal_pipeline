@@ -135,6 +135,7 @@ def single_cluster_plots(self, settings, all_angles, all_conditions, base_path, 
             # Save and close the figure
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
+            # plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.eps")
             if settings.show_plots:
                 plt.show()
             plt.close()

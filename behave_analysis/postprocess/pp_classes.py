@@ -187,6 +187,9 @@ class BaseDataPostprocessor(ABC):
         if "hdir_randP" in self.tracking_data:
             for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
                 video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
+                
+        # save the video dataframe
+        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
 
         video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         return video_df
@@ -421,6 +424,9 @@ class DataPostprocessor(BaseDataPostprocessor):
             filtered_spike_data = df.filter(df["cluster_group"] == self.select_clusters)
             numNeurons = len(filtered_spike_data["spike_clusters"].unique())
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
+        
+        # save the filtered spike data
+        filtered_spike_data.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_cluster_labels + "_spike_data.csv")
 
         return filtered_spike_data
 

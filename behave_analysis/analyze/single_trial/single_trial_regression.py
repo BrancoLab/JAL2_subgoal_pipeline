@@ -1,538 +1,56 @@
+"""
+TODO:
+-- Remove shelter times?
+-- Handle the different conditions of the homings, i.e split the heatmap by the different conditions
+-- O
+"""
+
 from pathlib import Path
 
 import pandas as pd
 from loguru import logger
 import matplotlib.pyplot as plt
 import numpy as np
-import dill as pickle
-import polars as pl
+
 from sklearn.model_selection import GroupKFold
 from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVR
 from sklearn.multioutput import MultiOutputRegressor
-from scipy import stats
-
-
 import statsmodels.api as sm
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_squared_error
 from scipy.stats import ttest_rel
 from tqdm import tqdm
 
+from behave_analysis.utils.color_funcs import get_color_based_on_neural_activity
 from behave_analysis.utils.creating_directories import make_directory
-
-
-class UnitTests:
-    """Unit tests for the SingleTrialRegression class"""
-
-    @staticmethod
-    def check_attributes_of_homing_dic(homings_obj):
-        """Checking the attributes of the homing dictionary to make sure it is in the correct format"""
-        try:
-            onset_frames = homings_obj.onset_frames
-            offset_frames = homings_obj.offset_frames
-        except AttributeError:
-            raise AttributeError("The homings object does not have the required attributes - Something upstream is wrong with the homings object")
-        assert len(onset_frames) == len(
-            offset_frames
-        ), "The onset and offset frames are not the same length - Something is wrong with the homings object"
-
-    @staticmethod
-    def check_frame_indexes_are_incremental(arr: np.ndarray):
-        """A test to check that frames increment by 1 and as such is continuous ensuring no frames are skipped
-
-        Args:
-            arr (np.ndarray): The array of frames to check"""
-        # Check each element to see if it increments by 1
-        for i in range(len(arr) - 1):
-            if arr[i + 1] - arr[i] != 1:
-                return False
-        return True
-
-    @staticmethod
-    def check_for_nans_and_inf(X_train, Y_train):
-        # Check for NaNs
-        if np.any(np.isnan(X_train)) or np.any(np.isnan(Y_train)):
-            raise ValueError("NaNs in the training data")
-
-        # Check for infinite values
-        if np.any(np.isinf(X_train)) or np.any(np.isinf(Y_train)):
-            raise ValueError("Infinite values in the training data")
-        return True
-
-    @staticmethod
-    def check_index_is_valid(compute_index_func):
-        """Check if the index is valid"""
-        test_hsa = np.array([0, np.pi, np.pi, np.pi / 12, (5 * np.pi) / 6, (11 * np.pi) / 12, np.pi / 12, (23 * np.pi) / 12])
-        test_angle = np.array([np.pi, 0, np.pi, (5 * np.pi) / 6, np.pi / 12, (11 * np.pi) / 12, (13 * np.pi) / 12, (7 * np.pi) / 6])
-
-        test_result = compute_index_func(test_hsa, test_angle)
-
-        assert test_result[0] == -1, "Test 1 failed, if mouse face shelter then expected -1 but got {}".format(test_result[0])
-        assert test_result[1] == 1, "Test 2 failed, if mouse face the test goal expected 1 but got {}".format(test_result[1])
-        assert test_result[2] == 0, "Test 3 failed, expected 0 but got {}".format(test_result[2])
-        assert (
-            np.around(test_result[3], 1) == -0.8
-        ), "Test 4 failed, expected -0.8 but got {}. Should be negative as mouse facing closer to shelter".format(test_result[3])
-        assert (
-            np.around(test_result[4], 1) == 0.8
-        ), "Test 4 failed, expected 0.8 but got {}. Should be positive as mouse facing closer to goal".format(test_result[3])
-        assert test_result[5] == 0, "Test 5 failed, expected 0 as angles are the same but got {}".format(test_result[5])
-        assert (
-            np.around(test_result[6], 1) == -0.8
-        ), "Test 6 failed, expected -0.8 but got {}. Answer should be closer to -0.9 as mouse is facing towards shelter ".format(test_result[6])
-        assert (
-            np.around(test_result[7], 1) == -0.8
-        ), "Test 7 failed, expected -0.8 but got {}. Answer should be closer to -0.8 as mouse is facing towards shelter ".format(test_result[7])
-
-        logger.success("All tests passed for the compute_predictor function")
-
-
-class PreprocessSingleTrialRegression:
-    """A class to preprocess the data for single trial regression analysis"""
-
-    def __init__(
-        self,
-        video_df,
-        homings_obj,
-        video_and_spike_data,
-        frame_by_cluster_matrix,
-        save_path,
-        velocity_data,
-        similar_homings=False,
-        orthogonalise_index=False,
-    ):
-        logger.info("Initializing the single trial regression preprocessing object")
-        self.homings_obj = homings_obj
-        self.video_and_spike_data = video_and_spike_data
-        self.frame_by_cluster_matrix = frame_by_cluster_matrix
-        self.save_path = save_path
-        self.video_df = self.remove_columns_from_video_df(video_df)
-        self.should_we_orthogonalise_index = orthogonalise_index
-
-        # Settings
-        self.similar_homings = similar_homings
-
-        # Unit tests
-        UnitTests.check_attributes_of_homing_dic(self.homings_obj)
-        UnitTests.check_index_is_valid(self.compute_index)
-
-        # Preprocessing homing data
-        self.homing_data_single_dataframe = self.preprocess_homing_data(select_similar_homings=self.similar_homings)
-
-        # Add the dependent variable to the data
-        self.homing_data_single_dataframe = self.add_dependent_index_variable_to_homing_info(orthogonalise_index=self.should_we_orthogonalise_index)
-
-        # Add the velocity data to the homing data
-        self.homing_data_single_dataframe = self.add_velocity_data_to_homing_data(self.homing_data_single_dataframe, velocity_data)
-
-        # Create the design matrix
-        self.design_matrix = self.create_the_design_matrix(self.homing_data_single_dataframe, self.frame_by_cluster_matrix)
-        self.targets_df = self.create_target_dataframe(self.homing_data_single_dataframe)
-
-        # Descriptive plots
-        self.plot_homing_durations()
-        self.plot_y_coords_distribution()
-        self.plot_the_index_distribution()
-        self.plot_the_index_per_homing()
-        self.plot_the_distribution_of_the_dependent_variables()
-
-    # ------- Descriptive exploratory plots based on preprocessing -------------------------
-
-    def plot_homing_durations(self) -> None:
-        """Plotting and saving the homing durations"""
-        durations = (self.homings_obj.offset_frames - self.homings_obj.onset_frames) / 40  # Hard coded 40 Hz for fps
-        plt.hist(durations)
-        plt.xlabel("Duration (s)")
-        plt.ylabel("Number of homings")
-        plt.title("Homing durations")
-        plt.savefig(self.save_path / "homing_durations.png")
-        plt.close()
-
-    def plot_y_coords_distribution(self):
-        """Plotting and saving the y axis bins to see the distribution of the homings
-
-        Not used for anything, just for exploratory purposes showing non-uniform distribution of y coordinates"""
-        ycoords = self.video_df["mouse_y_position"]
-        ycoords = ycoords.filter(ycoords < 800)
-        plt.title("Distribution of y coordinates in bins")
-        bins = np.linspace(0, 800, 32)  # Remove near shelter as there are a lot of frames there
-        plt.hist(ycoords, bins=bins, color="green")  # These are the defined bins
-        plt.xlabel("Y coordinate")
-        plt.ylabel("Number of frames")
-        plt.savefig(self.save_path / "y_coordinates_distribution.png")
-        plt.close()
-
-    def plot_the_index_distribution(self):
-        """Plotting and save the index distribution"""
-        index = self.homing_data_single_dataframe["index_south"].to_numpy()
-        plt.hist(index, bins=20)
-        plt.xlabel("Index")
-        plt.ylabel("Number of frames")
-        plt.title("Distribution of the south index")
-        plt.savefig(self.save_path / "index_south_distribution.png")
-        plt.close()
-
-        index = self.homing_data_single_dataframe["index_south"].to_numpy()
-        plt.hist(index, bins=20)
-        plt.xlabel("Index")
-        plt.ylabel("Number of frames")
-        plt.title("Distribution of the north index")
-        plt.savefig(self.save_path / "north_index_distribution.png")
-        plt.close()
-
-    def plot_the_index_per_homing(self):
-        """Plotting and save the index per homing"""
-
-        # Get the unique homing ids
-        homing_ids = np.unique(self.homing_data_single_dataframe["homing_id"].to_numpy())
-
-        # Plot params
-        length = 20
-        save_path = self.save_path / "index_per_homing"
-        make_directory(save_path)
-
-        # Loop through each homing id and plot the index
-        for homing_id in homing_ids:
-            homing = self.homing_data_single_dataframe.filter(self.homing_data_single_dataframe["homing_id"] == homing_id)
-
-            # Get the x and y positions of the head direction
-            dx = length * np.cos(homing["hdir"])
-            dy = length * -np.sin(homing["hdir"])
-            xs = homing["mouse_x_position"]
-            ys = homing["mouse_y_position"]
-
-            plt.quiver(xs, ys, dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
-            plt.title(f"Index for homing {homing_id}. Arrow is hdir, text is index. Blue is north, red is south")
-
-            # convert to pandas for the text
-            homing_pd = homing.to_pandas()
-
-            # Add the index every 3rd frame to reduce clutter
-            for i, row in homing_pd.iloc[::3].iterrows():
-                plt.text(
-                    x=row["mouse_x_position"] + 20, y=row["mouse_y_position"] + 10, s=str(np.around(row["index_south"], 1)), color="red", fontsize=6
-                )
-                plt.text(
-                    x=row["mouse_x_position"] + 100, y=row["mouse_y_position"] + 10, s=str(np.around(row["index_north"], 1)), color="blue", fontsize=6
-                )
-                # Add velocity
-                plt.text(
-                    x=row["mouse_x_position"] + 150, y=row["mouse_y_position"] + 20, s=str(np.around(row["velocity"], 1)), color="green", fontsize=6
-                )
-
-            plt.xlim(100, 900)
-            plt.ylim(100, 900)
-            plt.grid(True)
-            plt.xlabel("X Coordinate")
-            plt.ylabel("Y Coordinate")
-            plt.savefig(save_path / f"index_for_homing_{homing_id}.png")
-            plt.close()
-
-    def create_descriptive_plots(self):
-        """Creating the descriptive plots"""
-        raise NotImplementedError
-
-    def plot_the_distribution_of_the_dependent_variables(self):
-        """In order to check the scale of the dependent variables, we plot the distribution of the dependent variables.
-        If the dependent variables are not normally distributed then we may need to transform them to make them normally distributed
-        or at least on the same scale. This is important for the regression analysis as the dependent variables should be on the same scale"""
-
-        for dependent_variable in self.here_are_all_the_columns:
-            plt.hist(self.targets_df[dependent_variable].to_numpy())
-            plt.xlabel(dependent_variable)
-            plt.ylabel("Number of frames")
-            plt.title(f"Distribution of {dependent_variable}")
-            plt.savefig(self.save_path / f"{dependent_variable}_distribution.png")
-            plt.close()
-
-    # ----------- Preprocessing -------------------------------------
-
-    def remove_columns_from_video_df(self, video_df) -> pl.DataFrame:
-        """Removing uncessary columns for memory purposes"""
-        keep = [
-            "frames",
-            "mouse_x_position",
-            "mouse_y_position",
-            "OutofshelterIdx",
-            "EscapePeriod",
-            "shelter",
-            "hdir",
-            "barrier_present",
-            "barrier_flipped",
-            "hsa",
-            "h_bar_north_a",
-            "h_bar_south_a",
-        ]
-        return video_df.select(keep)
-
-    # ----------------- Functions for extracting the homing data ---------------------
-
-    def extract_data_from_homings(self) -> dict:
-        """Extracting the data from the homings dictionary"""
-        onset_frames = self.homings_obj.onset_frames
-        offset_frames = self.homings_obj.offset_frames
-        homing_info = []
-        for onset, offset in zip(onset_frames, offset_frames):
-            homing = self.video_df[int(onset) : int(offset)]
-            homing = homing.select(
-                [
-                    "frames",
-                    "mouse_x_position",
-                    "mouse_y_position",
-                    "hdir",
-                    "hsa",
-                    "h_bar_north_a",
-                    "h_bar_south_a",
-                ]
-            )
-            homing_info.append(homing)
-
-        # Check the frame column of each homing information increments uniformly by 1 such that no frames are missed
-        for homing in homing_info:
-            assert UnitTests.check_frame_indexes_are_incremental(homing["frames"].to_numpy()), "Frames are missing in the homing information"
-
-        return homing_info
-
-    def select_similar_homings(self, extracted_homing_info) -> dict:
-        """
-
-        -- Similar time periods
-        -- Similar mouse positions
-        -- Similar targets
-
-        Raises:
-            NotImplementedError: _description_
-
-        TODO - Refactor this to choose subgoals based escapes
-        """
-        # HARDCORE MODE - we like it rough and tough
-        xcoordinate_min = 300
-        xcoordinate_max = 700
-        ycoordinate_min = 200
-        ycoordinate_end_min = 750
-        x_middle_chunk_min = 400
-        x_middle_chunk_max = 600
-        extracted_info = []
-
-        for _, homing in enumerate(extracted_homing_info):
-
-            # check if mouse x position is within the range - STARTS FARTS ONLY
-            start_x = homing["mouse_x_position"][0]
-            start_y = homing["mouse_y_position"][0]
-
-            # Starts in a similar space
-            if start_x > xcoordinate_min and start_x < xcoordinate_max and start_y < ycoordinate_min:
-
-                # Ends in a similar space
-                if homing["mouse_y_position"][-1] > ycoordinate_end_min:
-
-                    # middle of frames is in a similar space
-                    middle_x = homing["mouse_x_position"][int(len(homing) / 2)]
-                    if middle_x < x_middle_chunk_min or middle_x > x_middle_chunk_max:
-                        # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
-                        # plt.hlines(y=512, xmin=150, xmax=900, color="k")
-
-                        # CHOOSE ONE SIDE
-                        if middle_x > 700:
-                            plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
-                            plt.hlines(y=512, xmin=150, xmax=900, color="k")
-                            plt.vlines(x=700, ymin=50, ymax=900, color="k")
-
-                            extracted_info.append(homing)
-
-            # Print all the homings
-            # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
-
-        return extracted_info
-
-    def add_homing_id_to_homing_data(self, extracted_homing_info):
-        """Adding the homing id to the homing data. This is needed for the group cross validation object"""
-
-        for idx, homing in enumerate(extracted_homing_info):
-            updated_homing = homing.with_columns(pl.lit(idx).alias("homing_id"))
-            extracted_homing_info[idx] = updated_homing
-
-        return extracted_homing_info
-
-    def concatenate_the_homing_data(self, homing_info) -> pl.DataFrame:
-        """Concatenating the homing data"""
-        for idx, homing in enumerate(homing_info):
-            if idx == 0:
-                homing_data = homing
-            else:
-                homing_data = homing_data.vstack(homing)
-        return homing_data
-
-    def preprocess_homing_data(self, select_similar_homings) -> pl.DataFrame:
-        """Preprocessing the data into a single dataframe for regression analysis"""
-        extracted_homing_info = self.extract_data_from_homings()
-        if select_similar_homings:
-            self.homing_info = self.select_similar_homings(extracted_homing_info)
-            extracted_homing_info = self.homing_info
-        homing_info = self.add_homing_id_to_homing_data(extracted_homing_info)
-        self.homing_data_single_dataframe = self.concatenate_the_homing_data(homing_info)
-        return self.homing_data_single_dataframe
-
-    def add_velocity_data_to_homing_data(self, homing_data_single_dataframe: pl.DataFrame, velocity_data: np.ndarray) -> pd.DataFrame:
-        """Adding the velocity data to the homing data"""
-
-        # Add zero to start of the velocity data to make it the same length as the homing data
-        velocity_data = np.insert(velocity_data, 0, 0)
-
-        # Take the frames from the homing data
-        frames = homing_data_single_dataframe["frames"].to_numpy()
-
-        # Use those frames as indicies to get the velocity data
-        velocity_data = velocity_data[frames]
-        assert len(velocity_data) == len(homing_data_single_dataframe), "The length of the velocity data is not the same as the homing data"
-
-        # scale the velocity data as it has weird range
-        # std = np.std(velocity_data)
-        # velocity_data = velocity_data / std
-
-        # Add the velocity data to the homing data
-        homing_data_single_dataframe = homing_data_single_dataframe.with_columns(pl.Series("velocity", velocity_data))
-
-        return homing_data_single_dataframe
-
-    # ----------------- Functions for computing the index ---------------------
-
-    def circular_difference(self, angle1: np.ndarray, angle2: np.ndarray) -> np.ndarray:
-        """Calculates the shortest difference between two angles in radians from the origin"""
-
-        # If the angle is greater than pi then subtract 2pi to get the smallest difference from the origin
-        angle1 = np.where(angle1 > np.pi, (2 * np.pi) - angle1, angle1)
-        angle2 = np.where(angle2 > np.pi, (2 * np.pi) - angle2, angle2)
-        diff = np.arctan2(np.sin(angle1 - angle2), np.cos(angle1 - angle2))
-
-        return diff
-
-    def circular_sum(self, angle1, angle2):
-        """Takes in radian values between 0 and 2pi as scalars or vectors and returns the circular sum."""
-        # if the angle is greater than pi then subtract 2pi to get the smallest difference
-        angle1 = np.where(angle1 > np.pi, (2 * np.pi) - angle1, angle1)
-        angle2 = np.where(angle2 > np.pi, (2 * np.pi) - angle2, angle2)
-
-        sum_angle = np.arctan2(np.sin(angle1 + angle2), np.cos(angle1 + angle2))
-        # Adjust the result to be between 0 and 2pi because the arctan2 function returns values between -pi and pi
-        asjusted_result = np.where(sum_angle < 0, sum_angle + 2 * np.pi, sum_angle)
-        return asjusted_result
-
-    def compute_index(self, angle1: np.ndarray, angle2: np.ndarray) -> pl.DataFrame:
-        """Compute a normalised index between -1 and 1 between two angles:
-
-        Args:
-            angle1: The first angle in radians
-            angle2: The second angle in radians
-
-        Metric is computed as:
-        -1: The angle to angle1 is close to zero and the angle2 is close to pi
-            0: The angle to angle1 is close to the angle to angle2
-            1: The angle to angle1 is close to pi and the angle to angle2 is close to zero
-        """
-        numerator = self.circular_difference(angle1, angle2)
-        denominator = self.circular_sum(angle1, angle2)
-        return numerator / denominator
-
-    def add_dependent_index_variable_to_homing_info(self, orthogonalise_index: bool = False):
-        """Add two index variables to the homing data, one for each subgoal. -1 will always be the shelter and 1 will always be the goal"""
-
-        hsa = self.homing_data_single_dataframe["hsa"].to_numpy().copy()
-        south_goal = self.homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
-        north_goal = self.homing_data_single_dataframe["h_bar_north_a"].to_numpy().copy()
-
-        # # Orthogonalise the angles to see if the correlations between the angles alone can explain the index
-        # if orthogonalise_index:
-
-        #     # rotate the goal and hsa by pi/2 to make the angles orthogonal
-        #     goal = goal + np.pi / 2
-        #     hsa = hsa + np.pi / 2
-
-        #     # Now make sure the angles are between -pi and pi
-        #     hsa = np.where(hsa > np.pi, hsa - 2 * np.pi, hsa)
-        #     goal = np.where(goal > np.pi, goal - 2 * np.pi, goal)
-
-        # Quality check
-        # Check arrays are not above or below -pi and pi
-        assert np.all(hsa >= -np.pi) and np.all(hsa <= np.pi), "hsa values are not within the range of -pi and pi"
-        assert np.all(south_goal >= -np.pi) and np.all(south_goal <= np.pi), "h_bar_south_a values are not within the range of -pi and pi"
-        assert np.all(north_goal >= -np.pi) and np.all(north_goal <= np.pi), "h_bar_north_a values are not within the range of -pi and pi"
-
-        # if values negative radians then add 2pi to make them positive
-        # turn negative radians into positive radians to make them easier to work with
-        hsa = np.where(hsa < 0, hsa + 2 * np.pi, hsa)
-        south_goal = np.where(south_goal < 0, south_goal + 2 * np.pi, south_goal)
-        north_goal = np.where(north_goal < 0, north_goal + 2 * np.pi, north_goal)
-        south_index = self.compute_index(hsa, south_goal)
-        north_index = self.compute_index(hsa, north_goal)
-
-        assert np.all(south_index >= -1) and np.all(south_index <= 1), "Predictor values are not within the range of -1 and 1"
-        assert np.all(north_index >= -1) and np.all(north_index <= 1), "Predictor values are not within the range of -1 and 1"
-
-        result = self.homing_data_single_dataframe.with_columns(pl.Series("index_south", south_index))
-        result = result.with_columns(pl.Series("index_north", north_index))
-        return result
-
-    # ------------ Create design matrix and targets-----------------------------
-
-    def create_target_dataframe(self, homing_data_single_dataframe: pl.DataFrame) -> pl.DataFrame:
-        """Creating the target dataframe"""
-
-        list_of_dependent_variables = []
-        column_names = homing_data_single_dataframe.columns
-
-        # Loop through each column and add it to the list of possible dependent variables
-        for column_name in column_names:
-            list_of_dependent_variables.append(homing_data_single_dataframe[column_name].to_numpy())
-
-        # Convert to pandas
-        dependent_arrays = np.array(list_of_dependent_variables).T
-        dependent_df = pd.DataFrame(dependent_arrays, columns=column_names)
-
-        self.here_are_all_the_columns = column_names
-
-        return dependent_df
-
-    def create_the_design_matrix(self, data: pl.DataFrame, frame_by_cluster_matrix: np.ndarray) -> np.ndarray:
-        """Creating the design matrix"""
-
-        # Initialising the design matrix
-        total_frames = len(data)
-        total_features = frame_by_cluster_matrix.shape[1]
-        design_matrix = np.zeros((total_frames, total_features))
-
-        counter = 0
-        for idx in range(len(np.unique(data["homing_id"]))):
-
-            # Get the frames for the homing id for slicing
-            frames = data.filter(data["homing_id"] == idx)["frames"].to_numpy()
-
-            # Get the corresponding frame by cluster matrix
-            spike_data = frame_by_cluster_matrix[frames[0] : frames[-1] + 1]
-
-            # Add the spike data to the design matrix
-            design_matrix[counter : counter + len(spike_data)] = spike_data
-            counter += len(spike_data)
-
-        # Normalise the design matrix using a simple scale by the standard deviation
-        np_std = np.std(design_matrix, axis=0)
-        design_matrix = np.divide(design_matrix, np_std)
-        design_matrix = pd.DataFrame(design_matrix)
-        design_matrix["homing_id"] = data["homing_id"].to_numpy()  # Needed for the group cross validation will remove later
-
-        return design_matrix
-
+from behave_analysis.analyze.single_trial.tests import UnitTests
 
 class SingleTrialRegression:
     """A class that performs single trial regression analysis on the data"""
 
-    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, all_dependent_names: list, targets_df: pd.DataFrame):
+    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, dependents_df: pd.DataFrame, tracking_data, homing_list, spike_homing_list, condition_per_homing, cluster_ids):
+        """Initialize the single trial regression analysis object
+        
+        Args:
+            design_matrix (pd.DataFrame): The design matrix containing the neural data
+            save_path (Path): The path to save the results
+            dependents_df (pd.DataFrame): The dependent variables to run the regression on
+            tracking_data (pd.DataFrame): The tracking data
+            homing_list (list): A list of homings
+            spike_homing_list (list): A list of spike data per homing, each item is a np matrix 
+            condition_per_homing (list): A list of conditions per homing""" 
+        
         logger.info("Initializing the single trial regression analysis object")
+        self.cluster_ids = cluster_ids
         self.design_matrix = design_matrix
+        self.homing_list = homing_list
+        self.spike_homing_list = spike_homing_list
+        self.condition_per_homing = condition_per_homing
+        self.tracking_data = tracking_data
         self.save_path = save_path
-        self.dependent_names = all_dependent_names
-        self.targets_df = targets_df
+        self.dependent_names = list(dependents_df.columns)
+        logger.info("The dependent variables to run in this regression are: {}", self.dependent_names)
+        self.dependents_df = dependents_df
         self.number_of_neurons = self.design_matrix.shape[1] - 1  # Subtract 1 for the homing id column
         self.angular_dependent_vars = [
             "h_bar_north_a",
@@ -541,11 +59,34 @@ class SingleTrialRegression:
             "h_bar_south_a",
         ]  # define here all potential angular variables so we can switch between coordinate systems
         self.encompasing_set = ["h_bar_north_a", "hdir", "hsa", "h_bar_south_a", "mouse_y_position", "velocity"]
-
-        self.run(
-            run_all_dependent_variables=True, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=True
+    
+        # --------------------- Functions for running the regression ---------------------
+        # Initialize the plotting object
+        self.plotter = RegressionPlotting(save_path)
+    
+        sig_index_coefficients_indices, og_coefficients_sig_in_both = self.run(
+            run_all_dependent_variables=True, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=False
+        )
+        
+        # Plot a heatplot of the design matrix for the north index
+        self.plotter.plot_clustered_heatmap(
+            self.design_matrix,
+            dependents_df=self.dependents_df,
+            significant_neuron_ids=sig_index_coefficients_indices,
+            og_coefficients=og_coefficients_sig_in_both,
+            index_label="index_north",
         )
 
+        # Plot the escape trajectories with the neural activity
+        sig_cluster_ids = self.retrieve_clu_ids_sig_to_index(sig_index_coefficients_indices, cluster_ids)
+        self.plotter.plot_all_homings_with_neural_activity(
+            homing_list=self.homing_list, 
+            spike_data_per_homing=self.spike_homing_list, 
+            tracking_data=self.tracking_data, 
+            condition_per_homing=self.condition_per_homing,
+            cluster_ids=self.cluster_ids,
+            sig_clu_ids=sig_cluster_ids,
+        ) 
     # --------------------- Functions for running the regression ---------------------
 
     def run(
@@ -558,23 +99,27 @@ class SingleTrialRegression:
         - shift_neural_data: Shift the neural data and run the model to see how the R2 score changes with chance
         - explore_coeffs_with_other_predictors: Explore the coefficients with other predictors to see how they change"""
 
+
         if run_all_dependent_variables:
-            r2_score_for_all_dependents, _, _ = self.run_all_dependent_variables()
-            self.plot_the_r2_scores_for_all_dependents(r2_scores = r2_score_for_all_dependents)
+            r2_score_for_all_dependents, _, _, mse = self.run_all_dependent_variables()
+            self.plotter.plot_the_r2_scores_for_all_dependents(r2_scores=r2_score_for_all_dependents)
+            logger.success("The model has been run for all dependent variables")
 
         if shift_neural_data:
             # NOTE - Still only works for one index location at the moment
             shifts, og_r2, shifted_r2_ols = self.run_all_shifts()
-            self.plot_shift_results(shifts, og_r2, shifted_r2_ols)
+            self.plotter.plot_shift_results(shifts, og_r2, shifted_r2_ols)
+            logger.success("The model has been run for all shifts")
 
         if explore_coeffs_with_other_predictors:
 
             # Where og is the original gangster and comp is the comparison model
-            og_r2_score, og_coefficients, og_p_values = self.run_just_one_dependent_variable("index_south", self.design_matrix)
+            INDEX = "index_north"
+            # index = "index_south"
+
+            og_r2_score, og_coefficients, og_p_values = self.run_just_one_dependent_variable(INDEX, self.design_matrix)
             comparison_design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, self.encompasing_set)
-            comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(
-                "index_south", comparison_design_matrix
-            )
+            comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(INDEX, comparison_design_matrix)
 
             # Select only the neural data coefficients and p values (Excluding intercept and non neural coeffs)
             og_coefficients = og_coefficients[: self.number_of_neurons]
@@ -582,18 +127,32 @@ class SingleTrialRegression:
             comp_predictors_coeffs = comp_predictors_coeffs[: self.number_of_neurons]
             comp_predictors_p_value = comp_predictors_p_value[: self.number_of_neurons]
 
+            # Take the indexes that are significant in both models
+            sig_in_both_models = np.where((og_p_values < 0.05) & (comp_predictors_p_value < 0.05))[0]
+
             sig_index_coefficients_indices = np.where(og_p_values < 0.05)  # Which coefficients are significant in the original model
-            self.plot_proportion_of_coeffs_that_remain_significant(og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score)
+            self.plotter.plot_proportion_of_coeffs_that_remain_significant(og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score)
             # Check whether the significant coefficients change significantly between the two models
             x1 = np.ones(len(og_coefficients))
             x2 = 2 * np.ones(len(comp_predictors_coeffs))
-            self.plot_coefficients_between_models(x1, x2, og_coefficients, comp_predictors_coeffs, sig_index_coefficients_indices)
+            self.plotter.plot_coefficients_between_models(
+                x1, x2, og_coefficients, comp_predictors_coeffs, sig_index_coefficients_indices, ttest_func=self.repeat_observation_ttest
+            )
+            logger.success("The model has been run to compare base model with encompassing model")
 
         if run_hiarchical_regression:
-            h_results = self.run_hiararchical_regression()
-            self.plot_adjusted_r2_scores_for_hierarchy(h_results)
+            h_results = self.run_hiararchical_regression(INDEX)
+            self.plotter.plot_adjusted_r2_scores_for_hierarchy(h_results)
+            logger.success("The model has been run for the hierarchical regression")
 
-        return None
+        # check if sig_index_coefficients_indices is defined
+        assert "sig_index_coefficients_indices" in locals(), "sig_index_coefficients_indices is not defined"
+
+        return sig_in_both_models, og_coefficients[sig_in_both_models]
+
+    def retrieve_clu_ids_sig_to_index(self, sig_index, cluster_ids: np.ndarray) -> np.ndarray:
+        """Retrieve the cluster ids that are significant to the index response variable"""
+        return cluster_ids[sig_index]
 
     def run_just_one_dependent_variable(self, dependent_var_name: str, design_matrix: pd.DataFrame) -> tuple:
         """Run the model for just one dependent variable"""
@@ -602,10 +161,10 @@ class SingleTrialRegression:
         make_directory(self.save_path / "ols_regression" / dependent_var_name)
 
         ols_fold_results = self.run_ols_model_with_cross_val(
-            design_matrix=design_matrix, dependent_variable=self.targets_df[dependent_var_name].to_numpy(), dependent_var_name=dependent_var_name
+            design_matrix=design_matrix, dependent_variable=self.dependents_df[dependent_var_name].to_numpy(), dependent_var_name=dependent_var_name
         )
-        r2_scores, coefficients, p_values = self.unpack_fold_results_and_average(ols_fold_results)
-        logger.info("Mean test R2 score for {}: {}", dependent_var_name, r2_scores)
+        dic = self.unpack_fold_results_and_average(ols_fold_results)
+        r2_scores, coefficients, p_values = dic["mean_r2"], dic["mean_coefficients"], dic["mean_p_values"]
 
         return r2_scores, coefficients, p_values
 
@@ -614,41 +173,44 @@ class SingleTrialRegression:
         to see which dependent variable is best predicted by the neural data alone"""
 
         # Init some storage vars
-        list_of_dependent_vars = []
         r2_scores = {}
         p_values = {}
         coefficients = {}
+        mse = {}
 
-        # Create a directory to store the results for each dependent variable
+        # Extract the dependent variables and make save directories for each of them to store the results
         for dependent_var_name in self.dependent_names:
-            list_of_dependent_vars.append(self.targets_df[dependent_var_name].to_numpy())
             make_directory(self.save_path / "ols_regression" / dependent_var_name)
 
         # Run the model for each dependent variable
-        for var_idx, dependent_var in enumerate(list_of_dependent_vars):
-            multiple_dependent_scenario = False
-            var_name = self.dependent_names[var_idx]
+        for var_idx, var_name in enumerate(self.dependent_names):
             logger.info("Running the model for dependent variable: {}", var_name)
+            multiple_dependent_scenario = False
 
             # If the dependent variable is not angular dependent then run a standard OLS model
             if var_name in self.angular_dependent_vars:
                 multiple_dependent_scenario = True
 
+            # A dictionary where each key is a fold index
             ols_fold_results = self.run_ols_model_with_cross_val(
                 design_matrix=self.design_matrix,
-                dependent_variable=dependent_var,
+                dependent_variable=self.dependents_df[var_name].to_numpy(),
                 dependent_var_name=var_name,
                 multi_dependent=multiple_dependent_scenario,
             )
 
             # Unpack the results and average them
-            r2_scores[self.dependent_names[var_idx]], p_values[self.dependent_names[var_idx]], coefficients[self.dependent_names[var_idx]] = (
-                self.unpack_fold_results_and_average(ols_fold_results)
+            dic = self.unpack_fold_results_and_average(ols_fold_results)
+            r2_scores[var_name], p_values[var_name], coefficients[var_name], mse[var_name] = (
+                dic["mean_r2"],
+                dic["mean_p_values"],
+                dic["mean_coefficients"],
+                dic["mean_mse"],
             )
 
-        return r2_scores, p_values, coefficients
+        return r2_scores, p_values, coefficients, mse
 
-    def run_hiararchical_regression(self):
+    def run_hiararchical_regression(self, INDEX):
         """Conduct a looping hierarchical regression analysis where predictors are added one by one and the adjusted R2 is calculated"""
         # hardcode subsets
         s0 = []  # empty set just neural data
@@ -662,38 +224,36 @@ class SingleTrialRegression:
         # store the results
         hirarchical_results = {}
 
-        for index, subset in enumerate(full_set):
+        for i, subset in enumerate(full_set):
             # First add the subset to the design matrix
             design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, dependents_to_add=subset)
 
             # Run cross validation
             ols_fold_results = self.run_ols_model_with_cross_val(
                 design_matrix=design_matrix,
-                dependent_variable=self.targets_df["index_south"].to_numpy(),
-                dependent_var_name="index_south",
+                dependent_variable=self.dependents_df[INDEX].to_numpy(),
+                dependent_var_name=INDEX,
             )
 
             unpacked_results = self.unpack_fold_results_and_average(ols_fold_results)
-            unpacked_r2 = unpacked_results[0]
-            number_of_predictors = self.number_of_neurons + len(subset)
+            unpacked_r2 = unpacked_results["mean_r2"]
+            number_of_predictors = design_matrix.shape[1] - 1  # Subtract 1 for the homing id column
             avg_observations = len(self.design_matrix)
             adjusted_r2 = self.calculate_adjusted_r2(unpacked_r2, avg_observations, number_of_predictors)
-            hirarchical_results[index] = adjusted_r2
+            hirarchical_results[i] = adjusted_r2
 
         return hirarchical_results
 
     # ------------------------ Changing the design matrix or targets ------------------
 
-    def add_other_predictors_to_design_matrix(self, design_matrix: pd.DataFrame, dependents_to_add) -> pd.DataFrame:
+    def add_other_predictors_to_design_matrix(self, design_matrix: pd.DataFrame, dependents_to_add: list) -> pd.DataFrame:
         """Add other predictors to the design matrix to see how they affect the coefficients and p values compared to the neural data alone
-        Currently hard coded to add the following predictors:
-            - h_bar_north_a
-            - hdir
-            - hsa
-            - h_bar_south_a
-            - mouse_y_position
 
-        If empty list is passed then the function will just return the original design matrix"""
+        If empty list is passed then the function will just return the original design matrix
+
+        Logic:
+        -- If the dependent variable is not angular then divide by the standard deviation
+        -- If the dependent variable is angular then convert to sin and cos"""
 
         # Check if dependents to add is an empty list
         if dependents_to_add:
@@ -702,12 +262,12 @@ class SingleTrialRegression:
 
                 # Scale non angular data when adding into design matrix
                 if dependent not in self.angular_dependent_vars:
-                    std = np.std(self.targets_df[dependent].to_numpy())
-                    design_matrix[dependent] = self.targets_df[dependent].to_numpy() / std
+                    std = np.std(self.dependents_df[dependent].to_numpy())
+                    design_matrix[dependent] = self.dependents_df[dependent].to_numpy() / std
 
                 # Convert angular dependent variables to sin and cos
                 else:
-                    circ_var = self.targets_df[dependent].to_numpy()
+                    circ_var = self.dependents_df[dependent].to_numpy()
                     sin_component = np.sin(circ_var)
                     cos_component = np.cos(circ_var)
                     design_matrix[f"{dependent}_sin"] = sin_component
@@ -730,13 +290,41 @@ class SingleTrialRegression:
         r2_scores = []
         coefficients = []
         p_values = []
+        mse = []
 
         for _, results in fold_results.items():
             r2_scores.append(results["test_r2"])
             coefficients.append(results["train_coefficients"])
             p_values.append(results["train_p_values"])
+            mse.append(results["test_mse"])
 
-        return np.mean(r2_scores), np.mean(coefficients, axis=0), np.mean(p_values, axis=0)
+        # --------- below code to handle outliers of fold effecting the mean -----------------
+        # Should produce a more robust mean
+
+        # Convert to numpy arrays for easy manipulation
+        r2_scores = np.array(r2_scores)
+
+        # Identify and filter out outliers in r2_scores
+        r2_median = np.median(r2_scores)
+        deviation_from_median = np.abs(r2_scores - r2_median)
+        median_absolute_deviation = np.median(deviation_from_median)
+        # Using a threshold of 3 times the median absolute deviation to identify outliers
+        threshold = 3 * median_absolute_deviation
+        filtered_r2_scores = r2_scores[deviation_from_median < threshold]
+
+        # Compute the mean of the filtered r2_scores
+        mean_r2 = np.mean(filtered_r2_scores) if len(filtered_r2_scores) > 0 else np.mean(r2_scores)
+
+        # Compute mean MSE
+        mean_mse = np.mean(mse)
+
+        # return dic of results
+        return {
+            "mean_r2": mean_r2,
+            "mean_mse": mean_mse,
+            "mean_coefficients": np.mean(coefficients, axis=0),
+            "mean_p_values": np.mean(p_values, axis=0),
+        }
 
     def run_ols_model_with_cross_val(
         self, design_matrix: pd.DataFrame, dependent_variable: np.ndarray, dependent_var_name: str, n_splits: int = 5, multi_dependent: bool = False
@@ -765,10 +353,14 @@ class SingleTrialRegression:
             y_train, y_test = y[train_index], y[test_index]
 
             if multi_dependent:
-                ols_fold_results[fold] = self.multi_output_ols_regression(X_train, y_train, fold, ols_save_path, X_test, y_test)
+                ols_fold_results[fold] = self.multi_output_ols_regression(
+                    X_train, y_train, fold, ols_save_path, X_test, y_test, name_of_dependent=dependent_var_name
+                )
 
             if not multi_dependent:
-                ols_fold_results[fold] = self.ols_regression_statsmodel(X_train, y_train, fold, ols_save_path, X_test, y_test)
+                ols_fold_results[fold] = self.ols_regression_statsmodel(
+                    X_train, y_train, fold, ols_save_path, X_test, y_test, name_of_dependent=dependent_var_name
+                )
 
         return ols_fold_results
 
@@ -801,6 +393,23 @@ class SingleTrialRegression:
             p (int): The number of predictors"""
         adjusted_r2 = 1 - (1 - r2_score) * (n - 1) / (n - p - 1)
         return adjusted_r2
+
+    def scaled_MSE_by_MAD(self, ygt: np.ndarray, ypred: np.ndarray) -> float:
+        """Calculate the scaled MSE by the MAD"""
+
+        # If the dependent var is angular we need to handle the two components
+        if len(ygt.shape) == 2:
+            ygt_mad = np.mean(np.abs(ygt - np.median(ygt, axis=0)), axis=0)
+            mse = mean_squared_error(ygt, ypred, multioutput="raw_values")
+            smse_mad = mse / (ygt_mad**2)
+            return np.mean(smse_mad)
+
+        # If non angular then just calculate the smae
+        else:
+            ygt_mad = np.mean(np.abs(ygt - np.median(ygt)))
+            mse = mean_squared_error(ygt, ypred)
+            smse_mad = mse / (ygt_mad**2)
+            return smse_mad
 
     # ------------------- Regression functions -------------------
 
@@ -860,7 +469,7 @@ class SingleTrialRegression:
             "test_predictions": test_pred,
         }
 
-    def ols_regression_statsmodel(self, X_train, y_train, fold, save_path: Path, X_test, y_test) -> dict:
+    def ols_regression_statsmodel(self, X_train, y_train, fold, save_path: Path, X_test, y_test, name_of_dependent: str) -> dict:
         """Performing the OLS regression
 
         NOTES:
@@ -900,6 +509,7 @@ class SingleTrialRegression:
         X_test = sm.add_constant(X_test)
         test_pred = train_results.predict(X_test)
         test_r2 = r2_score(y_test, test_pred)
+        test_mse = self.scaled_MSE_by_MAD(y_test, test_pred)
 
         # Plot test predictions
         plt.subplot(122)
@@ -908,7 +518,7 @@ class SingleTrialRegression:
         plt.legend()
         plt.title(f"Fold {fold + 1} Test Data")
 
-        plt.suptitle(f"R2 Train: {train_r2}, R2 Test: {test_r2}")
+        plt.suptitle(f"R2 Train: {train_r2}, R2 Test: {test_r2} - {name_of_dependent}")
 
         plt.savefig(save_path / f"fold_{fold + 1}_train_vs_test.png")
         plt.close()
@@ -919,6 +529,7 @@ class SingleTrialRegression:
             "train_r2": train_r2,
             "test_r2": test_r2,
             "test_predictions": test_pred,
+            "test_mse": test_mse,
         }
 
     def svr_regression(self, X_train, y_train, fold, save_path: Path, X_test, y_test):
@@ -952,7 +563,7 @@ class SingleTrialRegression:
 
         return test_r2
 
-    def multi_output_ols_regression(self, X_train, y_train, fold, save_path: Path, X_test, y_test) -> dict:
+    def multi_output_ols_regression(self, X_train, y_train, fold, save_path: Path, X_test, y_test, name_of_dependent: str) -> dict:
         """NOTE - Pvalues and coefficients are fake this is just to get the R2 score for the multi output regression model"""
 
         # ------------------- Training data -------------------
@@ -972,9 +583,10 @@ class SingleTrialRegression:
         plt.legend()
         plt.title(f"Fold {fold + 1} Train Data")
 
-        # ------------------- Test data -------------------
+        # ------------------- Test data ------------------------------------
         pred_test = reg.predict(X_test)
         test_r2 = reg.score(X_test, y_test)
+        test_mse = self.scaled_MSE_by_MAD(y_test, pred_test)
 
         # Recombine the sin and cos components into a single angular variable
         pred_test_y = np.arctan2(pred_test[:, 0], pred_test[:, 1])  # Convert back to radians
@@ -985,7 +597,7 @@ class SingleTrialRegression:
         plt.plot(np.arange(len(real_test_y)), real_test_y, label="True")
         plt.plot(np.arange(len(pred_test_y)), pred_test_y, label="Predicted")
         plt.legend()
-        plt.title(f"Fold {fold + 1} Test Data")
+        plt.title(f"Fold {fold + 1} Test Data. {name_of_dependent} - Test R2: {test_r2}")
         plt.savefig(save_path / f"fold_{fold + 1}_train_vs_test.png")
         plt.close()
 
@@ -999,141 +611,8 @@ class SingleTrialRegression:
             "train_r2": train_r2,
             "test_r2": test_r2,
             "test_predictions": pred_test_y,
+            "test_mse": test_mse,
         }
-
-    # ------------------- Plotting functions -------------------
-
-    def plot_shift_results(self, shifts, og_r2, shifted_r2_ols):
-        """Plot the mean R2 scores for different shifts"""
-
-        shifts = np.array(shifts)
-
-        plt.figure(figsize=(12, 6))
-        plt.plot(shifts, shifted_r2_ols, label="OLS R2", marker="o")
-        plt.axhline(y=og_r2, color="b", linestyle="--", label="OLS Original R2")
-        plt.xlabel("Shift Amount by frame")
-        plt.ylabel("Mean R2 Score")
-        plt.title("Mean R2 Score vs. Shift Amount")
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(self.save_path / "shifted_mean_r2_scores.png")
-        plt.close()
-
-    def plot_the_r2_scores_for_all_dependents(self, r2_scores):
-        """Plot the R2 scores for the different dependent variables"""
-
-        dependent_vars = list(r2_scores.keys())
-        ols_r2_scores = [r2_scores[dependent_var] for dependent_var in dependent_vars]
-        plt.figure(figsize=(10, 6))
-        x = np.arange(len(dependent_vars))
-        bar_width = 0.35
-        plt.bar(x + bar_width / 2, ols_r2_scores, bar_width, label="OLS")
-        # Plot the r2 score as text above the bar
-        for i, r2 in enumerate(ols_r2_scores):
-            plt.text(x[i], r2 + 0.01, str(np.around(r2, 2)), color="black", ha="center")
-        plt.xlabel("Dependent Variable")
-        plt.ylabel("Mean R2 Score")
-        plt.title("Mean R2 Score for Different Dependent Variables")
-        plt.xticks(x + bar_width / 2, dependent_vars)
-        plt.xticks(rotation=25)
-        plt.xticks(fontsize=6)
-        plt.legend()
-        plt.grid(True)
-        plt.savefig(self.save_path / "dependent_variable_r2_scores.png")
-        plt.close()
-
-    def plot_lines_between_points_on_plot(
-        self, ax, x1: np.ndarray, x2: np.ndarray, original_model_coeffs: np.ndarray, comparison_model_coeffs: np.ndarray, iterator: np.ndarray
-    ) -> None:
-        """Connect the corresponding points with lines on a 2d plot to see changes across different models
-
-        Args:
-            ax: The axis to plot on
-            x1: The x values for the first model
-            x2: The x values for the second model
-            original_model_coeffs: The coefficients for the first model
-            comparison_model_coeffs: The coefficients for the second model
-            iterator: The indices to iterate over to connect the points"""
-
-        assert len(x1) == len(x2) == len(original_model_coeffs) == len(comparison_model_coeffs), "Lengths of arrays are not the same"
-        for i in iterator:
-            ax.plot([x1[i], x2[i]], [original_model_coeffs[i], comparison_model_coeffs[i]], color="gray", linestyle="--", linewidth=0.5)
-
-    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices):
-        """Plot all and only the significant coefficients between the two models in separate plots"""
-
-        # Make coefficients absolute
-        original_model_coeffs = np.abs(original_model_coeffs)
-        comparison_model_coeffs = np.abs(comparison_model_coeffs)
-
-        # Create two axes
-        fig, ax = plt.subplots(1, figsize=(10, 8))
-
-        # Plot only the significant coefficients on the second plot
-        ax.scatter(x1[sig_og_model_coeffs_indices], original_model_coeffs[sig_og_model_coeffs_indices], label="Neural data only")
-        ax.scatter(
-            x2[sig_og_model_coeffs_indices],
-            comparison_model_coeffs[sig_og_model_coeffs_indices],
-            label="Neural data + other predictors that are correlated with the index",
-        )
-        ax.legend()
-        ax.set_xticks([1, 2])
-        ax.set_xticklabels(["Neural data only", "Neural data + \n other predictors"])
-        ax.set_ylabel("Coefficients")
-        ax.set_title("A check of whether the coeffs that are sig for both models change significantly when adding other predictors")
-        self.plot_lines_between_points_on_plot(ax, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices)
-
-        # Put sig test of difference in title
-        t_stat, p_value = self.repeat_observation_ttest(sig_og_model_coeffs_indices, original_model_coeffs, comparison_model_coeffs)
-        are_results_significant = "significant" if p_value < 0.05 else "not significant"
-        formatted_p_value = format(p_value, ".4f")
-        fig.suptitle(
-            f"Significant coefficients (absolute) across both models. \n T-stat: {np.around(t_stat,2)}, p-value: {formatted_p_value}. \n Difference in coefficients is {are_results_significant}"
-        )
-
-        plt.savefig(self.save_path / "coefficients_between_models.png")
-
-    def plot_proportion_of_coeffs_that_remain_significant(
-        self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, og_r2_score, comp_r2_score, alpha=0.05
-    ) -> None:
-        """Plots a bar chart showing the proportion of coefficients that remain significant between the two models, neural coefficients only"""
-
-        # Check the number of coefficients that are significant in each model
-        og_moel_significant_coeffs = np.sum(original_model_pvalues < alpha)
-        all_predictors_significant = np.sum(comparison_model_pvalues < alpha)
-
-        # Check the numebr of cells that remain sig after adding all predictors
-        num_sig = 0
-        num_sig = np.sum(
-            [num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05]
-        )
-
-        # Plot the number of cells that remain significant
-        _, ax = plt.subplots()
-        ax.bar(
-            ["Neural data only", "Neural data + other predictors", "consistently sig"],
-            [og_moel_significant_coeffs, all_predictors_significant, num_sig],
-        )
-        ax.set_ylabel("Number of significant coefficients")
-        ax.set_title(
-            f"Out of the {len(original_model_pvalues)} total coefficients, {num_sig} are significant under both models after adding additional predictors. Alpha = 0.05 \n Original R2: {og_r2_score}, Comparison R2: {comp_r2_score}"
-        )
-        plt.savefig(self.save_path / "proportion_of_significant_coeffs.png")
-
-    def plot_adjusted_r2_scores_for_hierarchy(self, hirarchical_results: dict):
-        """Plot the adjusted R2 scores for the hierarchical regression analysis"""
-
-        adjusted_r2_scores = hirarchical_results.values()
-        x = np.arange(len(adjusted_r2_scores))
-        plt.figure(figsize=(10, 6))
-        plt.bar(x, adjusted_r2_scores)
-        plt.xlabel("Model Complexity")
-        plt.ylabel("Adjusted R2 Score")
-        plt.title("Adjusted R2 Score for Hierarchical Regression Analysis")
-        plt.xticks(x, ["s0", "s1", "s2", "s3", "s4", "s5", "full_set"])
-        plt.grid(True)
-        plt.savefig(self.save_path / "adjusted_r2_scores.png")
-        plt.close()
 
     # -------------------- Shifted data analysis --------------------
 
@@ -1163,46 +642,359 @@ class SingleTrialRegression:
         return design_matrix.reindex(new_index).reset_index(drop=True)
 
 
-# ------------------------------------------------- Hard code some data to test the classes -----------------------------------------------------------------------
+class RegressionPlotting:
+    """Class to handle the plotting of the regression results"""
 
-# Note - This is a hard coded example to test the classes
-# Not maintained
-if __name__ == "__main__":
+    def __init__(self, save_path: Path):
+        self.save_path = save_path
 
-    # Load data to test the SingleTrialRegression class
-    video_df = pl.read_csv(r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\full_video_dataframe.csv")
-    homie_path = r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\homings\homings_obj.pkl"
-    with open(homie_path, "rb") as dill_file:
-        homings = pickle.load(dill_file)
-    frame_by_cluster_matrix = np.load(
-        r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\frame_by_good_cluster_matrix.npy"
-    )
-    video_and_spike_data = pl.read_parquet(
-        r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\good_video_spike_count_df.parquet"
-    )
+    def plot_clustered_heatmap(
+        self, design_matrix: np.ndarray, dependents_df: pd.DataFrame, significant_neuron_ids, og_coefficients, index_label: str
+    ) -> None:
+        """Creates a heatmap of the design matrix ranked by coefficients from largest to smallest along side the index dependent variable
 
-    save_path = Path(r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\single_trial")
+        Args:
+            design_matrix (np.ndarray): _description_
+            dependents_df (pd.DataFrame): _description_
+            significant_neuron_ids (_type_): _description_
+            og_coefficients (_type_): _description_
+            index_label (str): either index_north or index_south
+        """
+        logger.info(f"Plotting a sorted heatmap based on the coefficients of the neurons for the dependent variable: {index_label}")
 
-    file = r"E:\efizz\JAL006\JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20\processed_data\fully_processed_tracking_data.pickle"
-    with open(file, "rb") as r:
-        tracking_data = pickle.load(r)
+        # Sort the neuron ids by the largest coefficient to the smallest
+        dic_map = {id: coeff for id, coeff in zip(significant_neuron_ids, og_coefficients)}
+        sorted_dic = dict(sorted(dic_map.items(), key=lambda item: item[1], reverse=True))
+        sorted_ids = list(sorted_dic.keys())
+        assert len(sorted_ids) == len(significant_neuron_ids), "The sorted ids are not the same length as the significant neuron ids"
+        design_matrix = design_matrix.drop(columns=["homing_id"])
+        design_matrix = design_matrix.iloc[:, sorted_ids]
 
-    velocity_data = tracking_data["avg_Velocity"]
+        # select the first 2000 frames
+        frames = 2000
 
-    # Run the pipeline
-    pp = PreprocessSingleTrialRegression(
-        video_df=video_df,
-        homings_obj=homings,
-        video_and_spike_data=video_and_spike_data,
-        frame_by_cluster_matrix=frame_by_cluster_matrix,
-        save_path=save_path,
-        velocity_data=velocity_data,
-        similar_homings=False,
-        orthogonalise_index=False,
-    )
-    SingleTrialRegression(
-        design_matrix=pp.design_matrix,
-        save_path=save_path,
-        all_dependent_names=pp.here_are_all_the_columns,
-        targets_df=pp.targets_df,
-    )
+        # Normalize the matrix
+        # Max firing rate across all neurons and frames
+        max_firing_rate = design_matrix.max()
+        assert len(max_firing_rate) == len(significant_neuron_ids), "The max firing rate array is not the same length as the significant neuron ids"
+        normalized_matrix = design_matrix / max_firing_rate
+        normalized_matrix = normalized_matrix.T  # Transpose to have the neurons on the y axis
+
+        # take the first 2000 frames as a smaller chunk to make the plot more readable
+        if 0:
+            np_matrix = normalized_matrix.to_numpy()
+            normalized_matrix = np_matrix[:, :frames]  # selct all neurons and the first 2000 frames
+            index = dependents_df[index_label][:frames]
+        else:
+            index = dependents_df[index_label]
+
+        # Plot a narrow subplot above imshow to show the dependent variable varying across the frames
+        fig = plt.figure(constrained_layout=True)
+        gs = fig.add_gridspec(2, height_ratios=[1, 4])  # Adjust height ratios as needed
+
+        # Plot the first subplot -----------------------------------------------------------------
+        ax1 = fig.add_subplot(gs[0, :])
+        ax1.plot(index, label=index_label, color="black")
+        ax1.set_title(f"{index_label} Over Time")
+        ax1.set_xlabel("Frame id of concatenated homings")
+        ax1.set_ylabel(f"{index_label} value")
+        ax1.legend()
+        ax1.set_xlim(0, len(index))
+
+        # Plot the second subplot -----------------------------------------------------------------
+        ax2 = fig.add_subplot(gs[1, :])
+        _ = ax2.imshow(normalized_matrix, cmap="viridis", aspect="auto")
+        ax2.set_title("Heatmap of the Matrix")
+        ax2.set_xlabel("Frame Index")
+        ax2.set_ylabel("Cluster Index")
+
+        plt.tight_layout()
+        plt.savefig(self.save_path / f"{index_label}_clustered_heatmap.png")
+        plt.close()
+
+    def plot_shift_results(self, shifts, og_r2, shifted_r2_ols):
+        """Plot the mean R2 scores for different shifts"""
+
+        shifts = np.array(shifts)
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(shifts, shifted_r2_ols, label="OLS R2", marker="o")
+        plt.axhline(y=og_r2, color="b", linestyle="--", label="OLS Original R2")
+        plt.xlabel("Shift Amount by frame")
+        plt.ylabel("Mean R2 Score")
+        plt.title("Mean R2 Score vs. Shift Amount")
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(self.save_path / "shifted_mean_r2_scores.png")
+        plt.close()
+
+    def plot_the_r2_scores_for_all_dependents(self, r2_scores):
+        """Plot the R2 scores for the different dependent variables"""
+
+        dependent_vars = list(r2_scores.keys())
+        ols_r2_scores = [r2_scores[dependent_var] for dependent_var in dependent_vars]
+        plt.figure(figsize=(10, 6))
+        x = np.arange(len(dependent_vars))
+        bar_width = 0.35
+        plt.bar(x + bar_width / 2, ols_r2_scores, bar_width, label="R2 scores")
+
+        # Plot the mse score as text above the bar
+        for i, r2 in enumerate(ols_r2_scores):
+            height = ols_r2_scores[i]
+            plt.text(x[i] + bar_width / 2, height + 0.01, str(np.around(ols_r2_scores[i], 2)), color="black", ha="center")
+
+        plt.xlabel("Dependent Variable")
+        plt.ylabel("Mean R2 Score")
+        plt.title("Mean R2 Score for Different Dependent Variables.")
+        plt.xticks(x + bar_width / 2, dependent_vars)
+        plt.xticks(rotation=20)
+        plt.xticks(fontsize=10)
+        plt.legend()
+        plt.grid(True)
+        plt.savefig(self.save_path / "dependent_variable_r2_scores.png")
+        plt.close()
+
+    def plot_lines_between_points_on_plot(
+        self, ax, x1: np.ndarray, x2: np.ndarray, original_model_coeffs: np.ndarray, comparison_model_coeffs: np.ndarray, iterator: np.ndarray
+    ) -> None:
+        """Connect the corresponding points with lines on a 2d plot to see changes across different models
+
+        Args:
+            ax: The axis to plot on
+            x1: The x values for the first model
+            x2: The x values for the second model
+            original_model_coeffs: The coefficients for the first model
+            comparison_model_coeffs: The coefficients for the second model
+            iterator: The indices to iterate over to connect the points"""
+
+        assert len(x1) == len(x2) == len(original_model_coeffs) == len(comparison_model_coeffs), "Lengths of arrays are not the same"
+        for i in iterator:
+            ax.plot([x1[i], x2[i]], [original_model_coeffs[i], comparison_model_coeffs[i]], color="gray", linestyle="--", linewidth=0.5)
+
+    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func):
+        """Plot all and only the significant coefficients between the two models in separate plots"""
+
+        # Make coefficients absolute
+        original_model_coeffs = np.abs(original_model_coeffs)
+        comparison_model_coeffs = np.abs(comparison_model_coeffs)
+
+        # Create two axes
+        fig, ax = plt.subplots(1, figsize=(10, 8))
+
+        # Plot only the significant coefficients on the second plot
+        ax.scatter(x1[sig_og_model_coeffs_indices], original_model_coeffs[sig_og_model_coeffs_indices], label="Neural data only")
+        ax.scatter(
+            x2[sig_og_model_coeffs_indices],
+            comparison_model_coeffs[sig_og_model_coeffs_indices],
+            label="Neural data + other predictors that are correlated with the index",
+        )
+        ax.legend()
+        ax.set_xticks([1, 2])
+        ax.set_xticklabels(["Base model", "Encompassing model"])
+        # rotate the x labels
+        plt.xticks(rotation=20)
+        ax.set_ylabel("Coefficients")
+        ax.set_title("A check of whether the coeffs that are sig for both models change significantly when adding other predictors")
+        self.plot_lines_between_points_on_plot(ax, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices)
+
+        # Put sig test of difference in title
+        t_stat, p_value = ttest_func(sig_og_model_coeffs_indices, original_model_coeffs, comparison_model_coeffs)
+        are_results_significant = "significant" if p_value < 0.05 else "not significant"
+        formatted_p_value = format(p_value, ".4f")
+        rounded_p_value = round(p_value, 4)
+        fig.suptitle(f"Sig coeff (absolute) p-value: {rounded_p_value}. \n Difference is {are_results_significant}")
+
+        plt.savefig(self.save_path / "coefficients_between_models.png")
+        plt.close()
+
+    def plot_proportion_of_coeffs_that_remain_significant(
+        self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, og_r2_score, comp_r2_score, alpha=0.05
+    ) -> None:
+        """Plots a bar chart showing the proportion of coefficients that remain significant between the two models, neural coefficients only"""
+
+        # Check the number of coefficients that are significant in each model
+        og_moel_significant_coeffs = np.sum(original_model_pvalues < alpha)
+        all_predictors_significant = np.sum(comparison_model_pvalues < alpha)
+
+        # Check the numebr of cells that remain sig after adding all predictors
+        num_sig = 0
+        num_sig = np.sum(
+            [num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05]
+        )
+
+        # Plot the number of cells that remain significant
+        _, ax = plt.subplots()
+        ax.bar(
+            ["Base model", "Encompassing", "consistently sig"],
+            [og_moel_significant_coeffs, all_predictors_significant, num_sig],
+        )
+        # rotate the x labels
+        plt.xticks(rotation=10)
+        ax.set_ylabel("Number of significant coefficients")
+        ax.set_title(f" {num_sig} / {len(original_model_pvalues)} coeffs are significant under both models")
+        plt.savefig(self.save_path / "proportion_of_significant_coeffs.png")
+        plt.close()
+
+    def plot_adjusted_r2_scores_for_hierarchy(self, hirarchical_results: dict):
+        """Plot the adjusted R2 scores for the hierarchical regression analysis"""
+
+        adjusted_r2_scores = hirarchical_results.values()
+        x = np.arange(len(adjusted_r2_scores))
+        plt.figure(figsize=(10, 6))
+        plt.bar(x, adjusted_r2_scores)
+        plt.xlabel("Model Complexity")
+        plt.ylabel("Adjusted R2 Score")
+        plt.title("Adjusted R2 Score for Hierarchical Regression Analysis")
+        plt.xticks(x, ["s0", "s1", "s2", "s3", "s4", "s5", "full_set"])
+        plt.grid(True)
+        plt.savefig(self.save_path / "adjusted_r2_scores.png")
+        plt.close()
+
+    # ------------------- Plotting functions take from spatial efficienty + mine -------------------
+    # refactor potential to make these shared components
+
+    def plot_all_homings_with_neural_activity(self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing, cluster_ids, sig_clu_ids):
+        """Plot all homings with neural activity by neuron
+
+        Args:
+            homing_list (list): List of homing dataframes
+            spike_data_per_homing (list): List of spike np matrices
+            plot_sig_only (bool, optional): Plot only the significant neurons that are tuned to the index variable. Defaults to True.
+            
+        # NOTE should we use hdir location instead of body location
+        """
+        
+        logger.info("Plotting all homings + neural activity by neuron")
+        new_path = self.save_path / "neural_activity_plots"
+        make_directory(new_path)
+        num_neurons = spike_data_per_homing[0].shape[1]
+        assert len(cluster_ids) == num_neurons, "The number of cluster ids is not the same as the number of neurons"
+
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+        
+        for cidx, clu_id in enumerate(cluster_ids):
+            print(f"Plotting neuron {clu_id}")
+            
+            # Booleans to check if the condition has been plotted - Lazy way to avoid repeating the same plot
+            b1 = False
+            b2 = False
+            b3 = False
+            
+            for idx, (homing, spikes) in enumerate(zip(homing_list, spike_data_per_homing)):
+                con = condition_per_homing[idx]
+                neuron_filter = spikes[:, cidx]  
+                
+                if con == "shelter_only": 
+                    if not b1:
+                        self.base_plotting(ax1, tracking_data, condition=con)
+                        b1 = True
+                    self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax1)
+                    
+                if con == "barrier_pre_flip": 
+                    if not b2:
+                        self.base_plotting(ax2, tracking_data, condition=con)
+                        b2 = True
+                    self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax2)
+                    
+                if con == "barrier_post_flip": 
+                    if not b3:
+                        self.base_plotting(ax3, tracking_data, condition=con)
+                        b3 = True
+                    self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax3)
+                    
+            # Add a title to the plot
+            ax1.set_title("Shelter Only")
+            ax2.set_title("Barrier Pre Flip")
+            ax3.set_title("Barrier Post Flip")
+            if cidx in sig_clu_ids:
+                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Significant to index variable")
+            else:
+                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Not Significant to Index Variable")
+            plt.savefig(new_path / f"neural_activity_neuron_{clu_id}.png")
+            # plt.savefig(new_path / f"neural_activity_neuron_{neuron}.eps")
+            
+            # Clear the axes for the next neuron
+            ax1.cla()
+            ax2.cla()
+            ax3.cla()
+        
+        plt.close()
+
+    def plot_escape_trajectories_with_neural_activity(self, neural_data, behavioural_data, ax):
+        """Plot a single homing trajectory with the neural activity colour coded on the trail for a single neuron"""
+
+        assert len(neural_data) == len(behavioural_data), "The length of the neural data and behavioural data is not the same"
+
+        # Extract positional data for each homing
+        # x_loc = tracking_data['head_loc'][onset_frame:offset_frame, 0]
+        # y_loc = tracking_data['head_loc'][onset_frame:offset_frame, 1]
+        # clu_neural_data = neural_data #
+
+        y_loc = behavioural_data["mouse_y_position"]
+        x_loc = behavioural_data["mouse_x_position"]
+
+        length_of_homing = len(neural_data)
+        trail_color = np.empty([length_of_homing, 3]) # 3 for RGB
+
+        # For each frame retrieve the colour of the trail based on the neural activity
+        for frame in range(length_of_homing):
+
+            # reuse the function and see if it works with neural data
+            trail_color[frame, :] = get_color_based_on_neural_activity(
+                neural_data=neural_data[frame], 
+            )
+        
+        ax.scatter(x_loc, y_loc, s=5, c=trail_color, alpha = 0.7) # c is a 2d array where each row is an RGB value
+
+        return ax
+
+    def base_plotting(self, ax, tracking, condition):
+        """hard code condition for ease"""
+
+        arena_radius = 460
+        
+        # If there is a shelter present, draw it
+        if "shelter_loc" in tracking.keys():
+            for i in [0, 1]:
+                ax.plot(
+                    [tracking["shelter_loc"][0][0], tracking["shelter_loc"][1][0]],
+                    [tracking["shelter_loc"][i][1], tracking["shelter_loc"][i][1]],
+                    color=[1, 0, 0],
+                )
+                ax.plot(
+                    [tracking["shelter_loc"][i][0], tracking["shelter_loc"][i][0]],
+                    [tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]],
+                    color=[0, 0, 0],
+                )
+
+        # If there is a barrier present, draw it
+        if not np.logical_or(condition == "shelter_only", condition == "pre_shelter"):
+            if len(tracking["barrier_loc"]) > 0:
+                if np.logical_or(np.logical_or(condition == "barrier_present", condition == "all_time"), condition == "shelter_present"):
+                    # draw old two-sided barrier
+                    bar_loc = [tracking["barrier_loc"][0][0], tracking["barrier_loc"][1][0]]
+
+                if condition == "barrier_pre_flip":
+                    # draw barrier from first point to the edge
+                    if tracking["barrier_loc"][0][0] < 512:
+                        bar_loc = [tracking["barrier_loc"][0][0], 512 + arena_radius]
+                    else:
+                        bar_loc = [512 - arena_radius, tracking["barrier_loc"][0][0]]
+
+                if condition == "barrier_post_flip":
+                    # draw barrier from second point to the edge
+                    if tracking["barrier_loc"][1][0] < 512:
+                        bar_loc = [tracking["barrier_loc"][1][0], 512 + arena_radius]
+                    else:
+                        bar_loc = [512 - arena_radius, tracking["barrier_loc"][1][0]]
+
+                ax.plot([bar_loc[0], bar_loc[1]], [tracking["barrier_loc"][0][1], tracking["barrier_loc"][1][1]], color=[0, 0, 0])
+
+        # draw arena edge
+        a = 512 + (arena_radius * np.cos(np.linspace(0, 2 * np.pi, 150)))
+        b = 512 + (arena_radius * np.sin(np.linspace(0, 2 * np.pi, 150)))
+
+        ax.plot(a, b, color=[0, 0, 0])
+        ax.invert_yaxis()
+        ax.set_aspect("equal")
+        ax.axis("off")
