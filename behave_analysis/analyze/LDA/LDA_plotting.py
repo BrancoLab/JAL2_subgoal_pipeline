@@ -2,16 +2,20 @@
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+from matplotlib.patches import Wedge
 import seaborn as sns
 import plotly.graph_objects as go
 from plotly.express.colors import sample_colorscale
 import numpy as np
 import re
 import pickle
+from loguru import logger
+import matplotlib.cm as cm
+import matplotlib.colors as mcolors
 
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder
 from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
-from behave_analysis.utils.heatplot_utils import add_features
+from behave_analysis.utils.heatplot_utils import add_features, add_features_binned
 
 ## --------------- PLOTTING FUNCTIONS
 
@@ -54,7 +58,7 @@ def plot_LDA_by_position(self, settings, target):
 
     for var in target:
         pa = [val for key, val in prediction_accuracy.items() if re.search(var, key)]
-        PredictionAccuracyMapped(self, pa, title_add=(var+'_by_pos'), pos = prediction_accuracy['bin_centre'].T)
+        PredictionAccuracy_byposition_Mapped(self, pa, title_add=(var+'_by_pos'),numrings = prediction_accuracy['num_circles'], num_slices = prediction_accuracy['num_slices'], bin_centre = prediction_accuracy['bin_centre'])
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title):
     """
@@ -168,7 +172,7 @@ def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos 
         significant_points = (pa - LS_thresh) > 0
         ax.scatter(x[significant_points]+.5,y[significant_points]+.5,s = 3, c = 'w')
 
-    add_features(ax, self.condition, self.tracking_data, xbins, ybins)
+    add_features_binned(ax, self.condition, self.tracking_data, xbins, ybins)
 
     # Remove x and y tick labels and ticks
     ax.set_xticklabels([])
@@ -181,8 +185,97 @@ def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos 
     ax.set_aspect("equal")
 
     # save plot
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add +"_prediction_accuracy_map" + ".png"
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add +"_pa_map" + ".png"
     plt.savefig(filename)
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add +"_pa_map" + ".eps"
+    plt.savefig(filename, format='eps')
+    if self.show_plots:
+        plt.show()
+    plt.close()
+
+def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_centre, title_add = 'LDA', LS_thresh = None):
+    """
+    Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
+    
+    INPUT: 
+    pa = is a list of prediction accuracies for head-angle towards the points listed in self.tracking_data["randP_loc"]
+    it can either be the prediction accuracy for the full datatset, or the mean of the shifted distribution geenrated with linear shift
+    
+    title_add = this is a string that will be added to the title of the figure when saving, it will help distinguish LDA full models from linear shift maps for example
+    
+    LS_thresh = an array of the same length as pa with the threshold for significance for each point, if passed a white dot will be added to each sqaure that is significant
+    """
+    
+    # Define the radius of the circle
+    radius = 460
+
+    # set up figure
+    fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
+    ax.set_xlim(-radius, radius)
+    ax.set_ylim(-radius, radius)
+    pa = np.array(pa)
+    if len(pa[pa>0]) > 0:
+        vmin = np.amin(pa[pa>0])
+    else:
+        vmin = 0
+    vmax = np.amax(pa)
+    # Normalize the values to the range [0, 1]
+    norm = mcolors.Normalize(vmin=vmin, vmax=vmax)
+    colormap = cm.inferno
+
+    if np.shape(bin_centre)[1] > len(pa): bin_centre = bin_centre[:,1:]
+
+    # Calculate the radius of the inner ring
+    radii = np.empty(numrings)
+    for r in np.arange(numrings):
+        radii[r] = np.sqrt(r+1) * radius / np.sqrt(numrings)
+
+    # Calculate the angles for the slices
+    angles = np.linspace(-np.pi, np.pi, num_slices + 1)
+
+    # Draw the segments
+    for i in range(num_slices):
+        theta1 = np.degrees(angles[i])
+        theta2 = np.degrees(angles[i + 1])
+
+        for idx, r in enumerate(np.flipud(radii)):
+            which_pa = np.logical_and(bin_centre[0,:] == (len(radii)-idx-1),bin_centre[1,:] == i+1)
+            if pa[which_pa]>0:
+                color = colormap(norm(pa[which_pa]))
+            else:
+                color = [1,1,1]
+            wedgie = Wedge((0, 0), r, theta1, theta2, facecolor=color)
+            ax.add_patch(wedgie)
+
+    if LS_thresh != None:
+        logger.warning("You wanted to plot which bins are significant but this code isn't functional yet!")
+        # significant points are the ones where predictiona ccuracy is greater than thresh
+        # significant_points = (pa - LS_thresh) > 0
+        # ax.scatter(x[significant_points]+.5,y[significant_points]+.5,s = 3, c = 'w')
+
+    add_features(ax, self.condition, self.tracking_data, zero_centre = True)
+
+    # Create a scalar mappable for the colorbar
+    sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm)
+    sm.set_array([])  # Only needed for matplotlib < 3.1
+
+    # Add colorbar to the plot
+    cbar = plt.colorbar(sm, ax=ax)
+    cbar.set_label('prediction accuracy')
+
+    # Remove x and y tick labels and ticks
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.xaxis.set_ticks_position("none")
+    ax.yaxis.set_ticks_position("none")
+    ax.set_axis_off()
+    ax.set_title(self.condition, fontsize=20)
+
+    # save plot
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add +"_pa_posmap" + ".png"
+    plt.savefig(filename)
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add +"_pa_posmap" + ".eps"
+    plt.savefig(filename, format='eps')
     if self.show_plots:
         plt.show()
     plt.close()
@@ -257,7 +350,7 @@ def across_conditions_LDA_map(self, settings):
                 norm=plt.Normalize(vmin=vmin, vmax=vmax),
             )
 
-            add_features(axs[ax_idx], condition, self.tracking_data, xbins, ybins)
+            add_features_binned(axs[ax_idx], condition, self.tracking_data, xbins, ybins)
 
             # Remove x and y tick labels and ticks
             axs[ax_idx].set_xticklabels([])
@@ -273,6 +366,7 @@ def across_conditions_LDA_map(self, settings):
     plt.subplots_adjust(wspace=0.05, hspace=0)
     savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types)
     plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.png")
+    plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.eps", format='eps')
     if settings.show_plots:
         plt.show()
     plt.close()

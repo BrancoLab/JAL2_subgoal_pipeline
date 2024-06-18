@@ -59,7 +59,6 @@ def select_relevant_frames(self):
 
     return filtered_video_df
 
-
 def exclude_proximal_frames(video_df, variable, tracking, dist_thresh):
     """This function takes a video_df and a point as inputs.
     It computes the distance of the mouse to that point at every frame.
@@ -74,7 +73,6 @@ def exclude_proximal_frames(video_df, variable, tracking, dist_thresh):
     video_df = video_df.filter(dist > dist_thresh)
 
     return video_df
-
 
 def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, centre=[]):
     """It computes the distance of the mouse to that point at every frame"""
@@ -113,7 +111,6 @@ def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, cen
 
     return dist
 
-
 def BinDfbyAngle(self, variable, n_bins):
     """
     A function that bins the angles of interest extracting them from the behavioral dataframe
@@ -131,7 +128,6 @@ def BinDfbyAngle(self, variable, n_bins):
     binned_angles = np.digitize(binned_angles, bins)
 
     return binned_angles, bins, bin_centre
-
 
 def BinDfbyDistance(self, variable, n_bins):
     """
@@ -239,6 +235,35 @@ def BinDfbyPos(filtered_video_df, video_height, video_width, numpoints = 3, retu
     else:
         return binned_pos
 
+def BinArenaEqualParts(filtered_video_df, numpoints, numrings, radius, video):
+    """
+    A function that bins the x-y position of the mouse into 16 equal pieces of the arena
+    """
+    mouse_x = filtered_video_df["mouse_x_position"].to_numpy()
+    mouse_y = filtered_video_df["mouse_y_position"].to_numpy()
+
+    radii = np.empty(numrings)
+    for r in np.arange(numrings):
+        radii[r] = np.sqrt(r+1) * radius / np.sqrt(numrings)
+
+    # compute distance of positions from centre of arena
+    centre=[video.height / 2, video.width / 2]
+    dist = np.sqrt(((mouse_x - centre[0]) ** 2) + ((mouse_y - centre[1]) ** 2))
+    ring_index = np.digitize(dist,radii)
+
+    # compute angle of mouse positions
+    theta = np.arctan2(mouse_y - centre[1], mouse_x - centre[0])
+    wedge_idx = np.digitize(theta,np.linspace(-np.pi,np.pi,numpoints+1))
+
+    bc, binned_pos = np.unique(np.vstack((ring_index,wedge_idx)), axis=1, return_inverse=True)
+
+    # remove points outside arena
+    binned_pos += 1
+    binned_pos[dist > radius] = 0
+    bc = bc[:,np.unique(binned_pos)-1]
+    if np.unique(binned_pos)[0] == 0: bc = bc[:,1:]
+
+    return binned_pos, bc
 
 def binDfbyEpoch(matrix, pos_ang, epoch_num):
     """

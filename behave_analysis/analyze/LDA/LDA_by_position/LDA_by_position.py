@@ -17,7 +17,7 @@ from behave_analysis.analyze.LDA.LDA_utils import (
 )
 from behave_analysis.analyze.LDA.LDA_preprocess import (
     select_relevant_frames,
-    BinDfbyPos,
+    BinArenaEqualParts,
     exclude_proximal_frames,
     prep_target_and_predictors,
 )
@@ -36,8 +36,10 @@ def run_LDA_model_by_position(self, settings, target_name):
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
-    bp, bc = BinDfbyPos(filtered_video_df, self.session.video.height, self.session.video.width, numpoints = self.pos_numpoints, return_bin_centre = True)
+    bp, bc = BinArenaEqualParts(filtered_video_df, numpoints = self.num_slices, numrings = self.num_circles, radius = 460, video = self.session.video)
     filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", bp)])
+    prediction_accuracy.update({'num_slices' : self.num_slices})
+    prediction_accuracy.update({'num_circles' : self.num_circles})
     prediction_accuracy.update({'bin_centre' : bc})
 
     for variable in target_name:

@@ -105,7 +105,7 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions: l
             pivot_df = normalized_df.pivot(index="y_bins", columns="x_bins", values="normalized_spike_count").fillna(0)
 
             # Create the heatmap
-            add_features(axs[idx], condition, tracking_data, x_bin_nums, y_bin_nums)
+            add_features_binned(axs[idx], condition, tracking_data, x_bin_nums, y_bin_nums)
             single_unit_heatmap_plotting(
                 axs=axs, idx=idx, heatmap_data=pivot_df, cbar_ax=cbar_ax, condition=condition, condition_spikes=condition_spikes
             )

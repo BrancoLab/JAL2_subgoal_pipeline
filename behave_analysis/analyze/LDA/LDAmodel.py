@@ -59,7 +59,8 @@ def LDA(self, settings):
                 if np.logical_or(settings.run_LDA == 'all_vectors', settings.run_LDA == 'all_distance'):
                     logger.warning("You are running LDA by position to decode vectors or distances, but this dramatically reduces the amount of available data. Run it on 'all_angles' instead")
                 self.number_of_bins = 9
-                self.pos_numpoints = 6
+                self.num_slices = 6
+                self.num_circles = 3
                 target = choose_predictors(settings, self.session, include_rand_points = False)
             else:
                 self.number_of_bins = settings.number_of_bins
@@ -134,7 +135,7 @@ def run_LDA_model(self, settings, target_name):
             else:
                 savename, target, X = prep_target_and_predictors(self, variable, settings)
                 preprocess_time = time.time()
-                print("Time to preprocess is " + str(preprocess_time - start_time))
+                # print("Time to preprocess is " + str(preprocess_time - start_time))
 
                 # run LDA on different angles
                 if self.do_LDA:
@@ -152,7 +153,7 @@ def run_LDA_model(self, settings, target_name):
                     )
                     prediction_accuracy.update({variable: pa})
                     prediction_coef.update({variable: coef})
-                    print("Time to run single LDA iter: " + str(time.time() - start_time))
+                    # print("Time to run single LDA iter: " + str(time.time() - start_time))
 
                 # run LDA with individual cell dropout
                 if self.do_dropout:
@@ -164,7 +165,7 @@ def run_LDA_model(self, settings, target_name):
                     args_list = [(x, target) for x in X_drop]
                     dropouts = self.PPool.mp_pool.map(parallel_function, args_list)
                     dropout_pa.update({variable: dropouts})
-                    print("Time to run LDA on " + str(np.shape(X)[1]) + " dropouts: " + str(time.time() - start_time))
+                    # print("Time to run LDA on " + str(np.shape(X)[1]) + " dropouts: " + str(time.time() - start_time))
 
                 # run linear shift on different angles
                 if self.do_LS:
@@ -180,7 +181,7 @@ def run_LDA_model(self, settings, target_name):
                     )
                     LS_compiled.update({variable: LS_output})
                     lda_time = time.time()
-                    print("Time to LS is " + str(lda_time - start_time))
+                    # print("Time to LS is " + str(lda_time - start_time))
                     del LS_output
 
         else:  # if the variable is a random point
