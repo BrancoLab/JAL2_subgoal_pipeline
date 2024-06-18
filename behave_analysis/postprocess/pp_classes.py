@@ -11,6 +11,7 @@ from behave_analysis.database.synthetic_data.synthetic_main import generate_synt
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.postprocess.trials.escapes import get_Escapes
 from behave_analysis.utils.data_loading import load_or_extract_homings
+from behave_analysis.homings.homings import Homings
 
 
 class BaseDataPostprocessor(ABC):
@@ -93,14 +94,38 @@ class BaseDataPostprocessor(ABC):
         assert len(filtered_video_df) > 0, "No data left after filtering"
         return filtered_video_df
 
-    def track_to_polars(self) -> pl.DataFrame:
-        """
-        Adds all the behavioral variables from track to a polars dataframe, video_df - and saves it
+    def track_to_polars(self, homing_obj) -> pl.DataFrame:
+        """Adds all a set of behavioral variables to a polars dataframe we call video_df.
+        
+        Args:
+            homing_obj (obj class): An object representing the homing data for the session used to fill when homing frames are occuring
 
-        This function also saves so you can run just this function to regenerate it
+        The following columns are added to the video dataframe:
+            -- frames
+            -- hdir
+            -- mouse_x_position
+            -- mouse_y_position
+            -- OutofshelterIdx (bool)
+            -- EscapePeriod (bool)
+            -- shelter (bool)
+            -- barrier_present (bool)
+            -- barrier_flipped (bool)
 
-        Returns: Video_df
-        """
+        Returns: 
+            Video_df (pl.DataFrame)"""
+        
+        number_of_frames = len(self.tracking_data["hdir"])
+         
+        # if homing data is present, create a boolean array to indicate when homing is occuring in the session
+        if homing_obj:
+            homing_bool = np.zeros(number_of_frames, dtype=bool)
+            onset_frames = homing_obj.onset_frames
+            offset_frames = homing_obj.offset_frames
+            for onset, offset in zip(onset_frames, offset_frames):
+                homing_bool[onset - 1 : offset -1] = True
+        else:
+            homing_bool = [None] * number_of_frames
+            
         if len(self.session.shelter_time) > 0:
             # if mushroom, estend size to outer circle
             if np.logical_and(
@@ -170,6 +195,7 @@ class BaseDataPostprocessor(ABC):
                 "shelter": shelter,  # true when the shelter is in the arena
                 "barrier_present": barrier_present,  # true when the barrier is in the arena
                 "barrier_flipped": barrier_flipped,
+                "homingPeriod": homing_bool,
             }
         )  # true after the shelter was flipped
 
@@ -397,13 +423,19 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
 
-        # -----------------------------------------------------------------------
-        # Create a video dataframe and then check if the tracking data is within the bounds of the arena
-        video_df = self.track_to_polars()
-        QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session) # For now just log the warning and don't touch the data
-        if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
+        if np.logical_and(len(self.session.shelter_time) > 0, len(self.session.barrier_time) > 0):
             homings = load_or_extract_homings(session)
-            escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
+        
+        # Handle if homings is not run run
+        if not isinstance(homings, Homings): 
+            homings = None
+            
+        video_df = self.track_to_polars(homings)
+        QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session) # For now just log the warning and don't touch the data
+            
+        if np.logical_and(len(self.session.shelter_time) > 0, len(self.session.barrier_time) > 0):
+            _ = get_Escapes(settings, session, tracking_data, video_df, homings)
+
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
