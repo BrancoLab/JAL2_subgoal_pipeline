@@ -57,9 +57,13 @@ class AnalyzeEfizz:
         self.tracking_data = open_tracking_data(self.session)
 
         assert c_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"
-        self.cluster_Ids = np.load(
-            str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
-        )
+
+        try:
+            self.cluster_Ids = np.load(
+                str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
+            )
+        except FileNotFoundError:
+            logger.warning("Cluster Ids not found")
 
         # Load the video spike count data
         try:
@@ -103,6 +107,11 @@ class AnalyzeEfizz:
                 design_matrix=pp_single_trial_obj.design_matrix,
                 save_path=single_trial_save_path,
                 dependents_df=pp_single_trial_obj.targets_df,
+                tracking_data=self.tracking_data,
+                homing_list=pp_single_trial_obj.homing_list,
+                spike_homing_list=pp_single_trial_obj.spike_data_per_homing,
+                condition_per_homing=pp_single_trial_obj.condition_per_homing,
+                cluster_ids=self.cluster_Ids,
             )
 
         # ----------------- Compute Rayleigh, polar plots and delta hists ------------
