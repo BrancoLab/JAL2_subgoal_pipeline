@@ -506,5 +506,3 @@ class PreprocessSingleTrialRegression:
         design_matrix["homing_id"] = data["homing_id"].to_numpy()
 
         return design_matrix, spike_data_per_homing
-
-

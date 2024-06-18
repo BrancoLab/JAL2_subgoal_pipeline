@@ -28,8 +28,20 @@ from behave_analysis.analyze.single_trial.tests import UnitTests
 class SingleTrialRegression:
     """A class that performs single trial regression analysis on the data"""
 
-    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, dependents_df: pd.DataFrame, tracking_data, homing_list, spike_homing_list, condition_per_homing):
+    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, dependents_df: pd.DataFrame, tracking_data, homing_list, spike_homing_list, condition_per_homing, cluster_ids):
+        """Initialize the single trial regression analysis object
+        
+        Args:
+            design_matrix (pd.DataFrame): The design matrix containing the neural data
+            save_path (Path): The path to save the results
+            dependents_df (pd.DataFrame): The dependent variables to run the regression on
+            tracking_data (pd.DataFrame): The tracking data
+            homing_list (list): A list of homings
+            spike_homing_list (list): A list of spike data per homing, each item is a np matrix 
+            condition_per_homing (list): A list of conditions per homing""" 
+        
         logger.info("Initializing the single trial regression analysis object")
+        self.cluster_ids = cluster_ids
         self.design_matrix = design_matrix
         self.homing_list = homing_list
         self.spike_homing_list = spike_homing_list
@@ -47,12 +59,15 @@ class SingleTrialRegression:
             "h_bar_south_a",
         ]  # define here all potential angular variables so we can switch between coordinate systems
         self.encompasing_set = ["h_bar_north_a", "hdir", "hsa", "h_bar_south_a", "mouse_y_position", "velocity"]
+    
+        # --------------------- Functions for running the regression ---------------------
+        # Initialize the plotting object
         self.plotter = RegressionPlotting(save_path)
-
+    
         sig_index_coefficients_indices, og_coefficients_sig_in_both = self.run(
-            run_all_dependent_variables=False, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=False
+            run_all_dependent_variables=True, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=False
         )
-
+        
         # Plot a heatplot of the design matrix for the north index
         self.plotter.plot_clustered_heatmap(
             self.design_matrix,
@@ -62,6 +77,16 @@ class SingleTrialRegression:
             index_label="index_north",
         )
 
+        # Plot the escape trajectories with the neural activity
+        sig_cluster_ids = self.retrieve_clu_ids_sig_to_index(sig_index_coefficients_indices, cluster_ids)
+        self.plotter.plot_all_homings_with_neural_activity(
+            homing_list=self.homing_list, 
+            spike_data_per_homing=self.spike_homing_list, 
+            tracking_data=self.tracking_data, 
+            condition_per_homing=self.condition_per_homing,
+            cluster_ids=self.cluster_ids,
+            sig_clu_ids=sig_cluster_ids,
+        ) 
     # --------------------- Functions for running the regression ---------------------
 
     def run(
@@ -74,13 +99,6 @@ class SingleTrialRegression:
         - shift_neural_data: Shift the neural data and run the model to see how the R2 score changes with chance
         - explore_coeffs_with_other_predictors: Explore the coefficients with other predictors to see how they change"""
 
-        # Plot the escape trajectories with the neural activity
-        self.plotter.plot_all_homings_with_neural_activity(
-            homing_list=self.homing_list, 
-            spike_data_per_homing=self.spike_homing_list, 
-            tracking_data=self.tracking_data, 
-            condition_per_homing=self.condition_per_homing
-        )
 
         if run_all_dependent_variables:
             r2_score_for_all_dependents, _, _, mse = self.run_all_dependent_variables()
@@ -131,6 +149,10 @@ class SingleTrialRegression:
         assert "sig_index_coefficients_indices" in locals(), "sig_index_coefficients_indices is not defined"
 
         return sig_in_both_models, og_coefficients[sig_in_both_models]
+
+    def retrieve_clu_ids_sig_to_index(self, sig_index, cluster_ids: np.ndarray) -> np.ndarray:
+        """Retrieve the cluster ids that are significant to the index response variable"""
+        return cluster_ids[sig_index]
 
     def run_just_one_dependent_variable(self, dependent_var_name: str, design_matrix: pd.DataFrame) -> tuple:
         """Run the model for just one dependent variable"""
@@ -659,7 +681,7 @@ class RegressionPlotting:
         normalized_matrix = normalized_matrix.T  # Transpose to have the neurons on the y axis
 
         # take the first 2000 frames as a smaller chunk to make the plot more readable
-        if 1:
+        if 0:
             np_matrix = normalized_matrix.to_numpy()
             normalized_matrix = np_matrix[:, :frames]  # selct all neurons and the first 2000 frames
             index = dependents_df[index_label][:frames]
@@ -688,8 +710,7 @@ class RegressionPlotting:
 
         plt.tight_layout()
         plt.savefig(self.save_path / f"{index_label}_clustered_heatmap.png")
-        plt.show()
-        # plt.close()
+        plt.close()
 
     def plot_shift_results(self, shifts, og_r2, shifted_r2_ols):
         """Plot the mean R2 scores for different shifts"""
@@ -832,20 +853,27 @@ class RegressionPlotting:
     # ------------------- Plotting functions take from spatial efficienty + mine -------------------
     # refactor potential to make these shared components
 
-    def plot_all_homings_with_neural_activity(self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing):
+    def plot_all_homings_with_neural_activity(self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing, cluster_ids, sig_clu_ids):
         """Plot all homings with neural activity by neuron
 
-        # NOTE should i use hdir location instead of body location
+        Args:
+            homing_list (list): List of homing dataframes
+            spike_data_per_homing (list): List of spike np matrices
+            plot_sig_only (bool, optional): Plot only the significant neurons that are tuned to the index variable. Defaults to True.
+            
+        # NOTE should we use hdir location instead of body location
         """
         
         logger.info("Plotting all homings + neural activity by neuron")
-
-        # create a figure and axis
-        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+        new_path = self.save_path / "neural_activity_plots"
+        make_directory(new_path)
         num_neurons = spike_data_per_homing[0].shape[1]
+        assert len(cluster_ids) == num_neurons, "The number of cluster ids is not the same as the number of neurons"
 
-        for neuron in range(num_neurons):
-            print(f"Plotting neuron {neuron}")
+        fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
+        
+        for cidx, clu_id in enumerate(cluster_ids):
+            print(f"Plotting neuron {clu_id}")
             
             # Booleans to check if the condition has been plotted - Lazy way to avoid repeating the same plot
             b1 = False
@@ -854,7 +882,7 @@ class RegressionPlotting:
             
             for idx, (homing, spikes) in enumerate(zip(homing_list, spike_data_per_homing)):
                 con = condition_per_homing[idx]
-                neuron_filter = spikes[:, neuron]  # Select the frames of the corresponding homing for the first neuron only
+                neuron_filter = spikes[:, cidx]  
                 
                 if con == "shelter_only": 
                     if not b1:
@@ -878,9 +906,12 @@ class RegressionPlotting:
             ax1.set_title("Shelter Only")
             ax2.set_title("Barrier Pre Flip")
             ax3.set_title("Barrier Post Flip")
-            fig.suptitle(f"Neural Activity overlaid homings for Neuron {neuron}")    
-                    
-            plt.savefig(self.save_path / f"neural_activity_neuron_{neuron}.png")
+            if cidx in sig_clu_ids:
+                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Significant to index variable")
+            else:
+                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Not Significant to Index Variable")
+            plt.savefig(new_path / f"neural_activity_neuron_{clu_id}.png")
+            # plt.savefig(new_path / f"neural_activity_neuron_{neuron}.eps")
             
             # Clear the axes for the next neuron
             ax1.cla()
