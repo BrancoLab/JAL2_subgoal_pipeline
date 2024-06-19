@@ -26,6 +26,7 @@ COLUMNS_TO_KEEP = [
     "shelter",
     "barrier_present",
     "barrier_flipped",
+    "homingPeriod"
 ]
 
 
@@ -64,11 +65,12 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions: l
         fig, axs = plt.subplots(nrows=1, ncols=len(conditions), figsize=(15, 7), sharey=True, sharex=True)
         cbar_ax = fig.add_axes([0.91, 0.3, 0.02, 0.4])  # The list represents [left, bottom, width, height]
         for idx, condition in enumerate(conditions):
-            filtered_df = filter_video_dataframe(dataframe=data, condition=condition)
+            filtered_df = filter_video_dataframe(dataframe=data, condition=condition, exclude_escape=True, exclude_homings=True)
             clu_df = filtered_df.filter(pl.col("spike_clusters") == clu)
 
             # Skip if no data for this unit and condition
             if clu_df.is_empty() or sum(clu_df["spike_count"]) == 0:
+                logger.warning(f"Unit {clu} has no data for condition {condition}, skipping...")
                 continue
 
             pddf = clu_df.to_pandas()
@@ -128,6 +130,7 @@ def single_unit_heatmap_plotting(axs, idx: int, heatmap_data: pl.DataFrame, cbar
         heatmap_data (pl.DataFrame): A DataFrame containing the heatmap data
         cbar_ax: The colorbar axis object
         condition (str): The condition of the plot"""
+
     axs[idx] = sns.heatmap(
         heatmap_data,
         cmap="viridis",
