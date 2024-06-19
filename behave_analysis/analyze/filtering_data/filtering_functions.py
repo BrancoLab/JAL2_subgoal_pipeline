@@ -38,7 +38,7 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
     filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == outofshelter))
 
     if exclude_homings:
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["HomingPeriod"] == False))
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["homingPeriod"] == False))
 
     if exclude_escape:
         filtered_video_df = filtered_video_df.filter((filtered_video_df["EscapePeriod"] == False))
