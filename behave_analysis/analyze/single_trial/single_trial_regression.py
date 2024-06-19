@@ -25,21 +25,32 @@ from behave_analysis.utils.color_funcs import get_color_based_on_neural_activity
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.single_trial.tests import UnitTests
 
+
 class SingleTrialRegression:
     """A class that performs single trial regression analysis on the data"""
 
-    def __init__(self, design_matrix: pd.DataFrame, save_path: Path, dependents_df: pd.DataFrame, tracking_data, homing_list, spike_homing_list, condition_per_homing, cluster_ids):
+    def __init__(
+        self,
+        design_matrix: pd.DataFrame,
+        save_path: Path,
+        dependents_df: pd.DataFrame,
+        tracking_data,
+        homing_list,
+        spike_homing_list,
+        condition_per_homing,
+        cluster_ids,
+    ):
         """Initialize the single trial regression analysis object
-        
+
         Args:
             design_matrix (pd.DataFrame): The design matrix containing the neural data
             save_path (Path): The path to save the results
             dependents_df (pd.DataFrame): The dependent variables to run the regression on
             tracking_data (pd.DataFrame): The tracking data
             homing_list (list): A list of homings
-            spike_homing_list (list): A list of spike data per homing, each item is a np matrix 
-            condition_per_homing (list): A list of conditions per homing""" 
-        
+            spike_homing_list (list): A list of spike data per homing, each item is a np matrix
+            condition_per_homing (list): A list of conditions per homing"""
+
         logger.info("Initializing the single trial regression analysis object")
         self.cluster_ids = cluster_ids
         self.design_matrix = design_matrix
@@ -59,34 +70,25 @@ class SingleTrialRegression:
             "h_bar_south_a",
         ]  # define here all potential angular variables so we can switch between coordinate systems
         self.encompasing_set = ["h_bar_north_a", "hdir", "hsa", "h_bar_south_a", "mouse_y_position", "velocity"]
-    
+
         # --------------------- Functions for running the regression ---------------------
         # Initialize the plotting object
         self.plotter = RegressionPlotting(save_path)
-    
-        sig_index_coefficients_indices, og_coefficients_sig_in_both = self.run(
-            run_all_dependent_variables=True, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=False
-        )
-        
-        # Plot a heatplot of the design matrix for the north index
-        self.plotter.plot_clustered_heatmap(
-            self.design_matrix,
-            dependents_df=self.dependents_df,
-            significant_neuron_ids=sig_index_coefficients_indices,
-            og_coefficients=og_coefficients_sig_in_both,
-            index_label="index_north",
+
+        self.run(
+            run_all_dependent_variables=False, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=False
         )
 
-        # Plot the escape trajectories with the neural activity
-        sig_cluster_ids = self.retrieve_clu_ids_sig_to_index(sig_index_coefficients_indices, cluster_ids)
-        self.plotter.plot_all_homings_with_neural_activity(
-            homing_list=self.homing_list, 
-            spike_data_per_homing=self.spike_homing_list, 
-            tracking_data=self.tracking_data, 
-            condition_per_homing=self.condition_per_homing,
-            cluster_ids=self.cluster_ids,
-            sig_clu_ids=sig_cluster_ids,
-        ) 
+        # TODO - update to handle two indexes
+        # Plot a heatplot of the design matrix for the north index
+        # self.plotter.plot_clustered_heatmap(
+        #     self.design_matrix,
+        #     dependents_df=self.dependents_df,
+        #     significant_neuron_ids=sig_index_coefficients_indices,
+        #     og_coefficients=og_coefficients_sig_in_both,
+        #     index_label="index_north",
+        # )
+
     # --------------------- Functions for running the regression ---------------------
 
     def run(
@@ -99,9 +101,8 @@ class SingleTrialRegression:
         - shift_neural_data: Shift the neural data and run the model to see how the R2 score changes with chance
         - explore_coeffs_with_other_predictors: Explore the coefficients with other predictors to see how they change"""
 
-
         if run_all_dependent_variables:
-            r2_score_for_all_dependents, _, _, mse = self.run_all_dependent_variables()
+            r2_score_for_all_dependents, _, _, _ = self.run_all_dependent_variables()
             self.plotter.plot_the_r2_scores_for_all_dependents(r2_scores=r2_score_for_all_dependents)
             logger.success("The model has been run for all dependent variables")
 
@@ -112,43 +113,70 @@ class SingleTrialRegression:
             logger.success("The model has been run for all shifts")
 
         if explore_coeffs_with_other_predictors:
-
             # Where og is the original gangster and comp is the comparison model
-            INDEX = "index_north"
-            # index = "index_south"
+            sig_idx_in_both_models_north_index, _ = self.run_model_comparison_of_just_neural_vs_other_predictors("index_north")
+            sig_idx_in_both_models_south_index, _ = self.run_model_comparison_of_just_neural_vs_other_predictors("index_south")
 
-            og_r2_score, og_coefficients, og_p_values = self.run_just_one_dependent_variable(INDEX, self.design_matrix)
-            comparison_design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, self.encompasing_set)
-            comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(INDEX, comparison_design_matrix)
-
-            # Select only the neural data coefficients and p values (Excluding intercept and non neural coeffs)
-            og_coefficients = og_coefficients[: self.number_of_neurons]
-            og_p_values = og_p_values[: self.number_of_neurons]
-            comp_predictors_coeffs = comp_predictors_coeffs[: self.number_of_neurons]
-            comp_predictors_p_value = comp_predictors_p_value[: self.number_of_neurons]
-
-            # Take the indexes that are significant in both models
-            sig_in_both_models = np.where((og_p_values < 0.05) & (comp_predictors_p_value < 0.05))[0]
-
-            sig_index_coefficients_indices = np.where(og_p_values < 0.05)  # Which coefficients are significant in the original model
-            self.plotter.plot_proportion_of_coeffs_that_remain_significant(og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score)
-            # Check whether the significant coefficients change significantly between the two models
-            x1 = np.ones(len(og_coefficients))
-            x2 = 2 * np.ones(len(comp_predictors_coeffs))
-            self.plotter.plot_coefficients_between_models(
-                x1, x2, og_coefficients, comp_predictors_coeffs, sig_index_coefficients_indices, ttest_func=self.repeat_observation_ttest
-            )
-            logger.success("The model has been run to compare base model with encompassing model")
+            if 1: # if you want to plot neural activity onto homings
+                # Plot the escape trajectories with the neural activity
+                sig_cluster_ids_north = self.retrieve_clu_ids_sig_to_index(sig_idx_in_both_models_north_index, self.cluster_ids)
+                sig_cluster_ids_south = self.retrieve_clu_ids_sig_to_index(sig_idx_in_both_models_south_index, self.cluster_ids)
+                
+                # combine the significant cluster ids
+                sig_cluster_ids = set(np.concatenate((sig_cluster_ids_north, sig_cluster_ids_south)))
+                
+                self.plotter.plot_all_homings_with_neural_activity(
+                    homing_list=self.homing_list,
+                    spike_data_per_homing=self.spike_homing_list,
+                    tracking_data=self.tracking_data,
+                    condition_per_homing=self.condition_per_homing,
+                    cluster_ids=self.cluster_ids,
+                    sig_clu_ids=sig_cluster_ids,
+                )
 
         if run_hiarchical_regression:
             h_results = self.run_hiararchical_regression(INDEX)
             self.plotter.plot_adjusted_r2_scores_for_hierarchy(h_results)
             logger.success("The model has been run for the hierarchical regression")
 
-        # check if sig_index_coefficients_indices is defined
-        assert "sig_index_coefficients_indices" in locals(), "sig_index_coefficients_indices is not defined"
 
-        return sig_in_both_models, og_coefficients[sig_in_both_models]
+    def run_model_comparison_of_just_neural_vs_other_predictors(self, index) -> tuple:
+        """First runs the model with neural data alone and then adds other predictors to see how the coefficients change
+
+        Args:
+            index (str): The index to run the model on
+            
+        Returns:
+            tuple: sig_in_both_models_idxs, og_coefficients[sig_in_both_models_idxs]"""
+
+        # Run the model with the original design matrix with just the neural data
+        og_r2_score, og_coefficients, og_p_values = self.run_just_one_dependent_variable(index, self.design_matrix)
+
+        # Now add other predictors to the design matrix and run the model again
+        comparison_design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, self.encompasing_set)
+        comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(index, comparison_design_matrix)
+
+        # Select only the neural data coefficients and p values (Excluding intercept and non neural coeffs)
+        og_coefficients = og_coefficients[: self.number_of_neurons]
+        og_p_values = og_p_values[: self.number_of_neurons]
+        comp_predictors_coeffs = comp_predictors_coeffs[: self.number_of_neurons]
+        comp_predictors_p_value = comp_predictors_p_value[: self.number_of_neurons]
+
+        # Take the indexes that are significant in both models
+        sig_in_both_models_idxs = np.where((og_p_values < 0.05) & (comp_predictors_p_value < 0.05))[0]
+
+        sig_index_coefficients_indices = np.where(og_p_values < 0.05)  # Which coefficients are significant in the original model
+        self.plotter.plot_proportion_of_coeffs_that_remain_significant(
+            og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score, index_string=index
+        )
+        # Check whether the significant coefficients change significantly between the two models
+        x1 = np.ones(len(og_coefficients))
+        x2 = 2 * np.ones(len(comp_predictors_coeffs))
+        self.plotter.plot_coefficients_between_models(
+            x1, x2, og_coefficients, comp_predictors_coeffs, sig_index_coefficients_indices, ttest_func=self.repeat_observation_ttest, index_string=index
+        )
+        logger.success("The model has been run to compare base model with encompassing model")
+        return sig_in_both_models_idxs, og_coefficients[sig_in_both_models_idxs]
 
     def retrieve_clu_ids_sig_to_index(self, sig_index, cluster_ids: np.ndarray) -> np.ndarray:
         """Retrieve the cluster ids that are significant to the index response variable"""
@@ -156,16 +184,12 @@ class SingleTrialRegression:
 
     def run_just_one_dependent_variable(self, dependent_var_name: str, design_matrix: pd.DataFrame) -> tuple:
         """Run the model for just one dependent variable"""
-
-        # Create a save location for the dependent variable
         make_directory(self.save_path / "ols_regression" / dependent_var_name)
-
         ols_fold_results = self.run_ols_model_with_cross_val(
             design_matrix=design_matrix, dependent_variable=self.dependents_df[dependent_var_name].to_numpy(), dependent_var_name=dependent_var_name
         )
         dic = self.unpack_fold_results_and_average(ols_fold_results)
         r2_scores, coefficients, p_values = dic["mean_r2"], dic["mean_coefficients"], dic["mean_p_values"]
-
         return r2_scores, coefficients, p_values
 
     def run_all_dependent_variables(self):
@@ -771,7 +795,7 @@ class RegressionPlotting:
         for i in iterator:
             ax.plot([x1[i], x2[i]], [original_model_coeffs[i], comparison_model_coeffs[i]], color="gray", linestyle="--", linewidth=0.5)
 
-    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func):
+    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func, index_string):
         """Plot all and only the significant coefficients between the two models in separate plots"""
 
         # Make coefficients absolute
@@ -802,15 +826,23 @@ class RegressionPlotting:
         are_results_significant = "significant" if p_value < 0.05 else "not significant"
         formatted_p_value = format(p_value, ".4f")
         rounded_p_value = round(p_value, 4)
-        fig.suptitle(f"Sig coeff (absolute) p-value: {rounded_p_value}. \n Difference is {are_results_significant}")
-
-        plt.savefig(self.save_path / "coefficients_between_models.png")
+        fig.suptitle(f"Sig coeff (absolute) p-value: {rounded_p_value}. \n Difference is {are_results_significant} between models for {index_string}")
+        file_name = index_string + "_coefficients_between_models.png"
+        plt.savefig(self.save_path /  file_name)
         plt.close()
 
     def plot_proportion_of_coeffs_that_remain_significant(
-        self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, og_r2_score, comp_r2_score, alpha=0.05
+        self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, og_r2_score, comp_r2_score, index_string, alpha=0.05
     ) -> None:
-        """Plots a bar chart showing the proportion of coefficients that remain significant between the two models, neural coefficients only"""
+        """Plots a bar chart showing the proportion of coefficients that remain significant between the two models, neural coefficients only
+
+        Args:
+            original_model_pvalues (np.ndarray): The p values for the original model
+            comparison_model_pvalues (np.ndarray): The p values for the comparison model
+            og_r2_score (float): The R2 score for the original model
+            comp_r2_score (float): The R2 score for the comparison model
+            index_string (str): The index variable
+            alpha (float, optional): The alpha value for the significance test. Defaults to 0.05."""
 
         # Check the number of coefficients that are significant in each model
         og_moel_significant_coeffs = np.sum(original_model_pvalues < alpha)
@@ -831,8 +863,9 @@ class RegressionPlotting:
         # rotate the x labels
         plt.xticks(rotation=10)
         ax.set_ylabel("Number of significant coefficients")
-        ax.set_title(f" {num_sig} / {len(original_model_pvalues)} coeffs are significant under both models")
-        plt.savefig(self.save_path / "proportion_of_significant_coeffs.png")
+        ax.set_title(f" {num_sig} / {len(original_model_pvalues)} coeffs are significant under both models for {index_string}")
+        file_name = index_string + "_proportion_of_significant_coeffs.png"
+        plt.savefig(self.save_path / file_name)
         plt.close()
 
     def plot_adjusted_r2_scores_for_hierarchy(self, hirarchical_results: dict):
@@ -853,17 +886,18 @@ class RegressionPlotting:
     # ------------------- Plotting functions take from spatial efficienty + mine -------------------
     # refactor potential to make these shared components
 
-    def plot_all_homings_with_neural_activity(self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing, cluster_ids, sig_clu_ids):
+    def plot_all_homings_with_neural_activity(
+        self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing, cluster_ids, sig_clu_ids
+    ):
         """Plot all homings with neural activity by neuron
 
         Args:
             homing_list (list): List of homing dataframes
             spike_data_per_homing (list): List of spike np matrices
             plot_sig_only (bool, optional): Plot only the significant neurons that are tuned to the index variable. Defaults to True.
-            
-        # NOTE should we use hdir location instead of body location
-        """
-        
+
+        # NOTE should we use hdir location instead of body location???"""
+
         logger.info("Plotting all homings + neural activity by neuron")
         new_path = self.save_path / "neural_activity_plots"
         make_directory(new_path)
@@ -871,53 +905,54 @@ class RegressionPlotting:
         assert len(cluster_ids) == num_neurons, "The number of cluster ids is not the same as the number of neurons"
 
         fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(15, 5))
-        
+
         for cidx, clu_id in enumerate(cluster_ids):
             print(f"Plotting neuron {clu_id}")
-            
+
             # Booleans to check if the condition has been plotted - Lazy way to avoid repeating the same plot
             b1 = False
             b2 = False
             b3 = False
-            
+
             for idx, (homing, spikes) in enumerate(zip(homing_list, spike_data_per_homing)):
                 con = condition_per_homing[idx]
-                neuron_filter = spikes[:, cidx]  
-                
-                if con == "shelter_only": 
+                neuron_filter = spikes[:, cidx]
+
+                if con == "shelter_only":
                     if not b1:
                         self.base_plotting(ax1, tracking_data, condition=con)
                         b1 = True
                     self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax1)
-                    
-                if con == "barrier_pre_flip": 
+
+                if con == "barrier_pre_flip":
                     if not b2:
                         self.base_plotting(ax2, tracking_data, condition=con)
                         b2 = True
                     self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax2)
-                    
-                if con == "barrier_post_flip": 
+
+                if con == "barrier_post_flip":
                     if not b3:
                         self.base_plotting(ax3, tracking_data, condition=con)
                         b3 = True
                     self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax3)
-                    
+
             # Add a title to the plot
             ax1.set_title("Shelter Only")
             ax2.set_title("Barrier Pre Flip")
             ax3.set_title("Barrier Post Flip")
-            if cidx in sig_clu_ids:
-                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Significant to index variable")
+
+            if clu_id in sig_clu_ids:
+                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Significant to a index variable")
             else:
-                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Not Significant to Index Variable")
+                fig.suptitle(f"Neural Activity overlaid homings for Neuron {clu_id} - Not Significant to a index Variable")
             plt.savefig(new_path / f"neural_activity_neuron_{clu_id}.png")
             # plt.savefig(new_path / f"neural_activity_neuron_{neuron}.eps")
-            
+
             # Clear the axes for the next neuron
             ax1.cla()
             ax2.cla()
             ax3.cla()
-        
+
         plt.close()
 
     def plot_escape_trajectories_with_neural_activity(self, neural_data, behavioural_data, ax):
@@ -934,17 +969,17 @@ class RegressionPlotting:
         x_loc = behavioural_data["mouse_x_position"]
 
         length_of_homing = len(neural_data)
-        trail_color = np.empty([length_of_homing, 3]) # 3 for RGB
+        trail_color = np.empty([length_of_homing, 3])  # 3 for RGB
 
         # For each frame retrieve the colour of the trail based on the neural activity
         for frame in range(length_of_homing):
 
             # reuse the function and see if it works with neural data
             trail_color[frame, :] = get_color_based_on_neural_activity(
-                neural_data=neural_data[frame], 
+                neural_data=neural_data[frame],
             )
-        
-        ax.scatter(x_loc, y_loc, s=5, c=trail_color, alpha = 0.7) # c is a 2d array where each row is an RGB value
+
+        ax.scatter(x_loc, y_loc, s=5, c=trail_color, alpha=0.7)  # c is a 2d array where each row is an RGB value
 
         return ax
 
@@ -952,7 +987,7 @@ class RegressionPlotting:
         """hard code condition for ease"""
 
         arena_radius = 460
-        
+
         # If there is a shelter present, draw it
         if "shelter_loc" in tracking.keys():
             for i in [0, 1]:
