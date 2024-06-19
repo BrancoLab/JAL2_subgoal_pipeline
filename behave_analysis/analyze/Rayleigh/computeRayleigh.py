@@ -486,7 +486,7 @@ def identify_which_compartment(self, filtered_video_df: pl.DataFrame) -> np.ndar
 
     compartment = np.ones([len(filtered_video_df)])
     if len(self.session.barrier_time) > 0:
-        compartment[filtered_video_df["mouse_y_position"].to_numpy() > 512] = 2
+        compartment[filtered_video_df["mouse_y_position"].to_numpy() < 512] = 2
     return compartment
 
 ## ---------------------PLOTTING -----------------------------
