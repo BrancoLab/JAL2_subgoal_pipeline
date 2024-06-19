@@ -31,16 +31,21 @@ class Visualize_efizz:
     def __init__(self, session):
         self.session = session
         base_path = os.path.join(self.session.base_path, self.session.processed_path)
-        self.spike_data = pl.read_csv(os.path.join(base_path, settings_v.cluster_type + "_spike_data.csv"))
-        self.video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
-        self.clu_ids = np.load(os.path.join(base_path, settings_v.cluster_type + "_cluster_ids.npy"))
-        self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
-        self.video_spike_count_df = pl.read_parquet(
-            os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet"), 
-            low_memory=True,
-            use_pyarrow = True,
-            memory_map=True,
-        )
+
+        try:
+            self.spike_data = pl.read_csv(os.path.join(base_path, settings_v.cluster_type + "_spike_data.csv"))
+            self.video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
+            self.clu_ids = np.load(os.path.join(base_path, settings_v.cluster_type + "_cluster_ids.npy"))
+            self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+            self.video_spike_count_df = pl.read_parquet(
+                os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet"), 
+                low_memory=True,
+                use_pyarrow = True,
+                memory_map=True,
+            )
+        except FileNotFoundError:
+            raise FileNotFoundError("The efizz data has not been processed yet. Please run the process pipeline first for all files.")
+        
         logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
 
     ##----------TUNING PLOTTING
