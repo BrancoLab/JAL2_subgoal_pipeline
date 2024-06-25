@@ -39,6 +39,7 @@ class PreprocessSingleTrialRegression:
         frame_by_cluster_matrix: np.ndarray,
         save_path: Path,
         velocity_data: np.ndarray,
+        barrier_location,
         similar_homings=False,
     ):
         logger.info("Initializing the single trial regression preprocessing object")
@@ -47,6 +48,7 @@ class PreprocessSingleTrialRegression:
         self.frame_by_cluster_matrix = frame_by_cluster_matrix
         self.save_path = save_path
         self.video_df = self.remove_columns_from_video_df(video_df)
+        self.barrier_location = barrier_location
 
         # Settings
         self.similar_homings = similar_homings
@@ -54,6 +56,7 @@ class PreprocessSingleTrialRegression:
         # Preprocessing homing data
         UnitTests.check_attributes_of_homing_dic(self.homings_obj)
         self.homing_list, homing_df_s1, self.condition_per_homing = self.preprocess_homing_data(select_similar_homings=self.similar_homings)
+        self.initial_directions = self.label_each_homing_with_an_initial_direction(self.extract_cumulative_homing_data(self.homings_obj, self.barrier_location))
 
         # Add the dependent variable to the data
         homing_df_s2 = self.add_dependent_index_variable_to_homing_info(homing_data_single_dataframe=homing_df_s1)
@@ -230,7 +233,62 @@ class PreprocessSingleTrialRegression:
         ]
         return video_df.select(keep)
 
+    def label_each_homing_with_an_initial_direction(self, cumulative_angle_data: dict) -> list:
+        """Label each homing with an initial direction based on the smallest angle to either edge or goal
+        
+        TODO:
+        - refact this to have a threshold as if the angle is between two values then it is ambiguous but this is
+        an initial start"""
+        
+        avg_hsa = cumulative_angle_data["avg_hsa"]
+        hdir_north_a = cumulative_angle_data["hdir_north_a"]
+        hdir_south_a = cumulative_angle_data["hdir_south_a"]
+        initial_direction = []
+        
+        # For each homing, which goal is the mouse facing the most
+        for homing_idx in range(len(avg_hsa)):
+            min_absolute_angle = np.min([np.abs(avg_hsa[homing_idx]), np.abs(hdir_north_a[homing_idx]), np.abs(hdir_south_a[homing_idx])])
+            if min_absolute_angle == np.abs(avg_hsa[homing_idx]):
+                initial_direction.append("shelter")
+            if min_absolute_angle == np.abs(hdir_north_a[homing_idx]):
+                initial_direction.append("north edge")
+            if min_absolute_angle == np.abs(hdir_south_a[homing_idx]):
+                initial_direction.append("south edge")
+
+        return initial_direction
+
     # ----------------- Functions for extracting the homing data ---------------------
+
+    def check_which_barrier_location_is_which_orientation(self, barrier_location) -> tuple:
+        """Given the barrier location edges change in tracking data, check which orientation is north and south"""
+        if barrier_location[0][0] > 512: # If the first edge x coordinate is greater than 512 then the fistr index is north edge
+            return "north", "south"
+        else: # Otherwise the first index is south edge
+            return "south", "north"
+    
+    def extract_cumulative_homing_data(self, homing_object: dict, barrier_location) -> dict:
+        """Extract the cumulative homing angle data for each homing period. I.e, for 
+        each homing, what was the average homing angle to the north and south edge of the barrier.
+        
+        Args:
+            homing_object (dict): The homings object
+            barrier_location (np.ndarray): The barrier location from the tracking data
+        
+        Returns (dict):
+            hdir_north_a (np.ndarray): The cumulative homing angle data for the north edge
+            hdir_south_a (np.ndarray): The cumulative homing angle data for the south edge
+            avg_hsa (np.ndarray): The cumulative homing angle data for the hsa"""
+        edge_names = self.check_which_barrier_location_is_which_orientation(barrier_location)
+        angle_data = homing_object.homing_angles_dic
+        if edge_names[0] == "north":
+            hdir_north_a = angle_data["avg_hdir_bar_goal1"]
+            hdir_south_a = angle_data["avg_hdir_bar_goal2"]
+        elif edge_names[0] == "south":
+            hdir_north_a = angle_data["avg_hdir_bar_goal2"]
+            hdir_south_a = angle_data["avg_hdir_bar_goal1"]
+        avg_hsa = angle_data["avg_hsa"]
+        dic = {"hdir_north_a": hdir_north_a, "hdir_south_a": hdir_south_a, "avg_hsa": avg_hsa}
+        return dic
 
     def extract_data_from_homings(self, homing_object: dict, video_df: pl.DataFrame) -> list:
         """Extract the associated behavioural data between homing onsets and offsets.
