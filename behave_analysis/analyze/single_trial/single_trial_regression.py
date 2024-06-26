@@ -22,6 +22,7 @@ from sklearn.metrics import r2_score, mean_squared_error
 from scipy.stats import ttest_rel
 from tqdm import tqdm
 
+from behave_analysis.utils.label_barrier_edges import convert_left_right_to_pre_post_flip
 from behave_analysis.utils.color_funcs import get_color_based_on_neural_activity
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.single_trial.tests import UnitTests
@@ -41,6 +42,7 @@ class SingleTrialRegression:
         condition_per_homing: list,  # of strings e.g. ['shelter_only', 'barrier_pre_flip']
         cluster_ids,
         initial_directions: list,  # of strings e.g. ['north_edge', 'south_edge', 'hsa']
+        conversion_from_left_right_to_pre_post_flip: dict,
     ):
         """Initialize the single trial regression analysis object
 
@@ -63,6 +65,7 @@ class SingleTrialRegression:
         self.save_path = save_path
         self.initial_directions = initial_directions
         self.dependent_names = list(dependents_df.columns)
+        self.conversion_from_left_right_to_pre_post_flip = conversion_from_left_right_to_pre_post_flip
         logger.info("The dependent variables to run in this regression are: {}", self.dependent_names)
         self.dependents_df = dependents_df
         self.number_of_neurons = self.design_matrix.shape[1] - 1  # Subtract 1 for the homing id column
@@ -78,12 +81,12 @@ class SingleTrialRegression:
         # Initialize the plotting object
         self.plotter = RegressionPlotting(save_path)
 
-        # retrieve the homings ids that target the north and south edges
-        north_edge_ids, south_edge_ids = self.train_and_test_on_different_directions(self.initial_directions)
-        self.run_ols_on_different_directions(north_edge_ids=north_edge_ids, south_edge_ids=south_edge_ids)
-
         self.run(
-            run_all_dependent_variables=False, shift_neural_data=False, explore_coeffs_with_other_predictors=True, run_hiarchical_regression=False
+            run_all_dependent_variables=False,
+            shift_neural_data=False,
+            explore_coeffs_with_other_predictors=False,
+            run_hiarchical_regression=False,
+            train_and_test_on_different_directions=True,  # Do you want to train ols on south homings and test on north homings e.g
         )
 
         # TODO - update to handle two indexes
@@ -99,7 +102,12 @@ class SingleTrialRegression:
     # --------------------- Functions for running the regression ---------------------
 
     def run(
-        self, run_all_dependent_variables: bool, shift_neural_data: bool, explore_coeffs_with_other_predictors: bool, run_hiarchical_regression: bool
+        self,
+        run_all_dependent_variables: bool,
+        shift_neural_data: bool,
+        explore_coeffs_with_other_predictors: bool,
+        run_hiarchical_regression: bool,
+        train_and_test_on_different_directions: bool,
     ) -> None:
         """This function runs the regression with different modes depending on the analysis you want to conduct:
 
@@ -107,6 +115,11 @@ class SingleTrialRegression:
         - run_all_dependent_variables: Run the model for all dependent variables
         - shift_neural_data: Shift the neural data and run the model to see how the R2 score changes with chance
         - explore_coeffs_with_other_predictors: Explore the coefficients with other predictors to see how they change"""
+
+        if train_and_test_on_different_directions:
+            # retrieve the homings ids that target the north and south edges
+            right_edge_ids, left_edge_ids = self.train_and_test_on_different_directions(self.initial_directions)
+            self.run_ols_on_different_directions(right_edge_ids=right_edge_ids, left_edge_ids=left_edge_ids)
 
         if run_all_dependent_variables:
             r2_score_for_all_dependents, _, _, _ = self.run_all_dependent_variables()
@@ -322,126 +335,183 @@ class SingleTrialRegression:
     # --------------------- Cross validation functions ---------------------
 
     def train_and_test_on_different_directions(self, initial_directions: list):
-        """Spilt the homings into different initial directions and see if model performance differs when tested on different directions"""
-        initial_directions = np.asarray(initial_directions)
-        north_edge_ids = np.where(initial_directions == "north edge")[0]
-        south_edge_ids = np.where(initial_directions == "south edge")[0]
-        return north_edge_ids, south_edge_ids
+        """Spilt the homings into different initial directions and see if model performance differs when tested on different directions
 
-    def run_ols_on_different_directions(self, north_edge_ids, south_edge_ids):
+        Return:
+            tuple: right_edge_ids, left_edge_ids"""
+        initial_directions = np.asarray(initial_directions)
+        right_edge_ids = np.where(initial_directions == "right edge")[0]
+        left_edge_ids = np.where(initial_directions == "left edge")[0]
+        return right_edge_ids, left_edge_ids
+
+    def return_the_design_matrix_idxs_of_homing_directions(self, design_matrix: pd.DataFrame, left_edge_ids: np.ndarray, right_edge_ids: np.ndarray):
+        """Given two arrays of homing ids that target the left and right edges, return the indexes of the design matrix that are these homings
+
+        Returns:
+            tuple: left_idx, right_idx"""
+        left_idx = np.where(design_matrix["homing_id"].isin(left_edge_ids))[0]
+        right_idx = np.where(design_matrix["homing_id"].isin(right_edge_ids))[0]
+        return left_idx, right_idx
+
+    def run_ols_on_different_directions(self, right_edge_ids, left_edge_ids):
         """Run the OLS model on the different directions.
-        
+
         Args:
-            north_edge_ids (np.ndarray): The indexes of the homings that target the north edge
-            south_edge_ids (np.ndarray): The indexes of the homings that target the south edge
-        
+            right_edge_ids (np.ndarray): The indexes of the homings that target the north edge
+            left_edge_ids (np.ndarray): The indexes of the homings that target the south edge
+
         Logic:
         -- Train on south homings with south index, test on north homings with north index
         -- Train on north homings with north index, test on south homings with south index
         -- Train south, test south index
         -- Train north, test north index
-        -- Train south homings and south index, test south homings using north index"""
-        
+        -- Train south homings and south index, test south homings using north index
+
+        NOTE - Some information from the old coordinate system whilst we are mid refactor. The north angle and south angle
+        is always pre flip and post flip respectively."""
+
         print("Run the OLS model on the different directions")
-        
+
+        # Convert the left and right directions to pre and post flip
+        direction_1 = self.conversion_from_left_right_to_pre_post_flip["pre_flip"]
+
+        # preflip is always north
+        if direction_1 == "left":
+            left_index = "index_north"
+            right_index = "index_south"
+        # else if preflip is right
+        else:
+            right_index = "index_north"
+            left_index = "index_south"
+
         # What indexes of the design matrix are the north and south homings
-        s_idx = np.where(self.design_matrix["homing_id"].isin(south_edge_ids))[0]
-        n_idx = np.where(self.design_matrix["homing_id"].isin(north_edge_ids))[0]
+        left_idx, right_idx = self.return_the_design_matrix_idxs_of_homing_directions(
+            self.design_matrix, left_edge_ids=left_edge_ids, right_edge_ids=right_edge_ids
+        )
 
-        # Train on south homings with south index, test on north homings with north index
-        X_train_south, y_train_south, X_test_north, y_test_north = self.filter_data_by_directional_homings(
-            train_X_ids=south_edge_ids, test_X_ids=north_edge_ids, train_y_str="index_south", test_y_str="index_north", s_idx=s_idx, n_idx=n_idx
+        # Train on left edge homings with left index, test on right homings with right index
+        X_train_left, y_train_left, X_test_right, y_test_right = self.filter_data_by_directional_homings(
+            train_X_ids=left_edge_ids,
+            test_X_ids=right_edge_ids,
+            train_y_str=left_index,
+            test_y_str=right_index,
+            left_idx=left_idx,
+            right_idx=right_idx,
+            train_x_direction="left",
+            test_x_direction="right",
         )
         results = self.flexible_run_ols_model_with_cross_val(
-            design_matrix_train=X_train_south,
-            design_matrix_test=X_test_north,
-            dependent_variables={"train": y_train_south, "test": y_test_north}
-            )
-        train_south_test_north = self.unpack_fold_results_and_average(results)["mean_r2"]
+            design_matrix_train=X_train_left, design_matrix_test=X_test_right, dependent_variables={"train": y_train_left, "test": y_test_right}
+        )
+        train_left_test_right = self.unpack_fold_results_and_average(results)["mean_r2"]
 
-        # Train on north homings with north index, test on south homings with south index
-        X_train_north, y_train_north, X_test_south, y_test_south = self.filter_data_by_directional_homings(
-            train_X_ids=north_edge_ids, test_X_ids=south_edge_ids, train_y_str="index_north", test_y_str="index_south", s_idx=s_idx, n_idx=n_idx
+        # Train on right homings with north index, test on left homings with left index
+        X_train_right, y_train_right, X_test_left, y_test_left = self.filter_data_by_directional_homings(
+            train_X_ids=right_edge_ids,
+            test_X_ids=left_edge_ids,
+            train_y_str=right_index,
+            test_y_str=left_index,
+            left_idx=left_idx,
+            right_idx=right_idx,
+            train_x_direction="right",
+            test_x_direction="left",
         )
         results = self.flexible_run_ols_model_with_cross_val(
-            design_matrix_train=X_train_north,
-            design_matrix_test=X_test_south,
-            dependent_variables={"train": y_train_north, "test": y_test_south},
-        ) 
-        train_north_test_south = self.unpack_fold_results_and_average(results)["mean_r2"]
+            design_matrix_train=X_train_right,
+            design_matrix_test=X_test_left,
+            dependent_variables={"train": y_train_right, "test": y_test_left},
+        )
+        train_right_test_left = self.unpack_fold_results_and_average(results)["mean_r2"]
 
-        # Train south, test south index
-        X_train_south = self.design_matrix[self.design_matrix["homing_id"].isin(south_edge_ids)]
-        y_train_south = self.dependents_df.iloc[s_idx]["index_south"]
+        # Train left, test left index
+        # training and testing on the same direction requires a different function to cross val the data
+        X_train_left = self.design_matrix[self.design_matrix["homing_id"].isin(left_edge_ids)]
+        y_train_left = self.dependents_df.iloc[left_idx][left_index]
         fold_results = self.run_ols_model_with_cross_val(
-            design_matrix=X_train_south, dependent_variable=y_train_south, dependent_var_name="train_south_test_index_south", n_splits=5
+            design_matrix=X_train_left, dependent_variable=y_train_left, dependent_var_name="train_left_test_left_index", n_splits=5
         )
         dic = self.unpack_fold_results_and_average(fold_results)
-        train_south_test_south = dic["mean_r2"]
+        train_left_test_left = dic["mean_r2"]
 
-        # Train north, test north index
-        X_train_north = self.design_matrix[self.design_matrix["homing_id"].isin(north_edge_ids)]
-        y_train_north = self.dependents_df.iloc[n_idx]["index_north"]
+        # Train right, test right index
+        X_train_right = self.design_matrix[self.design_matrix["homing_id"].isin(right_edge_ids)]
+        y_train_right = self.dependents_df.iloc[right_idx][right_index]
         fold_results = self.run_ols_model_with_cross_val(
-            design_matrix=X_train_north, dependent_variable=y_train_north, dependent_var_name="train_north_test_index_north", n_splits=5
+            design_matrix=X_train_right, dependent_variable=y_train_right, dependent_var_name="train_right_test_right_index", n_splits=5
         )
         dic = self.unpack_fold_results_and_average(fold_results)
-        train_north_test_north = dic["mean_r2"]
+        train_right_test_right = dic["mean_r2"]
 
-        # Train south homings and south index, test south homings using north index
-        X_train_south, y_train_south, X_test_south, y_test_south = self.filter_data_by_directional_homings(
-            train_X_ids=south_edge_ids, test_X_ids=south_edge_ids, train_y_str="index_south", test_y_str="index_north", s_idx=s_idx, n_idx=n_idx
-        )
-        results = self.flexible_run_ols_model_with_cross_val(
-            design_matrix_train=X_train_south,
-            design_matrix_test=X_test_south,
-            dependent_variables={"train": y_train_south, "test": y_test_south}
-        )
-        train_south_test_south_with_north_idx = self.unpack_fold_results_and_average(results)["mean_r2"]
+        # -------------------------------------------------------------------
+        # Unused variations of the model
+
+        # # Train south homings and south index, test south homings using north index
+        # X_train_south, y_train_south, X_test_south, y_test_south = self.filter_data_by_directional_homings(
+        #     train_X_ids=left_edge_ids,
+        #     test_X_ids=left_edge_ids,
+        #     train_y_str="index_south",
+        #     test_y_str="index_north",
+        #     left_idx=left_idx,
+        #     right_idx=right_idx,
+        #     train_x_direction="south",
+        #     test_x_direction="south",
+        # )
+        # results = self.flexible_run_ols_model_with_cross_val(
+        #     design_matrix_train=X_train_south, design_matrix_test=X_test_south, dependent_variables={"train": y_train_south, "test": y_test_south}
+        # )
+        # train_south_test_south_with_north_idx = self.unpack_fold_results_and_average(results)["mean_r2"]
+        # # -------------------------------------------------------------------
 
         # Turn the results into a matrix and plot as a heatmap
         results = np.array(
             [
-                [train_north_test_north, train_north_test_south],
-                [train_south_test_north, train_south_test_south],
-            ] 
+                [train_right_test_right, train_right_test_left],
+                [train_left_test_right, train_left_test_left],
+            ]
         )
 
         sns.heatmap(results, cmap="viridis", annot=True)
-        plt.xticks([0.5, 1.5], ["Test North", "Test South"])
-        plt.yticks([0.5, 1.5], ["Train North", "Train South"])
-        plt.colorbar()
+        plt.xticks([0.5, 1.5], ["Test right", "Test left"])
+        plt.yticks([0.5, 1.5], ["Train right", "Train left"])
         # label color bar
         plt.ylabel("R2 scores")
         plt.title("R2 scores for different training and testing directions")
-        plt.show()
-        
+        plt.savefig(self.save_path / "train_test_different_directions.png")
+
         return results
 
-    def filter_data_by_directional_homings(self, train_X_ids, test_X_ids, train_y_str, test_y_str, s_idx, n_idx):
+    def filter_data_by_directional_homings(
+        self, train_X_ids, test_X_ids, train_y_str, test_y_str, left_idx, right_idx, train_x_direction=None, test_x_direction=None
+    ):
         """Filter the data by the homings that target the north and south edges
-        
+
         Args:
             train_X_ids (list): The homing ids to train on
             test_X_ids (list): The homing ids to test on
             train_y_str (str): The dependent variable to train on
             test_y_str (str): The dependent variable to test on
-            s_idx (np.ndarray): The indexes of the design matrix that are south homings
-            n_idx (np.ndarray): The indexes of the design matrix that are north homings"""
+            left_idx (np.ndarray): The indexes of the design matrix that are left edge homings
+            right_idx (np.ndarray): The indexes of the design matrix that are right edge homings"""
 
         X_train = self.design_matrix[self.design_matrix["homing_id"].isin(train_X_ids)]
-        y_train = self.dependents_df.iloc[s_idx][train_y_str]
         X_test = self.design_matrix[self.design_matrix["homing_id"].isin(test_X_ids)]
-        y_test = self.dependents_df.iloc[n_idx][test_y_str]
+        if train_x_direction == "left":
+            y_train = self.dependents_df.iloc[left_idx][train_y_str]
+        elif train_x_direction == "right":
+            y_train = self.dependents_df.iloc[right_idx][train_y_str]
+        if test_x_direction == "left":
+            y_test = self.dependents_df.iloc[left_idx][test_y_str]
+        elif test_x_direction == "right":
+            y_test = self.dependents_df.iloc[right_idx][test_y_str]
+        assert X_train.shape[0] == len(y_train), "The number of rows in the design matrix and dependent variable do not match"
         return X_train, y_train, X_test, y_test
-
 
     def flexible_run_ols_model_with_cross_val(
         self, design_matrix_train: pd.DataFrame, design_matrix_test: pd.DataFrame, dependent_variables: dict, n_splits: int = 5
     ):
         """Run an ols statsmodel cross val which allows different dependets and Xs for test and train. This allows
         us to compare different homings with different characteristics. We use the whole test but cross val the train
-        due to the fact shapes and indexes may differ.
+        due to the fact shapes and indexes may differ. NOTE - This is a bit of a hacky solution but it works for now
 
         Args:
             design_matrix (pd.DataFrame): The design matrix containing the neural data and homing ids for grouping
@@ -450,7 +520,7 @@ class SingleTrialRegression:
                 Values: np.ndarray
             n_splits (int): The number of splits for the cross validation
         """
-        groups = design_matrix_train["homing_id"].to_numpy()
+        groups = design_matrix_train["homing_id"].to_numpy()  # Only group training data as test data may differ in length
         X_train_full = design_matrix_train.drop(columns=["homing_id"])
         X_test_full = design_matrix_test.drop(columns=["homing_id"])
 
@@ -463,7 +533,7 @@ class SingleTrialRegression:
             X_train = X_train_full.iloc[train_index]
             y_train = np.asarray(dependent_variables["train"])[train_index]
             # For testing we use the whole design matrix and the dependent variable as they may differ in length
-            y_test = dependent_variables["test"] 
+            y_test = dependent_variables["test"]
             X_test = X_test_full
             ols_fold_results[fold] = self.ols_regression_statsmodel(
                 X_train, y_train, fold, ols_save_path, X_test, y_test, name_of_dependent="flexible_dependents"
