@@ -58,7 +58,6 @@ def linear_discriminant_analysis(
     X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num)  # after this Y is just the angles to predict
     X = X[:, 1:]  # the first column is frame id and you no longer need it
     _, counts = np.unique(epochs, return_counts=True)
-    print(len(Y))
 
     if np.logical_or(np.amin(counts) < fr, len(np.unique(epochs)) < 2):
         prediction_accuracy = 0
@@ -72,7 +71,6 @@ def linear_discriminant_analysis(
             if plotting:
                 plt.figure(figsize=(20, 16))
                 plt.subplots_adjust(hspace=0.3)
-            start_time = time.time()
             # make train matrix of frames x clusters
             X1 = zscore_predictors(X[train_idx, :])
 
@@ -82,8 +80,6 @@ def linear_discriminant_analysis(
             # train model
             y1 = Y[train_idx]
             y2 = Y[test_idx]
-            # pre_time = time.time()
-            # print('Time to prep LDa is ' + str(pre_time - start_time))
 
             if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
@@ -170,9 +166,6 @@ def linear_discriminant_analysis(
                     plt.show()
                 plt.close()
 
-            # fit_time = time.time()
-            # print('Time to fit&predict LDA is ' + str(fit_time - pre_time))
-
         if plotting:
             # plot average confusion matrix
             plt.figure(figsize=(20, 16))
@@ -208,7 +201,7 @@ def linear_discriminant_analysis(
     #     axs[i].imshow(coef_matrix[:,np.argsort(peak_weight),i].T, aspect = 'auto')
 
     if return_coef:
-        return prediction_accuracy, coef
+        return prediction_accuracy, coef, len(Y)
     else:
         return prediction_accuracy
 

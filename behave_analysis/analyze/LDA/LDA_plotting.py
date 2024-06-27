@@ -28,6 +28,12 @@ def plot_LDA_model(self, settings):
 
     PlotPredictionAccuracy(self, prediction_accuracy, title)
 
+    # map random points on arena:
+    if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
+        pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
+        fr = [val/(self.session.video.fps*60) for key, val in prediction_accuracy.items() if re.search("time_rP", key)]
+        PredictionAccuracyMapped(self, pa, fr = fr)
+
     # make a plot of prediction accuracy across variables with linear shift stats
     if settings.linear_shift:
         with open(self.LS_out, "rb") as dill_file:
@@ -47,18 +53,14 @@ def plot_LDA_model(self, settings):
             LS_real = [val.real_stat for key, val in LS_compiled.items() if re.search("randP", key)]
             PredictionAccuracyMapped(self, LS_real, 'LS_sig', LS_thresh)
 
-    # map random points on arena:
-    if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
-        pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
-        PredictionAccuracyMapped(self, pa)
-
 def plot_LDA_by_position(self, settings, target):
     with open(self.LDA_out, "rb") as dill_file:
         prediction_accuracy = pickle.load(dill_file)
 
     for var in target:
-        pa = [val for key, val in prediction_accuracy.items() if re.search(var, key)]
-        PredictionAccuracy_byposition_Mapped(self, pa, title_add=(var+'_by_pos'),numrings = prediction_accuracy['num_circles'], num_slices = prediction_accuracy['num_slices'], bin_centre = prediction_accuracy['bin_centre'])
+        pa = [val for key, val in prediction_accuracy.items() if re.search(var + '_pos', key)]
+        fr = [round(val/(self.session.video.fps*60),2) for key, val in prediction_accuracy.items() if re.search(var + '_time', key)]
+        PredictionAccuracy_byposition_Mapped(self, pa, fr = fr, title_add=(var+'_by_pos'),numrings = prediction_accuracy['num_circles'], num_slices = prediction_accuracy['num_slices'], bin_centre = prediction_accuracy['bin_centre'])
 
 def PlotPredictionAccuracy(self, prediction_accuracy, title):
     """
@@ -124,7 +126,7 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
     filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".png"
     fig.write_image(filename)
 
-def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos = []):
+def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos = [], fr = []):
     """
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
     
@@ -154,6 +156,8 @@ def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos 
     xbins, x = np.unique(pos[:, 1], return_inverse=True)
     heatmap = np.zeros(shape=(len(xbins), len(ybins)))
     heatmap[x, y] = pa
+    heatmap_annot = np.zeros_like(heatmap)
+    heatmap_annot[x,y] = fr
 
     # Plotting logic for the heatmap
     ax = sns.heatmap(
@@ -163,6 +167,7 @@ def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos 
         robust=True,
         ax=ax,
         mask=(heatmap == 0),
+        annot = heatmap_annot,
         cbar_kws={"label": "Prediction accuracy"},
         norm=plt.Normalize(vmin=vmin, vmax=vmax),
     )
@@ -193,7 +198,7 @@ def PredictionAccuracyMapped(self, pa, title_add = 'LDA', LS_thresh = None, pos 
         plt.show()
     plt.close()
 
-def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_centre, title_add = 'LDA', LS_thresh = None):
+def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_centre, fr = [], title_add = 'LDA', LS_thresh = None):
     """
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
     
@@ -210,7 +215,7 @@ def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_cen
     radius = 460
 
     # set up figure
-    fig, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
+    _, ax = plt.subplots(subplot_kw={'aspect': 'equal'})
     ax.set_xlim(-radius, radius)
     ax.set_ylim(-radius, radius)
     pa = np.array(pa)
@@ -239,13 +244,19 @@ def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_cen
         theta2 = np.degrees(angles[i + 1])
 
         for idx, r in enumerate(np.flipud(radii)):
-            which_pa = np.logical_and(bin_centre[0,:] == (len(radii)-idx-1),bin_centre[1,:] == i+1)
+            which_pa = np.logical_and(bin_centre[0,:] == np.where(radii == r)[0],bin_centre[1,:] == i+1)
             if pa[which_pa]>0:
                 color = colormap(norm(pa[which_pa]))
             else:
                 color = [1,1,1]
             wedgie = Wedge((0, 0), r, theta1, theta2, facecolor=color)
             ax.add_patch(wedgie)
+
+            if len(fr) > 0:
+                # create text annotation in minutes of how much time was used for the LDA
+                t = np.cos(np.mean([angles[i],angles[i+1]]))*(r - np.mean(np.diff(radii))/2)
+                r = (r - np.mean(np.diff(radii))/2)*(np.sin(np.mean([angles[i],angles[i+1]])))
+                ax.text(t, r, fr[np.where(which_pa)[0][0]], ha="center", va="center", color="w")
 
     if LS_thresh != None:
         logger.warning("You wanted to plot which bins are significant but this code isn't functional yet!")

@@ -335,7 +335,6 @@ def ProcessPredictors(self, frames, settings):
 
     return X
 
-
 def zscore_predictors(X):
     """This function z-scores an input matrix
     if a cluster (column) has all zero values than the output will be a column of zeros
@@ -350,7 +349,6 @@ def zscore_predictors(X):
     # if len(nanclusters) > 0:
     #     X[:,nanclusters] = np.zeros((np.shape(X)[0],1))
     return ZscoredX
-
 
 def prep_target_and_predictors(self, variable, settings):
 
