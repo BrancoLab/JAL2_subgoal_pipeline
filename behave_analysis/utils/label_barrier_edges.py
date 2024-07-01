@@ -1,11 +1,16 @@
+"""The point of this module is to help the user determine orientations of the barrier edges. This is the first step
+to move away from the old north, south coordinate system to a more general left, right edge system."""
+
 from loguru import logger
 
 
 def check_which_barrier_location_is_which_orientation(barrier_location) -> tuple:
-    """Given the barrier location edges change in tracking data, check which orientation is north and south
+    """Given the barrier location edges change in tracking data, check which orientation is north and south.
+    This code assumes the shelter is at the bottom of the plot. With the 0x coordinate at the left edge of the plot.
 
     Args:
         barrier_location (tuple): The barrier location edges"""
+
     assert len(barrier_location) == 3, "The barrier location must be a tuple of the preflip edge, post flip edge and the center edge"
     logger.info(f"The barrier location pre flip is {barrier_location[0]} and post flip is {barrier_location[1]}")
     if barrier_location[0][0] < 512:  # If the first edge x coordinate is less than 512 then the preflip loc is left edge
