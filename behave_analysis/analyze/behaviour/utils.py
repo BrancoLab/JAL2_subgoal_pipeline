@@ -148,6 +148,9 @@ def identify_condition_of_trial(video_df, session) -> str:
                 condition = "barrier_removed"
         else:
             condition = "barrier_present"
+    
+    else:
+        condition = "pre_shelter"
 
     return condition
 
