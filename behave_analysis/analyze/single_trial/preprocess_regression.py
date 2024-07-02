@@ -138,20 +138,20 @@ class PreprocessSingleTrialRegression:
 
     def plot_the_index_distribution(self):
         """Plotting and save the index distribution"""
-        index = self.homing_data_single_dataframe["index_south"].to_numpy()
+        index = self.homing_data_single_dataframe["post_flip_index"].to_numpy()
         plt.hist(index, bins=20)
         plt.xlabel("Index")
         plt.ylabel("Number of frames")
-        plt.title("Distribution of the south index")
-        plt.savefig(self.save_path / "index_south_distribution.png")
+        plt.title("Distribution of the post flip index")
+        plt.savefig(self.save_path / "postflip_distribution.png")
         plt.close()
 
-        index = self.homing_data_single_dataframe["index_north"].to_numpy()
+        index = self.homing_data_single_dataframe["pre_flip_index"].to_numpy()
         plt.hist(index, bins=20)
         plt.xlabel("Index")
         plt.ylabel("Number of frames")
-        plt.title("Distribution of the north index")
-        plt.savefig(self.save_path / "north_index_distribution.png")
+        plt.title("Distribution of the pre_flip index")
+        plt.savefig(self.save_path / "preflip_index_distribution.png")
         plt.close()
 
     def plot_the_index_per_homing(self):
@@ -176,7 +176,7 @@ class PreprocessSingleTrialRegression:
             ys = homing["mouse_y_position"]
 
             plt.quiver(xs, ys, dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
-            plt.title(f"Index for homing {homing_id}. Arrow is hdir, text is index. Blue is north, red is south")
+            plt.title(f"Index for homing {homing_id}. Arrow is hdir, text is index. Blue is preflip, red is postflip")
 
             # convert to pandas for the text
             homing_pd = homing.to_pandas()
@@ -184,10 +184,10 @@ class PreprocessSingleTrialRegression:
             # Add the index every 3rd frame to reduce clutter
             for i, row in homing_pd.iloc[::3].iterrows():
                 plt.text(
-                    x=row["mouse_x_position"] + 20, y=row["mouse_y_position"] + 10, s=str(np.around(row["index_south"], 1)), color="red", fontsize=6
+                    x=row["mouse_x_position"] + 20, y=row["mouse_y_position"] + 10, s=str(np.around(row["post_flip_index"], 1)), color="red", fontsize=6
                 )
                 plt.text(
-                    x=row["mouse_x_position"] + 100, y=row["mouse_y_position"] + 10, s=str(np.around(row["index_north"], 1)), color="blue", fontsize=6
+                    x=row["mouse_x_position"] + 100, y=row["mouse_y_position"] + 10, s=str(np.around(row["pre_flip_index"], 1)), color="blue", fontsize=6
                 )
                 # Add velocity
                 plt.text(
@@ -201,10 +201,6 @@ class PreprocessSingleTrialRegression:
             plt.ylabel("Y Coordinate")
             plt.savefig(save_path / f"index_for_homing_{homing_id}.png")
             plt.close()
-
-    def create_descriptive_plots(self):
-        """Creating the descriptive plots"""
-        raise NotImplementedError
 
     def plot_the_distribution_of_the_dependent_variables(self):
         """In order to check the scale of the dependent variables, we plot the distribution of the dependent variables.
@@ -276,16 +272,17 @@ class PreprocessSingleTrialRegression:
 
     def extract_cumulative_homing_data(self, homing_object: dict, barrier_location) -> dict:
         """Extract the cumulative homing angle data for each homing period. I.e, for
-        each homing, what was the average homing angle to the north and south edge of the barrier.
+        each homing, what was the average homing angle to the pre and post edge of the barrier.
 
         Args:
             homing_object (dict): The homings object
             barrier_location (np.ndarray): The barrier location from the tracking data
 
         Returns (dict):
-            left edge angles average after cum threshold (np.ndarray): The cumulative homing angle data for the north edge
-            right edge angles average after cum threshold (np.ndarray): The cumulative homing angle data for the south edge
+            left edge angles average after cum threshold (np.ndarray): The cumulative homing angle data for a edge
+            right edge angles average after cum threshold (np.ndarray): The cumulative homing angle data for an edge
             avg_hsa (np.ndarray): The cumulative homing angle data for the hsa"""
+        # Create a tuple, where the first index is the orientation of the first edge and the second index is the orientation of the second edge
         edge_names = check_which_barrier_location_is_which_orientation(barrier_location)
         angle_data = homing_object.homing_angles_dic
         if edge_names[0] == "left":
@@ -485,20 +482,20 @@ class PreprocessSingleTrialRegression:
         and 1 when the mouse is facing the goal. This is a normalised index."""
 
         hsa = homing_data_single_dataframe["hsa"].to_numpy().copy()
-        south_goal = homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
-        north_goal = homing_data_single_dataframe["h_bar_north_a"].to_numpy().copy()
-        UnitTests.check_angles_are_between_minus_pi_and_pi(hsa, south_goal, north_goal)
+        post_flip_goal_a = homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
+        pre_flip_goal_a = homing_data_single_dataframe["h_bar_north_a"].to_numpy().copy()
+        UnitTests.check_angles_are_between_minus_pi_and_pi(hsa, post_flip_goal_a, pre_flip_goal_a)
 
         # if values negative radians then add 2pi to make them positive and easier to work with
         hsa = np.where(hsa < 0, hsa + 2 * np.pi, hsa)
-        south_goal = np.where(south_goal < 0, south_goal + 2 * np.pi, south_goal)
-        north_goal = np.where(north_goal < 0, north_goal + 2 * np.pi, north_goal)
+        post_flip_goal_a = np.where(post_flip_goal_a < 0, post_flip_goal_a + 2 * np.pi, post_flip_goal_a)
+        pre_flip_goal_a = np.where(pre_flip_goal_a < 0, pre_flip_goal_a + 2 * np.pi, pre_flip_goal_a)
 
-        south_index = self.compute_index(hsa, south_goal)
-        north_index = self.compute_index(hsa, north_goal)
-        UnitTests.check_index_values_are_valid(south_index, north_index)
+        post_flip_index = self.compute_index(hsa, post_flip_goal_a)
+        pre_flip_index = self.compute_index(hsa, pre_flip_goal_a)
+        UnitTests.check_index_values_are_valid(post_flip_index, pre_flip_index)
 
-        result = homing_data_single_dataframe.with_columns([(pl.Series("index_south", south_index)), (pl.Series("index_north", north_index))])
+        result = homing_data_single_dataframe.with_columns([(pl.Series("post_flip_index", post_flip_index)), (pl.Series("pre_flip_index", pre_flip_index))])
         return result
 
     # ------------ Create design matrix and targets-----------------------------
