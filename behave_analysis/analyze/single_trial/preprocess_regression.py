@@ -5,6 +5,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from behave_analysis.utils.label_barrier_edges import check_which_barrier_location_is_which_orientation, convert_left_right_to_pre_post_flip
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.single_trial.tests import UnitTests
 from behave_analysis.analyze.filtering_data.filtering_functions import discover_condition_based_on_video_df
@@ -39,6 +40,7 @@ class PreprocessSingleTrialRegression:
         frame_by_cluster_matrix: np.ndarray,
         save_path: Path,
         velocity_data: np.ndarray,
+        barrier_location,
         similar_homings=False,
     ):
         logger.info("Initializing the single trial regression preprocessing object")
@@ -47,6 +49,8 @@ class PreprocessSingleTrialRegression:
         self.frame_by_cluster_matrix = frame_by_cluster_matrix
         self.save_path = save_path
         self.video_df = self.remove_columns_from_video_df(video_df)
+        self.barrier_location = barrier_location
+        self.convert_left_right_to_pre_post_flip = convert_left_right_to_pre_post_flip(self.barrier_location)
 
         # Settings
         self.similar_homings = similar_homings
@@ -54,6 +58,9 @@ class PreprocessSingleTrialRegression:
         # Preprocessing homing data
         UnitTests.check_attributes_of_homing_dic(self.homings_obj)
         self.homing_list, homing_df_s1, self.condition_per_homing = self.preprocess_homing_data(select_similar_homings=self.similar_homings)
+        self.initial_directions = self.label_each_homing_with_an_initial_direction(
+            self.extract_cumulative_homing_data(self.homings_obj, self.barrier_location)
+        )
 
         # Add the dependent variable to the data
         homing_df_s2 = self.add_dependent_index_variable_to_homing_info(homing_data_single_dataframe=homing_df_s1)
@@ -63,7 +70,9 @@ class PreprocessSingleTrialRegression:
         self.homing_data_single_dataframe = self.add_velocity_data_to_homing_data(homing_df_s2, velocity_data)
 
         # Create the design matrix
-        self.design_matrix, self.spike_data_per_homing = self.create_the_design_matrix(self.homing_data_single_dataframe, self.frame_by_cluster_matrix)
+        self.design_matrix, self.spike_data_per_homing = self.create_the_design_matrix(
+            self.homing_data_single_dataframe, self.frame_by_cluster_matrix
+        )
         self.targets_df = self.create_dependent_dataframe(self.homing_data_single_dataframe)
         UnitTests.check_the_creation_of_the_design_matrix(self.create_the_design_matrix)
 
@@ -129,20 +138,20 @@ class PreprocessSingleTrialRegression:
 
     def plot_the_index_distribution(self):
         """Plotting and save the index distribution"""
-        index = self.homing_data_single_dataframe["index_south"].to_numpy()
+        index = self.homing_data_single_dataframe["post_flip_index"].to_numpy()
         plt.hist(index, bins=20)
         plt.xlabel("Index")
         plt.ylabel("Number of frames")
-        plt.title("Distribution of the south index")
-        plt.savefig(self.save_path / "index_south_distribution.png")
+        plt.title("Distribution of the post flip index")
+        plt.savefig(self.save_path / "postflip_distribution.png")
         plt.close()
 
-        index = self.homing_data_single_dataframe["index_north"].to_numpy()
+        index = self.homing_data_single_dataframe["pre_flip_index"].to_numpy()
         plt.hist(index, bins=20)
         plt.xlabel("Index")
         plt.ylabel("Number of frames")
-        plt.title("Distribution of the north index")
-        plt.savefig(self.save_path / "north_index_distribution.png")
+        plt.title("Distribution of the pre_flip index")
+        plt.savefig(self.save_path / "preflip_index_distribution.png")
         plt.close()
 
     def plot_the_index_per_homing(self):
@@ -167,7 +176,7 @@ class PreprocessSingleTrialRegression:
             ys = homing["mouse_y_position"]
 
             plt.quiver(xs, ys, dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
-            plt.title(f"Index for homing {homing_id}. Arrow is hdir, text is index. Blue is north, red is south")
+            plt.title(f"Index for homing {homing_id}. Arrow is hdir, text is index. Blue is preflip, red is postflip")
 
             # convert to pandas for the text
             homing_pd = homing.to_pandas()
@@ -175,10 +184,10 @@ class PreprocessSingleTrialRegression:
             # Add the index every 3rd frame to reduce clutter
             for i, row in homing_pd.iloc[::3].iterrows():
                 plt.text(
-                    x=row["mouse_x_position"] + 20, y=row["mouse_y_position"] + 10, s=str(np.around(row["index_south"], 1)), color="red", fontsize=6
+                    x=row["mouse_x_position"] + 20, y=row["mouse_y_position"] + 10, s=str(np.around(row["post_flip_index"], 1)), color="red", fontsize=6
                 )
                 plt.text(
-                    x=row["mouse_x_position"] + 100, y=row["mouse_y_position"] + 10, s=str(np.around(row["index_north"], 1)), color="blue", fontsize=6
+                    x=row["mouse_x_position"] + 100, y=row["mouse_y_position"] + 10, s=str(np.around(row["pre_flip_index"], 1)), color="blue", fontsize=6
                 )
                 # Add velocity
                 plt.text(
@@ -192,10 +201,6 @@ class PreprocessSingleTrialRegression:
             plt.ylabel("Y Coordinate")
             plt.savefig(save_path / f"index_for_homing_{homing_id}.png")
             plt.close()
-
-    def create_descriptive_plots(self):
-        """Creating the descriptive plots"""
-        raise NotImplementedError
 
     def plot_the_distribution_of_the_dependent_variables(self):
         """In order to check the scale of the dependent variables, we plot the distribution of the dependent variables.
@@ -230,7 +235,65 @@ class PreprocessSingleTrialRegression:
         ]
         return video_df.select(keep)
 
+    def label_each_homing_with_an_initial_direction(self, cumulative_angle_data: dict) -> list:
+        """Label each homing with an initial direction based on the smallest angle to either edge or goal
+
+        Args:
+            cumulative_angle_data (dict): The cumulative homing angle data with the average hsa, left and ridge edge angles as keys
+
+        Returns:
+            (list) of the initial direction for each homing period. I.e for that homing, which goal was the mouse facing on average for
+            some cum threshold
+
+        TODO:
+        - refact this to have a threshold as if the angle is between two values then it is ambiguous but this is
+        an initial start"""
+
+        avg_hsa = cumulative_angle_data["avg_hsa"]
+        left_edge_cum_angles = cumulative_angle_data["left_edge_cum_angles"]
+        right_edge_cum_angles = cumulative_angle_data["right_edge_cum_angles"]
+        initial_direction = []
+
+        # For each homing, which goal is the mouse facing the most
+        for homing_idx, _ in enumerate(self.homing_list):
+            min_absolute_angle = np.min(
+                [np.abs(avg_hsa[homing_idx]), np.abs(left_edge_cum_angles[homing_idx]), np.abs(right_edge_cum_angles[homing_idx])]
+            )
+            if min_absolute_angle == np.abs(avg_hsa[homing_idx]):
+                initial_direction.append("shelter")
+            if min_absolute_angle == np.abs(left_edge_cum_angles[homing_idx]):
+                initial_direction.append("left edge")
+            if min_absolute_angle == np.abs(right_edge_cum_angles[homing_idx]):
+                initial_direction.append("right edge")
+
+        return initial_direction
+
     # ----------------- Functions for extracting the homing data ---------------------
+
+    def extract_cumulative_homing_data(self, homing_object: dict, barrier_location) -> dict:
+        """Extract the cumulative homing angle data for each homing period. I.e, for
+        each homing, what was the average homing angle to the pre and post edge of the barrier.
+
+        Args:
+            homing_object (dict): The homings object
+            barrier_location (np.ndarray): The barrier location from the tracking data
+
+        Returns (dict):
+            left edge angles average after cum threshold (np.ndarray): The cumulative homing angle data for a edge
+            right edge angles average after cum threshold (np.ndarray): The cumulative homing angle data for an edge
+            avg_hsa (np.ndarray): The cumulative homing angle data for the hsa"""
+        # Create a tuple, where the first index is the orientation of the first edge and the second index is the orientation of the second edge
+        edge_names = check_which_barrier_location_is_which_orientation(barrier_location)
+        angle_data = homing_object.homing_angles_dic
+        if edge_names[0] == "left":
+            left = angle_data["avg_pre_flip_head_angle"]
+            right = angle_data["avg_post_flip_head_angle"]
+        elif edge_names[0] == "right":
+            left = angle_data["avg_post_flip_head_angle"]
+            right = angle_data["avg_pre_flip_head_angle"]
+        avg_hsa = angle_data["avg_hsa"]
+        dic = {"left_edge_cum_angles": left, "right_edge_cum_angles": right, "avg_hsa": avg_hsa}
+        return dic
 
     def extract_data_from_homings(self, homing_object: dict, video_df: pl.DataFrame) -> list:
         """Extract the associated behavioural data between homing onsets and offsets.
@@ -343,7 +406,7 @@ class PreprocessSingleTrialRegression:
 
     def preprocess_homing_data(self, select_similar_homings) -> tuple:
         """Preprocessing the data into a single dataframe for regression analysis
-        
+
         Returns:
             (tuple) of homing_info and concatenated homing data
                 -- homing_info (list): A list of homing dataframes for each homing period
@@ -358,13 +421,13 @@ class PreprocessSingleTrialRegression:
 
     def add_velocity_data_to_homing_data(self, homing_data_single_dataframe: pl.DataFrame, velocity_data: np.ndarray) -> pd.DataFrame:
         """Adding the velocity data to the homing data
-        
+
         Args:
             homing_data_single_dataframe (pl.DataFrame): The homing data
             velocity_data (np.ndarray): The velocity data taken from loading the tracking data"""
 
         # Add zero to start of the velocity data to make it the same length as the homing data
-        velocity_data = np.insert(arr = velocity_data, obj = 0, values = 0) # obj is the index to insert the value
+        velocity_data = np.insert(arr=velocity_data, obj=0, values=0)  # obj is the index to insert the value
 
         # Extract velocity at the corresponding frames
         frames = homing_data_single_dataframe["frames"].to_numpy()
@@ -419,25 +482,20 @@ class PreprocessSingleTrialRegression:
         and 1 when the mouse is facing the goal. This is a normalised index."""
 
         hsa = homing_data_single_dataframe["hsa"].to_numpy().copy()
-        south_goal = homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
-        north_goal = homing_data_single_dataframe["h_bar_north_a"].to_numpy().copy()
-        UnitTests.check_angles_are_between_minus_pi_and_pi(hsa, south_goal, north_goal)
+        post_flip_goal_a = homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
+        pre_flip_goal_a = homing_data_single_dataframe["h_bar_north_a"].to_numpy().copy()
+        UnitTests.check_angles_are_between_minus_pi_and_pi(hsa, post_flip_goal_a, pre_flip_goal_a)
 
         # if values negative radians then add 2pi to make them positive and easier to work with
         hsa = np.where(hsa < 0, hsa + 2 * np.pi, hsa)
-        south_goal = np.where(south_goal < 0, south_goal + 2 * np.pi, south_goal)
-        north_goal = np.where(north_goal < 0, north_goal + 2 * np.pi, north_goal)
+        post_flip_goal_a = np.where(post_flip_goal_a < 0, post_flip_goal_a + 2 * np.pi, post_flip_goal_a)
+        pre_flip_goal_a = np.where(pre_flip_goal_a < 0, pre_flip_goal_a + 2 * np.pi, pre_flip_goal_a)
 
-        south_index = self.compute_index(hsa, south_goal)
-        north_index = self.compute_index(hsa, north_goal)
-        UnitTests.check_index_values_are_valid(south_index, north_index)
+        post_flip_index = self.compute_index(hsa, post_flip_goal_a)
+        pre_flip_index = self.compute_index(hsa, pre_flip_goal_a)
+        UnitTests.check_index_values_are_valid(post_flip_index, pre_flip_index)
 
-        result = homing_data_single_dataframe.with_columns(
-            [
-                (pl.Series("index_south", south_index)),
-                (pl.Series("index_north", north_index))
-            ]
-        )
+        result = homing_data_single_dataframe.with_columns([(pl.Series("post_flip_index", post_flip_index)), (pl.Series("pre_flip_index", pre_flip_index))])
         return result
 
     # ------------ Create design matrix and targets-----------------------------
@@ -456,18 +514,18 @@ class PreprocessSingleTrialRegression:
         normalised_design_matrix = np.divide(design_matrix, np_std)
         return pd.DataFrame(normalised_design_matrix)
 
-    def create_the_design_matrix(self, homing_data: pl.DataFrame, frame_by_cluster_matrix: np.ndarray, normalisation = True) -> np.ndarray:
+    def create_the_design_matrix(self, homing_data: pl.DataFrame, frame_by_cluster_matrix: np.ndarray, normalisation=True) -> np.ndarray:
         """Creating the design matrix of shape (n_frames, n_neurons) for the regression analysis.
-        
+
         Remembering that the each homing has been concatenated together so now we need to index the corresponding
         spike data for each homing period. NOTE: The homing id is added to the design matrix for the group cross validation
         and must be removed before running the regression analysis.
-        
+
         Args:
             data (pl.DataFrame): The homing data
             frame_by_cluster_matrix (np.ndarray): The frame by cluster matrix with smoothed spike counts in each cell
             normalisation (bool, optional): Whether to normalise the design matrix. Defaults to True - needed for testing
-            
+
         returns:
             (pd.DataFrame) The design matrix with the homing id added as a column
             (list) A list of spike data for each homing period"""
@@ -475,8 +533,8 @@ class PreprocessSingleTrialRegression:
         # Initialising the design matrix
         data = homing_data
         total_frames = len(data)
-        total_features = frame_by_cluster_matrix.shape[1] # The number of neurons
-        design_matrix = np.zeros((total_frames, total_features)) # (F, N)
+        total_features = frame_by_cluster_matrix.shape[1]  # The number of neurons
+        design_matrix = np.zeros((total_frames, total_features))  # (F, N)
         spike_data_per_homing = []
 
         counter = 0
@@ -488,7 +546,7 @@ class PreprocessSingleTrialRegression:
 
             # Get the corresponding frame by cluster matrix
             # minus 1 to prevent off by one error, +1 to include the last frame
-            spike_data = frame_by_cluster_matrix[frames[0] - 1 : frames[-1] -1 + 1] # left the -1 + 1 in the second index to make it more readable
+            spike_data = frame_by_cluster_matrix[frames[0] - 1 : frames[-1] - 1 + 1]  # left the -1 + 1 in the second index to make it more readable
             spike_data_per_homing.append(spike_data)
 
             # Add the spike data to the design matrix
