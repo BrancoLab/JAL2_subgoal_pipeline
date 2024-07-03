@@ -83,6 +83,7 @@ def run_LDA_model_by_position(self, settings, target_name):
                         plotting=False,
                         self=self,
                         title=savename,
+                        subsampling = settings.subsampling,
                     )
                     prediction_accuracy.update({variable + '_pos' + str(b): pa})
                     prediction_accuracy.update({variable + '_time' + str(b): frames})

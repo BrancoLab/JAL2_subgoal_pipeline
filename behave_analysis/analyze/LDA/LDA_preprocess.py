@@ -265,7 +265,7 @@ def BinArenaEqualParts(filtered_video_df, numpoints, numrings, radius, video):
 
     return binned_pos, bc
 
-def binDfbyEpoch(matrix, pos_ang, epoch_num):
+def binDfbyEpoch(matrix, pos_ang, epoch_num, subsampling = False):
     """
     A function that splits the data into n epochs for crossvalidation.
     It also subsamples the data so that each epoch is populated by uniformly distributed data of angles and positions
@@ -283,7 +283,8 @@ def binDfbyEpoch(matrix, pos_ang, epoch_num):
     matriy = pos_ang[0, :]
 
     # make angle + position bins equally populated
-    matrix, matriy, unique_pos_ang = EqualBins_matrix(matrix, matriy, unique_pos_ang)  # this step randomly subsamples!!
+    if subsampling:
+        matrix, matriy, unique_pos_ang = EqualBins_matrix(matrix, matriy, unique_pos_ang)  # this step randomly subsamples!!
 
     # chunk data into training and test data for each angle bin!!
     epochs = np.empty_like(matriy)

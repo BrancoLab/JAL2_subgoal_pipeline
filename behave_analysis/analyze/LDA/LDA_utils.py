@@ -48,13 +48,17 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     """
     # folder name
     if settings.discriminant_type == "linear":
-        pathh = str(basepath) + "/" + "LDA"
+        pathh = str(basepath) + "/" + "LDA" # TODO: remove after test
     elif settings.discriminant_type == "quadratic":
         pathh = str(basepath) + "/" + "QDA"
     elif settings.discriminant_type == "LSTM":
         pathh = str(basepath) + "/" + "LSTM"
 
     pathh = str(pathh) + '_' + settings.run_LDA
+
+    # if subsampling to equalize the bins
+    if settings.subsampling:
+        pathh = str(pathh) + "_subsampled"
 
     # if PCA, add to folder name
     if len(settings.PCA_process) > 0:

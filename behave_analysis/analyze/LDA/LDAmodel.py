@@ -107,7 +107,10 @@ def run_LDA_model(self, settings, target_name):
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
-    bp, _ = BinArenaEqualParts(filtered_video_df, numpoints = 4, numrings = 1, radius = 460, video = self.session.video)
+    if settings.subsampling:
+        bp, _ = BinArenaEqualParts(filtered_video_df, numpoints = 4, numrings = 1, radius = 460, video = self.session.video)
+    else:
+        bp = np.ones(len(filtered_video_df))
     filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", bp)])
     # remove all frames where binned position is zero as these are outside the arena!
     filtered_video_df = filtered_video_df.filter((filtered_video_df['binned_position'] > 0))
@@ -148,6 +151,7 @@ def run_LDA_model(self, settings, target_name):
                         plotting=True,
                         self=self,
                         title=savename,
+                        subsampling = settings.subsampling,
                     )
                     prediction_accuracy.update({variable: pa})
                     prediction_accuracy.update({variable + '_time': frames})
@@ -212,6 +216,7 @@ def run_LDA_model(self, settings, target_name):
                             plotting=False, # TODO: needs to be false!
                             self=self,
                             title=savename,
+                            subsampling = settings.subsampling,
                         )
                         prediction_accuracy.update({str(variable + str(j)): pa})
                         prediction_accuracy.update({'time_rP'+str(j): frames})

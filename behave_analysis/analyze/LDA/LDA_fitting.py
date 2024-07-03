@@ -31,7 +31,7 @@ from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_wit
 ## --------------- MAIN LDA FUNCTION
 
 def linear_discriminant_analysis(
-    X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, self=None, title=None
+    X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, self=None, title=None, subsampling = False
 ):
     """
     A function for doing LDA on data.
@@ -55,7 +55,7 @@ def linear_discriminant_analysis(
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
 
     # chunk into epochs
-    X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num)  # after this Y is just the angles to predict
+    X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num, subsampling)  # after this Y is just the angles to predict
     X = X[:, 1:]  # the first column is frame id and you no longer need it
     _, counts = np.unique(epochs, return_counts=True)
 
@@ -123,8 +123,8 @@ def linear_discriminant_analysis(
                     titleclass = "angle (rad)"
 
                 if "vect" not in title:
-                    y_hat_train = self.bin_centre[y_hat_train - 1]
-                    y1 = self.bin_centre[y1 - 1]
+                    y_hat_train = self.bin_centre[y_hat_train.astype(int) - 1]
+                    y1 = self.bin_centre[y1.astype(int) - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 1))
@@ -144,8 +144,8 @@ def linear_discriminant_analysis(
 
             if plotting:
                 if "vect" not in title:
-                    y_hat_test = self.bin_centre[y_hat_test - 1]
-                    y2 = self.bin_centre[y2 - 1]
+                    y_hat_test = self.bin_centre[y_hat_test.astype(int) - 1]
+                    y2 = self.bin_centre[y2.astype(int) - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 3))
