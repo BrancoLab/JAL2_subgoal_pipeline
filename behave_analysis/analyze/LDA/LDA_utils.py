@@ -258,10 +258,10 @@ def correct_variable_name(variable):
     '''Take the variable name for distance and transform it into a head_angle column name in video_df'''
     if "shelt" in variable:
         head_variable = 'hsa'
-    elif "bar_north" in variable:
-        head_variable = 'h_bar_north_a'
-    elif "bar_south" in variable:
-        head_variable = 'h_bar_south_a'
+    elif "bar_preflip" in variable:
+        head_variable = 'h_preflipbar_a'
+    elif "bar_postflip" in variable:
+        head_variable = 'h_postflipbar_a'
     elif "bar_centre" in variable:
         head_variable = 'h_bar_centre_a'
     elif "randP" in variable:

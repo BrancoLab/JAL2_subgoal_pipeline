@@ -41,8 +41,7 @@ class Process():
         
         if settings_p.efizz:
             self.efizzDataLoaded = LoadEfizz(self.session)
-            imec_sync_path = Path(self.efizzDataLoaded.imec_sync_path)
-            self.ttl = get_TTL(self.session, imec_sync_path)
+            self.ttl = get_TTL(self.session, self.efizzDataLoaded.imec_sync_path)
         
         # Retrieve Dev 3 NIDAQ signals
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]

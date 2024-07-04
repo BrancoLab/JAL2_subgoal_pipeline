@@ -142,7 +142,12 @@ def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str):
     bonsai_ttl = AI_data[np.arange(3, len(AI_data), 4)]  # From the 4 index until the end select every 4th sample
 
     # Retrieve sync pulse from imec spikeglx file -----------------------------------------------
-    imec_TTL = unpackbits(np.fromfile(TTL_bin_path, dtype=np.int16), bit_filter=6)
+    if 'exported' in TTL_bin_path:
+        imec_TTL = unpackbits(np.fromfile(Path(TTL_bin_path), dtype=np.int16), bit_filter=6)
+    else:
+        logger.warning("The TTL sync channel is not in an exported .bin file! Using the old method of extracting from ap.bin!")
+        # for NPX1 or other weird cases - the old way to load the sync channel  
+        imec_TTL = get_TTL_from_imec(TTL_bin_path)
 
     return bonsai_ttl, imec_TTL
 

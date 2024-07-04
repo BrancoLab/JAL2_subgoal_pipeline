@@ -60,7 +60,7 @@ Settings_ae = Settings_analyze_efizz(
     # ------------- LDA model settings --------------------------
     run_LDA='all_angles',  # if [] it will not run LDA
     # if 'all_angles', 'all_distance','all_vectors' it will run it for all possible angles, distances, vectors
-    # else:  list of angles ['hsa','hdir','h_bar_south_a','h_bar_north_a','h_bar_centre_a', 'randP']
+    # else:  list of angles ['hsa','hdir','h_postflipbar_a','h_preflipbar_a','h_bar_centre_a', 'randP']
     epoch_num=6,  # number of epochs for cross validation
     use_firing_rate=True,
     discriminant_type="linear",  # 'linear' or 'quadratic' or 'LSTM'

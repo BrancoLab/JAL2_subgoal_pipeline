@@ -82,9 +82,9 @@ def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, cen
             int(np.mean([tracking["shelter_loc"][0][0], tracking["shelter_loc"][1][0]])),
             int(np.mean([tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]])),
         ]
-    elif "bar_north" in variable:
+    elif "bar_preflip" in variable:
         point = tracking["barrier_loc"][0]
-    elif "bar_south" in variable:
+    elif "bar_postflip" in variable:
         point = tracking["barrier_loc"][1]
     elif "bar_centre" in variable:
         point = tracking["barrier_loc"][2]
@@ -277,7 +277,7 @@ def binDfbyEpoch(matrix, pos_ang, epoch_num, subsampling = False):
 
     RETURNS: matrix - the subsampled frames x cluster matrix
     matriy - subsampled vector of angles to decode
-    epochs - a vector of the same length as matriy with the epochs that each frame is assigned to
+    epochs - a vector of the same length as matriy with the epochs that each frame is assigned to. epochs are sampled such that the distribution of classes in each epoch is the same!
     """
     _, unique_pos_ang = np.unique(pos_ang, axis=1, return_inverse=True)
     matriy = pos_ang[0, :]

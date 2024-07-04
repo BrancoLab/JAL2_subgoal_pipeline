@@ -53,6 +53,10 @@ def linear_discriminant_analysis(
     coef_matrix = np.empty((n_bins, np.shape(X)[1] - 1, epoch_num))  # -1 on the number of clusters, because we have an extra column in X
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
+    all_Y = {'y_train': [],
+            'y_hat_train': [],
+            'y_test': [],
+            'y_hat_test': []}
 
     # chunk into epochs
     X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num, subsampling)  # after this Y is just the angles to predict
@@ -165,6 +169,11 @@ def linear_discriminant_analysis(
                 if self.show_plots:
                     plt.show()
                 plt.close()
+            
+            all_Y['y_train'].append(y1)
+            all_Y['y_hat_train'].append(y_hat_train)
+            all_Y['y_test'].append(y2)
+            all_Y['y_hat_test'].append(y_hat_test)
 
         if plotting:
             # plot average confusion matrix
@@ -201,7 +210,7 @@ def linear_discriminant_analysis(
     #     axs[i].imshow(coef_matrix[:,np.argsort(peak_weight),i].T, aspect = 'auto')
 
     if return_coef:
-        return prediction_accuracy, coef, len(Y)
+        return prediction_accuracy, coef, len(Y), all_Y
     else:
         return prediction_accuracy
 
