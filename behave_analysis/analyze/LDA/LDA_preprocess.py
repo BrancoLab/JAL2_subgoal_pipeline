@@ -82,9 +82,9 @@ def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, cen
             int(np.mean([tracking["shelter_loc"][0][0], tracking["shelter_loc"][1][0]])),
             int(np.mean([tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]])),
         ]
-    elif "bar_preflip" in variable:
+    elif "preflip" in variable:
         point = tracking["barrier_loc"][0]
-    elif "bar_postflip" in variable:
+    elif "postflip" in variable:
         point = tracking["barrier_loc"][1]
     elif "bar_centre" in variable:
         point = tracking["barrier_loc"][2]

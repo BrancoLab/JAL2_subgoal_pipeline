@@ -106,7 +106,7 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title):
         fig.add_trace(go.Violin(x=[var] * len(res), y=res, points="all", jitter=0.05, marker=dict(size=3, color=colorz[i + 1])))
 
     fig.update_layout(showlegend=False)
-    fig.update_yaxes(range=[0, 1])
+    fig.update_yaxes(range=[0, 1.1])
     fig.update_yaxes(title_text="prediction accuracy")
     fig.update_xaxes(tickangle=-45)
     filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy" + ".png"

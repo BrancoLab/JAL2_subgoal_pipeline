@@ -104,6 +104,7 @@ def run_LDA_model(self, settings, target_name):
     prediction_coef = {}
     LS_compiled = {}
     dropout_pa = {}
+    LDA_y_output = {}
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
@@ -133,15 +134,15 @@ def run_LDA_model(self, settings, target_name):
 
             # if no frames meet the criteria, make this condition blank
             if len(self.filtered_video_df) == 0:
-                prediction_coef, prediction_accuracy, LS_compiled, dropout_pa = fill_dict_with_zeros(
-                    self, prediction_coef, prediction_accuracy, dropout_pa, LS_compiled, variable
+                prediction_coef, prediction_accuracy, LDA_y_output, LS_compiled, dropout_pa = fill_dict_with_zeros(
+                    self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable
                 )
             else:
                 savename, target, X = prep_target_and_predictors(self, variable, settings)
 
                 # run LDA on different angles
                 if self.do_LDA:
-                    pa, coef, frames = linear_discriminant_analysis(
+                    pa, coef, frames, y_out = linear_discriminant_analysis(
                         X,
                         pos_ang=target,
                         epoch_num=settings.epoch_num,
@@ -156,6 +157,7 @@ def run_LDA_model(self, settings, target_name):
                     prediction_accuracy.update({variable: pa})
                     prediction_accuracy.update({variable + '_time': frames})
                     prediction_coef.update({variable: coef})
+                    LDA_y_output.update({variable: y_out})
 
                 # run LDA with individual cell dropout
                 if self.do_dropout:
@@ -206,7 +208,7 @@ def run_LDA_model(self, settings, target_name):
 
                     # run LDA on different angles
                     if self.do_LDA:
-                        pa, coef, frames = linear_discriminant_analysis(
+                        pa, coef, frames, y_out = linear_discriminant_analysis(
                             X,
                             pos_ang=target,
                             epoch_num=settings.epoch_num,
@@ -221,6 +223,7 @@ def run_LDA_model(self, settings, target_name):
                         prediction_accuracy.update({str(variable + str(j)): pa})
                         prediction_accuracy.update({'time_rP'+str(j): frames})
                         prediction_coef.update({str(variable + str(j)): coef})
+                        LDA_y_output.update({str(variable + str(j)): y_out})
 
                     # run linear shift on different angles
                     if self.do_LS:
@@ -242,6 +245,9 @@ def run_LDA_model(self, settings, target_name):
         coef_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_coef" + ".pkl"
         with open(coef_out, "wb") as fp:
             pickle.dump(prediction_coef, fp)
+        y_path = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_y_out" + ".pkl"
+        with open(y_path, "wb") as fp:
+            pickle.dump(LDA_y_output, fp)
 
     if self.do_LS:
         with open(self.LS_out, "wb") as fp:
