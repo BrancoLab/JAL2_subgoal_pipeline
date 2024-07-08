@@ -4,7 +4,9 @@ be seen below. Escapes are not removed from homings here currently.
 
 Note:
 -- Upgraded homings 08/07/2024. Seems the last tweak would be to fix when the trajectory terminmates too early
-sometimes meaning the homing is split into two. This can be fixed by creating a buffer between homings for now. l
+sometimes meaning the homing is split into two. This can be fixed by creating a buffer between homings for now.
+There are also anoyying homings that when they run around the edge they meet all the criteria, perhaps these can be
+removed by setting a stricter set of criteria at the expense of other homings.
 """
 
 import os
