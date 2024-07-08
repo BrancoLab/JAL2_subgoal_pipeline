@@ -5,6 +5,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from behave_analysis.utils.polar_cartesian_projections import negative_radians_to_positive
 from behave_analysis.utils.label_barrier_edges import check_which_barrier_location_is_which_orientation, convert_left_right_to_pre_post_flip
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.single_trial.tests import UnitTests
@@ -487,9 +488,9 @@ class PreprocessSingleTrialRegression:
         UnitTests.check_angles_are_between_minus_pi_and_pi(hsa, post_flip_goal_a, pre_flip_goal_a)
 
         # if values negative radians then add 2pi to make them positive and easier to work with
-        hsa = np.where(hsa < 0, hsa + 2 * np.pi, hsa)
-        post_flip_goal_a = np.where(post_flip_goal_a < 0, post_flip_goal_a + 2 * np.pi, post_flip_goal_a)
-        pre_flip_goal_a = np.where(pre_flip_goal_a < 0, pre_flip_goal_a + 2 * np.pi, pre_flip_goal_a)
+        hsa = negative_radians_to_positive(hsa)
+        post_flip_goal_a = negative_radians_to_positive(post_flip_goal_a)
+        pre_flip_goal_a = negative_radians_to_positive(pre_flip_goal_a)
 
         post_flip_index = self.compute_index(hsa, post_flip_goal_a)
         pre_flip_index = self.compute_index(hsa, pre_flip_goal_a)
