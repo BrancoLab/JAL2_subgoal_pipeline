@@ -491,6 +491,7 @@ class get_Homings:
         )
         return filtered_df
 
+
     def save_session(self) -> None:
         """Save homings object as a pickle file within the session folder"""
         folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings"))
@@ -501,7 +502,8 @@ class get_Homings:
 
 
 def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
-    """For the first 15cm of each homing, compute the average angles to reference locations
+    """For the first 15cm of each homing, compute the average angle to each reference locations
+    (shelter, pre flip goal, post flip goal).
 
     Note - 15cm is arbitrary and could be changed in settings_homings.py
 
@@ -513,24 +515,24 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     Creates:
     -- avg_hsa: np.array of shape (n_runs, ) with the average hsa for each homing run
-    -- avg_hdir_bar_goal1: np.array of shape (n_runs, ) with the average hdir_bar_goal1 for each homing run
-    -- avg_hdir_bar_goal2: np.array of shape (n_runs, ) with the average hdir_bar_goal2 for each homing run
+    -- avg_pre_flip_head_angle: np.array of shape (n_runs, ) with the average pre_flip_head_angle for each homing run
+    -- avg_post_flip_head_angle: np.array of shape (n_runs, ) with the average post_flip_head_angle for each homing run
 
     Returns:
     -- dic: dictionary with the above arrays stored as values
     """
 
-    # init
-    avg_hsa = np.zeros(len(onsets))
+    # init arrays to store the average heading angles to the pre and post flip barrier locations
+    avg_hsa = np.zeros(len(onsets))  # One value per homing
     if len(session.barrier_time) > 0:
-        avg_hdir_bar_goal1 = np.zeros(len(onsets))
-        avg_hdir_bar_goal2 = np.zeros(len(onsets))
+        avg_pre_flip_head_angle = np.zeros(len(onsets))
+        avg_post_flip_head_angle = np.zeros(len(onsets))
 
     # extract
     hsa_data = tracking_data["hdir_shelt"]
     if len(session.barrier_time) > 0:
-        hdir_bar_goal1 = tracking_data["hdir_barrier"][:, 0]
-        hdir_bar_goal2 = tracking_data["hdir_barrier"][:, 1]
+        pre_flip_head_angle = tracking_data["hdir_barrier"][:, 0]  # The first index is the pre flip barrier location
+        post_flip_head_angle = tracking_data["hdir_barrier"][:, 1]  # The second index is the post flip barrier location
 
     for i, (onset, offset) in enumerate(zip(onsets, offsets)):
 
@@ -539,29 +541,26 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
             onset = onset[0]
             offset = offset[0]
 
+        # There shouldn't be a one off error here bcause the onset and offsets should start at 0
         frame_coords = tracking_data["avg_loc"][onset:offset]
         frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
-        # frame_coords = tracking_data["avg_loc"][int(onset) : int(offset)]
-        # frame_index, start_frame = cum_distance(int(onset), int(offset), frame_coords, session.video.pixels_per_cm, cum_threshold)
 
         if frame_index == None:
             continue
+
         hsa = hsa_data[start_frame:frame_index]
-        # plt.plot(np.arange(onset[0],frame_index),hsa)
-        # plt.plot(np.arange(start_frame,frame_index),hsa_data[start_frame : frame_index])
-        if len(session.barrier_time) > 0:
-            g1 = hdir_bar_goal1[start_frame:frame_index]
-            g2 = hdir_bar_goal2[start_frame:frame_index]
         avg_hsa[i] = np.mean(hsa)
+
         if len(session.barrier_time) > 0:
-            avg_hdir_bar_goal1[i] = np.mean(g1)
-            avg_hdir_bar_goal2[i] = np.mean(g2)
+            pre_flip_window = pre_flip_head_angle[start_frame:frame_index]
+            post_flip_window = post_flip_head_angle[start_frame:frame_index]
+            avg_pre_flip_head_angle[i] = np.mean(pre_flip_window)
+            avg_post_flip_head_angle[i] = np.mean(post_flip_window)
 
     assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
 
-    # Save as dictionary, not as array, so I don't have to ask jasimine for the index every week
     if len(session.barrier_time) > 0:
-        dic = {"avg_hsa": avg_hsa, "avg_hdir_bar_goal1": avg_hdir_bar_goal1, "avg_hdir_bar_goal2": avg_hdir_bar_goal2}
+        dic = {"avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
     else:
         dic = {"avg_hsa": avg_hsa}
 

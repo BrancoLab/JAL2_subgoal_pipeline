@@ -204,6 +204,7 @@ class BaseDataPostprocessor(ABC):
             video_df = video_df.hstack([pl.Series("hsa", self.tracking_data["hdir_shelt"])])
 
         # if barrier in session, add the angles to video_df
+        # NOTE - North angle is always pre flip and south angle is always post flip for refactor to be pre and post flip edge
         if "hdir_barrier" in self.tracking_data:
             video_df = video_df.hstack([pl.Series("h_bar_north_a", self.tracking_data["hdir_barrier"][:, 0])])
             video_df = video_df.hstack([pl.Series("h_bar_south_a", self.tracking_data["hdir_barrier"][:, 1])])

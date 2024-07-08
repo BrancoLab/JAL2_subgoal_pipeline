@@ -101,6 +101,7 @@ class AnalyzeEfizz:
                 save_path=single_trial_save_path,
                 velocity_data=velocity_data,
                 similar_homings=False,
+                barrier_location=self.tracking_data["barrier_loc"],
             )
             SingleTrialRegression(
                 design_matrix=pp_single_trial_obj.design_matrix,
@@ -111,6 +112,8 @@ class AnalyzeEfizz:
                 spike_homing_list=pp_single_trial_obj.spike_data_per_homing,
                 condition_per_homing=pp_single_trial_obj.condition_per_homing,
                 cluster_ids=self.cluster_Ids,
+                initial_directions=pp_single_trial_obj.initial_directions,
+                conversion_from_left_right_to_pre_post_flip=pp_single_trial_obj.convert_left_right_to_pre_post_flip,
             )
 
         # ----------------- Compute Rayleigh, polar plots and delta hists ------------
