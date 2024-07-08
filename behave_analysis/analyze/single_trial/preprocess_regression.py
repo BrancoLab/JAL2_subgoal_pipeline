@@ -5,6 +5,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from behave_analysis.utils.polar_cartesian_projections import negative_radians_to_positive
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.single_trial.tests import UnitTests
 from behave_analysis.analyze.filtering_data.filtering_functions import discover_condition_based_on_video_df
@@ -424,9 +425,9 @@ class PreprocessSingleTrialRegression:
         UnitTests.check_angles_are_between_minus_pi_and_pi(hsa, south_goal, north_goal)
 
         # if values negative radians then add 2pi to make them positive and easier to work with
-        hsa = np.where(hsa < 0, hsa + 2 * np.pi, hsa)
-        south_goal = np.where(south_goal < 0, south_goal + 2 * np.pi, south_goal)
-        north_goal = np.where(north_goal < 0, north_goal + 2 * np.pi, north_goal)
+        hsa = negative_radians_to_positive(hsa)
+        south_goal = negative_radians_to_positive(south_goal)
+        north_goal = negative_radians_to_positive(north_goal)
 
         south_index = self.compute_index(hsa, south_goal)
         north_index = self.compute_index(hsa, north_goal)

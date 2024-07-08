@@ -39,9 +39,12 @@ class Settings_track:
     save_labeled_video: bool = False
     random_points: str = None
 
+
 @dataclass(frozen=True)
 class Settings_homings:
     fast_speed: float
+    min_frames_between_trials: int
+    edge_proximity: int
     fast_angular_speed: float
     padding_duration: float
     min_change_in_dist_to_shelter: float
@@ -176,12 +179,13 @@ class Settings_analyze_efizz:
     run_umap: bool = False
     run_dim_reduction: bool = False
     redo_pca_preprocessing: bool = False
-    condition_types: str = ''
-    compartment_split: str = ''
+    condition_types: str = ""
+    compartment_split: str = ""
     exclude_proximal: bool = False
     exclude_hdir: bool = False
     dropout: bool = False
     classify_cells: bool = False
+
 
 @dataclass(frozen=True)
 class Settings_postprocess:
