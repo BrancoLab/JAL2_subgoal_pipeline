@@ -1,4 +1,4 @@
-"""Debugging homings"""
+"""Debugging homings or regenerate if changed homing logic"""
 
 from loguru import logger
 
@@ -12,6 +12,7 @@ def homings():
     """Let's check out some homings and threshold crossings."""
     logger.info("The homings pipeline has started")
     for session_id in experiments_objects:
+        logger.info("Loaded a session with the following details: {}".format(session_id))
         session = Process(session_id).load_session()
         get_Homings(settings_h, session)
     logger.success("Homing pipeline complete")

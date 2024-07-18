@@ -14,6 +14,7 @@ from statistics import mean
 from dataclasses import dataclass
 
 from loguru import logger
+from astropy.stats import circmean
 import dill as pickle
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
@@ -25,7 +26,7 @@ from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 from behave_analysis.utils.creating_directories import make_directory
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=False)
 class Homings:
     """High level data structure for storing homings data""" ""
 
@@ -71,6 +72,7 @@ class get_Homings:
         self.onset_frames, self.offset_frames, self.stimulus_durations = self.remove_inapplicable_runs(
             onsets=self.onset_frames, offsets=self.offset_frames
         )
+
         self.start_locs, self.end_locs = self.get_start_and_end_locs(
             tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
         )
@@ -491,7 +493,6 @@ class get_Homings:
         )
         return filtered_df
 
-
     def save_session(self) -> None:
         """Save homings object as a pickle file within the session folder"""
         folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings"))
@@ -549,13 +550,13 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
             continue
 
         hsa = hsa_data[start_frame:frame_index]
-        avg_hsa[i] = np.mean(hsa)
+        avg_hsa[i] = circmean(hsa)
 
         if len(session.barrier_time) > 0:
             pre_flip_window = pre_flip_head_angle[start_frame:frame_index]
             post_flip_window = post_flip_head_angle[start_frame:frame_index]
-            avg_pre_flip_head_angle[i] = np.mean(pre_flip_window)
-            avg_post_flip_head_angle[i] = np.mean(post_flip_window)
+            avg_pre_flip_head_angle[i] = circmean(pre_flip_window)
+            avg_post_flip_head_angle[i] = circmean(post_flip_window)
 
     assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
 

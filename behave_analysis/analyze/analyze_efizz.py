@@ -78,8 +78,12 @@ class AnalyzeEfizz:
             homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
             with open(homing_path, "rb") as f:
                 self.homings_object = pickle.load(f)
+
+            escape_path = os.path.join(self.session.base_path, self.session.processed_path, "escapes", "escapes_obj.pkl")
+            with open(escape_path, "rb") as f:
+                self.escape_object = pickle.load(f)
         except FileNotFoundError:
-            logger.warning("Homings object not found")
+            logger.warning("Homings or escapes object not found")
 
     def execute_models(self):
         logger.info("Executing models")
@@ -102,6 +106,7 @@ class AnalyzeEfizz:
                 velocity_data=velocity_data,
                 similar_homings=False,
                 barrier_location=self.tracking_data["barrier_loc"],
+                escape_object=self.escape_object,
             )
             SingleTrialRegression(
                 design_matrix=pp_single_trial_obj.design_matrix,

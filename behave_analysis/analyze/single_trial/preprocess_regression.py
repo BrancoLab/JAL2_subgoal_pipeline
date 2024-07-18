@@ -5,6 +5,7 @@ from loguru import logger
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from behave_analysis.utils.rm_escapes_from_homings import remove_escapes_from_homings_object
 from behave_analysis.utils.polar_cartesian_projections import negative_radians_to_positive
 from behave_analysis.utils.label_barrier_edges import check_which_barrier_location_is_which_orientation, convert_left_right_to_pre_post_flip
 from behave_analysis.utils.creating_directories import make_directory
@@ -43,15 +44,22 @@ class PreprocessSingleTrialRegression:
         velocity_data: np.ndarray,
         barrier_location,
         similar_homings=False,
+        escape_object=None,
     ):
         logger.info("Initializing the single trial regression preprocessing object")
-        self.homings_obj = homings_obj
+        self.homings_obj = remove_escapes_from_homings_object(homings_obj, escape_object)
         self.video_and_spike_data = video_and_spike_data
         self.frame_by_cluster_matrix = frame_by_cluster_matrix
         self.save_path = save_path
         self.video_df = self.remove_columns_from_video_df(video_df)
         self.barrier_location = barrier_location
         self.convert_left_right_to_pre_post_flip = convert_left_right_to_pre_post_flip(self.barrier_location)
+
+        try:
+            np.load
+        except FileNotFoundError:
+            logger.error("The escape object is not found")
+            raise FileNotFoundError("The escape object is not found")
 
         # Settings
         self.similar_homings = similar_homings
@@ -185,10 +193,18 @@ class PreprocessSingleTrialRegression:
             # Add the index every 3rd frame to reduce clutter
             for i, row in homing_pd.iloc[::3].iterrows():
                 plt.text(
-                    x=row["mouse_x_position"] + 20, y=row["mouse_y_position"] + 10, s=str(np.around(row["post_flip_index"], 1)), color="red", fontsize=6
+                    x=row["mouse_x_position"] + 20,
+                    y=row["mouse_y_position"] + 10,
+                    s=str(np.around(row["post_flip_index"], 1)),
+                    color="red",
+                    fontsize=6,
                 )
                 plt.text(
-                    x=row["mouse_x_position"] + 100, y=row["mouse_y_position"] + 10, s=str(np.around(row["pre_flip_index"], 1)), color="blue", fontsize=6
+                    x=row["mouse_x_position"] + 100,
+                    y=row["mouse_y_position"] + 10,
+                    s=str(np.around(row["pre_flip_index"], 1)),
+                    color="blue",
+                    fontsize=6,
                 )
                 # Add velocity
                 plt.text(
@@ -231,8 +247,8 @@ class PreprocessSingleTrialRegression:
             "barrier_present",
             "barrier_flipped",
             "hsa",
-            "h_bar_north_a",
-            "h_bar_south_a",
+            "h_preflipbar_a",
+            "h_postflipbar_a",
         ]
         return video_df.select(keep)
 
@@ -254,18 +270,29 @@ class PreprocessSingleTrialRegression:
         left_edge_cum_angles = cumulative_angle_data["left_edge_cum_angles"]
         right_edge_cum_angles = cumulative_angle_data["right_edge_cum_angles"]
         initial_direction = []
-
+       
+        # If threshol is 360 then there is no threshold 
+        threshold = 2 * np.pi # 57 degrees or 2 * pi radians so no threshold
+                    
         # For each homing, which goal is the mouse facing the most
         for homing_idx, _ in enumerate(self.homing_list):
             min_absolute_angle = np.min(
                 [np.abs(avg_hsa[homing_idx]), np.abs(left_edge_cum_angles[homing_idx]), np.abs(right_edge_cum_angles[homing_idx])]
             )
-            if min_absolute_angle == np.abs(avg_hsa[homing_idx]):
+            if min_absolute_angle == np.abs(avg_hsa[homing_idx]) and min_absolute_angle < threshold:
                 initial_direction.append("shelter")
-            if min_absolute_angle == np.abs(left_edge_cum_angles[homing_idx]):
+            elif min_absolute_angle == np.abs(left_edge_cum_angles[homing_idx]) and min_absolute_angle < threshold:
                 initial_direction.append("left edge")
-            if min_absolute_angle == np.abs(right_edge_cum_angles[homing_idx]):
+            elif min_absolute_angle == np.abs(right_edge_cum_angles[homing_idx]) and min_absolute_angle < threshold:
                 initial_direction.append("right edge")
+            elif min_absolute_angle >= threshold:
+                initial_direction.append("ambiguous")
+        
+        # check there are left and right homings
+        left = initial_direction.count("left edge")
+        right = initial_direction.count("right edge")
+        assert left > 0 and right > 0, "There are no left or right homings"
+        assert len(initial_direction) == len(self.homing_list), "The length of the initial direction is not the same as the homing list"
 
         return initial_direction
 
@@ -317,8 +344,8 @@ class PreprocessSingleTrialRegression:
                     "mouse_y_position",
                     "hdir",
                     "hsa",
-                    "h_bar_north_a",
-                    "h_bar_south_a",
+                    "h_preflipbar_a",
+                    "h_postflipbar_a",
                 ]
             )
             homing_info.append(homing)
@@ -342,42 +369,65 @@ class PreprocessSingleTrialRegression:
         TODO - Refactor this to choose subgoals based escapes
         """
         # HARDCORE MODE - we like it rough and tough
-        xcoordinate_min = 300
+        xcoordinate_min = 200
         xcoordinate_max = 700
         ycoordinate_min = 200
-        ycoordinate_end_min = 750
+        ycoordinate_end_min = 600
         x_middle_chunk_min = 400
         x_middle_chunk_max = 600
         extracted_info = []
 
-        for _, homing in enumerate(extracted_homing_info):
+        left = []
+        right = []
 
-            # check if mouse x position is within the range - STARTS FARTS ONLY
-            start_x = homing["mouse_x_position"][0]
-            start_y = homing["mouse_y_position"][0]
+        hard_code = np.array([46, 44, 47, 51, 53, 64, 70, 74, 79, 81, 87, 89, 106, 107, 110, 111, 112, 115, 122, 125, 126, 127])
+        # jal6 flip 3 18mar
 
-            # Starts in a similar space
-            if start_x > xcoordinate_min and start_x < xcoordinate_max and start_y < ycoordinate_min:
+        for i, homing in enumerate(extracted_homing_info):
 
-                # Ends in a similar space
-                if homing["mouse_y_position"][-1] > ycoordinate_end_min:
+            if i not in hard_code:
+                continue
 
-                    # middle of frames is in a similar space
-                    middle_x = homing["mouse_x_position"][int(len(homing) / 2)]
-                    if middle_x < x_middle_chunk_min or middle_x > x_middle_chunk_max:
-                        # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
-                        # plt.hlines(y=512, xmin=150, xmax=900, color="k")
+            # plt.plot(homing["mouse_x_position"], homing["mouse_y_position"])
+            plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
+            extracted_info.append(homing)
 
-                        # CHOOSE ONE SIDE
-                        if middle_x > 700:
-                            plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
-                            plt.hlines(y=512, xmin=150, xmax=900, color="k")
-                            plt.vlines(x=700, ymin=50, ymax=900, color="k")
+        #     # check if mouse x position is within the range - STARTS FARTS ONLY
+        #     start_x = homing["mouse_x_position"][0]
+        #     start_y = homing["mouse_y_position"][0]
 
-                            extracted_info.append(homing)
+        #     # Starts in a similar space
+        #     if start_x > xcoordinate_min and start_x < xcoordinate_max and start_y < ycoordinate_min:
 
-            # Print all the homings
-            # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
+        #         # Ends in a similar space
+        #         if homing["mouse_y_position"][-1] > ycoordinate_end_min:
+
+        #             # middle of frames is in a similar space
+        #             middle_x = homing["mouse_x_position"][int(len(homing) / 2)]
+        #             if middle_x < x_middle_chunk_min or middle_x > x_middle_chunk_max:
+
+        #                 # CHOOSE ONE SIDE
+        #                 if middle_x > x_middle_chunk_max:
+        #                     right.append(homing)
+        #                     # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"], label="right")
+        #                 if middle_x < x_middle_chunk_min:
+        #                     left.append(homing)
+        #                     # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"], label="left")
+
+        # # Handle class imbalance
+        # if len(left) > 0 and len(right) > 0:
+        #     if len(left) > len(right): l
+        #         left = left[: len(right)]
+        #     else:
+        #         right = right[: len(left)]
+        #     print(f"There are {len(left)} left homings and {len(right)} right homings")
+
+        # # Merge the two lists
+        # extracted_info = left + right
+        # for homing in extracted_info:
+        # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
+        # plt.legend()
+        # plt.show()
 
         return extracted_info
 
@@ -483,8 +533,8 @@ class PreprocessSingleTrialRegression:
         and 1 when the mouse is facing the goal. This is a normalised index."""
 
         hsa = homing_data_single_dataframe["hsa"].to_numpy().copy()
-        post_flip_goal_a = homing_data_single_dataframe["h_bar_south_a"].to_numpy().copy()
-        pre_flip_goal_a = homing_data_single_dataframe["h_bar_north_a"].to_numpy().copy()
+        post_flip_goal_a = homing_data_single_dataframe["h_postflipbar_a"].to_numpy().copy()
+        pre_flip_goal_a = homing_data_single_dataframe["h_preflipbar_a"].to_numpy().copy()
         UnitTests.check_angles_are_between_minus_pi_and_pi(hsa, post_flip_goal_a, pre_flip_goal_a)
 
         # if values negative radians then add 2pi to make them positive and easier to work with
@@ -496,7 +546,9 @@ class PreprocessSingleTrialRegression:
         pre_flip_index = self.compute_index(hsa, pre_flip_goal_a)
         UnitTests.check_index_values_are_valid(post_flip_index, pre_flip_index)
 
-        result = homing_data_single_dataframe.with_columns([(pl.Series("post_flip_index", post_flip_index)), (pl.Series("pre_flip_index", pre_flip_index))])
+        result = homing_data_single_dataframe.with_columns(
+            [(pl.Series("post_flip_index", post_flip_index)), (pl.Series("pre_flip_index", pre_flip_index))]
+        )
         return result
 
     # ------------ Create design matrix and targets-----------------------------

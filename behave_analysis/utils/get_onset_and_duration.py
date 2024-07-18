@@ -5,6 +5,18 @@ from typing import Tuple
 from loguru import logger
 
 def get_onset_and_duration(data_on: object, session: object, stim_type: str, min_frames_between_trials: int, data_type: str):
+    """_summary_
+
+    Args:
+        data_on (object): _description_
+        session (object): _description_
+        stim_type (str): _description_
+        min_frames_between_trials (int): _description_
+        data_type (str): _description_
+
+    Returns:
+        stimulus_durations (np.array): In seconds
+    """
     
     data_on_idx = np.where(data_on)[0]
 

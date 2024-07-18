@@ -103,7 +103,44 @@ def uniform_test_split(X, y, bins, samples_per_bin=100, random_state=None):
     return train_indices, test_indices
 
 
-def ols_regression_with_sampling(X, y, bins, noise_std=0.1, oversampling_factor=10):
+def uniform_sample(X, y, bins, samples_per_bin=100):
+    """
+    Bins: array of bin edges
+    y: array of target values
+    samples_per_bin: target number of samples per bin in the test set
+    test_ratio: approximate ratio of test set size to total dataset size
+
+    TODO: Currently makes test size dependent on the number of samples in each bin. This could be improved. So you
+    could set a fixed test size percentage and interpolate further depending on the number of samples in each bin.
+    """
+    y = np.squeeze(np.asarray(y))
+    X = np.asarray(X)
+    assert len(X) == len(y), "X and y must be of the same length."
+
+    bin_indices = np.digitize(y, bins)
+    unique_bins = np.unique(bin_indices)
+
+    ind = []
+
+    # for each bin, get the samples and randomly select samples_per_bin number of samples
+    for bin_index in unique_bins:
+        bin_mask = bin_indices == bin_index
+        bin_samples = np.where(bin_mask)[0]
+
+        # If we have enough samples, choose [samples_per_bin] samples from the binned Y values
+        if len(bin_samples) > samples_per_bin:
+            # Undersample
+            indicies = np.random.choice(bin_samples, samples_per_bin, replace=False)
+        else:
+            # Use all samples for and replace them
+            indicies = np.random.choice(bin_samples, samples_per_bin, replace=True)
+
+        ind.extend(indicies)
+
+    return ind
+
+
+def smotre_and_resample(X, y, bins, noise_std=0.1, oversampling_factor=10):
     """Perform OLS regression with SMOTER interpolation and uniform sampling
 
     Args:
@@ -138,7 +175,7 @@ if __name__ == "__main__":
     bins = np.histogram(y, bins=50)[1]  # Define bins for uniform sampling
 
     # Perform regression with sampling
-    X_train, y_train, X_test, y_test, X_interp, Y_interp = ols_regression_with_sampling(X, y, bins, noise_std=0.1)
+    X_train, y_train, X_test, y_test, X_interp, Y_interp = smotre_and_resample(X, y, bins, noise_std=0.1)
 
     # Plot the results of the resampling technique for comparison
     fig, ax = plt.subplots(3, 2, figsize=(12, 8))
