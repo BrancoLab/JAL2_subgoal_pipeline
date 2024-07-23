@@ -135,7 +135,7 @@ class BaseDataPostprocessor(ABC):
 
         # what period in the recording was there a barrier?
         if len(self.session.barrier_time) > 0:
-            if self.session.barrier_time[1] == -1:  # shelter only until the end of the session
+            if self.session.barrier_time[1] == -1:  # barrier present until the end of the session
                 barrier_present = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barriertime[0] * self.session.video.fps)
             else:
                 barrier_present = np.logical_and(
