@@ -19,8 +19,9 @@ class LoadEfizz:
         not used, it is needed to walk the directory tree
         """
         logger.info("Searching through efizz files")
+        efizz_folder = os.path.join(self.file_path,[x for x in os.listdir(self.file_path) if '_g0' in x][0])
         files = []
-        for dirpath, dirnames, filenames in os.walk(self.file_path):
+        for dirpath, dirnames, filenames in os.walk(efizz_folder):
             for filename in filenames:
                 files.append(os.path.join(dirpath, filename))
         logger.success("Efizz file names collected")
@@ -41,7 +42,12 @@ class LoadEfizz:
             logger.info(f"The number of spikes is: {len(self.spike_times)}")
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
             self.spike_clusters = np.hstack(self.spike_clusters)
-            self.imec_sync_path = self.filter_by_ending(self.files, "exported.imec0.ap.bin")[0]
+            sync = self.filter_by_ending(self.files, "exported.imec0.ap.bin")
+            if len(sync) > 0: 
+                self.imec_sync_path = sync[0]
+            else:
+                logger.warning("No exported .bin sync channel was found!")
+                self.imec_sync_path = self.filter_by_ending(self.files, "_t0.imec0.ap.bin")[0]
             self.imec_bin_path = self.filter_by_ending(self.files, "_t0.imec0.ap.bin")[0]
             self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter="\t", skiprows=1, dtype=str)
             self.num_of_good_units = self.count_number_of_label_units("good")

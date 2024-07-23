@@ -31,7 +31,7 @@ from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_wit
 ## --------------- MAIN LDA FUNCTION
 
 def linear_discriminant_analysis(
-    X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, self=None, title=None
+    X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, self=None, title=None, subsampling = False
 ):
     """
     A function for doing LDA on data.
@@ -53,12 +53,15 @@ def linear_discriminant_analysis(
     coef_matrix = np.empty((n_bins, np.shape(X)[1] - 1, epoch_num))  # -1 on the number of clusters, because we have an extra column in X
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
+    all_Y = {'y_train': [],
+            'y_hat_train': [],
+            'y_test': [],
+            'y_hat_test': []}
 
     # chunk into epochs
-    X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num)  # after this Y is just the angles to predict
+    X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num, subsampling)  # after this Y is just the angles to predict
     X = X[:, 1:]  # the first column is frame id and you no longer need it
     _, counts = np.unique(epochs, return_counts=True)
-    print(len(Y))
 
     if np.logical_or(np.amin(counts) < fr, len(np.unique(epochs)) < 2):
         prediction_accuracy = 0
@@ -72,7 +75,6 @@ def linear_discriminant_analysis(
             if plotting:
                 plt.figure(figsize=(20, 16))
                 plt.subplots_adjust(hspace=0.3)
-            start_time = time.time()
             # make train matrix of frames x clusters
             X1 = zscore_predictors(X[train_idx, :])
 
@@ -82,8 +84,6 @@ def linear_discriminant_analysis(
             # train model
             y1 = Y[train_idx]
             y2 = Y[test_idx]
-            # pre_time = time.time()
-            # print('Time to prep LDa is ' + str(pre_time - start_time))
 
             if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
@@ -127,8 +127,8 @@ def linear_discriminant_analysis(
                     titleclass = "angle (rad)"
 
                 if "vect" not in title:
-                    y_hat_train = self.bin_centre[y_hat_train - 1]
-                    y1 = self.bin_centre[y1 - 1]
+                    y_hat_train = self.bin_centre[y_hat_train.astype(int) - 1]
+                    y1 = self.bin_centre[y1.astype(int) - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 1))
@@ -148,8 +148,8 @@ def linear_discriminant_analysis(
 
             if plotting:
                 if "vect" not in title:
-                    y_hat_test = self.bin_centre[y_hat_test - 1]
-                    y2 = self.bin_centre[y2 - 1]
+                    y_hat_test = self.bin_centre[y_hat_test.astype(int) - 1]
+                    y2 = self.bin_centre[y2.astype(int) - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 3))
@@ -169,9 +169,11 @@ def linear_discriminant_analysis(
                 if self.show_plots:
                     plt.show()
                 plt.close()
-
-            # fit_time = time.time()
-            # print('Time to fit&predict LDA is ' + str(fit_time - pre_time))
+            
+            all_Y['y_train'].append(y1)
+            all_Y['y_hat_train'].append(y_hat_train)
+            all_Y['y_test'].append(y2)
+            all_Y['y_hat_test'].append(y_hat_test)
 
         if plotting:
             # plot average confusion matrix
@@ -208,7 +210,7 @@ def linear_discriminant_analysis(
     #     axs[i].imshow(coef_matrix[:,np.argsort(peak_weight),i].T, aspect = 'auto')
 
     if return_coef:
-        return prediction_accuracy, coef
+        return prediction_accuracy, coef, len(Y), all_Y
     else:
         return prediction_accuracy
 

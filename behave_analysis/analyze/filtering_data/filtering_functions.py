@@ -261,8 +261,8 @@ def identify_angles(session, include_rand_points=False):
         angles.append("hsa")
 
     if len(session.barrier_time) > 0:
-        angles.append("h_bar_north_a")
-        angles.append("h_bar_south_a")
+        angles.append("h_preflipbar_a")
+        angles.append("h_postflipbar_a")
         angles.append("h_bar_centre_a")
 
     if include_rand_points:
@@ -282,9 +282,9 @@ def identify_dist(session, add):
         dist.append("shelt_" + add)
 
     if len(session.barrier_time) > 0:
-        dist.append("bar_north_" + add)
-        dist.append("bar_south_" + add)
-        dist.append("bar_centre_" + add)
+        dist.append("bar_preflip_"+add)
+        dist.append("bar_postflip_"+add)
+        dist.append("bar_centre_"+add)
 
     dist.append("randP_" + add)
 

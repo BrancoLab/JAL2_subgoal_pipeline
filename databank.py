@@ -12,11 +12,11 @@ from behave_analysis.database.Experiments.JAL002_ex import (
     seq1_1,
     mushroom_3_002,
 )
-from behave_analysis.database.Experiments.JAL003_ex import JAL3_25aug, JAL3_1sept, JAL3_4sept
+from behave_analysis.database.Experiments.JAL003_ex import JAL3_25aug, JAL3_1sept, JAL3_4sept, JAL3_7sept
 
-from behave_analysis.database.Experiments.JAL004_ex import JAL4_mush1, JAL4_3rdSept, JAL4_19thSept, JAL4_11thSept
+from behave_analysis.database.Experiments.JAL004_ex import JAL4_mush1, JAL4_3rdSept, JAL4_19thSept, JAL4_11thSept, JAL4_28aug
 
-from behave_analysis.database.Experiments.JAL005_ex import JAL5_mush1, JAL005_8thSept, JAL005_21stSept
+from behave_analysis.database.Experiments.JAL005_ex import JAL5_3oct, JAL005_8thSept, JAL005_21stSept
 
 from behave_analysis.database.Experiments.JAL006_ex import (
     JAL6_hab_1mar,
@@ -46,11 +46,30 @@ from behave_analysis.database.Experiments.JAL008_ex import (
     JAL8_tiny_3may,
     JAL8_flip4_10may,
     JAL8_14may,
+    JAL8_21may,
 )
 
 # ## -------------JR BEHAVIOR MICE
 
 from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
+
+experiments_objects = [JAL3_7sept, JAL3_4sept, 
+JAL4_3rdSept, JAL4_19thSept, JAL4_28aug, JAL4_11thSept,
+JAL005_8thSept, JAL005_21stSept, 
+JAL6_28mar, JAL6_flip4_21mar, JAL6_flip5_25mar, JAL6_flip3_18mar, JAL6_flip7_1apr,
+JAL7_sesh8_9apr, JAL7_flip5_22mar, JAL7_flip2_12mar, JAL7_sesh9_16apr, JAL7_23apr, JAL7_30apr,
+JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may, JAL8_14may, JAL8_21may]
+
+# postprocess everything because of new video_df [can skip the matrix building]
+# LDA with subsampling
+# LDA with subsampling and exclude 15cm
+# LDA without subsampling
+# LDA without subsampling and exclude 15cm
+# TODO: double check these work without subsampling
+# LDA without subsampling on vectors 
+# LDA without subsampling by position
+# LDA without subsampling first vs second half TODO: this code doesn't really exist yet
+# LDA without subsampling homing based
 
 # Commonly used experiments
 # experiments_objects = [JAL6_28mar]

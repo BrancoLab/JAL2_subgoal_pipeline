@@ -50,7 +50,6 @@ def plot_angle_distributions(session, settings, trackingData, video_data, condit
     distributions vs the optimal distributions for each point of
     interest in the arena.
 
-    NOTE - I think the right edge is north and the left edge is south.
     """
         
     angles = identify_angles(session)
@@ -138,14 +137,14 @@ def extract_xys_of_arena_objects(trackingData, barrier_time: bool) -> dict:
             np.mean([trackingData["shelter_loc"][0][0], trackingData["shelter_loc"][1][0]]),
             np.mean([trackingData["shelter_loc"][0][1], trackingData["shelter_loc"][1][1]]),
         )
-        leftEdgeLocation = trackingData["barrier_loc"][0]
+        preflipLocation = trackingData["barrier_loc"][0]
         centerLocation = trackingData["barrier_loc"][2]
-        rightEdgeLocation = trackingData["barrier_loc"][1]
+        postflipLocation = trackingData["barrier_loc"][1]
         return {
             "hsa": shelter_location,
             "h_bar_centre_a": centerLocation,
-            "h_bar_south_a": leftEdgeLocation,
-            "h_bar_north_a": rightEdgeLocation,
+            "h_postflipbar_a": postflipLocation,
+            "h_preflipbar_a": preflipLocation,
         }
 
 
