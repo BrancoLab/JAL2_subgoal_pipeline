@@ -53,20 +53,14 @@ from behave_analysis.database.Experiments.JAL008_ex import (
 
 from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
-experiments_objects = [JAL3_7sept]
-# experiments_objects = [JAL3_1sept, JAL3_25aug, JAL3_7sept, JAL3_4sept, 
-# JAL4_3rdSept, JAL4_19thSept, JAL4_28aug, JAL4_11thSept,
-# JAL005_8thSept, JAL005_21stSept, 
-# JAL6_28mar, JAL6_flip4_21mar, JAL6_flip5_25mar, JAL6_flip3_18mar, JAL6_flip7_1apr,
-# JAL7_sesh8_9apr, JAL7_flip5_22mar, JAL7_flip2_12mar, JAL7_sesh9_16apr, JAL7_23apr, JAL7_30apr,
-# JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may, JAL8_14may, JAL8_21may]
+experiments_objects = [JAL3_7sept, JAL3_4sept, 
+JAL4_3rdSept, JAL4_19thSept, JAL4_28aug, JAL4_11thSept,
+JAL005_8thSept, JAL005_21stSept, 
+JAL6_28mar, JAL6_flip4_21mar, JAL6_flip5_25mar, JAL6_flip3_18mar, JAL6_flip7_1apr,
+JAL7_sesh8_9apr, JAL7_flip5_22mar, JAL7_flip2_12mar, JAL7_sesh9_16apr, JAL7_23apr, JAL7_30apr,
+JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may, JAL8_14may, JAL8_21may]
 
-# process after HPC: [JAL3_4sept]
-# track: [JAL3_25aug, JAL3_7sept, JAL3_4sept]
-# postprocess after phy: [JAL3_25aug, JAL3_7sept, JAL3_4sept, JAL6_flip5_25mar]
-# process without extractedbin: [JAL3_25aug, JAL3_7sept, JAL3_4sept]
-
-# [JAL3_1sept, JAL4_3rdSept, JAL4_19thSept,JAL005_8thSept,JAL6_28mar,JAL7_sesh8_9apr,JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_flip4_10may, JAL7_flip5_22mar, JAL7_flip2_12mar, JAL6_flip4_21mar, JAL6_flip5_25mar, JAL7_sesh9_16apr,JAL4_28aug,JAL7_23apr,JAL7_30apr,JAL8_14may, JAL8_21may]
+# postprocess everything because of new video_df [can skip the matrix building]
 # LDA with subsampling
 # LDA with subsampling and exclude 15cm
 # LDA without subsampling
