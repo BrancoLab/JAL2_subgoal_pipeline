@@ -16,6 +16,7 @@ from behave_analysis.analyze.LDA.LDAmodel import LDA
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
+from behave_analysis.analyze.single_trial.predict_future import select_neural_activity_chunk
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.analyze.classification.head_shelter import classify_hsa
@@ -104,10 +105,15 @@ class AnalyzeEfizz:
                 frame_by_cluster_matrix=self.frame_by_cluster_matrix,
                 save_path=single_trial_save_path,
                 velocity_data=velocity_data,
-                similar_homings=False,
+                similar_homings=True,
                 barrier_location=self.tracking_data["barrier_loc"],
+                shelter_location=self.tracking_data["shelter_loc"],
                 escape_object=self.escape_object,
+                remove_escapes=False,
             )
+
+            select_neural_activity_chunk(pp_single_trial_obj.spike_data_per_homing, bin_sizes=[10, 20, 30, 40], classes=pp_single_trial_obj.classes)
+
             SingleTrialRegression(
                 design_matrix=pp_single_trial_obj.design_matrix,
                 save_path=single_trial_save_path,

@@ -42,7 +42,7 @@ Settings_ae = Settings_analyze_efizz(
     number_of_bins=9,  # number of bins for angles, e.g. 13 or 19 are good numbers
     classify_cells=False,
     # ------------------- Run single trial analysis -------------------
-    run_single_trial=False,
+    run_single_trial=True,
     # ------------- PCA model settings --------------------------
     run_dim_reduction=False,
     run_pca=False,

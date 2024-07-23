@@ -54,7 +54,7 @@ from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3
 
 # Commonly used experiments
 # experiments_objects = [JAL6_28mar]
-# experiments_objects = [JAL6_flip3_18mar]
+experiments_objects = [JAL6_flip3_18mar]
 # experiments_objects = [JAL4_3rdSept]
 # experiments_objects = [JAL7_sesh8_9apr]
 # experiments_objects = [JAL8_14may]
@@ -70,7 +70,7 @@ from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3
 # experiments_objects = [JAL7_sesh8_9apr, JAL7_sesh9_16apr, JAL7_23apr, JAL7_30apr]
 
 # JAL8
-experiments_objects = [JAL8_flip1_25apr, JAL8_flip2_29apr, JAL8_flip4_10may, JAL8_14may]
+# experiments_objects = [JAL8_flip1_25apr, JAL8_flip2_29apr, JAL8_flip4_10may, JAL8_14may]
 
 # HPC: [flip4stSept_003, JAL3_flip_rot, JAL4_11thSept]
 # postprocess: [flip4stSept_003]

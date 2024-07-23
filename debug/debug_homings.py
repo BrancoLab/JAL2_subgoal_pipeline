@@ -1,4 +1,6 @@
-"""Debugging homings or regenerate if changed homing logic"""
+"""Debugging homings or regenerate if changed homing logic
+
+BUG - iF you redo homings escapes are made from homings so you need to redo pp as well"""
 
 from loguru import logger
 

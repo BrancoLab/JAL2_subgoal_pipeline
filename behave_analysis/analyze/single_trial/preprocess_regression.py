@@ -9,6 +9,7 @@ from behave_analysis.utils.rm_escapes_from_homings import remove_escapes_from_ho
 from behave_analysis.utils.polar_cartesian_projections import negative_radians_to_positive
 from behave_analysis.utils.label_barrier_edges import check_which_barrier_location_is_which_orientation, convert_left_right_to_pre_post_flip
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.analyze.single_trial.tests import UnitTests
 from behave_analysis.analyze.filtering_data.filtering_functions import discover_condition_based_on_video_df
 
@@ -43,25 +44,26 @@ class PreprocessSingleTrialRegression:
         save_path: Path,
         velocity_data: np.ndarray,
         barrier_location,
+        shelter_location,
         similar_homings=False,
         escape_object=None,
+        remove_escapes=False,
     ):
         logger.info("Initializing the single trial regression preprocessing object")
-        self.homings_obj = remove_escapes_from_homings_object(homings_obj, escape_object)
+
+        if remove_escapes:
+            self.homings_obj = remove_escapes_from_homings_object(homings_obj, escape_object)
+        else:
+            self.homings_obj = homings_obj
+
+        self.escape_object = escape_object
         self.video_and_spike_data = video_and_spike_data
         self.frame_by_cluster_matrix = frame_by_cluster_matrix
         self.save_path = save_path
         self.video_df = self.remove_columns_from_video_df(video_df)
         self.barrier_location = barrier_location
+        self.shelter_location = shelter_location
         self.convert_left_right_to_pre_post_flip = convert_left_right_to_pre_post_flip(self.barrier_location)
-
-        try:
-            np.load
-        except FileNotFoundError:
-            logger.error("The escape object is not found")
-            raise FileNotFoundError("The escape object is not found")
-
-        # Settings
         self.similar_homings = similar_homings
 
         # Preprocessing homing data
@@ -70,12 +72,8 @@ class PreprocessSingleTrialRegression:
         self.initial_directions = self.label_each_homing_with_an_initial_direction(
             self.extract_cumulative_homing_data(self.homings_obj, self.barrier_location)
         )
-
-        # Add the dependent variable to the data
         homing_df_s2 = self.add_dependent_index_variable_to_homing_info(homing_data_single_dataframe=homing_df_s1)
         UnitTests.check_index_is_valid(self.compute_index)
-
-        # Add the velocity data to the homing data
         self.homing_data_single_dataframe = self.add_velocity_data_to_homing_data(homing_df_s2, velocity_data)
 
         # Create the design matrix
@@ -270,10 +268,10 @@ class PreprocessSingleTrialRegression:
         left_edge_cum_angles = cumulative_angle_data["left_edge_cum_angles"]
         right_edge_cum_angles = cumulative_angle_data["right_edge_cum_angles"]
         initial_direction = []
-       
-        # If threshol is 360 then there is no threshold 
-        threshold = 2 * np.pi # 57 degrees or 2 * pi radians so no threshold
-                    
+
+        # If threshol is 360 then there is no threshold
+        threshold = 2 * np.pi  # 57 degrees or 2 * pi radians so no threshold
+
         # For each homing, which goal is the mouse facing the most
         for homing_idx, _ in enumerate(self.homing_list):
             min_absolute_angle = np.min(
@@ -287,7 +285,7 @@ class PreprocessSingleTrialRegression:
                 initial_direction.append("right edge")
             elif min_absolute_angle >= threshold:
                 initial_direction.append("ambiguous")
-        
+
         # check there are left and right homings
         left = initial_direction.count("left edge")
         right = initial_direction.count("right edge")
@@ -356,80 +354,112 @@ class PreprocessSingleTrialRegression:
 
         return homing_info, condition_per_homing
 
+    # ------------------ Select similar homings ----------------------------------------
+
+    def select_homings_that_start_near_the_threat_zone(self, extracted_homing_info, ythresh=200) -> list:
+        """Give me the homings that start "close" to the threat zone. Select homings where first frame is beneath 200 pixels"""
+        thomes = [th for th in extracted_homing_info if th["mouse_y_position"][0] < ythresh]
+        assert len(thomes) > 0, "There are no homings that start near the threat zone"
+        return thomes
+
+    def select_homings_that_are_in_the_centre(self, thomes, xthreshmin=300, xthreshmax=700):
+        """Select homings that are in the centre of the arena given some threat zone homings"""
+        cthomes = [th for th in thomes if th["mouse_x_position"][0] > xthreshmin and th["mouse_x_position"][0] < xthreshmax]
+        assert len(cthomes) > 0, "There are no homings that start near the centre of the arena in the threat zone"
+        return cthomes
+
+    def remove_homings_that_pass_through_the_barrier(self, cthomes: list, xthreshmin=300, xthreshmax=700):
+        """
+        Remove homings that pass through the barrier.
+
+        Parameters:
+        cthomes (list): List of DataFrames containing homing data.
+        xthreshmin (int): Minimum x-threshold.
+        xthreshmax (int): Maximum x-threshold.
+
+        Returns:
+        list: Filtered list of DataFrames.
+        """
+        bary = 512
+
+        def passes_through_barrier(th):
+            if any(th["mouse_y_position"] > bary):
+                delta = np.abs(th["mouse_y_position"] - bary)  # find the closest point to the barrier
+                idx = int(np.argmin(delta))
+                if th["mouse_x_position"][idx] > xthreshmin and th["mouse_x_position"][idx] < xthreshmax:
+                    return True
+            return False
+
+        # Filter out the DataFrames (homings) that pass through the barrier
+        thinned = [th for th in cthomes if not passes_through_barrier(th)]
+
+        assert len(thinned) > 0, "There are no homings left after we remove the homings that pass through the barrier"
+        return thinned
+
+    def assign_left_or_right_to_each_homing(self, cthomes: list) -> list:
+        """Creates a list of left 0 or right 1 for each homing period"""
+        bary = 512
+        classes = []
+        for i, th in enumerate(cthomes):
+            # If homing passes over 512 pixels this is easy
+            if any(th["mouse_y_position"] > bary):
+                delta = np.abs(th["mouse_y_position"] - bary)  # find the closest point to the barrier
+                idx = int(np.argmin(delta))
+                if th["mouse_x_position"][idx] > 700:
+                    classes.append(1)
+                elif th["mouse_x_position"][idx] < 300:
+                    classes.append(0)
+                else:
+                    logger.warning(f"Homing {i} is ambiguous")
+                    classes.append(-1)
+            # take the last frame position as the choice
+            else:
+                if th["mouse_x_position"][-1] > 700:
+                    classes.append(1)
+                elif th["mouse_x_position"][-1] < 300:
+                    classes.append(0)
+                else:
+                    logger.warning(f"Homing {i} is ambiguous")
+                    classes.append(-1)
+        assert len(classes) == len(cthomes), "The number of classes is not the same as the number of homings"
+        assert len(classes) > 0, "There are no homings that are classified as left or right"
+        return classes
+
     def select_similar_homings(self, extracted_homing_info) -> dict:
-        """
+        """Plot left and right homings to check criteria has worked"""
+        thomes = self.select_homings_that_start_near_the_threat_zone(extracted_homing_info)
+        cthomes = self.select_homings_that_are_in_the_centre(thomes)
+        selected_homings = self.remove_homings_that_pass_through_the_barrier(cthomes)  # We might want these in the future but remove them for now
+        assert len(selected_homings) > 0, "There are no homings that meet the criteria for single trial regression for this session"
+        classes = self.assign_left_or_right_to_each_homing(selected_homings)
+        
+        # remove index in homing_list where classes == -1
+        # remove ambiguous homing trials
+        selected_homings = [homing for i, homing in enumerate(selected_homings) if classes[i] != -1]
+        classes = [c for c in classes if c != -1]
+        assert len(selected_homings) == len(classes), "The homing list and classes should be the same length"
 
-        -- Similar time periods
-        -- Similar mouse positions
-        -- Similar targets
+        # Plot the homings
+        for i, th in enumerate(selected_homings):
+            if classes[i] == 0:
+                plt.plot(th["mouse_x_position"], th["mouse_y_position"], color="blue", label="Left", alpha=0.5)
+            elif classes[i] == 1:
+                plt.plot(th["mouse_x_position"], th["mouse_y_position"], color="red", label="Right", alpha=0.5)
+        
+        # plot the homing number onto the plot
+        for i, th in enumerate(selected_homings):
+            plt.text(th["mouse_x_position"][0], th["mouse_y_position"][0], str(i), fontsize=10)
+            
+        # retrieve axis
+        ax = plt.gca()
+         
+        Arena(ax = ax, shelter_coordinates=self.shelter_location)
+        plt.title("Blue is left, red is right")
+        plt.show()
 
-        Raises:
-            NotImplementedError: _description_
+        return selected_homings, classes
 
-        TODO - Refactor this to choose subgoals based escapes
-        """
-        # HARDCORE MODE - we like it rough and tough
-        xcoordinate_min = 200
-        xcoordinate_max = 700
-        ycoordinate_min = 200
-        ycoordinate_end_min = 600
-        x_middle_chunk_min = 400
-        x_middle_chunk_max = 600
-        extracted_info = []
-
-        left = []
-        right = []
-
-        hard_code = np.array([46, 44, 47, 51, 53, 64, 70, 74, 79, 81, 87, 89, 106, 107, 110, 111, 112, 115, 122, 125, 126, 127])
-        # jal6 flip 3 18mar
-
-        for i, homing in enumerate(extracted_homing_info):
-
-            if i not in hard_code:
-                continue
-
-            # plt.plot(homing["mouse_x_position"], homing["mouse_y_position"])
-            plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
-            extracted_info.append(homing)
-
-        #     # check if mouse x position is within the range - STARTS FARTS ONLY
-        #     start_x = homing["mouse_x_position"][0]
-        #     start_y = homing["mouse_y_position"][0]
-
-        #     # Starts in a similar space
-        #     if start_x > xcoordinate_min and start_x < xcoordinate_max and start_y < ycoordinate_min:
-
-        #         # Ends in a similar space
-        #         if homing["mouse_y_position"][-1] > ycoordinate_end_min:
-
-        #             # middle of frames is in a similar space
-        #             middle_x = homing["mouse_x_position"][int(len(homing) / 2)]
-        #             if middle_x < x_middle_chunk_min or middle_x > x_middle_chunk_max:
-
-        #                 # CHOOSE ONE SIDE
-        #                 if middle_x > x_middle_chunk_max:
-        #                     right.append(homing)
-        #                     # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"], label="right")
-        #                 if middle_x < x_middle_chunk_min:
-        #                     left.append(homing)
-        #                     # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"], label="left")
-
-        # # Handle class imbalance
-        # if len(left) > 0 and len(right) > 0:
-        #     if len(left) > len(right): l
-        #         left = left[: len(right)]
-        #     else:
-        #         right = right[: len(left)]
-        #     print(f"There are {len(left)} left homings and {len(right)} right homings")
-
-        # # Merge the two lists
-        # extracted_info = left + right
-        # for homing in extracted_info:
-        # plt.scatter(homing["mouse_x_position"], homing["mouse_y_position"])
-        # plt.legend()
-        # plt.show()
-
-        return extracted_info
+    # ------------------------------------------------------------------------------
 
     def add_homing_id_to_homing_data(self, extracted_homing_info: list) -> list:
         """Adding the homing id (abitrary ascending interger) to the homing data.
@@ -464,7 +494,7 @@ class PreprocessSingleTrialRegression:
                 -- concatenated_homing_data (pl.DataFrame): The concatenated homing data ready for regression analysis"""
         extracted_homing_info, condition_per_homing = self.extract_data_from_homings(homing_object=self.homings_obj, video_df=self.video_df)
         if select_similar_homings:
-            self.homing_info = self.select_similar_homings(extracted_homing_info)
+            self.homing_info, self.classes = self.select_similar_homings(extracted_homing_info)
             extracted_homing_info = self.homing_info
         homing_info = self.add_homing_id_to_homing_data(extracted_homing_info)
         cocatenated_homing_data = self.concatenate_the_homing_data(homing_info)
