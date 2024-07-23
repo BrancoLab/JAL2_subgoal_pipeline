@@ -49,8 +49,8 @@ class CoverageStatistics:
         NOTE - This function is duplicated in circular_coeff_of_angles.py and other places. Need to refactor this.
         """
         
-        if "h_bar_north_a" and "h_bar_south_a" in video_data_frame.columns:
-            angles = video_data_frame.select(["hdir", "hsa", "h_bar_north_a", "h_bar_south_a"])
+        if "h_preflipbar_a" and "h_postflipbar_a" in video_data_frame.columns:
+            angles = video_data_frame.select(["hdir", "hsa", "h_preflipbar_a", "h_postflipbar_a"])
                     
         else:
             angles = video_data_frame.select(["hdir", "hsa"])
@@ -70,10 +70,10 @@ class CoverageStatistics:
         """
         
         # If it's a barrier experiment
-        if "h_bar_north_a" in self.video_df:
-            angle_data_frame = self.video_df.select(['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']).to_pandas()
-            angle_data_frame.rename(columns={'h_bar_north_a': 'North Edge', 
-                                             'h_bar_south_a': 'South Edge', 
+        if "h_preflipbar_a" in self.video_df:
+            angle_data_frame = self.video_df.select(['hdir', 'hsa', 'h_preflipbar_a', 'h_postflipbar_a']).to_pandas()
+            angle_data_frame.rename(columns={'h_preflipbar_a': 'Pre flip Edge', 
+                                             'h_postflipbar_a': 'Post flip Edge', 
                                              'hdir': 'Head Direction', 
                                              'hsa': 'Head Shelter'}, inplace=True)
             
@@ -174,7 +174,7 @@ class CoverageStatistics:
                 
                 # Extract angles from cell
                 if barrier_experiment:
-                    angle_data_frame = cell.select(['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a'])
+                    angle_data_frame = cell.select(['hdir', 'hsa', 'h_preflipbar_a', 'h_postflipbar_a'])
                 
                 else:
                     angle_data_frame = cell.select(['hdir', 'hsa'])

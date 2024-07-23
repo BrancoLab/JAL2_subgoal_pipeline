@@ -54,23 +54,24 @@ def base_plotting(ax, tracking, condition, session=[]) -> None:
     arena_radius = 460
 
     # draw shelter
-    if "shelter_loc" in tracking.keys():
-        for i in [0, 1]:
-            plt.plot(
-                [tracking["shelter_loc"][0][0], tracking["shelter_loc"][1][0]],
-                [tracking["shelter_loc"][i][1], tracking["shelter_loc"][i][1]],
-                color=[1, 0, 0],
-            )
-            plt.plot(
-                [tracking["shelter_loc"][i][0], tracking["shelter_loc"][i][0]],
-                [tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]],
-                color=[0, 0, 0],
-            )
+    if not(condition == "pre_shelter"):
+        if "shelter_loc" in tracking.keys():
+            for i in [0, 1]:
+                plt.plot(
+                    [tracking["shelter_loc"][0][0], tracking["shelter_loc"][1][0]],
+                    [tracking["shelter_loc"][i][1], tracking["shelter_loc"][i][1]],
+                    color=[1, 0, 0],
+                )
+                plt.plot(
+                    [tracking["shelter_loc"][i][0], tracking["shelter_loc"][i][0]],
+                    [tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]],
+                    color=[0, 0, 0],
+                )
 
     # draw barrier logic
     if not np.logical_or(condition == "shelter_only", condition == "pre_shelter"):
         if len(tracking["barrier_loc"]) > 0:
-            if condition == "barrier_present":
+            if np.logical_or(np.logical_or(condition == 'barrier_present',condition == 'all_time'),condition == 'shelter_present'):
                 # draw old two-sided barrier
                 bar_loc = [tracking["barrier_loc"][0][0], tracking["barrier_loc"][1][0]]
 
@@ -128,9 +129,16 @@ def identify_condition_of_trial(video_df, session) -> str:
     ), "video_df must contain 'shelter', 'barrier_present', and 'barrier_flipped' columns."
     assert hasattr(session, "barrier_flip_time"), "session must have 'barrier_flip_time' attribute."
 
+    condition = ""
+
+    if video_df["shelter"].to_numpy() == False:
+        condition = 'pre_shelter'
+
     # Check if mouse is in the shelter condition
     if np.logical_and(video_df["shelter"].to_numpy() == True, video_df["barrier_present"].to_numpy() == False):
         condition = "shelter_only"
+        if video_df["barrier_flipped"].to_numpy() == True:
+            condition = "barrier_removed" # ATTENTION: this only works if barrier is removed after flip!!!
 
     # Check which barrier condition the mouse is in
     elif np.logical_and(video_df["shelter"].to_numpy() == True, video_df["barrier_present"].to_numpy() == True):
@@ -143,9 +151,6 @@ def identify_condition_of_trial(video_df, session) -> str:
             if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_present"].to_numpy() == True):
                 condition = "barrier_post_flip"
 
-            # Condition fails if the barrier was not flipped and then removed
-            if np.logical_and(video_df["barrier_flipped"].to_numpy() == True, video_df["barrier_present"].to_numpy() == False):
-                condition = "barrier_removed"
         else:
             condition = "barrier_present"
     

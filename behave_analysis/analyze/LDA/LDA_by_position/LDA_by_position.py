@@ -17,7 +17,7 @@ from behave_analysis.analyze.LDA.LDA_utils import (
 )
 from behave_analysis.analyze.LDA.LDA_preprocess import (
     select_relevant_frames,
-    BinDfbyPos,
+    BinArenaEqualParts,
     exclude_proximal_frames,
     prep_target_and_predictors,
 )
@@ -33,18 +33,19 @@ def run_LDA_model_by_position(self, settings, target_name):
     prediction_coef = {}
     LS_compiled = {}
     dropout_pa = {}
+    LDA_y_output = {}
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
-    bp, bc = BinDfbyPos(filtered_video_df, self.session.video.height, self.session.video.width, numpoints = self.pos_numpoints, return_bin_centre = True)
+    bp, bc = BinArenaEqualParts(filtered_video_df, numpoints = self.num_slices, numrings = self.num_circles, radius = 460, video = self.session.video)
     filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", bp)])
+    prediction_accuracy.update({'num_slices' : self.num_slices})
+    prediction_accuracy.update({'num_circles' : self.num_circles})
     prediction_accuracy.update({'bin_centre' : bc})
 
     for variable in target_name:
 
         logger.info(f"Running LDA on {variable}")
-        import time
-        start_time = time.time()
         
         # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
         if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
@@ -64,19 +65,16 @@ def run_LDA_model_by_position(self, settings, target_name):
             self.filtered_video_df = self.filtered_video_df_full.filter(self.filtered_video_df_full['binned_position'] == b)
             # if no frames meet the criteria, make this condition blank
             if len(self.filtered_video_df) == 0:
-                prediction_coef, prediction_accuracy, LS_compiled, dropout_pa = fill_dict_with_zeros(
-                    self, prediction_coef, prediction_accuracy, dropout_pa, LS_compiled, variable + '_pos' + str(b)
+                prediction_coef, prediction_accuracy, LDA_y_output, LS_compiled, dropout_pa = fill_dict_with_zeros(
+                    self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable + '_pos' + str(b)
                 )
             else:
                 savename, target, X = prep_target_and_predictors(self, variable, settings)
                 savename = savename + '_pos' + str(b)
-                preprocess_time = time.time()
-                print("Time to preprocess is " + str(preprocess_time - start_time))
 
                 # run LDA on different angles
                 if self.do_LDA:
-                    start_time = time.time()
-                    pa, coef = linear_discriminant_analysis(
+                    pa, coef, frames, y_out = linear_discriminant_analysis(
                         X,
                         pos_ang=target,
                         epoch_num=settings.epoch_num,
@@ -86,15 +84,16 @@ def run_LDA_model_by_position(self, settings, target_name):
                         plotting=False,
                         self=self,
                         title=savename,
+                        subsampling = settings.subsampling,
                     )
                     prediction_accuracy.update({variable + '_pos' + str(b): pa})
+                    prediction_accuracy.update({variable + '_time' + str(b): frames})
                     prediction_coef.update({variable + '_pos' + str(b): coef})
-                    print("Time to run single LDA iter: " + str(time.time() - start_time))
+                    LDA_y_output.update({variable + '_pos' + str(b): y_out})
 
                 # run LDA with individual cell dropout
                 if self.do_dropout:
                     logger.warning("LDA dropout doesn't work yet for positional LDA")
-                #     start_time = time.time()
                 #     logger.info(f"Running LDA predictor dropout on {variable}")
                 #     X_drop = []
                 #     for drop in np.arange(1, np.shape(X)[1]):
@@ -102,11 +101,9 @@ def run_LDA_model_by_position(self, settings, target_name):
                 #     args_list = [(x, target) for x in X_drop]
                 #     dropouts = self.PPool.mp_pool.map(parallel_function, args_list)
                 #     dropout_pa.update({variable: dropouts})
-                #     print("Time to run LDA on " + str(np.shape(X)[1]) + " dropouts: " + str(time.time() - start_time))
 
                 # run linear shift on different angles
                 if self.do_LS:
-                    start_time = time.time()
                     LS_output = LinearShift(
                         X,
                         y=target,
@@ -125,6 +122,9 @@ def run_LDA_model_by_position(self, settings, target_name):
         coef_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_coef" + ".pkl"
         with open(coef_out, "wb") as fp:
             pickle.dump(prediction_coef, fp)
+        y_path = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_y_out" + ".pkl"
+        with open(y_path, "wb") as fp:
+            pickle.dump(LDA_y_output, fp)
 
     if self.do_LS:
         with open(self.LS_out, "wb") as fp:

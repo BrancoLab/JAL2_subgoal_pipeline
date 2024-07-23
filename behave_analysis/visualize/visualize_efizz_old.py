@@ -242,7 +242,7 @@ class Visualize_efizz:
         A function that computes every single tuning curve for each cell
         """
         logger.info("Commence making figures of each individual cluster and all its respective tuning plots")
-        run = {'hdir': True,'hsa':True, 'pre_hsa': True, 'h_bar_south_a': True, 'pre_h_bar_south_a': True, 'h_bar_north_a': True, 'pre_h_bar_north_a': True, 'h_bar_centre_a': False, 'pre_h_bar_centre_a': False,}
+        run = {'hdir': True,'hsa':True, 'pre_hsa': True, 'h_postflipbar_a': True, 'pre_h_postflipbar_a': True, 'h_preflipbar_a': True, 'pre_h_preflipbar_a': True, 'h_bar_centre_a': False, 'pre_h_bar_centre_a': False,}
         
         # If the tuning dictionary exsits, then run the keys of the above dtionary, and if the key is int the tuning directory, then set it to false
         # What?
@@ -268,12 +268,12 @@ class Visualize_efizz:
                         
         # head barrier angle
         if len(self.processed_data.Visualize.session.barrier_time) > 0:
-            if run['h_bar_south_a']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_south_a',object_present = True)
+            if run['h_postflipbar_a']:
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_postflipbar_a',object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
-            if run['h_bar_north_a']:
-                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_north_a',object_present = True)
+            if run['h_preflipbar_a']:
+                filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_preflipbar_a',object_present = True)
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
 
             if run['h_bar_centre_a']:
@@ -281,12 +281,12 @@ class Visualize_efizz:
                 self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                 
             if not(np.logical_and(self.processed_data.Visualize.session.barrier_time[0] == 0, self.processed_data.Visualize.session.barrier_time[1] == -1)):
-                if run['pre_h_bar_south_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_south_a',object_present = False)
+                if run['pre_h_postflipbar_a']:
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_postflipbar_a',object_present = False)
                     self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
                     
-                if run['pre_h_bar_north_a']:
-                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_bar_north_a',object_present = False)
+                if run['pre_h_preflipbar_a']:
+                    filtered_video_df, angle_filt, title = filter_video_dataframe(self.processed_data.video_df, 'h_preflipbar_a',object_present = False)
                     self.rayleigh_vector(filtered_video_df, angle_filt, title, compute_bootstrap)
 
                 if run['pre_h_bar_centre_a']:
@@ -519,7 +519,7 @@ class Visualize_efizz:
     def single_cluster_polar_plots(self, cluster):
         """Plots all polar plots for 1 cluster in 1 figure"""
 
-        tuning_angles = ['hdir', 'hsa', 'h_bar_south_a', 'h_bar_north_a']
+        tuning_angles = ['hdir', 'hsa', 'h_postflipbar_a', 'h_preflipbar_a']
         figg, _ = plt.subplots(1, len(tuning_angles))
         figg.set_figwidth(30)
 

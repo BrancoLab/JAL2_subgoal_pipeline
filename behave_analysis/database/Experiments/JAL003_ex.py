@@ -67,5 +67,5 @@ JAL3_7sept =   Experiment(# Mouse specific
                     experiment_time = "12_23_47",
                     experiment_path = Path(r"003_003puftrotato3_2023_09_07T12_23_47"),
                     shelter_time = [0.25, -1], 
-                    barrier_time = [70.5, -1], # in minutes when the barrier was present e.g. [30, -1] (if until the end of session put -1 as second in list)
+                    barrier_time = [70.5, 289.25], # in minutes when the barrier was present e.g. [30, -1] (if until the end of session put -1 as second in list)
                     barrier_flip_time = 182) # time in minutes when the barrier was flipped e.g. 184

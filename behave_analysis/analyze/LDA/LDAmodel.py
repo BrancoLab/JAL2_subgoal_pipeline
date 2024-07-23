@@ -26,6 +26,7 @@ from behave_analysis.analyze.LDA.LDA_utils import (
 from behave_analysis.analyze.LDA.LDA_preprocess import (
     select_relevant_frames,
     BinDfbyPos,
+    BinArenaEqualParts,
     exclude_proximal_frames,
     prep_target_and_predictors,
 )
@@ -59,7 +60,8 @@ def LDA(self, settings):
                 if np.logical_or(settings.run_LDA == 'all_vectors', settings.run_LDA == 'all_distance'):
                     logger.warning("You are running LDA by position to decode vectors or distances, but this dramatically reduces the amount of available data. Run it on 'all_angles' instead")
                 self.number_of_bins = 9
-                self.pos_numpoints = 6
+                self.num_slices = 6
+                self.num_circles = 3
                 target = choose_predictors(settings, self.session, include_rand_points = False)
             else:
                 self.number_of_bins = settings.number_of_bins
@@ -102,18 +104,22 @@ def run_LDA_model(self, settings, target_name):
     prediction_coef = {}
     LS_compiled = {}
     dropout_pa = {}
+    LDA_y_output = {}
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
-    filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", 
-                                                            BinDfbyPos(filtered_video_df, self.session.video.height, self.session.video.width))])
+    if settings.subsampling:
+        bp, _ = BinArenaEqualParts(filtered_video_df, numpoints = 4, numrings = 1, radius = 460, video = self.session.video)
+    else:
+        bp = np.ones(len(filtered_video_df))
+    filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", bp)])
+    # remove all frames where binned position is zero as these are outside the arena!
+    filtered_video_df = filtered_video_df.filter((filtered_video_df['binned_position'] > 0))
 
     for variable in target_name:
 
         if 'randP' not in variable:
             logger.info(f"Running LDA on {variable}")
-            import time
-            start_time = time.time()
             
             # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
             if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
@@ -128,18 +134,15 @@ def run_LDA_model(self, settings, target_name):
 
             # if no frames meet the criteria, make this condition blank
             if len(self.filtered_video_df) == 0:
-                prediction_coef, prediction_accuracy, LS_compiled, dropout_pa = fill_dict_with_zeros(
-                    self, prediction_coef, prediction_accuracy, dropout_pa, LS_compiled, variable
+                prediction_coef, prediction_accuracy, LDA_y_output, LS_compiled, dropout_pa = fill_dict_with_zeros(
+                    self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable
                 )
             else:
                 savename, target, X = prep_target_and_predictors(self, variable, settings)
-                preprocess_time = time.time()
-                print("Time to preprocess is " + str(preprocess_time - start_time))
 
                 # run LDA on different angles
                 if self.do_LDA:
-                    start_time = time.time()
-                    pa, coef = linear_discriminant_analysis(
+                    pa, coef, frames, y_out = linear_discriminant_analysis(
                         X,
                         pos_ang=target,
                         epoch_num=settings.epoch_num,
@@ -149,14 +152,15 @@ def run_LDA_model(self, settings, target_name):
                         plotting=True,
                         self=self,
                         title=savename,
+                        subsampling = settings.subsampling,
                     )
                     prediction_accuracy.update({variable: pa})
+                    prediction_accuracy.update({variable + '_time': frames})
                     prediction_coef.update({variable: coef})
-                    print("Time to run single LDA iter: " + str(time.time() - start_time))
+                    LDA_y_output.update({variable: y_out})
 
                 # run LDA with individual cell dropout
                 if self.do_dropout:
-                    start_time = time.time()
                     logger.info(f"Running LDA predictor dropout on {variable}")
                     X_drop = []
                     for drop in np.arange(1, np.shape(X)[1]):
@@ -164,11 +168,9 @@ def run_LDA_model(self, settings, target_name):
                     args_list = [(x, target) for x in X_drop]
                     dropouts = self.PPool.mp_pool.map(parallel_function, args_list)
                     dropout_pa.update({variable: dropouts})
-                    print("Time to run LDA on " + str(np.shape(X)[1]) + " dropouts: " + str(time.time() - start_time))
 
                 # run linear shift on different angles
                 if self.do_LS:
-                    start_time = time.time()
                     logger.info(f"Running linear shift on LDA on {variable}")
                     LS_output = LinearShift(
                         X,
@@ -179,8 +181,6 @@ def run_LDA_model(self, settings, target_name):
                         size_of_central_chunk=np.round(np.shape(X)[0] * 0.9),
                     )
                     LS_compiled.update({variable: LS_output})
-                    lda_time = time.time()
-                    print("Time to LS is " + str(lda_time - start_time))
                     del LS_output
 
         else:  # if the variable is a random point
@@ -208,7 +208,7 @@ def run_LDA_model(self, settings, target_name):
 
                     # run LDA on different angles
                     if self.do_LDA:
-                        pa, coef = linear_discriminant_analysis(
+                        pa, coef, frames, y_out = linear_discriminant_analysis(
                             X,
                             pos_ang=target,
                             epoch_num=settings.epoch_num,
@@ -218,9 +218,12 @@ def run_LDA_model(self, settings, target_name):
                             plotting=False, # TODO: needs to be false!
                             self=self,
                             title=savename,
+                            subsampling = settings.subsampling,
                         )
                         prediction_accuracy.update({str(variable + str(j)): pa})
+                        prediction_accuracy.update({'time_rP'+str(j): frames})
                         prediction_coef.update({str(variable + str(j)): coef})
+                        LDA_y_output.update({str(variable + str(j)): y_out})
 
                     # run linear shift on different angles
                     if self.do_LS:
@@ -242,6 +245,9 @@ def run_LDA_model(self, settings, target_name):
         coef_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_coef" + ".pkl"
         with open(coef_out, "wb") as fp:
             pickle.dump(prediction_coef, fp)
+        y_path = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_y_out" + ".pkl"
+        with open(y_path, "wb") as fp:
+            pickle.dump(LDA_y_output, fp)
 
     if self.do_LS:
         with open(self.LS_out, "wb") as fp:

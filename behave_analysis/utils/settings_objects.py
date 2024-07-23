@@ -185,6 +185,7 @@ class Settings_analyze_efizz:
     exclude_hdir: bool = False
     dropout: bool = False
     classify_cells: bool = False
+    subsampling: bool = False
 
 
 @dataclass(frozen=True)
