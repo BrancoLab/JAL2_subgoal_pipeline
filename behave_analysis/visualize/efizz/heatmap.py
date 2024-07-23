@@ -9,6 +9,7 @@ from matplotlib import pyplot as plt
 import seaborn as sns
 import pandas as pd
 from loguru import logger
+import numpy as np
 
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.utils.creating_directories import make_directory
@@ -26,11 +27,30 @@ COLUMNS_TO_KEEP = [
     "shelter",
     "barrier_present",
     "barrier_flipped",
+    "homingPeriod",
 ]
 
 
+def assign_positional_bins_to_frames(video_df: pd.DataFrame, nbins: int) -> pd.DataFrame:
+    """Assign x and y bins to each frame in the video DataFrame
+
+    Args:
+        video_df (pd.DataFrame): A DataFrame containing the video data
+        nbins (int): The number of bins to split the x and y positions into
+
+    Returns:
+        pd.DataFrame: The video DataFrame with x and y bins assigned to each frame"""
+
+    x_bins, x_bin_nums = pd.cut(video_df["mouse_x_position"], bins=nbins, labels=False, retbins=True)
+    y_bins, y_bin_nums = pd.cut(video_df["mouse_y_position"], bins=nbins, labels=False, retbins=True)
+    video_df["x_bins"] = x_bins
+    video_df["y_bins"] = y_bins
+    return video_df, x_bin_nums, y_bin_nums
+
+
 def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions: list, save_base: str, session: object) -> None:
-    """Generate heatmaps for each unit split by condition and save each to a file.
+    """Generate heatmaps for each unit split by condition and save each to a file. Spike counts are normalised by the
+    time spent in each bin.
 
     Logic:
         - Filter out data points outside of the arena
@@ -56,58 +76,66 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions: l
     data = video_and_spike_data.select(COLUMNS_TO_KEEP)  # Prevents memory issues and computer crashes
     del video_and_spike_data  # Release reference to the original DataFrame
     unit_ids = data["spike_clusters"].unique().to_numpy()
-    data = filter_outside_arena_tracking_for_video_and_spike_data(video_and_spike_data=data, session=session)
+    clean_video_df = filter_outside_arena_tracking_for_video_and_spike_data(video_and_spike_data=data, session=session).to_pandas()
+    vdf_with_bins, x_bin_nums, y_bin_nums = assign_positional_bins_to_frames(video_df=clean_video_df, nbins=30)
+    assert "all_time" in conditions, "The condition 'all_time' must be included in the conditions list! for the heatmap to be created."
 
     # Loop through each unit and create a heatmap for each condition
     for clu in unit_ids:
         total_spikes = 0
         fig, axs = plt.subplots(nrows=1, ncols=len(conditions), figsize=(15, 7), sharey=True, sharex=True)
         cbar_ax = fig.add_axes([0.91, 0.3, 0.02, 0.4])  # The list represents [left, bottom, width, height]
+
+        min_spikes = 0
+        max_spikes = 0
+
         for idx, condition in enumerate(conditions):
-            filtered_df = filter_video_dataframe(dataframe=data, condition=condition)
+            pldf = pl.DataFrame(vdf_with_bins)
+            filtered_df = filter_video_dataframe(dataframe=pldf, condition=condition, exclude_escape=True, exclude_homings=True)
+            behave_pivot = filtered_df.to_pandas().groupby(["x_bins", "y_bins"]).size().reset_index(name="total_entries")
+            behave_pivot = behave_pivot.pivot(index="y_bins", columns="x_bins", values="total_entries").fillna(-1)
             clu_df = filtered_df.filter(pl.col("spike_clusters") == clu)
 
             # Skip if no data for this unit and condition
             if clu_df.is_empty() or sum(clu_df["spike_count"]) == 0:
+                logger.warning(f"Unit {clu} has no data for condition {condition}, skipping...")
                 continue
 
             pddf = clu_df.to_pandas()
 
-            # Bin the x and y positions
-            num_bins = 30  # Adjust bins as needed
-            x_bins, x_bin_nums = pd.cut(pddf["mouse_x_position"], bins=num_bins, labels=False, retbins=True)
-            y_bins, y_bin_nums = pd.cut(pddf["mouse_y_position"], bins=num_bins, labels=False, retbins=True)
-            pddf["x_bins"] = x_bins
-            pddf["y_bins"] = y_bins
-
-            # Return the total number of spikes in each x, y bin
+            # Count and normalise the spikes in each bin
             spike_counts_in_bin = pddf.groupby(["x_bins", "y_bins"])["spike_count"].sum().reset_index()
-
-            # Count the number of entries (data points) in each x, y bin
-            total_entries_in_bins = pddf.groupby(["x_bins", "y_bins"]).size().reset_index(name="total_entries")
-
-            # Merge the aggregated spike counts with the bin counts
+            total_entries_in_bins = pddf.groupby(["x_bins", "y_bins"]).size().reset_index(name="total_entries")  # Total entries in each bin
             normalized_df = pd.merge(spike_counts_in_bin, total_entries_in_bins, on=["x_bins", "y_bins"])
-
-            # Normalize the spike counts by the number of entries in each bin
-            normalized_df["normalized_spike_count"] = normalized_df["spike_count"] / normalized_df["total_entries"]
-
-            # Check that total entries is not longer than the inital dataframe
-            assert sum(normalized_df["total_entries"]) <= len(pddf), "Total entries in bins is greater than the initial dataframe, can not be!"
+            normalized_df["normalized_spike_count"] = (
+                spike_counts_in_bin["spike_count"] / total_entries_in_bins["total_entries"]
+            ) * 40  # spikes per second
+            assert sum(total_entries_in_bins["total_entries"]) <= len(
+                pddf
+            ), "Total entries in bins is greater than the initial dataframe, can not be!"
 
             if condition != "all_time":
-                total_spikes += sum(normalized_df["spike_count"])
+                total_spikes += sum(spike_counts_in_bin["spike_count"])
+            condition_spikes = sum(spike_counts_in_bin["spike_count"])
 
-            condition_spikes = sum(normalized_df["spike_count"])
-
-            # Pivot the DataFrame for heatmap creation
             # Y bins are the rows, x bins are the columns and the values are firing rates
             pivot_df = normalized_df.pivot(index="y_bins", columns="x_bins", values="normalized_spike_count").fillna(0)
+            pivot_df = pivot_df.mask(behave_pivot == -1, -1)  # Mask the -1 values (no data / exploration) with set_bad color
+
+            if condition == "all_time":
+                min_spikes, max_spikes = robust_min_max_calculation(pivot_df, min_spikes, max_spikes)
 
             # Create the heatmap
             add_features_binned(axs[idx], condition, tracking_data, x_bin_nums, y_bin_nums)
             single_unit_heatmap_plotting(
-                axs=axs, idx=idx, heatmap_data=pivot_df, cbar_ax=cbar_ax, condition=condition, condition_spikes=condition_spikes
+                axs=axs,
+                idx=idx,
+                heatmap_data=pivot_df,
+                cbar_ax=cbar_ax,
+                condition=condition,
+                condition_spikes=condition_spikes,
+                min_spikes=min_spikes,
+                max_spikes=max_spikes,
             )
 
         fig.suptitle(f"Unit {clu}: heatmap - Total spikes across conditions {total_spikes:.1f}", fontsize=20)
@@ -118,8 +146,25 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions: l
 
     logger.success("Single unit heatmaps created successfully!")
 
+def robust_min_max_calculation(pivot_df: pd.DataFrame, min_spikes: int, max_spikes: int) -> tuple:
+    """Calculate the robust min and max for the colorbar
 
-def single_unit_heatmap_plotting(axs, idx: int, heatmap_data: pl.DataFrame, cbar_ax, condition: str, condition_spikes) -> None:
+    Args:
+        pivot_df (pd.DataFrame): A DataFrame containing the pivot data
+        min_spikes (int): The current minimum spike count
+        max_spikes (int): The current maximum spike count
+
+    Returns:
+        tuple: The updated minimum and maximum spike counts"""
+
+    robust_df = pivot_df[pivot_df != -1]
+    max_spikes = np.nanpercentile(robust_df, 98)
+    min_spikes = np.nanpercentile(robust_df, 2)
+    return min_spikes, max_spikes
+
+def single_unit_heatmap_plotting(
+    axs, idx: int, heatmap_data: pl.DataFrame, cbar_ax, condition: str, condition_spikes, min_spikes, max_spikes
+) -> None:
     """Logic for plotting a single unit heatmap for a given condition
 
     Args:
@@ -128,13 +173,20 @@ def single_unit_heatmap_plotting(axs, idx: int, heatmap_data: pl.DataFrame, cbar
         heatmap_data (pl.DataFrame): A DataFrame containing the heatmap data
         cbar_ax: The colorbar axis object
         condition (str): The condition of the plot"""
+
+    # Define the custom colormap
+    cmap = sns.color_palette("viridis", as_cmap=True)
+    cmap.set_bad("white")  # Color for no data due to no exploration
+    cmap.set_under("grey")  # Color for zero data due to no spikes
+
     axs[idx] = sns.heatmap(
         heatmap_data,
-        cmap="viridis",
-        robust=True,
+        cmap=cmap,
+        vmin=min_spikes, # 2nd percentile of all time
+        vmax=max_spikes, # 98th percentile of all time
         cbar_ax=cbar_ax,
         ax=axs[idx],
-        mask=(heatmap_data == 0),  # Mask zero values
+        mask=(heatmap_data == -1),  # Mask the -1 values (no data / exploration) with set_bad color
     )
     axs[idx].set_xticklabels([])
     axs[idx].set_yticklabels([])
@@ -142,7 +194,7 @@ def single_unit_heatmap_plotting(axs, idx: int, heatmap_data: pl.DataFrame, cbar
     axs[idx].xaxis.set_ticks_position("none")
     axs[idx].yaxis.set_ticks_position("none")
     axs[idx].set_aspect("equal")
-    cbar_ax.set_yticklabels([])
+    cbar_ax.set_ylabel("Firing rate (spikes/s) [2% - 98%]", rotation=270, labelpad=20)
 
 
 # -----------------------------------------------------------------------------------------------------------------------------

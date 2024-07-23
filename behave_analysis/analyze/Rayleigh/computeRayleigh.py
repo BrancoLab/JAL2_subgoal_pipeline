@@ -135,10 +135,11 @@ def single_cluster_plots(self, settings, all_angles, all_conditions, base_path, 
             # Save and close the figure
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
+            # plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.eps")
             if settings.show_plots:
                 plt.show()
             plt.close()
-            
+
 def extract_max_hz(clu: int, all_angles: list, all_conditions: list, base_path: str) -> int:
     """Extract the max firing rate across all conditions and angles for this cluster
     such that the polar plots can be scaled accordingly.
@@ -193,7 +194,6 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     # edges for binning firing rate at different angles
     bin_angles, bin_angle_center = generate_bins(number_of_bins=settings.number_of_bins, start = -np.pi, stop = np.pi)
 
-
     # Catch empty video dataframes
     assert len(filtered_video_df) > 0, "Video dataframe is empty, bug."
 
@@ -207,15 +207,18 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
     Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist, arena_rayleigh_theta, arena_rayleigh, arena_sig = init_rayleigh(
         cluster_Ids, len(np.unique(compartment)), bin_angle_center
     )
-    
+
     # assign spike times of each cluster to the corresponding video frame, then assign HD
     for count in tqdm(np.arange(len(cluster_Ids)), desc=f"Running Rayleigh on cluster out of  {len(cluster_Ids)}"):
-    # for count, c in enumerate(cluster_Ids):
+        # for count, c in enumerate(cluster_Ids):
         Rayleigh_cluster[count] = cluster_Ids[count]
 
         # ----------------------------Whole arena computations-----------------------------------------------------------
         # skip if cluster is all zeros
-        if np.logical_and(len(np.unique(X[:,count])),np.unique(X[:,count])[0] == 0):
+
+        # Check if all the spike counts across frames for this cluster are zero
+        if sum(X[:, count] == 0) == len(X[:, count]):
+            logger.warning(f"Cluster {count} has no spikes, skipping")
             continue
 
         arena_rayleigh[count], arena_rayleigh_theta[count], _ = compute_rayleigh_cluster(X=X[:, count], y=binned_angles, return_all_stats=True)
@@ -230,15 +233,17 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
                 fps=self.session.video.fps,
                 flag="whole_arena",
             )
-            
+
         elif settings.linear_shift:
             arena_sig[count] = linearshift_rayleigh_significance(X=X[:, count], binned_angles=binned_angles, pool = pool)
 
         # ---------------------- Specific compartment computations ------------------------------------------------------
         for c_count, comp in enumerate(np.unique(compartment)):
-            
-            # skip if cluster is all zeros
-            if np.logical_and(len(np.unique(X[compartment == comp,count])),np.unique(X[:,count])[0] == 0):
+
+
+            # Check if all the spike counts across frames for this cluster are zero
+            if sum(X[compartment == comp, count] == 0) == len(X[compartment == comp, count]):
+                logger.warning(f"Cluster {count} has no spikes, skipping")
                 continue
 
             Rayleigh[count, c_count], Rayleigh_theta[count, c_count], angle_firing_hist[count, :, c_count] = compute_rayleigh_cluster(
@@ -481,7 +486,7 @@ def identify_which_compartment(self, filtered_video_df: pl.DataFrame) -> np.ndar
 
     compartment = np.ones([len(filtered_video_df)])
     if len(self.session.barrier_time) > 0:
-        compartment[filtered_video_df["mouse_y_position"].to_numpy() > 512] = 2
+        compartment[filtered_video_df["mouse_y_position"].to_numpy() < 512] = 2
     return compartment
 
 ## ---------------------PLOTTING -----------------------------

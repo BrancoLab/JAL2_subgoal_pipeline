@@ -36,8 +36,8 @@ defined_settings_visualize = Settings_visualize(
     by_session=True,
     sessions=[0],  # This session must be the one indexed in the databank
     all_sessions=False,
-    efizz=True,  # if you want to visualize efizz also
-    show_plots=True,  # if this is false, it will make and save the plots without showing them
+    efizz=False,  # if you want to visualize efizz also
+    show_plots=False,  # if this is false, it will make and save the plots without showing them
     cluster_type="good",
     # cluster_type: "synthetic", "synthetichdir" (only hdir cells in synthetic dataset),
     # "synthetichdirhsa", "all" = mua + good, "mua" or "good" (or "noise" if you're feeling funky)

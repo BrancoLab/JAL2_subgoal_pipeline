@@ -70,3 +70,30 @@ JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may, JAL8_14may,
 # LDA without subsampling by position
 # LDA without subsampling first vs second half TODO: this code doesn't really exist yet
 # LDA without subsampling homing based
+
+# Commonly used experiments
+# experiments_objects = [JAL6_28mar]
+# experiments_objects = [JAL6_flip3_18mar]
+# experiments_objects = [JAL4_3rdSept]
+# experiments_objects = [JAL7_sesh8_9apr]
+# experiments_objects = [JAL8_14may]
+# experiments_objects = [JAL6_flip5_25mar]
+# experiments_objects = [JAL7_flip2_12mar]
+# experiments_objects = [JAL8_flip1_25apr]
+
+# Grouped experiments
+# JAL6
+# experiments_objects = [JAL6_28mar, JAL6_flip5_25mar, JAL6_flip4_21mar, JAL6_flip3_18mar, JAL6_flip7_1apr]
+
+# JAL7
+# experiments_objects = [JAL7_sesh8_9apr, JAL7_sesh9_16apr, JAL7_23apr, JAL7_30apr]
+
+# JAL8
+experiments_objects = [JAL8_flip1_25apr, JAL8_flip2_29apr, JAL8_flip4_10may, JAL8_14may]
+
+# HPC: [flip4stSept_003, JAL3_flip_rot, JAL4_11thSept]
+# postprocess: [flip4stSept_003]
+# process after HPC: [JAL6_flip7_1apr, JAL6_flip3_18mar] #  these have bugs!
+# LDA with linshit = [JAL8_shelt_22apr]
+# admire plots: [JAL7_empty_shelter_5mar]
+# redoLDA: [JAL3_flip_rot] [flip4stSept_003] # exclude proximal
