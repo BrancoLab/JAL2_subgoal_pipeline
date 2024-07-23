@@ -29,7 +29,7 @@ def extract_tuning_request(cell_type_to_generate, tracking_data):
     First check that the requested angle is permitted. Then return 
     the behavioural angles for stimuli of interest.
     """
-    options = ['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']
+    options = ['hdir', 'hsa', 'h_preflipbar_a', 'h_postflipbar_a']
     if cell_type_to_generate not in options:
         raise ValueError
     
@@ -37,10 +37,10 @@ def extract_tuning_request(cell_type_to_generate, tracking_data):
         angles = tracking_data["hdir"]
     elif cell_type_to_generate == "hsa": 
         angles = tracking_data["hsa"]
-    elif cell_type_to_generate == "h_bar_north_a": 
-        angles = tracking_data['h_bar_north_a']
-    elif cell_type_to_generate == "h_bar_south_a": 
-        angles = tracking_data['h_bar_south_a']
+    elif cell_type_to_generate == "h_preflipbar_a": 
+        angles = tracking_data['h_preflipbar_a']
+    elif cell_type_to_generate == "h_postflipbar_a": 
+        angles = tracking_data['h_postflipbar_a']
     
     return angles
     
@@ -52,7 +52,7 @@ def generate_synthetic_dataframe(tuning: list,
     """
     Inputs: 
     
-    + tuning (type: list) - A list of strings. Each entry contains an angle and can range from a single angle ['hdir] to 4. E.g: ['hdir', 'hsa', 'h_bar_north_a', 'h_bar_south_a']
+    + tuning (type: list) - A list of strings. Each entry contains an angle and can range from a single angle ['hdir] to 4. E.g: ['hdir', 'hsa', 'h_preflipbar_a', 'h_postflipbar_a']
     + realistic (flag) - use real firing counts to generate data from efizz stats, or make unrealistic ones for sure bet testing of models
     + num_cells_per_type - How many different cluusters do you want per tuning category, the more cells the more angles that will be covered / generated for
     

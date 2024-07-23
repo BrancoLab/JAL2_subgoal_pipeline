@@ -65,13 +65,13 @@ class AnalyzeEfizz:
             logger.warning("Cluster Ids not found")
 
         # Load the video spike count data
-        try:
-            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
-            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
-        except FileNotFoundError:
-            logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
-            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
-            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+        # try:
+        #     video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
+        #     self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+        # except FileNotFoundError:
+        #     logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
+        #     video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
+        #     self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
 
         # Load the homings object
         try:

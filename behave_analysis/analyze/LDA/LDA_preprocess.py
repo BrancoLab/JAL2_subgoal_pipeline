@@ -59,7 +59,6 @@ def select_relevant_frames(self):
 
     return filtered_video_df
 
-
 def exclude_proximal_frames(video_df, variable, tracking, dist_thresh):
     """This function takes a video_df and a point as inputs.
     It computes the distance of the mouse to that point at every frame.
@@ -75,7 +74,6 @@ def exclude_proximal_frames(video_df, variable, tracking, dist_thresh):
 
     return video_df
 
-
 def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, centre=[]):
     """It computes the distance of the mouse to that point at every frame"""
     # find coordinates of the relevant point
@@ -84,9 +82,9 @@ def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, cen
             int(np.mean([tracking["shelter_loc"][0][0], tracking["shelter_loc"][1][0]])),
             int(np.mean([tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]])),
         ]
-    elif "bar_north" in variable:
+    elif "preflip" in variable:
         point = tracking["barrier_loc"][0]
-    elif "bar_south" in variable:
+    elif "postflip" in variable:
         point = tracking["barrier_loc"][1]
     elif "bar_centre" in variable:
         point = tracking["barrier_loc"][2]
@@ -113,7 +111,6 @@ def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, cen
 
     return dist
 
-
 def BinDfbyAngle(self, variable, n_bins):
     """
     A function that bins the angles of interest extracting them from the behavioral dataframe
@@ -131,7 +128,6 @@ def BinDfbyAngle(self, variable, n_bins):
     binned_angles = np.digitize(binned_angles, bins)
 
     return binned_angles, bins, bin_centre
-
 
 def BinDfbyDistance(self, variable, n_bins):
     """
@@ -239,8 +235,37 @@ def BinDfbyPos(filtered_video_df, video_height, video_width, numpoints = 3, retu
     else:
         return binned_pos
 
+def BinArenaEqualParts(filtered_video_df, numpoints, numrings, radius, video):
+    """
+    A function that bins the x-y position of the mouse into 16 equal pieces of the arena
+    """
+    mouse_x = filtered_video_df["mouse_x_position"].to_numpy()
+    mouse_y = filtered_video_df["mouse_y_position"].to_numpy()
 
-def binDfbyEpoch(matrix, pos_ang, epoch_num):
+    radii = np.empty(numrings)
+    for r in np.arange(numrings):
+        radii[r] = np.sqrt(r+1) * radius / np.sqrt(numrings)
+
+    # compute distance of positions from centre of arena
+    centre=[video.height / 2, video.width / 2]
+    dist = np.sqrt(((mouse_x - centre[0]) ** 2) + ((mouse_y - centre[1]) ** 2))
+    ring_index = np.digitize(dist,radii)
+
+    # compute angle of mouse positions
+    theta = np.arctan2(mouse_y - centre[1], mouse_x - centre[0])
+    wedge_idx = np.digitize(theta,np.linspace(-np.pi,np.pi,numpoints+1))
+
+    bc, binned_pos = np.unique(np.vstack((ring_index,wedge_idx)), axis=1, return_inverse=True)
+
+    # remove points outside arena
+    binned_pos += 1
+    binned_pos[dist > radius] = 0
+    bc = bc[:,np.unique(binned_pos)-1]
+    if np.unique(binned_pos)[0] == 0: bc = bc[:,1:]
+
+    return binned_pos, bc
+
+def binDfbyEpoch(matrix, pos_ang, epoch_num, subsampling = False):
     """
     A function that splits the data into n epochs for crossvalidation.
     It also subsamples the data so that each epoch is populated by uniformly distributed data of angles and positions
@@ -252,13 +277,14 @@ def binDfbyEpoch(matrix, pos_ang, epoch_num):
 
     RETURNS: matrix - the subsampled frames x cluster matrix
     matriy - subsampled vector of angles to decode
-    epochs - a vector of the same length as matriy with the epochs that each frame is assigned to
+    epochs - a vector of the same length as matriy with the epochs that each frame is assigned to. epochs are sampled such that the distribution of classes in each epoch is the same!
     """
     _, unique_pos_ang = np.unique(pos_ang, axis=1, return_inverse=True)
     matriy = pos_ang[0, :]
 
     # make angle + position bins equally populated
-    matrix, matriy, unique_pos_ang = EqualBins_matrix(matrix, matriy, unique_pos_ang)  # this step randomly subsamples!!
+    if subsampling:
+        matrix, matriy, unique_pos_ang = EqualBins_matrix(matrix, matriy, unique_pos_ang)  # this step randomly subsamples!!
 
     # chunk data into training and test data for each angle bin!!
     epochs = np.empty_like(matriy)
@@ -310,7 +336,6 @@ def ProcessPredictors(self, frames, settings):
 
     return X
 
-
 def zscore_predictors(X):
     """This function z-scores an input matrix
     if a cluster (column) has all zero values than the output will be a column of zeros
@@ -325,7 +350,6 @@ def zscore_predictors(X):
     # if len(nanclusters) > 0:
     #     X[:,nanclusters] = np.zeros((np.shape(X)[0],1))
     return ZscoredX
-
 
 def prep_target_and_predictors(self, variable, settings):
 

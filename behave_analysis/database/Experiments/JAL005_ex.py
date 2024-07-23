@@ -2,7 +2,7 @@ from behave_analysis.database.Experiments.experiment_class import Experiment
 from behave_analysis.database.Mice.AllMouses import JAL005 as mouse
 from pathlib import Path
 
-JAL5_mush1 = Experiment(# Mouse specific
+JAL5_3oct = Experiment(# Mouse specific
                     nick_name = mouse.nick_name,
                     total_sessions = mouse.total_sessions,
                     mouse_number_pyrat = mouse.mouse_number_pyrat,

@@ -48,13 +48,17 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     """
     # folder name
     if settings.discriminant_type == "linear":
-        pathh = str(basepath) + "/" + "LDA"
+        pathh = str(basepath) + "/" + "LDA" + "/"
     elif settings.discriminant_type == "quadratic":
-        pathh = str(basepath) + "/" + "QDA"
+        pathh = str(basepath) + "/" + "QDA" + "/"
     elif settings.discriminant_type == "LSTM":
-        pathh = str(basepath) + "/" + "LSTM"
+        pathh = str(basepath) + "/" + "LSTM" + "/"
 
-    pathh = str(pathh) + '_' + settings.run_LDA
+    pathh = str(pathh) + settings.run_LDA
+
+    # if subsampling to equalize the bins
+    if settings.subsampling:
+        pathh = str(pathh) + "_subsampled"
 
     # if PCA, add to folder name
     if len(settings.PCA_process) > 0:
@@ -235,7 +239,7 @@ def compute_prediction_accuracy_vect(matrixx, key):
         pred_acc[i] = np.sum(x[idx])
     return np.mean(pred_acc)
 
-def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,dropout_pa,LS_compiled,variable):
+def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,LDA_y_output,dropout_pa,LS_compiled,variable):
     '''If no frames meet the criteria (the video_df is blank for this condition), make this condition blank'''
     pa = 0
     LS_out = 0
@@ -243,21 +247,22 @@ def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,dropout_pa,LS_
     if self.do_LDA:
         prediction_accuracy.update({variable: pa})
         prediction_coef.update({variable: None})
+        LDA_y_output.update({variable: None})
     if self.do_dropout:
         dropout_pa.update({variable:pa})
     if self.do_LS:
         LS_compiled.update({variable: LS_out})
 
-    return prediction_coef,prediction_accuracy,LS_compiled,dropout_pa
+    return prediction_coef,prediction_accuracy,LDA_y_output,LS_compiled,dropout_pa
 
 def correct_variable_name(variable):
     '''Take the variable name for distance and transform it into a head_angle column name in video_df'''
     if "shelt" in variable:
         head_variable = 'hsa'
-    elif "bar_north" in variable:
-        head_variable = 'h_bar_north_a'
-    elif "bar_south" in variable:
-        head_variable = 'h_bar_south_a'
+    elif "bar_preflip" in variable:
+        head_variable = 'h_preflipbar_a'
+    elif "bar_postflip" in variable:
+        head_variable = 'h_postflipbar_a'
     elif "bar_centre" in variable:
         head_variable = 'h_bar_centre_a'
     elif "randP" in variable:

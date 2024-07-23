@@ -160,7 +160,7 @@ class BaseDataPostprocessor(ABC):
 
         # what period in the recording was there a barrier?
         if len(self.session.barrier_time) > 0:
-            if self.session.barrier_time[1] == -1:  # shelter only until the end of the session
+            if self.session.barrier_time[1] == -1:  # barrier present until the end of the session
                 barrier_present = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barriertime[0] * self.session.video.fps)
             else:
                 barrier_present = np.logical_and(
@@ -206,8 +206,8 @@ class BaseDataPostprocessor(ABC):
         # if barrier in session, add the angles to video_df
         # NOTE - North angle is always pre flip and south angle is always post flip for refactor to be pre and post flip edge
         if "hdir_barrier" in self.tracking_data:
-            video_df = video_df.hstack([pl.Series("h_bar_north_a", self.tracking_data["hdir_barrier"][:, 0])])
-            video_df = video_df.hstack([pl.Series("h_bar_south_a", self.tracking_data["hdir_barrier"][:, 1])])
+            video_df = video_df.hstack([pl.Series("h_preflipbar_a", self.tracking_data["hdir_barrier"][:, 0])])
+            video_df = video_df.hstack([pl.Series("h_postflipbar_a", self.tracking_data["hdir_barrier"][:, 1])])
             video_df = video_df.hstack([pl.Series("h_bar_centre_a", self.tracking_data["hdir_barrier"][:, 2])])
 
         # if random points were included, add the angles to video_df
@@ -361,15 +361,15 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         ):
             tuning.append("hsa")
         if np.logical_and(len(self.session.barrier_time) > 0, self.select_clusters == "synthetic"):
-            tuning.append("h_bar_north_a")
-            tuning.append("h_bar_south_a")
+            tuning.append("h_preflipbar_a")
+            tuning.append("h_postflipbar_a")
         synth_df = generate_synthetic_dataframe(tuning, pass_video_df=video_df)
         synth_df.write_csv(self.csv_path)
 
     def expand_tracking_data(self, video_df: pl.DataFrame, new_entries_to_insert: int) -> pl.DataFrame:
         """
         Uniformly expands the tracking data by a specified number of entries to simulate a longer, perfectly sampled experiment.
-        NOTE this function adds angles to hsa, barrier north and barrier south even if they don't exist in the data
+        NOTE this function adds angles to hsa, preflip barrier and postflip barrier even if they don't exist in the data
         """
 
         # Generate polar series ranging from [last_frame_index + 1, last_frame_index + 1 + new_entries_to_insert]
@@ -379,7 +379,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         )  # Generate \ polar series ranging from [last_frame_index+1, last_frame_index+1+new_entries_to_insert]
 
         # Generate new angles sampled from a uniform distribution between -pi and pi for number of new entries
-        angle_columns = ["hdir", "hsa", "h_bar_north_a", "h_bar_south_a"]
+        angle_columns = ["hdir", "hsa", "h_preflipbar_a", "h_postflipbar_a"]
         new_angle_cols = [
             pl.Series(col, np.random.uniform(-np.pi, np.pi, new_entries_to_insert)) for col in angle_columns
         ]  # Create a list of polar series for each angle column
@@ -609,8 +609,8 @@ class QcPreProcessedData:
     #             "EscapePeriod": pl.Boolean,
     #             "shelter_only": pl.Boolean,
     #             "barrier_present": pl.Boolean,
-    #             "h_bar_north_a": pl.Float64,
-    #             "h_bar_south_a": pl.Float64,
+    #             "h_preflipbar_a": pl.Float64,
+    #             "h_postflipbar_a": pl.Float64,
     #         }, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
 
     # def qc_angular_velocity_is_logically_possible(dataframe: pl.DataFrame, session: object) -> None:
@@ -619,7 +619,7 @@ class QcPreProcessedData:
     #     Rough logic - The time it takes me to start a milisecond stop watch and stop it is 0.17 seconds. A frame is 0.025 seconds. It should
     #     be impossible for any angular change of a mouse to be 3 radians (171 degrees) in 0.025 seconds, this is a full spin.
 
-    #     Emperical logic from .describe() - The mean across hdir, hsa, h_bar_north_a and h_bar_south_a is ┆ 0.012057 ┆ 0.014083 ┆ 0.012175 ┆ 0.012256
+    #     Emperical logic from .describe() - The mean across hdir, hsa, h_preflipbar_a and h_postflipbar_a is ┆ 0.012057 ┆ 0.014083 ┆ 0.012175 ┆ 0.012256
     #     highlighting that a delta of 3 radians would be a 300x increase in the mean and thus is unlikely to be a valid value.
 
     #     Angular velocity logic - The formula for angular velocity which is measured in radians per second is: delta radians / delta time
@@ -636,7 +636,7 @@ class QcPreProcessedData:
     #         angular_columns = dataframe.select("hdir", "hsa")
 
     #     elif "seq" in session.name:
-    #         angular_columns = dataframe.select("hdir", "hsa", "h_bar_north_a", "h_bar_south_a")
+    #         angular_columns = dataframe.select("hdir", "hsa", "h_preflipbar_a", "h_postflipbar_a")
 
     #     # A function to calculate the circular distance between two angles - https://gamedev.stackexchange.com/questions/4467/comparing-angles-and-working-out-the-difference
     #     f = lambda circular_angle_delta: np.pi - abs(abs(circular_angle_delta) - np.pi)
@@ -649,12 +649,12 @@ class QcPreProcessedData:
     #     # Create expectation masks for each column
     #     failed_qc_hdir = np.where(circular_dist_delta["hdir"] > 0.5)[0]
     #     failed_qc_hsa = np.where(circular_dist_delta["hsa"] > 0.5)[0]
-    #     failed_qc_north_barrier_edge = np.where(circular_dist_delta["h_bar_north_a"] > 0.5)[0]
-    #     failed_qc_south_barrier_edge = np.where(circular_dist_delta["h_bar_south_a"] > 0.5)[0]
+    #     failed_qc_preflip_barrier_edge = np.where(circular_dist_delta["h_preflipbar_a"] > 0.5)[0]
+    #     failed_qc_postflip_barrier_edge = np.where(circular_dist_delta["h_postflipbar_a"] > 0.5)[0]
 
-    #     if np.any(failed_qc_hdir) or np.any(failed_qc_hsa) or np.any(failed_qc_north_barrier_edge) or np.any(failed_qc_south_barrier_edge):
+    #     if np.any(failed_qc_hdir) or np.any(failed_qc_hsa) or np.any(failed_qc_preflip_barrier_edge) or np.any(failed_qc_postflip_barrier_edge):
     #         logger.error(
-    #             f"There are {len(failed_qc_hdir) + len(failed_qc_hsa) + len(failed_qc_north_barrier_edge) + len(failed_qc_south_barrier_edge)} frames that have a radial delta greater than 0.5 radians per 0.025 milliseconds"
+    #             f"There are {len(failed_qc_hdir) + len(failed_qc_hsa) + len(failed_qc_preflip_barrier_edge) + len(failed_qc_postflip_barrier_edge)} frames that have a radial delta greater than 0.5 radians per 0.025 milliseconds"
     #         )
 
     #     # assert len(sum(np.where(delta_mask == True))) == 0, "The angular delta  of the mouse is greater than 3 radians in 0.025 seconds."

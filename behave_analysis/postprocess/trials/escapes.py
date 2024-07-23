@@ -43,8 +43,8 @@ class get_Escapes:
         stimulus_durations = session.__dict__[settings_a.stim_type].stimulus_durations
 
         # init varsq
-        esc_onset = np.zeros_like(onset_frames)  # when did the actual escape start
-        esc_latency = np.zeros_like(onset_frames)  # how many seconds after stim onset did the mouse escape
+        esc_onset = np.zeros_like(onset_frames).astype(float)  # when did the actual escape start
+        esc_latency = np.zeros_like(onset_frames).astype(float)   # how many seconds after stim onset did the mouse escape
         freeze = np.zeros_like(onset_frames)  # did the mouse freeze?
         head_theta = {}
         for key in homings.homing_angles_dic.keys():
@@ -131,6 +131,8 @@ def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
             head_theta = get_avg_homing_angle_for_start_of_run(
                 session, esc_onset + on_fr, esc_offset + on_fr, tracking_data, settings_h.cum_threshold
             )
+        else:
+            esc_onset = np.nan
 
     return esc_onset, head_theta
 
