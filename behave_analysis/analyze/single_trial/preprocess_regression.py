@@ -356,7 +356,7 @@ class PreprocessSingleTrialRegression:
 
     # ------------------ Select similar homings ----------------------------------------
 
-    def select_homings_that_start_near_the_threat_zone(self, extracted_homing_info, ythresh=200) -> list:
+    def select_homings_that_start_near_the_threat_zone(self, extracted_homing_info, ythresh=400) -> list:
         """Give me the homings that start "close" to the threat zone. Select homings where first frame is beneath 200 pixels"""
         thomes = [th for th in extracted_homing_info if th["mouse_y_position"][0] < ythresh]
         assert len(thomes) > 0, "There are no homings that start near the threat zone"
@@ -396,12 +396,26 @@ class PreprocessSingleTrialRegression:
         assert len(thinned) > 0, "There are no homings left after we remove the homings that pass through the barrier"
         return thinned
 
+    def remove_any_homings_that_go_around_the_edge(self, thomes: list, xthreshmin=175, xthreshmax=875):
+        """Remove any homings that are too wide and go around the edge"""
+
+        def passes_around_edge(th):
+            if any(th["mouse_x_position"] < xthreshmin):
+                return True
+            if any(th["mouse_x_position"] > xthreshmax):
+                return True
+            return False
+
+        thinned = [th for th in thomes if not passes_around_edge(th)]
+        assert len(thinned) > 0, "There are no homings left after we remove the homings that go around the edge"
+        return thinned
+
     def assign_left_or_right_to_each_homing(self, cthomes: list) -> list:
         """Creates a list of left 0 or right 1 for each homing period"""
         bary = 512
         classes = []
         for i, th in enumerate(cthomes):
-            # If homing passes over 512 pixels this is easy
+            # If homing passes over 512in y  pixels this is easy
             if any(th["mouse_y_position"] > bary):
                 delta = np.abs(th["mouse_y_position"] - bary)  # find the closest point to the barrier
                 idx = int(np.argmin(delta))
@@ -425,14 +439,26 @@ class PreprocessSingleTrialRegression:
         assert len(classes) > 0, "There are no homings that are classified as left or right"
         return classes
 
+    def label_any_escapes_in_homings(self, thomes, escape_object):
+        eidxs = []
+        for idx, homes in enumerate(thomes):
+            if homes["frames"][0] in escape_object.escape_onset_frames:
+                eidxs.append(idx)
+        return eidxs
+
     def select_similar_homings(self, extracted_homing_info) -> dict:
         """Plot left and right homings to check criteria has worked"""
-        thomes = self.select_homings_that_start_near_the_threat_zone(extracted_homing_info)
-        cthomes = self.select_homings_that_are_in_the_centre(thomes)
-        selected_homings = self.remove_homings_that_pass_through_the_barrier(cthomes)  # We might want these in the future but remove them for now
+
+        # create a figure
+        fig = plt.figure(figsize=(10, 7))
+        
+        selected_homings = self.select_homings_that_start_near_the_threat_zone(extracted_homing_info)
+        #cthomes = self.select_homings_that_are_in_the_centre(thomes)
+        #selected_homings = self.remove_homings_that_pass_through_the_barrier(cthomes)  # We might want these in the future but remove them for now
+        #selected_homings = self.remove_any_homings_that_go_around_the_edge(selected_homings)
         assert len(selected_homings) > 0, "There are no homings that meet the criteria for single trial regression for this session"
         classes = self.assign_left_or_right_to_each_homing(selected_homings)
-        
+
         # remove index in homing_list where classes == -1
         # remove ambiguous homing trials
         selected_homings = [homing for i, homing in enumerate(selected_homings) if classes[i] != -1]
@@ -445,19 +471,91 @@ class PreprocessSingleTrialRegression:
                 plt.plot(th["mouse_x_position"], th["mouse_y_position"], color="blue", label="Left", alpha=0.5)
             elif classes[i] == 1:
                 plt.plot(th["mouse_x_position"], th["mouse_y_position"], color="red", label="Right", alpha=0.5)
-        
+
+        eidxs = self.label_any_escapes_in_homings(selected_homings, self.escape_object)
         # plot the homing number onto the plot
         for i, th in enumerate(selected_homings):
             plt.text(th["mouse_x_position"][0], th["mouse_y_position"][0], str(i), fontsize=10)
-            
+
         # retrieve axis
         ax = plt.gca()
-         
-        Arena(ax = ax, shelter_coordinates=self.shelter_location)
-        plt.title("Blue is left, red is right")
-        plt.show()
+
+        # Plot the start of the homings
+        plt.title(f"Blue is left, red is right. Excape idxs are {eidxs}")
+        plt.savefig(self.save_path / "left_right_homings.png")
+
+        Arena(ax=ax, shelter_coordinates=self.shelter_location)
+        
+        import plotly.io as pio
+        from plotly.tools import mpl_to_plotly
+        # Step 2: Convert the Matplotlib figure to a Plotly figure
+        plotly_fig = mpl_to_plotly(fig)
+        save = self.save_path / "left_right_homings.html"
+
+        # Step 3: Save the Plotly figure as an interactive HTML file
+        pio.write_html(plotly_fig, file=save, auto_open=False)
+        
+        plt.close()
+        
+        
+        # Plot inidividual homings
+        # Plot the homings
+        length = 180
+        make_directory(self.save_path / "individual_homings")
+        for i, th in enumerate(selected_homings):
+            fig = plt.figure(figsize=(10, 7))
+            hdir = th["hdir"][0]
+            dx = length * np.cos(hdir)
+            dy = length * -np.sin(hdir)
+            if classes[i] == 0:
+                plt.plot(th["mouse_x_position"], th["mouse_y_position"], color="blue", label="Left", alpha=0.5)
+                plt.quiver(th["mouse_x_position"][0], th["mouse_y_position"][0], dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
+            elif classes[i] == 1:
+                plt.plot(th["mouse_x_position"], th["mouse_y_position"], color="red", label="Right", alpha=0.5)
+                plt.quiver(th["mouse_x_position"][0], th["mouse_y_position"][0], dx, dy, angles="xy", scale_units="xy", scale=2, color="red")
+            ax = plt.gca()
+            Arena(ax=ax, shelter_coordinates=self.shelter_location)
+            fig.suptitle(f"Homing {i}. Blue is left, red is right")
+            plt.savefig(self.save_path / "individual_homings" / f"homing_{i}.png")
+            plt.close()
+        
+        
+        self.plot_the_start_of_each_homing(selected_homings, classes)
 
         return selected_homings, classes
+
+    def plot_the_start_of_each_homing(self, homing_info: list, classes: list):
+        """Plot the start of each homing so we can characterise behavioural variability
+
+        Args:
+        -- homing_info (list): A list of homing dataframes for each homing period
+        -- classes (list): A list of classes for each homing period, is the homing target left or right
+
+        Executes:
+        -- A plot where the head direction and start location of each homing is plotted coloured by the class"""
+
+        # Create figure
+        plt.close()
+        fig, ax = plt.subplots(figsize=(10, 7))
+
+        # Add the arena
+        Arena(ax=ax, shelter_coordinates=self.shelter_location)
+        length = 180
+
+        for i, th in enumerate(homing_info):
+            head_direction = th["hdir"][0]
+            dx = length * np.cos(head_direction)
+            dy = length * -np.sin(head_direction)
+            if classes[i] == 0:
+                plt.scatter(th["mouse_x_position"][0], th["mouse_y_position"][0], color="blue")
+                plt.quiver(th["mouse_x_position"][0], th["mouse_y_position"][0], dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
+
+            elif classes[i] == 1:
+                plt.scatter(th["mouse_x_position"][0], th["mouse_y_position"][0], color="red")
+                plt.quiver(th["mouse_x_position"][0], th["mouse_y_position"][0], dx, dy, angles="xy", scale_units="xy", scale=2, color="red")
+
+        plt.savefig(self.save_path / "start_of_homings.png")
+        plt.close()
 
     # ------------------------------------------------------------------------------
 

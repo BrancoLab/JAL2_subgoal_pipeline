@@ -16,7 +16,7 @@ def homings():
     for session_id in experiments_objects:
         logger.info("Loaded a session with the following details: {}".format(session_id))
         session = Process(session_id).load_session()
-        get_Homings(settings_h, session)
+        get_Homings(settings_h, session, use_boris=True)
     logger.success("Homing pipeline complete")
 
 

@@ -7,7 +7,8 @@ import numpy as np
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.analyze.behaviour.plot_homings import plot_homings
+from behave_analysis.analyze.behaviour.plot_homings import plot_homings, plot_the_start_of_each_homing, plot_the_probability_of_start_locations
+from behave_analysis.utils.data_loading import load_or_extract_homings
 from settings.settings_analyze import settings_analyze as settings
 
 
@@ -44,4 +45,7 @@ class AnalyzeBehave:
 
         if len(self.session.barrier_time) > 0:
             logger.info(f"Making plots of homing trajectories")
-            plot_homings(self.session, self.tracking_data, self.video_df, settings.show_plots)
+            homings_object = load_or_extract_homings(self.session)
+            plot_the_start_of_each_homing(self.session, homings_object, self.video_df, self.tracking_data)
+            #plot_the_probability_of_start_locations(self.session, homings_object, self.video_df, self.tracking_data)
+            plot_homings(self.session, self.tracking_data, self.video_df, homings_object, settings.show_plots)
