@@ -43,7 +43,7 @@ Settings_ae = Settings_analyze_efizz(
     classify_cells = False,
 
     # ------------------- Run single trial analysis -------------------
-    run_single_trial=False,
+    run_single_trial=True,
     # ------------- PCA model settings --------------------------
     run_dim_reduction=False,
     run_pca=False,

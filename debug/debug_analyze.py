@@ -15,17 +15,16 @@ def analyze():
         session = Process(session_id).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_id))
 
-        if Settings_ae.stim_type != "None":
-            AnalyzeBehave(session).behaviour_analyses()
+        # if Settings_ae.stim_type != "None":
+        #     AnalyzeBehave(session).behaviour_analyses()
 
         if settings_a.efizz:
             for c_type in Settings_ae.cluster_type:
-                
+
                 AnalyzeEfizz(session, c_type).execute_models()
                 if Settings_ae.classify_cells:
                     AnalyzeEfizz(session, c_type).classify_cells()
-                
-                
+
     logger.success("Analysis pipeline complete")
 
 
