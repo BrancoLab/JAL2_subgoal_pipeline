@@ -206,20 +206,6 @@ class AnalyzeEfizz:
             LDA(self, Settings)
             logger.success("LDA analysis complete")
 
-        # ----------------- Compute Rayleigh and polar plots -------------------------
-        if Settings.run_rayleigh:
-            if not Settings.single_cluster_plots:
-                logger.info(f"Compute Rayleigh on {self.cluster_type} data")
-                all_angles = identify_angles(self.session)
-                if Settings.learned_conditions:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "learned_condition"))
-                else:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "object_condition"))
-                compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
-            else:
-                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
-                compute_single_cluster_tuning(self, Settings)
-
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if Settings.run_dim_reduction:
             path_to_save = os.path.join(self.dir, "dimentionality_reduction")
