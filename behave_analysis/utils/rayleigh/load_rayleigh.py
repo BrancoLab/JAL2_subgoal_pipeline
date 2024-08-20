@@ -17,11 +17,9 @@ def extract_arrow_files_from_a_condition(path_to_condition: str) -> list:
     return arrow_files
 
 
-def extract_rayleigh_path(
-    session: object, cluster_type: str, condition: str, file_name: str
-) -> str:
+def extract_rayleigh_path(session: object, cluster_type: str, condition: str, file_name: str) -> str:
     """Extract paths to one arrow file for a condition"""
-    
+
     con_dir = settings.condition_types
 
     path = os.path.join(
@@ -77,16 +75,9 @@ def collect_all_rayleigh_paths(session, cluster_type, conditions) -> dict:
     -- paths (dict) of all rayleigh data for each condition and each angle where paths are in a list
     e.g {'all_time': ['E:\\efizz\\JAL004\\004_...eigh.arrow', 'E:\\efizz\\JAL004\\004_...eigh.arrow', ...],}
 
-    TODO: Move to utils
-    
-    
     """
-    if settings.learned_conditions:
-        con_dir = 'learned_condition'
-    else:
-        con_dir = 'object_condition'
-    
-    
+
+    con_dir = "experimental_conditions"
     paths = {}
     for condition in conditions:
         # Get path to each condition
@@ -104,13 +95,9 @@ def collect_all_rayleigh_paths(session, cluster_type, conditions) -> dict:
         arrow_files = extract_arrow_files_from_a_condition(path_to_condition=path)
         arrow_data_list = []
         for file_name in arrow_files:
-            arrow_data_list.append(
-                extract_rayleigh_path(session, cluster_type, condition, file_name)
-            )
+            arrow_data_list.append(extract_rayleigh_path(session, cluster_type, condition, file_name))
 
         # Add to dictionary
         paths[str(condition)] = arrow_data_list
-    assert len(paths) == len(
-        conditions
-    ), "Length of paths does not match length of conditions"
+    assert len(paths) == len(conditions), "Length of paths does not match length of conditions"
     return paths
