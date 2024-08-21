@@ -26,8 +26,8 @@ class Escapes:
     freeze_bool: list  # did the mouse freeze?
     head_orientation: list
     escape_condition: list  # the condition the escape happened in e.g. 'shelter_only', 'barrier_pre_flip'
-    trajectory_length: list
-    optimal_trajectory_length: list
+    # trajectory_length: list
+    # optimal_trajectory_length: list
     spatial_efficiency: list
 
 
@@ -82,9 +82,12 @@ class get_Escapes:
                 else:
                     esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / session.video.fps
 
-        # spatial efficiency
-        condition, trajectory_length, optimal_trajectory_length, spatial_efficiency_values = spatial_efficiency(
-            onset_frames, stimulus_durations, session, settings, video_df, tracking_data, plotting = False
+        # spatial efficiency, the old code is commented out
+        # condition, trajectory_length, optimal_trajectory_length, spatial_efficiency_values = spatial_efficiency(
+        #     onset_frames, stimulus_durations, session, settings, video_df, tracking_data, plotting = False
+        # )
+        condition, spatial_efficiency_values = spatial_efficiency(
+            onset_frames, stimulus_durations, session, settings, video_df, tracking_data, trial_type = 'Escapes', plotting = False
         )
 
         self.escapes = Escapes(
@@ -94,8 +97,8 @@ class get_Escapes:
             escape_latency=esc_latency,
             freeze_bool=freeze,
             escape_condition=condition,  # what condition did the escape happen in e.g. 'shelter_only'
-            trajectory_length=trajectory_length,
-            optimal_trajectory_length=optimal_trajectory_length,
+            # trajectory_length=trajectory_length,
+            # optimal_trajectory_length=optimal_trajectory_length,
             spatial_efficiency=spatial_efficiency_values,
             head_orientation=head_theta,
         )

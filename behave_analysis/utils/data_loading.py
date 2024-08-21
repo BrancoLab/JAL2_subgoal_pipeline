@@ -7,7 +7,7 @@ from behave_analysis.homings.homings import get_Homings
 from settings.settings_homings import settings_homings as settings_h
 
 
-def load_or_extract_homings(session):
+def load_or_extract_homings(session, video_df):
     """Check if homings object pickle is saved, if not extract homings
     Return the homing data object for a given session.
 
@@ -33,6 +33,6 @@ def load_or_extract_homings(session):
             homings = pickle.load(dill_file)
     else:
         logger.info("Homings object not found. Extracting homings now...")
-        homings_obj = get_Homings(settings_h, session)
+        homings_obj = get_Homings(settings_h, session, video_df)
         homings = homings_obj.session.homing
     return homings

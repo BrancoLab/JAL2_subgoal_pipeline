@@ -14,7 +14,8 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder
-from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
+# from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
+from behave_analysis.analyze.behaviour.utils import base_plotting
 from behave_analysis.utils.heatplot_utils import add_features, add_features_binned
 
 ## --------------- PLOTTING FUNCTIONS
@@ -109,7 +110,7 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title):
     fig.update_yaxes(range=[0, 1.1])
     fig.update_yaxes(title_text="prediction accuracy")
     fig.update_xaxes(tickangle=-45)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy" + ".png"
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_pa" + ".png"
     fig.write_image(filename)
 
 
@@ -145,7 +146,7 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
     fig.update_yaxes(range=[0, 1.1])
     fig.update_yaxes(title_text="prediction accuracy")
     fig.update_xaxes(tickangle=-45)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".png"
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_pa" + ".png"
     fig.write_image(filename)
 
 
@@ -331,7 +332,7 @@ def across_conditions_LDA_map(self, settings):
     for comp in settings.compartment_split:
         for c in self.all_conditions:
             self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types, c, comp)
-            LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(c) + "_LDA_prediction_accuracy" + ".pkl"
+            LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(c) + "_LDA_pa" + ".pkl"
             with open(LDA_out, "rb") as dill_file:
                 prediction_accuracy = pickle.load(dill_file)
             pa.append([val for key, val in prediction_accuracy.items() if re.search("randP", key)])
@@ -406,8 +407,8 @@ def across_conditions_LDA_map(self, settings):
     # Save and close the figure
     plt.subplots_adjust(wspace=0.05, hspace=0)
     savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types)
-    plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.png")
-    plt.savefig(str(savepath) + "/" + "prediction_accuracy_map_compare.eps", format="eps")
+    plt.savefig(str(savepath) + "/" + "pa_map_compare.png")
+    plt.savefig(str(savepath) + "/" + "pa_map_compare.eps", format="eps")
     if settings.show_plots:
         plt.show()
     plt.close()
@@ -468,7 +469,7 @@ def PredictionAccuracyMapped_old(self, prediction_accuracy):
     ax.set_aspect("equal")
 
     # save plot
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy_map" + ".png"
+    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_pa_map" + ".png"
     plt.savefig(filename)
     if self.show_plots:
         plt.show()

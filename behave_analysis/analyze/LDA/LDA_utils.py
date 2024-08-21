@@ -27,6 +27,10 @@ def list_conditions(settings):
     number_of_homings = []
     if settings.condition_types == "experimental_conditions":
         condition_types = ["experimental_conditions"]
+    elif settings.condition_types == "btwn_escapes":
+        condition_types = ["btwn_escapes"] # LDA is run on segments between each escape for each condition
+    elif settings.condition_types == "time_conditions":
+        condition_types = ["first_half","second_half"]
     elif settings.condition_types == "behavioral_conditions":
         condition_types = ["good_behavioral_conditions", "bad_behavioral_conditions"]
         # good means the times when mousie is doing correct homies,
@@ -104,9 +108,9 @@ def check_if_we_do_LDA(self, settings):
     returns: two booleans for whether to run decoder and linear shift
     """
     # if LDA has already been run and saved, don't redo
-    self.LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_accuracy" + ".pkl"
+    self.LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_pa" + ".pkl"
     self.dropout_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_dropout_pa" + ".pkl"
-    self.LS_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_prediction_accuracy" + ".pkl"
+    self.LS_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_pa" + ".pkl"
     self.do_LDA = True
     self.do_dropout = settings.dropout
     self.do_LS = settings.linear_shift
