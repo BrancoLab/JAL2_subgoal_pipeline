@@ -150,7 +150,6 @@ def single_cluster_plots(self, settings, all_angles, all_conditions, base_path, 
             # Save and close the figure
             plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
-            # plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.eps")
             if settings.show_plots:
                 plt.show()
             plt.close()
@@ -235,17 +234,18 @@ def rayleigh_vector(
     Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist, arena_rayleigh_theta, arena_rayleigh, arena_sig = init_rayleigh(
         cluster_Ids, len(np.unique(compartment)), bin_angle_center
     )
-    
+
     # Check that np.unique returns the correct order of compartments
     assert np.array_equal(np.unique(compartment), np.array([1, 2])), "Compartments are not as expected"
 
     # assign spike times of each cluster to the corresponding video frame, then assign HD
     for count in tqdm(np.arange(len(cluster_Ids)), desc=f"Running Rayleigh on cluster out of  {len(cluster_Ids)}"):
-        # for count, c in enumerate(cluster_Ids):
         Rayleigh_cluster[count] = cluster_Ids[count]
 
         # ----------------------------Whole arena computations-----------------------------------------------------------
         # skip if cluster is all zeros
+        if sum(X[:, count] == 0) == len(X[:, count]):
+            logger.warning(f"Cluster {count} has no spikes, skipping")
 
         # Check if all the spike counts across frames for this cluster are zero
         if sum(X[:, count] == 0) == len(X[:, count]):
@@ -272,7 +272,6 @@ def rayleigh_vector(
         # This should first loop through comparment 1 (shelter zone) and then compartment 2 (threat zone) 
         
         for c_count, comp in enumerate(np.unique(compartment)):
-
             # Check if all the spike counts across frames for this cluster are zero
             if sum(X[compartment == comp, count] == 0) == len(X[compartment == comp, count]):
                 logger.warning(f"Cluster {count} has no spikes, skipping")

@@ -138,7 +138,7 @@ def run_LDA_model(self, settings, target_name):
                     self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable
                 )
             else:
-                savename, target, X = prep_target_and_predictors(self, variable, settings)
+                target, X = prep_target_and_predictors(self, variable, settings)
 
                 # run LDA on different angles
                 if self.do_LDA:
@@ -151,7 +151,7 @@ def run_LDA_model(self, settings, target_name):
                         discriminant_type=settings.discriminant_type,
                         plotting=True,
                         self=self,
-                        title=savename,
+                        title=variable,
                         subsampling = settings.subsampling,
                     )
                     prediction_accuracy.update({variable: pa})
@@ -204,7 +204,7 @@ def run_LDA_model(self, settings, target_name):
                     )
 
                 else:
-                    savename, target, X = prep_target_and_predictors(self, str(variable + str(j)), settings)
+                    target, X = prep_target_and_predictors(self, str(variable + str(j)), settings)
 
                     # run LDA on different angles
                     if self.do_LDA:
@@ -217,7 +217,7 @@ def run_LDA_model(self, settings, target_name):
                             discriminant_type=settings.discriminant_type,
                             plotting=False, # TODO: needs to be false!
                             self=self,
-                            title=savename,
+                            title=variable,
                             subsampling = settings.subsampling,
                         )
                         prediction_accuracy.update({str(variable + str(j)): pa})
@@ -242,7 +242,7 @@ def run_LDA_model(self, settings, target_name):
     if self.do_LDA:
         with open(self.LDA_out, "wb") as fp:
             pickle.dump(prediction_accuracy, fp)
-        coef_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_coef" + ".pkl"
+        coef_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_coef" + ".pkl"
         with open(coef_out, "wb") as fp:
             pickle.dump(prediction_coef, fp)
         y_path = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_y_out" + ".pkl"

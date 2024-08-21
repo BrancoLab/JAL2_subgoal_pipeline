@@ -424,19 +424,13 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
 
-        if np.logical_and(len(self.session.shelter_time) > 0, len(self.session.barrier_time) > 0):
-            homings = load_or_extract_homings(session)
-        
-        # Handle if homings is not run run
-        if not isinstance(homings, Homings): 
-            homings = None
-            
-        video_df = self.track_to_polars(homings)
+        # -----------------------------------------------------------------------
+        # Create a video dataframe and then check if the tracking data is within the bounds of the arena
+        video_df = self.track_to_polars()
         QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session) # For now just log the warning and don't touch the data
-            
-        if np.logical_and(len(self.session.shelter_time) > 0, len(self.session.barrier_time) > 0):
-            _ = get_Escapes(settings, session, tracking_data, video_df, homings)
-
+        if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
+            homings = load_or_extract_homings(session, video_df)
+            escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)

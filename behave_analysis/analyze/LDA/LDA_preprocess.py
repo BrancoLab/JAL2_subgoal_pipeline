@@ -15,6 +15,7 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
     generate_bins,
     filter_video_df_mouse_behaviour,
     filter_video_df_homing_number,
+    filter_video_df_time,
 )
 from behave_analysis.analyze.LDA.LDA_utils import EqualBins_matrix, data_chunker, correct_variable_name
 
@@ -30,8 +31,12 @@ def select_relevant_frames(self):
     RETURNS: filtered_video_df - a subset of video_df with only the relevant frames
     """
 
-    if self.condition_types == "experimental_conditions":
+    if any([self.condition_types == "experimental_conditions",
+                     self.condition_types == "first_half",
+                     self.condition_types == "second_half"]):
         filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
+        if np.logical_or(self.condition_types == "first_half", self.condition_types == "second_half"):
+            filtered_video_df = filter_video_df_time(filtered_video_df, self.condition_types, self.session.video.fps, max_time = 20)
     else:
         filtered_video_df = filter_video_dataframe(self.video_df, self.condition, exclude_escape=False)
         if self.condition_types == "good_behavioral_conditions":
@@ -353,8 +358,6 @@ def zscore_predictors(X):
 
 def prep_target_and_predictors(self, variable, settings):
 
-    # create a unique identifier name for this LDA iteration
-    savename = str(variable + "_" + self.condition)
     # extract frame numbers
     frames = self.filtered_video_df["frames"].unique().to_numpy() - 1
 
@@ -373,4 +376,4 @@ def prep_target_and_predictors(self, variable, settings):
     # prep the predictor matrix
     X = ProcessPredictors(self, frames, settings)
 
-    return savename, target, X
+    return target, X
