@@ -215,7 +215,8 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
 
         # ----------------------------Whole arena computations-----------------------------------------------------------
         # skip if cluster is all zeros
-        if np.logical_and(len(np.unique(X[:,count])),np.unique(X[:,count])[0] == 0):
+        if sum(X[:, count] == 0) == len(X[:, count]):
+            logger.warning(f"Cluster {count} has no spikes, skipping")
             continue
 
         arena_rayleigh[count], arena_rayleigh_theta[count], _ = compute_rayleigh_cluster(X=X[:, count], y=binned_angles, return_all_stats=True)
@@ -238,7 +239,8 @@ def rayleigh_vector(self, settings, filtered_video_df, X, angle_filt, plot_save_
         for c_count, comp in enumerate(np.unique(compartment)):
             
             # skip if cluster is all zeros
-            if np.logical_and(len(np.unique(X[compartment == comp,count])),np.unique(X[:,count])[0] == 0):
+            if sum(X[compartment == comp, count] == 0) == len(X[compartment == comp, count]):
+                logger.warning(f"Cluster {count} has no spikes, skipping")
                 continue
 
             Rayleigh[count, c_count], Rayleigh_theta[count, c_count], angle_firing_hist[count, :, c_count] = compute_rayleigh_cluster(
