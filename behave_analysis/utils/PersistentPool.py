@@ -1,7 +1,6 @@
 import multiprocessing as mp
 import threading
 
-
 class PersistentPool:
 
     def __init__(self, workers=None):

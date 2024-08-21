@@ -69,8 +69,8 @@ def run_LDA_model_by_position(self, settings, target_name):
                     self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable + '_pos' + str(b)
                 )
             else:
-                savename, target, X = prep_target_and_predictors(self, variable, settings)
-                savename = savename + '_pos' + str(b)
+                target, X = prep_target_and_predictors(self, variable, settings)
+                savename = variable + '_pos' + str(b)
 
                 # run LDA on different angles
                 if self.do_LDA:

@@ -65,7 +65,7 @@ def base_plotting(ax, tracking, condition, session=[]) -> None:
                 plt.plot(
                     [tracking["shelter_loc"][i][0], tracking["shelter_loc"][i][0]],
                     [tracking["shelter_loc"][0][1], tracking["shelter_loc"][1][1]],
-                    color=[0, 0, 0],
+                    color=[1, 0, 0],
                 )
 
     # draw barrier logic
