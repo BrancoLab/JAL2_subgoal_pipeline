@@ -16,8 +16,9 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 
 Settings_ae = Settings_analyze_efizz(
     # ------------- General settings --------------------------
-    stim_type="None",  # 'audio', leave as 'None' if no stims were delivered
-    linear_shift=False,  # whether to run linear shift!
+
+    stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
+    linear_shift=True,  # whether to run linear shift!
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=['good'],  # ['synthetic','synthetichdir','all','good'], # Can list multiple!
@@ -40,6 +41,8 @@ Settings_ae = Settings_analyze_efizz(
     compartment_split=['all'], # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     # If 'by_position', it will compute LDA decoding by arena position
+    
+    # NOTE - number of bin edges NOT number of bins - need to refactor this
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
     classify_cells = False,
 
@@ -70,7 +73,7 @@ Settings_ae = Settings_analyze_efizz(
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
     subsampling = True, # whether to subsample to equalize data by angles and space
     # ------------ Rayleigh model settings ----------------------
-    run_rayleigh=False,
+    run_rayleigh=True,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=False,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster

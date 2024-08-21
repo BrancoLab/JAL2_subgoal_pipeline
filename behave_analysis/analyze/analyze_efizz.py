@@ -16,6 +16,7 @@ from behave_analysis.analyze.LDA.LDAmodel import LDA
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
+from behave_analysis.analyze.single_trial.predict_future import select_neural_activity_chunk, explore_neural_activity_over_time
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.analyze.classification.head_shelter import classify_hsa
@@ -65,13 +66,13 @@ class AnalyzeEfizz:
             logger.warning("Cluster Ids not found")
 
         # Load the video spike count data
-        # try:
-        #     video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
-        #     self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
-        # except FileNotFoundError:
-        #     logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
-        #     video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
-        #     self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+        try:
+            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
+            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+        except FileNotFoundError:
+            logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
+            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
+            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
 
         # Load the homings object
         try:
@@ -104,10 +105,13 @@ class AnalyzeEfizz:
                 frame_by_cluster_matrix=self.frame_by_cluster_matrix,
                 save_path=single_trial_save_path,
                 velocity_data=velocity_data,
-                similar_homings=False,
+                similar_homings=True,
                 barrier_location=self.tracking_data["barrier_loc"],
+                shelter_location=self.tracking_data["shelter_loc"],
                 escape_object=self.escape_object,
+                remove_escapes=False,
             )
+                    
             SingleTrialRegression(
                 design_matrix=pp_single_trial_obj.design_matrix,
                 save_path=single_trial_save_path,
@@ -121,7 +125,7 @@ class AnalyzeEfizz:
                 conversion_from_left_right_to_pre_post_flip=pp_single_trial_obj.convert_left_right_to_pre_post_flip,
             )
 
-        # ----------------- Compute Rayleigh, polar plots and delta hists ------------
+      #  ----------------- Compute Rayleigh, polar plots and delta hists ------------
 
         if Settings.run_rayleigh:
             if not Settings.single_cluster_plots:
@@ -201,20 +205,6 @@ class AnalyzeEfizz:
         if len(Settings.run_LDA) > 0:
             LDA(self, Settings)
             logger.success("LDA analysis complete")
-
-        # ----------------- Compute Rayleigh and polar plots -------------------------
-        if Settings.run_rayleigh:
-            if not Settings.single_cluster_plots:
-                logger.info(f"Compute Rayleigh on {self.cluster_type} data")
-                all_angles = identify_angles(self.session)
-                if Settings.learned_conditions:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "learned_condition"))
-                else:
-                    base_path = make_directory(os.path.join(self.dir, "Rayleigh", self.cluster_type, "object_condition"))
-                compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
-            else:
-                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
-                compute_single_cluster_tuning(self, Settings)
 
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if Settings.run_dim_reduction:
