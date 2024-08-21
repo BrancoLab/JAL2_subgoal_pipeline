@@ -22,11 +22,12 @@ import dill as pickle
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
+from behave_analysis.utils.rm_escapes_from_homings import remove_escapes_from_homings_object
 from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial, plot_trajectories
 from behave_analysis.utils.data_loading import load_or_extract_homings
 
 
-def plot_homings(session, tracking_data, video_df, show_plots = False) -> None:
+def plot_homings(session, tracking_data, video_df, show_plots=False) -> None:
     """Plot and visualize the homing trajectories for a given session.
 
     This function creates one or more figures, each containing a grid of subplots, with each subplot representing
@@ -52,7 +53,17 @@ def plot_homings(session, tracking_data, video_df, show_plots = False) -> None:
     """
     homings_obj = load_or_extract_homings(session)
     assert homings_obj is not None, "Failed to load homing data."
-    assert hasattr(homings_obj, 'onset_frames') and hasattr(homings_obj, 'stimulus_durations'), "Homings object must have 'onset_frames' and 'stimulus_durations'."
+    assert hasattr(homings_obj, "onset_frames") and hasattr(
+        homings_obj, "stimulus_durations"
+    ), "Homings object must have 'onset_frames' and 'stimulus_durations'."
+    
+    try:
+        escape_path = os.path.join(session.base_path, session.processed_path, "escapes", "escapes_obj.pkl")
+        with open(escape_path, "rb") as f:
+            escape_object = pickle.load(f)
+        homings_obj = remove_escapes_from_homings_object(homings_obj, escape_object)
+    except FileNotFoundError:
+        raise FileNotFoundError("The escape object file does not exist. Please run the escape analysis first.")
 
     # Configure plot params
     ntrials = len(homings_obj.onset_frames)
@@ -88,8 +99,9 @@ def plot_homings(session, tracking_data, video_df, show_plots = False) -> None:
                 plot_trajectories(onset_frame, stimulus_durations * session.video.fps, ax, "homing", tracking_data)
 
                 trial_counter += 1
-        
+
         # Save figure
         fig.savefig(os.path.join(session.base_path, session.processed_path, "homings", f"homings_figure_{figure}.png"))
-    if show_plots: plt.show()
+    if show_plots:
+        plt.show()
     plt.close()

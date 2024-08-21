@@ -11,6 +11,7 @@ from behave_analysis.database.synthetic_data.synthetic_main import generate_synt
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.postprocess.trials.escapes import get_Escapes
 from behave_analysis.utils.data_loading import load_or_extract_homings
+from behave_analysis.homings.homings import Homings
 
 
 class BaseDataPostprocessor(ABC):
@@ -93,14 +94,38 @@ class BaseDataPostprocessor(ABC):
         assert len(filtered_video_df) > 0, "No data left after filtering"
         return filtered_video_df
 
-    def track_to_polars(self) -> pl.DataFrame:
-        """
-        Adds all the behavioral variables from track to a polars dataframe, video_df - and saves it
+    def track_to_polars(self, homing_obj) -> pl.DataFrame:
+        """Adds all a set of behavioral variables to a polars dataframe we call video_df.
+        
+        Args:
+            homing_obj (obj class): An object representing the homing data for the session used to fill when homing frames are occuring
 
-        This function also saves so you can run just this function to regenerate it
+        The following columns are added to the video dataframe:
+            -- frames
+            -- hdir
+            -- mouse_x_position
+            -- mouse_y_position
+            -- OutofshelterIdx (bool)
+            -- EscapePeriod (bool)
+            -- shelter (bool)
+            -- barrier_present (bool)
+            -- barrier_flipped (bool)
 
-        Returns: Video_df
-        """
+        Returns: 
+            Video_df (pl.DataFrame)"""
+        
+        number_of_frames = len(self.tracking_data["hdir"])
+         
+        # if homing data is present, create a boolean array to indicate when homing is occuring in the session
+        if homing_obj:
+            homing_bool = np.zeros(number_of_frames, dtype=bool)
+            onset_frames = homing_obj.onset_frames
+            offset_frames = homing_obj.offset_frames
+            for onset, offset in zip(onset_frames, offset_frames):
+                homing_bool[onset - 1 : offset -1] = True
+        else:
+            homing_bool = [None] * number_of_frames
+            
         if len(self.session.shelter_time) > 0:
             # if mushroom, estend size to outer circle
             if np.logical_and(
@@ -170,6 +195,7 @@ class BaseDataPostprocessor(ABC):
                 "shelter": shelter,  # true when the shelter is in the arena
                 "barrier_present": barrier_present,  # true when the barrier is in the arena
                 "barrier_flipped": barrier_flipped,
+                "homingPeriod": homing_bool,
             }
         )  # true after the shelter was flipped
 
@@ -178,6 +204,7 @@ class BaseDataPostprocessor(ABC):
             video_df = video_df.hstack([pl.Series("hsa", self.tracking_data["hdir_shelt"])])
 
         # if barrier in session, add the angles to video_df
+        # NOTE - North angle is always pre flip and south angle is always post flip for refactor to be pre and post flip edge
         if "hdir_barrier" in self.tracking_data:
             video_df = video_df.hstack([pl.Series("h_preflipbar_a", self.tracking_data["hdir_barrier"][:, 0])])
             video_df = video_df.hstack([pl.Series("h_postflipbar_a", self.tracking_data["hdir_barrier"][:, 1])])
@@ -187,6 +214,9 @@ class BaseDataPostprocessor(ABC):
         if "hdir_randP" in self.tracking_data:
             for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
                 video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
+                
+        # save the video dataframe
+        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
 
         video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         return video_df
@@ -421,6 +451,9 @@ class DataPostprocessor(BaseDataPostprocessor):
             filtered_spike_data = df.filter(df["cluster_group"] == self.select_clusters)
             numNeurons = len(filtered_spike_data["spike_clusters"].unique())
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
+        
+        # save the filtered spike data
+        filtered_spike_data.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_cluster_labels + "_spike_data.csv")
 
         return filtered_spike_data
 
