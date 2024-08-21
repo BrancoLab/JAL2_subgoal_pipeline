@@ -72,8 +72,8 @@ JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_tiny_3may, JAL8_flip4_10may, JAL8_14may,
 # LDA without subsampling homing based
 
 # Commonly used experiments
-# experiments_objects = [JAL6_28mar]
-experiments_objects = [JAL6_flip3_18mar]
+experiments_objects = [JAL6_28mar]
+#experiments_objects = [JAL6_flip3_18mar]
 # experiments_objects = [JAL4_3rdSept]
 # experiments_objects = [JAL7_sesh8_9apr]
 # experiments_objects = [JAL8_14may]
