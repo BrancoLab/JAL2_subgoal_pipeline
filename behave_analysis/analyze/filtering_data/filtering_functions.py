@@ -50,6 +50,26 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
 
     return filtered_video_df
 
+def filter_video_df_time(dataframe, condition, fr, max_time = 20):
+    """
+    A function that filters the video dataframe (the behavioural data) based on time in condition.
+    It either returns the first or second half of the condition. If the condition is longer than 2x max time
+    max time is used as the window length for the beginning and end of the session.
+    Max time is in minutes!
+    """
+    time_in_cond = len(dataframe)/(fr*60)
+    if time_in_cond <= (max_time *2):
+        chunk = np.floor(len(dataframe)/2)
+    else:
+        chunk = max_time*fr*60
+
+    if condition == 'first_half':
+        dataframe = dataframe.head(int(chunk))
+    elif condition == 'second_half':
+        dataframe = dataframe.tail(int(chunk))
+
+    return dataframe
+
 
 def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
     """
