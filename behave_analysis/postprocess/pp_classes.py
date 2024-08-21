@@ -399,7 +399,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         video_df = self.track_to_polars()
         QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session) # For now just log the warning and don't touch the data
         if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
-            homings = load_or_extract_homings(session)
+            homings = load_or_extract_homings(session, video_df)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()

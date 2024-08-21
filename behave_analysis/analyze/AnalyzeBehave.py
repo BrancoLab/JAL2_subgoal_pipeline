@@ -9,6 +9,7 @@ from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficie
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.behaviour.plot_homings import plot_homings
 from settings.settings_analyze import settings_analyze as settings
+from behave_analysis.utils.data_loading import load_or_extract_homings
 
 
 class AnalyzeBehave:
@@ -38,10 +39,28 @@ class AnalyzeBehave:
             settings,
             self.video_df,
             self.tracking_data,
+            trial_type='Escapes',
             plotting=True,
             save_dir=self.dir,
         )
 
         if len(self.session.barrier_time) > 0:
+            homings_obj = load_or_extract_homings(self.session, self.video_df)
+            assert homings_obj is not None, "Failed to load homing data."
+            assert hasattr(homings_obj, "onset_frames") and hasattr(
+                homings_obj, "stimulus_durations"
+            ), "Homings object must have 'onset_frames' and 'stimulus_durations'."
+
             logger.info(f"Making plots of homing trajectories")
-            plot_homings(self.session, self.tracking_data, self.video_df, settings.show_plots)
+            # plot_homings(self.session, self.tracking_data, self.video_df, settings.show_plots)
+            spatial_efficiency(
+                homings_obj.onset_frames,
+                homings_obj.stimulus_durations,
+                self.session,
+                settings,
+                self.video_df,
+                self.tracking_data,
+                trial_type='Homings',
+                plotting=True,
+                save_dir=self.dir,
+            )

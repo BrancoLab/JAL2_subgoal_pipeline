@@ -46,8 +46,8 @@ JAL4_11thSept = Experiment(  # Mouse specific
     # Experiment specific
     experiment_name="flip",
     experiment_idx=0,
-    experiment_date="x",
-    experiment_time="x",
+    experiment_date="2023_09_11",
+    experiment_time="09_32_25",
     shelter_time=[0.33, -1],
     barrier_time=[67.08, -1],  # seconds needed to be more precise
     barrier_flip_time=233.25,

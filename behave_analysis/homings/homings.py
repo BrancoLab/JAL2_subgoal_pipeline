@@ -21,6 +21,7 @@ from scipy.ndimage import gaussian_filter1d
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 
 
 @dataclass(frozen=True)
@@ -34,7 +35,8 @@ class Homings:
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
     homing_angles_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
-
+    spatial_efficiency: list # the spatial efficiency of the homing
+    homing_condition: list # what condition the homing was in
 
 class get_Homings:
     """Extract homings metrics from a session
@@ -47,7 +49,7 @@ class get_Homings:
     -- Reference locations = [shelter, subgoal1, subgoal2] ignoring central barrier locatios
     """
 
-    def __init__(self, settings, session):
+    def __init__(self, settings, session, video_df):
         self.settings = settings
         self.session = session
         self.reference_locations = [self.session.video.shelter_location] + self.session.barrier_location[:-1]
@@ -69,6 +71,10 @@ class get_Homings:
             self.session, self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
         )
 
+        condition, spatial_efficiency_values = spatial_efficiency(
+            self.onset_frames, self.stimulus_durations, session, settings, video_df, self.tracking_data, trial_type = 'Homings', plotting=False
+        )
+
         # Return main homings object
         self.session.homing = Homings(
             self.onset_frames,
@@ -78,6 +84,8 @@ class get_Homings:
             self.end_locs,
             avg_speed,
             homing_angles_dic,
+            spatial_efficiency_values,
+            condition,
         )
 
         self.save_session()
@@ -316,7 +324,8 @@ class get_Homings:
 
         # Speed cant be move than 100cm (arbitrary) per second as that would be ridiculous
         # assert np.max(homing_speed) < 120, "Homing speed is too high, check tracking data"
-        if np.max(homing_speed) > 120: logger.info("Homing speed is too high, check tracking data")
+        if np.max(homing_speed) > 120:
+            logger.info("Homing speed is too high, check tracking data")
 
         return homing_speed
 
