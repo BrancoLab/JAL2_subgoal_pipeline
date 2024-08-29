@@ -39,8 +39,8 @@ class Homings:
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
     homing_angles_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
-    spatial_efficiency: list # the spatial efficiency of the homing
-    homing_condition: list # what condition the homing was in
+    #spatial_efficiency: list # the spatial efficiency of the homing
+    #homing_condition: list # what condition the homing was in
 
 class get_Homings:
     """Extract homings metrics from a session
@@ -68,15 +68,13 @@ class get_Homings:
             logger.error("Video df not found, homings will not be computed")
             print("Video df not found, homings will not be computed")
 
-        # Begin extracting variables for homings
-        logger.info("Extracting homings...")
-        self.extract_variables()
-        self.homing_runs_on = self.identify_homing_runs_with_logic()
-        
         if self.use_boris:
-            logger.info("Using manual labels")
+            logger.info("Using manually labelled homings")
             self.onset_frames, self.stimulus_durations, self.offset_frames = self.load_manual_labels()
         else:
+            logger.info("Extracting homings automatically...")
+            self.extract_variables()
+            self.homing_runs_on = self.identify_homing_runs_with_logic()
             logger.info("Using automatic labels")
             self.onset_frames, self.stimulus_durations, self.offset_frames = self.get_onset_and_duration()
             # Remove homings that don't meet the criteria
@@ -92,9 +90,9 @@ class get_Homings:
             self.session, self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
         )
 
-        condition, spatial_efficiency_values = spatial_efficiency(
-            self.onset_frames, self.stimulus_durations, session, settings, video_df, self.tracking_data, trial_type = 'Homings', plotting=False
-        )
+        # condition, spatial_efficiency_values = spatial_efficiency(
+        #     self.onset_frames, self.stimulus_durations, session, settings, self.video_df, self.tracking_data, trial_type = 'Homings', plotting=False
+        # )
 
         # Return main homings object
         self.session.homing = Homings(
@@ -105,8 +103,8 @@ class get_Homings:
             self.end_locs,
             avg_speed,
             homing_angles_dic,
-            spatial_efficiency_values,
-            condition,
+            #spatial_efficiency_values,
+            #condition,
         )
 
         self.save_session()

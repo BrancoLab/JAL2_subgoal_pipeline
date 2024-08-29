@@ -133,8 +133,8 @@ class SingleTrialRegression:
             
             # Pickle save the results
             make_directory(self.save_path / "r2_scores")
-            print(self.save_path)
-            with open(self.save_path / "r2_scores" / self.session_name +  "_r2_scores.pickle", "wb") as f:
+            file_name = str(self.session_name) + "_r2_scores.pickle" 
+            with open(self.save_path / "r2_scores" / file_name, "wb") as f:
                 pickle.dump(r2_score_for_all_dependents, f)
             
             self.plotter.plot_the_r2_scores_for_all_dependents(r2_scores=r2_score_for_all_dependents)

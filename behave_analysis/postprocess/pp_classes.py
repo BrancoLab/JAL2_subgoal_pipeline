@@ -94,7 +94,7 @@ class BaseDataPostprocessor(ABC):
         assert len(filtered_video_df) > 0, "No data left after filtering"
         return filtered_video_df
 
-    def track_to_polars(self, homing_obj) -> pl.DataFrame:
+    def track_to_polars(self, homing_obj=False) -> pl.DataFrame:
         """Adds all a set of behavioral variables to a polars dataframe we call video_df.
         
         Args:
@@ -429,7 +429,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         video_df = self.track_to_polars()
         QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session) # For now just log the warning and don't touch the data
         if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
-            homings = load_or_extract_homings(session, video_df)
+            homings = load_or_extract_homings(session = session, video_df = video_df)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()

@@ -291,7 +291,9 @@ class PreprocessSingleTrialRegression:
         # check there are left and right homings
         left = initial_direction.count("left edge")
         right = initial_direction.count("right edge")
-        assert left > 0 and right > 0, "There are no left or right homings"
+        #assert left > 0 and right > 0, "There are no left or right homings"
+        if not np.logical_and(left > 0, right > 0):
+            logger.warning("There are no left or right homings")
         assert len(initial_direction) == len(self.homing_list), "The length of the initial direction is not the same as the homing list"
 
         return initial_direction
