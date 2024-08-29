@@ -74,8 +74,8 @@ experiments_objects = [JAL3_1sept, JAL3_25aug]
 # LDA without subsampling homing based
 
 # Commonly used experiments
-# experiments_objects = [JAL6_28mar]
-experiments_objects = [JAL6_flip3_18mar]
+experiments_objects = [JAL6_28mar]
+#experiments_objects = [JAL6_flip3_18mar]
 # experiments_objects = [JAL4_3rdSept]
 # experiments_objects = [JAL7_sesh8_9apr]
 # experiments_objects = [JAL8_14may]

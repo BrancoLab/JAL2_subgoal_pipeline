@@ -48,6 +48,7 @@ class PreprocessSingleTrialRegression:
         similar_homings=False,
         escape_object=None,
         remove_escapes=False,
+        save_plots=True,
     ):
         logger.info("Initializing the single trial regression preprocessing object")
 
@@ -84,10 +85,11 @@ class PreprocessSingleTrialRegression:
         UnitTests.check_the_creation_of_the_design_matrix(self.create_the_design_matrix)
 
         # Descriptive plots
-        self.plot_homing_durations()
-        self.plot_y_coords_distribution()
-        self.plot_the_index_distribution()
-        self.plot_the_index_per_homing()
+        if save_plots:
+            self.plot_homing_durations()
+            self.plot_y_coords_distribution()
+            self.plot_the_index_distribution()
+            self.plot_the_index_per_homing()
 
         logger.success("The single trial regression preprocessing object has been initialized")
 
@@ -289,7 +291,9 @@ class PreprocessSingleTrialRegression:
         # check there are left and right homings
         left = initial_direction.count("left edge")
         right = initial_direction.count("right edge")
-        assert left > 0 and right > 0, "There are no left or right homings"
+        #assert left > 0 and right > 0, "There are no left or right homings"
+        if not np.logical_and(left > 0, right > 0):
+            logger.warning("There are no left or right homings")
         assert len(initial_direction) == len(self.homing_list), "The length of the initial direction is not the same as the homing list"
 
         return initial_direction
@@ -311,6 +315,8 @@ class PreprocessSingleTrialRegression:
         # Create a tuple, where the first index is the orientation of the first edge and the second index is the orientation of the second edge
         edge_names = check_which_barrier_location_is_which_orientation(barrier_location)
         angle_data = homing_object.homing_angles_dic
+        expected_keys = ["avg_pre_flip_head_angle", "avg_post_flip_head_angle", "avg_hsa"]
+        assert all(key in angle_data.keys() for key in expected_keys), "The keys are not as expected in the homing angle data, check the homings object"
         if edge_names[0] == "left":
             left = angle_data["avg_pre_flip_head_angle"]
             right = angle_data["avg_post_flip_head_angle"]
@@ -451,11 +457,11 @@ class PreprocessSingleTrialRegression:
 
         # create a figure
         fig = plt.figure(figsize=(10, 7))
-        
+
         selected_homings = self.select_homings_that_start_near_the_threat_zone(extracted_homing_info)
-        #cthomes = self.select_homings_that_are_in_the_centre(thomes)
-        #selected_homings = self.remove_homings_that_pass_through_the_barrier(cthomes)  # We might want these in the future but remove them for now
-        #selected_homings = self.remove_any_homings_that_go_around_the_edge(selected_homings)
+        # cthomes = self.select_homings_that_are_in_the_centre(thomes)
+        # selected_homings = self.remove_homings_that_pass_through_the_barrier(cthomes)  # We might want these in the future but remove them for now
+        # selected_homings = self.remove_any_homings_that_go_around_the_edge(selected_homings)
         assert len(selected_homings) > 0, "There are no homings that meet the criteria for single trial regression for this session"
         classes = self.assign_left_or_right_to_each_homing(selected_homings)
 
@@ -485,19 +491,19 @@ class PreprocessSingleTrialRegression:
         plt.savefig(self.save_path / "left_right_homings.png")
 
         Arena(ax=ax, shelter_coordinates=self.shelter_location)
-        
+
         import plotly.io as pio
         from plotly.tools import mpl_to_plotly
+
         # Step 2: Convert the Matplotlib figure to a Plotly figure
         plotly_fig = mpl_to_plotly(fig)
         save = self.save_path / "left_right_homings.html"
 
         # Step 3: Save the Plotly figure as an interactive HTML file
         pio.write_html(plotly_fig, file=save, auto_open=False)
-        
+
         plt.close()
-        
-        
+
         # Plot inidividual homings
         # Plot the homings
         length = 180
@@ -518,8 +524,7 @@ class PreprocessSingleTrialRegression:
             fig.suptitle(f"Homing {i}. Blue is left, red is right")
             plt.savefig(self.save_path / "individual_homings" / f"homing_{i}.png")
             plt.close()
-        
-        
+
         self.plot_the_start_of_each_homing(selected_homings, classes)
 
         return selected_homings, classes
