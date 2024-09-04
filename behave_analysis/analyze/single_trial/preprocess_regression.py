@@ -39,7 +39,6 @@ class PreprocessSingleTrialRegression:
         self,
         video_df: pl.DataFrame,
         homings_obj: dict,
-        video_and_spike_data: pl.DataFrame,
         frame_by_cluster_matrix: np.ndarray,
         save_path: Path,
         velocity_data: np.ndarray,
@@ -58,10 +57,8 @@ class PreprocessSingleTrialRegression:
             self.homings_obj = homings_obj
 
         self.escape_object = escape_object
-        self.video_and_spike_data = video_and_spike_data
-        self.frame_by_cluster_matrix = frame_by_cluster_matrix
         self.save_path = save_path
-        self.video_df = self.remove_columns_from_video_df(video_df)
+        video_df = self.remove_columns_from_video_df(video_df)
         self.barrier_location = barrier_location
         self.shelter_location = shelter_location
         self.convert_left_right_to_pre_post_flip = convert_left_right_to_pre_post_flip(self.barrier_location)
@@ -69,7 +66,7 @@ class PreprocessSingleTrialRegression:
 
         # Preprocessing homing data
         UnitTests.check_attributes_of_homing_dic(self.homings_obj)
-        self.homing_list, homing_df_s1, self.condition_per_homing = self.preprocess_homing_data(select_similar_homings=self.similar_homings)
+        self.homing_list, homing_df_s1, self.condition_per_homing = self.preprocess_homing_data(select_similar_homings=self.similar_homings, video_df=video_df)
         self.initial_directions = self.label_each_homing_with_an_initial_direction(
             self.extract_cumulative_homing_data(self.homings_obj, self.barrier_location)
         )
@@ -79,7 +76,7 @@ class PreprocessSingleTrialRegression:
 
         # Create the design matrix
         self.design_matrix, self.spike_data_per_homing = self.create_the_design_matrix(
-            self.homing_data_single_dataframe, self.frame_by_cluster_matrix
+            self.homing_data_single_dataframe, frame_by_cluster_matrix
         )
         self.targets_df = self.create_dependent_dataframe(self.homing_data_single_dataframe)
         UnitTests.check_the_creation_of_the_design_matrix(self.create_the_design_matrix)
@@ -87,7 +84,7 @@ class PreprocessSingleTrialRegression:
         # Descriptive plots
         if save_plots:
             self.plot_homing_durations()
-            self.plot_y_coords_distribution()
+            self.plot_y_coords_distribution(video_df=video_df)
             self.plot_the_index_distribution()
             self.plot_the_index_per_homing()
 
@@ -131,11 +128,11 @@ class PreprocessSingleTrialRegression:
         plt.savefig(self.save_path / "homing_durations.png")
         plt.close()
 
-    def plot_y_coords_distribution(self):
+    def plot_y_coords_distribution(self, video_df):
         """Plotting and saving the y axis bins to see the distribution of the homings
 
         Not used for anything, just for exploratory purposes showing non-uniform distribution of y coordinates"""
-        ycoords = self.video_df["mouse_y_position"]
+        ycoords = video_df["mouse_y_position"]
         ycoords = ycoords.filter(ycoords < 800)
         plt.title("Distribution of y coordinates in bins")
         bins = np.linspace(0, 800, 32)  # Remove near shelter as there are a lot of frames there
@@ -588,14 +585,14 @@ class PreprocessSingleTrialRegression:
                 homing_data = homing_data.vstack(homing)
         return homing_data
 
-    def preprocess_homing_data(self, select_similar_homings) -> tuple:
+    def preprocess_homing_data(self, select_similar_homings, video_df) -> tuple:
         """Preprocessing the data into a single dataframe for regression analysis
 
         Returns:
             (tuple) of homing_info and concatenated homing data
                 -- homing_info (list): A list of homing dataframes for each homing period
                 -- concatenated_homing_data (pl.DataFrame): The concatenated homing data ready for regression analysis"""
-        extracted_homing_info, condition_per_homing = self.extract_data_from_homings(homing_object=self.homings_obj, video_df=self.video_df)
+        extracted_homing_info, condition_per_homing = self.extract_data_from_homings(homing_object=self.homings_obj, video_df=video_df)
         if select_similar_homings:
             self.homing_info, self.classes = self.select_similar_homings(extracted_homing_info)
             extracted_homing_info = self.homing_info
