@@ -87,3 +87,20 @@ JAL4_28aug = Experiment(  # Mouse specific
     barrier_flip_time=219,
     experiment_path=Path(r"JAL004_flip_rotated_2023_08_28T09_36_04"),
 )
+
+JAL4_17aug = Experiment(  # Mouse specific
+    nick_name=JAL004.nick_name,
+    total_sessions=JAL004.total_sessions,
+    mouse_number_pyrat=JAL004.mouse_number_pyrat,
+    experiment_file_names=JAL004.experiment_file_names,
+    root_path=JAL004.root_path,
+    # Experiment specific
+    experiment_name="baseline",
+    experiment_idx=0,
+    experiment_date="2023_08_17",
+    experiment_time="13_41_44",
+    shelter_time=[60.75, -1],
+    barrier_time=[],
+    barrier_flip_time=None,
+    experiment_path=Path(r"004_baseline_2023_08_17T13_41_44"),
+)

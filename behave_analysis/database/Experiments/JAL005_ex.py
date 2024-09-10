@@ -52,3 +52,37 @@ JAL005_21stSept = Experiment(# Mouse specific
                     barrier_time=[69.18, -1],
                     barrier_flip_time=180.40,
                     experiment_path=Path(r"005_flippuff3_2023_09_21T11_11_13"))
+
+JAL005_2ndSept = Experiment(# Mouse specific
+                    nick_name = mouse.nick_name,
+                    total_sessions = mouse.total_sessions,
+                    mouse_number_pyrat = mouse.mouse_number_pyrat,
+                    experiment_file_names = mouse.experiment_file_names,
+                    root_path = mouse.root_path,
+                    
+                    # Experiment specific
+                    experiment_name='empty_shelter_2nd_sept_jal005',
+                    experiment_idx=1,
+                    experiment_date="2023_09_02",
+                    experiment_time="11_00_25",
+                    shelter_time=[58.3, -1],
+                    barrier_time=[],
+                    barrier_flip_time=None,
+                    experiment_path=Path(r"005_baseline_2023_09_02T11_00_25"))
+
+JAL005_5thSept = Experiment(# Mouse specific
+                    nick_name = mouse.nick_name,
+                    total_sessions = mouse.total_sessions,
+                    mouse_number_pyrat = mouse.mouse_number_pyrat,
+                    experiment_file_names = mouse.experiment_file_names,
+                    root_path = mouse.root_path,
+                    
+                    # Experiment specific
+                    experiment_name='barrier1_5th_sept_jal005',
+                    experiment_idx=1,
+                    experiment_date="2023_09_05",
+                    experiment_time="07_48_58",
+                    shelter_time=[62, -1],
+                    barrier_time=[169, -1],
+                    barrier_flip_time=None,
+                    experiment_path=Path(r"005_baseline_2023_09_05T07_48_58"))

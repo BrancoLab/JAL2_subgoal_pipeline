@@ -17,8 +17,8 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_ae = Settings_analyze_efizz(
     # ------------- General settings --------------------------
 
-    stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
-    linear_shift=True,  # whether to run linear shift!
+    stim_type="None",  # 'audio', leave as 'None' if no stims were delivered
+    linear_shift=False,  # whether to run linear shift!
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=['good'],  # ['synthetic','synthetichdir','all','good'], # Can list multiple!
@@ -38,7 +38,7 @@ Settings_ae = Settings_analyze_efizz(
     # if 'time_conditions' it compares first vs second half
     # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
     # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
-    compartment_split=['all'], # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
+    compartment_split=['by_position'], # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     # If 'by_position', it will compute LDA decoding by arena position
     
@@ -71,9 +71,9 @@ Settings_ae = Settings_analyze_efizz(
     exclude_hdir = False,
     dropout = False, # this will iteratively dropout each cluster and recompute the LDA prediction accuracy to see how much that cluster matters
     PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
-    subsampling = True, # whether to subsample to equalize data by angles and space
+    subsampling = False, # whether to subsample to equalize data by angles and space
     # ------------ Rayleigh model settings ----------------------
-    run_rayleigh=True,
+    run_rayleigh=False,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=False,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster
