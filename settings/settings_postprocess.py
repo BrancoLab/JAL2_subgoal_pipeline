@@ -8,6 +8,7 @@ defined_settings_postprocess = Settings_postprocess(
     efizz = True, # false for behavior only sessions
 
     # find escape onset
+    homings = True,
     response_thresh = 5 # in seconds, when did mouse escape after the stim?
      
 ) 
