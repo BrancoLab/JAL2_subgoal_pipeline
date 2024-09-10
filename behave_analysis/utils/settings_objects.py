@@ -59,6 +59,8 @@ class Settings_homings:
     by_session: bool = False
     sessions: list = None
     all_sessions: bool = False
+    redo_homings: bool = False
+    use_boris: bool = True
 
 
 @dataclass(frozen=True)
@@ -192,4 +194,5 @@ class Settings_analyze_efizz:
 class Settings_postprocess:
     cluster_type: str = ""
     efizz: bool = False
+    homings: bool = False
     response_thresh: int = 5

@@ -274,12 +274,14 @@ class Track(DLC):
         if len(session.barrier_time) > 0:
             # initialize variables
             self.region_tracking_data['barrier_loc'] = session.barrier_location
-            self.region_tracking_data['hdir_barrier'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.region_tracking_data['barrier_loc'])))
-
-            for i in np.arange(len(self.region_tracking_data['barrier_loc'])): # calculate body to barrier angle for each edge of barrier
-                self.region_tracking_data['hdir_barrier'][:,i] = compute_angle_head_point(self,'barrier_loc',i)
         else:
-            self.region_tracking_data['barrier_loc'] = []
+            self.region_tracking_data['barrier_loc'] = [[800,512],[224,512],[512,512]] # for sessions with no barrier when we still want to know the angless to the barrier
+            
+        self.region_tracking_data['hdir_barrier'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.region_tracking_data['barrier_loc'])))
+
+        for i in np.arange(len(self.region_tracking_data['barrier_loc'])): # calculate body to barrier angle for each edge of barrier
+            self.region_tracking_data['hdir_barrier'][:,i] = compute_angle_head_point(self,'barrier_loc',i)
+
         logger.info("Subgoal angles computed")
     
     def compute_angle_random_points(self,session):

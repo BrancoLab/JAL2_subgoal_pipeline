@@ -2,6 +2,7 @@
 import dill as pickle
 import os
 from loguru import logger
+import numpy as np
 
 from behave_analysis.homings.homings import get_Homings
 from settings.settings_homings import settings_homings as settings_h
@@ -27,7 +28,7 @@ def load_or_extract_homings(session, video_df):
     - AssertionError: If the homing data file does not exist at the expected path.
     """
     homie_path = os.path.join(session.base_path, session.processed_path, "homings", "homings_obj.pkl")
-    if os.path.exists(homie_path):
+    if np.logical_and(os.path.exists(homie_path), not(settings_h.redo_homings)):
         logger.info("Homings object found. Loading...")
         with open(homie_path, "rb") as dill_file:
             homings = pickle.load(dill_file)

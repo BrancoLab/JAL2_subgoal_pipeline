@@ -47,6 +47,7 @@ from behave_analysis.database.Experiments.JAL008_ex import (
     JAL8_flip4_10may,
     JAL8_14may,
     JAL8_21may,
+    JAL8_flip3_7may,
 )
 
 # ## -------------JR BEHAVIOR MICE
@@ -62,7 +63,7 @@ experiments_objects = [JAL6_shelt_4mar,JAL005_2ndSept,JAL005_5thSept,JAL4_17aug,
 # JAL005_8thSept, JAL005_21stSept, JAL005_5thSept,
 # JAL6_28mar, JAL6_flip4_21mar, JAL6_flip5_25mar, JAL6_flip3_18mar, JAL6_flip7_1apr,
 # JAL7_sesh8_9apr, JAL7_flip5_22mar, JAL7_flip2_12mar, JAL7_sesh9_16apr, JAL7_23apr,
-# JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_flip4_10may, JAL8_14may]
+# JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_flip3_7may, JAL8_flip4_10may, JAL8_14may]
 
 # Commonly used experiments
 # experiments_objects = [JAL6_28mar]

@@ -15,4 +15,6 @@ settings_homings = Settings_homings(
     by_session=True,
     sessions=[0],
     min_frames_between_trials=40,  # 1 second between trials to stop double counting split homings
+    redo_homings = True, # conditional if we want to force remake homing object
+    use_boris = True,
 )

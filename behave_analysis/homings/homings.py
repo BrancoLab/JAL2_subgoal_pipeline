@@ -39,8 +39,9 @@ class Homings:
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
     homing_angles_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
-    spatial_efficiency: list # the spatial efficiency of the homing
-    homing_condition: list # what condition the homing was in
+    spatial_efficiency: list  # the spatial efficiency of the homing
+    homing_condition: list  # what condition the homing was in
+
 
 class get_Homings:
     """Extract homings metrics from a session
@@ -53,26 +54,41 @@ class get_Homings:
     -- Reference locations = [shelter, subgoal1, subgoal2] ignoring central barrier locatios
     """
 
-    def __init__(self, settings, session, use_boris=False):
+    def __init__(self, settings, session, video_df = []):
         self.settings = settings
-        self.use_boris = use_boris
         self.session = session
-        self.reference_locations = [self.session.video.shelter_location] + self.session.barrier_location[
-            :-1
-        ]  # The first and second index is the pre flip edge and post flip edge of the barrier loc
+
+        self.use_boris = False
+        if settings.use_boris:
+            boris_path = os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv"
+            if os.path.isfile(boris_path):
+                self.use_boris = True
+            else:
+                logger.warning("You want to use Borris homing labelling, but Borris file doesn't exist! Automatically detecting homings instead")
+        
+        if len(self.session.barrier_time) > 0:
+            self.barrier_location = self.session.barrier_location
+        else:  # add hardcoded barrier location for sessions with no barrier
+            self.barrier_location = [[800, 512], [224, 512], [512, 512]]
+        # The first and second index is the pre flip edge and post flip edge of the barrier loc
+        self.reference_locations = [self.session.video.shelter_location] + self.barrier_location[:-1]
+        
         self.tracking_data = open_tracking_data(self.session)
 
-        try:
-            self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
-        except FileNotFoundError:
-            logger.error("Video df not found, homings will not be computed")
-            print("Video df not found, homings will not be computed")
+        if len(video_df) == 0:
+            try:
+                self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
+            except FileNotFoundError:
+                logger.error("Video df not found, homings will not be computed")
+                print("Video df not found, homings will not be computed")
+        else:
+            self.video_df = video_df
 
         # Begin extracting variables for homings
         logger.info("Extracting homings...")
         self.extract_variables()
         self.homing_runs_on = self.identify_homing_runs_with_logic()
-        
+
         if self.use_boris:
             logger.info("Using manual labels")
             self.onset_frames, self.stimulus_durations, self.offset_frames = self.load_manual_labels()
@@ -93,7 +109,7 @@ class get_Homings:
         )
 
         condition, spatial_efficiency_values = spatial_efficiency(
-            self.onset_frames, self.stimulus_durations, session, settings, video_df, self.tracking_data, trial_type = 'Homings', plotting=False
+            self.onset_frames, self.stimulus_durations, session, settings, self.video_df, self.tracking_data, trial_type="Homings", plotting=False
         )
 
         # Return main homings object
@@ -191,7 +207,7 @@ class get_Homings:
 
     def what_is_the_min_distance_to_edges(self, xs: np.array) -> np.array:
         """Given an array of x values, return the minimum distance to either edge"""
-        f = lambda xs: min(abs(xs - self.session.barrier_location[1][0]), abs(xs - self.session.barrier_location[2][0]))
+        f = lambda xs: min(abs(xs - self.barrier_location[1][0]), abs(xs - self.barrier_location[2][0]))
         distances = [f(x) for x in xs]
         return np.asarray(distances)
 
@@ -283,8 +299,8 @@ class get_Homings:
         assert len(start_locs) == len(onset_frames), "Start locs and number of homings are not the same length"
         return start_locs, end_locs
 
-    # ------------------- Use manual labels ------------------------------- 
-    
+    # ------------------- Use manual labels -------------------------------
+
     def load_manual_labels(self):
         """Load manual labels from a csv file"""
         df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv")
@@ -303,10 +319,9 @@ class get_Homings:
         assert len(onsets) == len(offsets), "Onsets and offsets are not the same length"
         assert np.diff(onsets).all() > 0, "Onsets are not increasing"
         assert np.diff(offsets).all() > 0, "Offsets are not increasing"
-        durations = (offsets - onsets)
-        durations = np.array([[x] for x in (durations) / self.session.video.fps]) # match the format of the automatic labels
+        durations = offsets - onsets
+        durations = np.array([[x] for x in (durations) / self.session.video.fps])  # match the format of the automatic labels
         return onsets, durations, offsets
-        
 
     # ------------------- IDENTIFY HOMINGS --------------------------------
 
@@ -391,9 +406,8 @@ class get_Homings:
         )
 
         # Does the homing run start near one of the subgoals?
-        barrier_locations = self.session.barrier_location
-        preflip_location = barrier_locations[0]
-        postflip_location = barrier_locations[1]
+        preflip_location = self.barrier_location[0]
+        postflip_location = self.barrier_location[1]
         subgoal_locations_y = np.mean([preflip_location[1], postflip_location[1]])  # Can take average of Y as should be the same for both subgoals
 
         # Does the mouse x an y poistion start within 10cm around a subgoal in the x plane
@@ -567,15 +581,13 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     # init arrays to store the average heading angles to the pre and post flip barrier locations
     avg_hsa = np.zeros(len(onsets))  # One value per homing
-    if len(session.barrier_time) > 0:
-        avg_pre_flip_head_angle = np.zeros(len(onsets))
-        avg_post_flip_head_angle = np.zeros(len(onsets))
+    avg_pre_flip_head_angle = np.zeros(len(onsets))
+    avg_post_flip_head_angle = np.zeros(len(onsets))
 
     # extract
     hsa_data = tracking_data["hdir_shelt"]
-    if len(session.barrier_time) > 0:
-        pre_flip_head_angle = tracking_data["hdir_barrier"][:, 0]  # The first index is the pre flip barrier location
-        post_flip_head_angle = tracking_data["hdir_barrier"][:, 1]  # The second index is the post flip barrier location
+    pre_flip_head_angle = tracking_data["hdir_barrier"][:, 0]  # The first index is the pre flip barrier location
+    post_flip_head_angle = tracking_data["hdir_barrier"][:, 1]  # The second index is the post flip barrier location
 
     for i, (onset, offset) in enumerate(zip(onsets, offsets)):
 
@@ -602,10 +614,7 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
 
-    if len(session.barrier_time) > 0:
-        dic = {"avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
-    else:
-        dic = {"avg_hsa": avg_hsa}
+    dic = {"avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
 
     return dic
 

@@ -94,7 +94,7 @@ class BaseDataPostprocessor(ABC):
         assert len(filtered_video_df) > 0, "No data left after filtering"
         return filtered_video_df
 
-    def track_to_polars(self, homing_obj) -> pl.DataFrame:
+    def track_to_polars(self) -> pl.DataFrame:
         """Adds all a set of behavioral variables to a polars dataframe we call video_df.
         
         Args:
@@ -113,19 +113,7 @@ class BaseDataPostprocessor(ABC):
 
         Returns: 
             Video_df (pl.DataFrame)"""
-        
-        number_of_frames = len(self.tracking_data["hdir"])
-         
-        # if homing data is present, create a boolean array to indicate when homing is occuring in the session
-        if homing_obj:
-            homing_bool = np.zeros(number_of_frames, dtype=bool)
-            onset_frames = homing_obj.onset_frames
-            offset_frames = homing_obj.offset_frames
-            for onset, offset in zip(onset_frames, offset_frames):
-                homing_bool[onset - 1 : offset -1] = True
-        else:
-            homing_bool = [None] * number_of_frames
-            
+                    
         if len(self.session.shelter_time) > 0:
             # if mushroom, estend size to outer circle
             if np.logical_and(
@@ -195,7 +183,6 @@ class BaseDataPostprocessor(ABC):
                 "shelter": shelter,  # true when the shelter is in the arena
                 "barrier_present": barrier_present,  # true when the barrier is in the arena
                 "barrier_flipped": barrier_flipped,
-                "homingPeriod": homing_bool,
             }
         )  # true after the shelter was flipped
 
@@ -218,8 +205,25 @@ class BaseDataPostprocessor(ABC):
         # save the video dataframe
         video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
 
-        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         return video_df
+    
+    def add_homie_to_video_df(self,video_df,homing_obj):
+
+        # if homing data is present, create a boolean array to indicate when homing is occuring in the session
+        number_of_frames = len(video_df)
+        homing_bool = np.zeros(number_of_frames, dtype=bool)
+        onset_frames = homing_obj.onset_frames
+        offset_frames = homing_obj.offset_frames
+        for onset, offset in zip(onset_frames, offset_frames):
+            homing_bool[onset - 1 : offset -1] = True
+
+        video_df = video_df.hstack([pl.Series("homingPeriod", homing_bool)])
+
+        # save the video dataframe
+        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
+        
+        return video_df
+
 
     def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
         """
@@ -424,13 +428,13 @@ class DataPostprocessor(BaseDataPostprocessor):
         self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
         self.select_clusters = cluster_labels_to_filter
 
-        # -----------------------------------------------------------------------
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
         QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session) # For now just log the warning and don't touch the data
-        if np.logical_and(len(self.session.shelter_time) > 0,len(self.session.barrier_time) > 0):
+        if settings.homings:
             homings = load_or_extract_homings(session, video_df)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
+            video_df = self.add_homie_to_video_df(video_df, homings)
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)

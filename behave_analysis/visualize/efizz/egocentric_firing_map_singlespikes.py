@@ -31,7 +31,7 @@ def egocentric_firing_map(spike_data,video_data,session):
     # make rendered arena image, add an offset for the cropping window
     window_size = 100
     barrier_location = None
-    if session.barrier_location:
+    if len(session.barrier_time) > 0:
         barrier_location = [[value + window_size for value in inner_list] for inner_list in session.barrier_location]
     rendered_arena = generate_rendered_arena([session.video.height + (2*window_size),session.video.width + (2*window_size)], 
                                              [[value + window_size for value in inner_list] for inner_list in session.shelter_location], 
