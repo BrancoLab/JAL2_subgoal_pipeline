@@ -84,15 +84,14 @@ class get_Homings:
         else:
             self.video_df = video_df
 
-        # Begin extracting variables for homings
-        logger.info("Extracting homings...")
-        self.extract_variables()
-        self.homing_runs_on = self.identify_homing_runs_with_logic()
-
         if self.use_boris:
             logger.info("Using manual labels")
             self.onset_frames, self.stimulus_durations, self.offset_frames = self.load_manual_labels()
         else:
+            # Begin extracting variables for homings
+            logger.info("Extracting homings...")
+            self.extract_variables()
+            self.homing_runs_on = self.identify_homing_runs_with_logic()
             logger.info("Using automatic labels")
             self.onset_frames, self.stimulus_durations, self.offset_frames = self.get_onset_and_duration()
             # Remove homings that don't meet the criteria
