@@ -5,6 +5,7 @@ TODO:
 """
 
 from pathlib import Path
+import pickle
 
 import pandas as pd
 from loguru import logger
@@ -47,6 +48,7 @@ class SingleTrialRegression:
         cluster_ids,
         initial_directions: list,  # of strings e.g. ['north_edge', 'south_edge', 'hsa']
         conversion_from_left_right_to_pre_post_flip: dict,
+        session_name = "",
     ):
         """Initialize the single trial regression analysis object
 
@@ -61,6 +63,7 @@ class SingleTrialRegression:
 
         logger.info("Initializing the single trial regression analysis object")
         self.cluster_ids = cluster_ids
+        self.session_name = session_name
         self.design_matrix = design_matrix
         self.homing_list = homing_list
         self.spike_homing_list = spike_homing_list
@@ -86,12 +89,14 @@ class SingleTrialRegression:
         self.plotter = RegressionPlotting(save_path)
 
         self.run(
-            run_all_dependent_variables=False,
+            run_all_dependent_variables=True,
             shift_neural_data=False,
             explore_coeffs_with_other_predictors=False,
             run_hiarchical_regression=False,
-            train_and_test_on_different_directions=True,  # Do you want to train ols on south homings and test on north homings e.g
+            train_and_test_on_different_directions=False,  # Do you want to train ols on south homings and test on north homings e.g
         )
+        
+        logger.success("The single trial analysis has completed for a single session")
 
         # TODO - update to handle two indexes
         # Plot a heatplot of the design matrix for the north index
@@ -125,6 +130,13 @@ class SingleTrialRegression:
 
         if run_all_dependent_variables:
             r2_score_for_all_dependents, _, _, _ = self.run_all_dependent_variables()
+            
+            # Pickle save the results
+            make_directory(self.save_path / "r2_scores")
+            file_name = str(self.session_name) + "_r2_scores.pickle" 
+            with open(self.save_path / "r2_scores" / file_name, "wb") as f:
+                pickle.dump(r2_score_for_all_dependents, f)
+            
             self.plotter.plot_the_r2_scores_for_all_dependents(r2_scores=r2_score_for_all_dependents)
             logger.success("The model has been run for all dependent variables")
 
@@ -1436,6 +1448,7 @@ class RegressionPlotting:
         plt.title("Distribution of index values for different homing sides")
         plt.legend()
         plt.savefig(self.save_path / "train_test_different_directions" / "overlayed_side_distributions.png")
+        plt.close()
 
     def overlay_test_and_train_targets(self, ax, train_tar: np.ndarray, test_tar: np.ndarray, train_yl, test_yl, fold=None):
         """If test and train distribtuions of the index are different this could result in erronous results.

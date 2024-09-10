@@ -42,7 +42,6 @@ class Homings:
     spatial_efficiency: list  # the spatial efficiency of the homing
     homing_condition: list  # what condition the homing was in
 
-
 class get_Homings:
     """Extract homings metrics from a session
 
@@ -85,11 +84,11 @@ class get_Homings:
             self.video_df = video_df
 
         if self.use_boris:
-            logger.info("Using manual labels")
+            logger.info("Using manually labelled homings")
             self.onset_frames, self.stimulus_durations, self.offset_frames = self.load_manual_labels()
         else:
             # Begin extracting variables for homings
-            logger.info("Extracting homings...")
+            logger.info("Extracting homings automatically...")
             self.extract_variables()
             self.homing_runs_on = self.identify_homing_runs_with_logic()
             logger.info("Using automatic labels")
@@ -120,8 +119,8 @@ class get_Homings:
             self.end_locs,
             avg_speed,
             homing_angles_dic,
-            spatial_efficiency_values,
-            condition,
+            #spatial_efficiency_values,
+            #condition,
         )
 
         self.save_session()

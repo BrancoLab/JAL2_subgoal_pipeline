@@ -1,4 +1,5 @@
 """This script contains lots of useful data loading function"""
+
 import dill as pickle
 import os
 from loguru import logger
@@ -34,6 +35,6 @@ def load_or_extract_homings(session, video_df):
             homings = pickle.load(dill_file)
     else:
         logger.info("Homings object not found. Extracting homings now...")
-        homings_obj = get_Homings(settings_h, session, video_df)
+        homings_obj = get_Homings(settings=settings_h, session=session)
         homings = homings_obj.session.homing
     return homings
