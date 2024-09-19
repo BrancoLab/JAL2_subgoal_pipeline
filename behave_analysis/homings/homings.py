@@ -119,8 +119,8 @@ class get_Homings:
             self.end_locs,
             avg_speed,
             homing_angles_dic,
-            #spatial_efficiency_values,
-            #condition,
+            spatial_efficiency_values,
+            condition,
         )
 
         self.save_session()
