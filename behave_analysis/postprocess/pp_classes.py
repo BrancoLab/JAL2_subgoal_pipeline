@@ -453,7 +453,11 @@ class DataPostprocessor(BaseDataPostprocessor):
             video_df, self.session
         )  # For now just log the warning and don't touch the data
         if settings.homings:
-            homings = load_or_extract_homings(session, video_df)
+            # homings = load_or_extract_homings(session, video_df)
+            homie_path = os.path.join(session.base_path, session.processed_path, "homings", "homings_obj.pkl")
+            import dill as pickle
+            with open(homie_path, "rb") as dill_file:
+                homings = pickle.load(dill_file)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
             video_df = self.add_homie_to_video_df(video_df, homings)
         if settings.efizz:
