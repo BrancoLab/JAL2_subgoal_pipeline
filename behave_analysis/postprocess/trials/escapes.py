@@ -23,7 +23,7 @@ class Escapes:
     stimulus_durations: list
     escape_onset_frames: list  # when did the actual escape start
     escape_end_frames: list
-    escape_latency: list  # how many seconds after stim onset did the mouse escape
+    escape_latency_sec: list  # how many seconds after stim onset did the mouse escape
     freeze_bool: list  # did the mouse freeze?
     start_locs: np.array  # x,y pixel locations of the start of each homing run
     end_locs: np.array  # x,y pixel locations of the end of each homing run
@@ -81,7 +81,7 @@ class get_Escapes:
                 start_locs[c_fr,:] = homings.start_locs[h_idx]
                 end_locs[c_fr,:] = homings.end_locs[h_idx]
                 avg_speed[c_fr] = homings.avg_speed[h_idx]
-                # head_ori_at_start[c_fr] = homings.hdir_at_start[h_idx]
+                head_ori_at_start[c_fr] = homings.hdir_at_start[h_idx]
                 for key in homings.homing_angles_dic.keys():
                     head_theta[key].append(homings.homing_angles_dic[key][h_idx])
 
