@@ -11,6 +11,7 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
 )
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
+from behave_analysis.utils.arena_plotting import Arena
 
 
 def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_Ids, settings, tracking_data):
@@ -95,7 +96,8 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
             full_pos = np.logical_not(empty_pos)
 
             # plot at each position that has a rayleigh an arrow/line with length and orientation given by rayleigh
-            base_plotting(ax, tracking_data, condition = c)
+            Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=c, barrier_coordinates=session.barrier_location)
+            # base_plotting(ax, tracking_data, condition = c, session = session)
             ax.scatter(this_pos[empty_pos, 0], this_pos[empty_pos, 1], 5, "k")
             ax.quiver(
                 this_pos[full_pos, 0],

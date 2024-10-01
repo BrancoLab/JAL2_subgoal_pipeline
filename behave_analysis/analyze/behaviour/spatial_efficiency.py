@@ -4,12 +4,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib
+matplotlib.use('TkAgg')
 from sklearn.metrics.pairwise import cosine_similarity
 
+from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.color_funcs import get_color_based_on_speed
-from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial
 
-def spatial_efficiency(onset_frames, stimulus_durations, session, settings, video_df, tracking_data, trial_type, plotting = True, interp = 100, save_dir = []):
+def spatial_efficiency(onset_frames, stimulus_durations, session, settings, trial_conditions, tracking_data, trial_type, plotting = True, interp = 100, save_dir = []):
     """ 
     Plot escape trajectories as well as optimal path
     """
@@ -24,7 +26,6 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, vide
     else:
         number_of_figures = 1
 
-    condition = []
     spatial_efficiency_value = np.empty(len(onset_frames))
     trajectory_length = []
     # Plot up to 20 trials per figure
@@ -40,17 +41,18 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, vide
                 
                 onset_frame = onset_frames[trial_counter]
                 stimulus_duration = stimulus_durations[trial_counter]
+                condition = trial_conditions[trial_counter]
 
-                condition.append([identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset_frame)), session)])
                 # set up axes with shelt and barrier locations
                 if plotting:
                     ax = fig.add_subplot(gs[row, col])
-                    base_plotting(ax,tracking_data,condition[trial_counter][0])
+                    Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=condition, barrier_coordinates=session.barrier_location)
+                    # base_plotting(ax,tracking_data,condition, session = session)
                 else:
                     ax = []
                 real_x, real_y, trajectory_length_single_trial = plot_escape_trajectories(int(onset_frame),int(stimulus_duration*session.video.fps), tracking_data, settings, interp, ax)
                 trajectory_length = np.append(trajectory_length, trajectory_length_single_trial)
-                optimal_x, optimal_y = plot_optimal_trajectories(int(onset_frame), tracking_data, condition[trial_counter][0], interp, ax)
+                optimal_x, optimal_y = plot_optimal_trajectories(int(onset_frame), tracking_data, condition, interp, ax)
 
                 # cosine similarity
                 cs = []
@@ -68,7 +70,7 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, vide
             if settings.show_plots: plt.show()
             plt.close()
 
-    return condition, spatial_efficiency_value, trajectory_length
+    return spatial_efficiency_value, trajectory_length
 
 def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, settings,interp = 100, ax = []):
     """ 

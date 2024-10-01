@@ -5,6 +5,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from behave_analysis.utils.color_funcs import get_color_based_on_speed
+from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial
 
 def spatial_efficiency(onset_frames, stimulus_durations, session, settings, video_df, tracking_data, plotting = True, save_dir = []):
@@ -30,7 +31,8 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, vide
         # set up axes with shelt and barrier locations
         if plotting:
             ax = plt.subplot(nrows, ncols, trial_num + 1)
-            base_plotting(ax,tracking_data,condition[trial_num][0])
+            Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=condition[trial_num][0], barrier_coordinates=session.barrier_location)
+            # base_plotting(ax,tracking_data,condition[trial_num][0], session = session)
         else:
             ax = []
         trajectory_length[trial_num] = plot_escape_trajectories(onset_frame[0],stimulus_duration[0]*session.video.fps, tracking_data, settings, ax)
