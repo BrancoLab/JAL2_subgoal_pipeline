@@ -26,7 +26,7 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
-
+from behave_analysis.analyze.behaviour.utils import identify_condition_of_trial
 
 @dataclass(frozen=False)
 class Homings:
@@ -125,8 +125,9 @@ class get_Homings:
         self.homing_angles_dic, self.hdir_at_start = get_avg_homing_angle_for_start_of_run(
             self.session, self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
         )
-        self.condition, self.spatial_efficiency_values, self.trajectory_length = spatial_efficiency(
-            self.onset_frames, self.stimulus_durations, self.session, self.settings, self.video_df, self.tracking_data, trial_type="Homings", plotting=False
+        self.condition = get_condition_homing(self.video_df, self.onset_frames, self.session)
+        self.spatial_efficiency_values, self.trajectory_length = spatial_efficiency(
+            self.onset_frames, self.stimulus_durations, self.session, self.settings, self.condition, self.tracking_data, trial_type="Homings", plotting=False
         )
 
     # ------------------- Use manual labels -------------------------------
@@ -545,7 +546,13 @@ def get_start_and_end_locs(tracking: object, onset_frames: np.array, offset_fram
     assert len(start_locs) == len(end_locs), "Start and end locs are not the same length"
     assert len(start_locs) == len(onset_frames), "Start locs and number of homings are not the same length"
     return start_locs, end_locs
-    
+
+def get_condition_homing(video_df, onset_frames, session):
+    condition = []
+    for onset in onset_frames:
+        condition.append([identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset)), session)])
+    return condition
+
 def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
     """For the first 15cm of each homing, compute the average angle to each reference locations
     (shelter, pre flip goal, post flip goal).

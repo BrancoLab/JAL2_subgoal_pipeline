@@ -7,13 +7,15 @@ from dataclasses import dataclass
 
 import dill as pickle
 import numpy as np
+import polars as pl
 from loguru import logger
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.homings.homings import get_avg_homing_angle_for_start_of_run, get_start_and_end_locs, get_avg_speed
 from settings.settings_analyze import settings_analyze as settings_a
 from settings.settings_homings import settings_homings as settings_h
-
+from behave_analysis.analyze.behaviour.utils import identify_condition_of_trial
+from behave_analysis.visualize.visualize_utils import open_tracking_data
 
 @dataclass(frozen=True)
 class Escapes:
@@ -47,6 +49,12 @@ class get_Escapes:
     If an 'escape' is found in the homings object, it will be removed from the homings object"""
 
     def __init__(self, settings, session, tracking_data, video_df, homings):
+
+        if len(tracking_data) == 0:
+            tracking_data = open_tracking_data(session)
+        if len(video_df) == 0:
+            video_df = pl.read_csv(os.path.join(session.base_path, session.processed_path) + "\\" "full_video_dataframe.csv")
+
         onset_frames = session.__dict__[settings_a.stim_type].onset_frames
         stimulus_durations = session.__dict__[settings_a.stim_type].stimulus_durations
 
@@ -60,6 +68,7 @@ class get_Escapes:
         avg_speed = np.zeros_like(onset_frames, dtype = float)
         head_ori_at_start = np.zeros_like(onset_frames)
         head_theta = {}
+        condition = []
         for key in homings.homing_angles_dic.keys():
             if key not in head_theta:
                 head_theta[key] = []
@@ -121,8 +130,10 @@ class get_Escapes:
                 else:
                     esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / session.video.fps
 
-        condition, spatial_efficiency_values, trajectory_length = spatial_efficiency(
-            onset_frames, stimulus_durations, session, settings, video_df, tracking_data, trial_type="Escapes", plotting=False
+            condition.append([identify_condition_of_trial(video_df.filter(video_df["frames"] == int(c_fr)), session)])
+
+        spatial_efficiency_values, trajectory_length = spatial_efficiency(
+            onset_frames, stimulus_durations, session, settings, condition, tracking_data, trial_type="Escapes", plotting=False
         )
 
         self.escapes = Escapes(
