@@ -32,16 +32,16 @@ def get_onset_and_duration(data_on: object, session: object, stim_type: str, min
 
     if data_type == "samples":
         # find the camera frame that the onsets were on (divide by fps to get seconds)
-        data_onset_frames = np.array([[np.argmin(abs(x - session.camera_trigger.frame_trigger_onsets_idx))] for x in data_onset_idx])
-        data_offset_frames = np.array([[np.argmin(abs(x - session.camera_trigger.frame_trigger_onsets_idx))] for x in data_offset_idx])
+        data_onset_frames = np.array([np.argmin(abs(x - session.camera_trigger.frame_trigger_onsets_idx)) for x in data_onset_idx])
+        data_offset_frames = np.array([np.argmin(abs(x - session.camera_trigger.frame_trigger_onsets_idx)) for x in data_offset_idx])
     if data_type == "frames":
         # return the nidaq timepoints for onsets (divide by 30000 to get seconds)
         data_onset_frames = data_onset_idx
         data_offset_frames = data_offset_idx
 
     if data_type == "samples":
-        stimulus_durations = np.array([[x] for x in np.round((data_offset_idx - data_onset_idx) / session.daq_sampling_rate, 1)])
+        stimulus_durations = np.array([x for x in np.round((data_offset_idx - data_onset_idx) / session.daq_sampling_rate, 1)])
     if data_type == "frames":
-        stimulus_durations = np.array([[x] for x in (data_offset_idx - data_onset_idx) / session.video.fps])
+        stimulus_durations = np.array([x for x in (data_offset_idx - data_onset_idx) / session.video.fps])
 
     return data_onset_frames, stimulus_durations, data_offset_frames
