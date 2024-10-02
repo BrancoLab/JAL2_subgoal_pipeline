@@ -60,7 +60,7 @@ dependencies:
     - cloudpickle
     - coverage
     - coveralls
-    - cupy-cuda90
+    # - cupy-cuda90
     - cycler
     - dask
     - dataclasses
@@ -75,6 +75,7 @@ dependencies:
     - gast
     - grpcio
     - h5py
+    - hdbscan
     - html5lib
     - idna
     - imageio
@@ -121,7 +122,7 @@ dependencies:
     - pyyaml
     - requests
     - resampy
-    - scikit-fmm
+    # - scikit-fmm
     - scikit-image
     - scikit-learn
     - scipy
@@ -137,6 +138,7 @@ dependencies:
     - toolz
     - tqdm
     - typing-extensions
+    - umap-learn
     - urllib3
     - werkzeug
     - wheel
