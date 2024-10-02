@@ -117,6 +117,7 @@ def plot_optimal_trajectories(onset_frames, tracking_data, condition, interp = 1
     opt_y = tracking_data['head_loc'][onset_frames,1]
     opt_t = [0]
     # compute and plot each optimal trajectory to barrier
+    if isinstance(condition,list): condition = condition[0]
     if not(any([condition == 'shelter_only',condition == 'pre_shelter', condition == 'barrier_removed',opt_y > 512])): # if no barrier or mouse starts in shelter zone
         opt_t = np.append(opt_t,(interp-1)/2)
         if condition == 'barrier_present': # double sided barrier 
