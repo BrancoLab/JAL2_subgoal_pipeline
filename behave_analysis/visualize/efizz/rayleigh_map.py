@@ -10,7 +10,6 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
     generate_bins,
 )
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
 from behave_analysis.utils.arena_plotting import Arena
 
 
