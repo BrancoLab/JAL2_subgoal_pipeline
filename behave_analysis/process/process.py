@@ -61,7 +61,7 @@ class Process():
             self.quality_check_new_sessions()
 
         logger.info("Saving session metadata - building polars df next")
-        # self.save_session()
+        self.save_session()
             
         if settings_p.efizz:
             efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
