@@ -11,7 +11,7 @@ import polars as pl
 from loguru import logger
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.homings.homings import get_avg_homing_angle_for_start_of_run, get_start_and_end_locs, get_avg_speed
+from behave_analysis.homings.homings import get_avg_homing_angle_for_first15cm_of_run, get_start_and_end_locs, get_avg_speed
 from settings.settings_analyze import settings_analyze as settings_a
 from settings.settings_homings import settings_homings as settings_h
 from behave_analysis.analyze.behaviour.utils import identify_condition_of_trial
@@ -57,10 +57,13 @@ class get_Escapes:
 
         onset_frames = session.__dict__[settings_a.stim_type].onset_frames
         stimulus_durations = session.__dict__[settings_a.stim_type].stimulus_durations
+        if isinstance(onset_frames[0],np.ndarray):
+            onset_frames = [on[0] for on in onset_frames]
+            stimulus_durations = [st[0] for st in stimulus_durations]
 
         # init varsq
-        esc_onset = np.zeros_like(onset_frames).astype(float)  # when did the actual escape start
-        esc_offset = np.zeros_like(onset_frames).astype(float)  # when did the actual escape start
+        esc_onset = list(onset_frames)  # when did the actual escape start
+        esc_offset = [a+b for a,b in zip(onset_frames,stimulus_durations)]  # when did the actual escape start
         esc_latency = np.zeros_like(onset_frames).astype(float)  # how many seconds after stim onset did the mouse escape
         freeze = np.zeros_like(onset_frames)  # did the mouse freeze?
         start_locs = np.zeros((len(onset_frames),2))
@@ -167,7 +170,6 @@ class get_Escapes:
 def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
     """A function that looks at the behaviour of mousie after stim"""
     # init vars
-    esc_onset = np.nan
     head_theta = {}
     for a in angles:
         head_theta[a] = np.nan
@@ -180,20 +182,26 @@ def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
     if len(np.where(run_onset)[0]) > 0:  # mousie needs to run at 15cm/s for a few consecutive frames
         esc_onset = np.where(run_onset)[0][0] - fps # which frame does escape start on? the stim is frame 0
         esc_offset = np.where(run_onset == -1)[0][0] - fps
+        start_locs, end_locs = get_start_and_end_locs(
+                                tracking=tracking_data, onset_frames=[esc_onset + on_fr], offset_frames=[esc_offset + on_fr]
+                                )
         if (esc_offset - esc_onset) > fps / 2:  # escape needs to last at least .5 sec?
-            # get escape properties
-            start_locs, end_locs = get_start_and_end_locs(
-                tracking=tracking_data, onset_frames=esc_onset + on_fr, offset_frames=esc_offset + on_fr
+            # get escape properties - these functions want lists!!!
+            avg_speed = get_avg_speed([esc_onset + on_fr], [esc_offset + on_fr], tracking_data, session)
+            head_theta, hdir_at_start = get_avg_homing_angle_for_first15cm_of_run(
+                session, [esc_onset + on_fr], [esc_offset + on_fr], tracking_data, settings_h.cum_threshold
             )
-            avg_speed = get_avg_speed(esc_onset + on_fr, esc_offset + on_fr, tracking_data, session)
-            head_theta, hdir_at_start = get_avg_homing_angle_for_start_of_run(
-                session, esc_onset + on_fr, esc_offset + on_fr, tracking_data, settings_h.cum_threshold
-            )
-        else:
+            esc_onset = esc_onset + on_fr
+            esc_offset = esc_offset + on_fr
+        else: # ok this is a freeze/no escpae situation
             esc_onset = np.nan
             esc_offset = np.nan
+            avg_speed = 0
+            _, hdir_at_start = get_avg_homing_angle_for_first15cm_of_run(
+                session, [on_fr], [on_fr+session.video.fps], tracking_data, settings_h.cum_threshold
+            )
 
-    return esc_onset+on_fr,esc_offset+on_fr, head_theta, hdir_at_start, avg_speed, start_locs, end_locs
+    return esc_onset,esc_offset, head_theta, hdir_at_start, avg_speed, start_locs, end_locs
 
 
 # def get_spatial_efficiency(onset_frames, stimulus_durations, session, tracking_data, video_df):

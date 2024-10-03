@@ -12,9 +12,10 @@ settings_homings = Settings_homings(
     threat_area_width=820,
     threat_area_height=275,
     cum_threshold=25,  # How many cm does the mouse have to move when considering homing angle
+    speed_threshold = 15, # this determined when the mouse has actually srated running (after the initial head turn) 
     by_session=True,
     sessions=[0],
     min_frames_between_trials=40,  # 1 second between trials to stop double counting split homings
-    redo_homings = True, # conditional if we want to force remake homing object
+    redo_homings = False, # conditional if we want to force remake homing object
     use_boris = True,
 )

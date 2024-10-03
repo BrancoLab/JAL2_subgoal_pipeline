@@ -122,7 +122,7 @@ class get_Homings:
             tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
         )
         self.avg_speed = get_avg_speed(self.onset_frames, self.offset_frames, self.tracking_data, self.session)
-        self.homing_angles_dic, self.hdir_at_start = get_avg_homing_angle_for_start_of_run(
+        self.homing_angles_dic, self.hdir_at_start = get_avg_homing_angle_for_first15cm_of_run(
             self.session, self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
         )
         self.condition = get_condition_homing(self.video_df, self.onset_frames, self.session)
@@ -523,12 +523,19 @@ def get_avg_speed(onsets, offsets, tracking_data, session) -> np.array:
     avg_speed = np.zeros(len(onsets))
 
     for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
-        tracking = tracking_data["avg_loc"][onset:offset]
-        speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
-        speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
-        speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
-        smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps / 10, mode="nearest")
-        avg_speed[homing] = np.mean(smoothed_speed_cm_per_sec)
+        y_loc = tracking_data['head_loc'][onset:offset,1]
+        in_shelt = np.where(y_loc > tracking_data['shelter_loc'][0][1])[0]
+        trial_speed = tracking_data["avg_Velocity"][onset:offset]
+        if len(in_shelt)>0:
+            trial_speed = trial_speed[:in_shelt[0]]
+        avg_speed[homing] = np.mean(trial_speed)
+
+        # tracking = tracking_data["avg_loc"][onset:offset]
+        # speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
+        # speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
+        # speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
+        # smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps / 10, mode="nearest")
+        # avg_speed[homing] = np.mean(smoothed_speed_cm_per_sec)
 
     assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
     return avg_speed
@@ -548,13 +555,53 @@ def get_start_and_end_locs(tracking: object, onset_frames: np.array, offset_fram
     return start_locs, end_locs
 
 def get_condition_homing(video_df, onset_frames, session):
+    """Return the experimental condition that the homing happened"""
     condition = []
     for onset in onset_frames:
         condition.append([identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset)), session)])
     return condition
 
-def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
-    """For the first 15cm of each homing, compute the average angle to each reference locations
+def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, speed_thresh = 15) -> dict:
+    """This takes the average head angle after the mouse starts running 
+    Unlike get_avg_homing_angle_for_first15cm_of_run, it doesn't include the head turn at the start of the homing
+    The initial running period is capped at .5 seconds
+    
+    The speed of running is 10cm/s - this may need to be adjusted, TBD
+
+        Returns:
+    -- dic: dictionary with the above arrays stored as values
+    -- starting_hdir: the hdir at the start of the homing (before the head turn)
+    """
+
+    # init arrays to store the average heading angles to the pre and post flip barrier locations
+    avg_hsa = np.zeros(len(onsets))  # One value per homing
+    avg_pre_flip_head_angle = np.zeros(len(onsets))
+    avg_post_flip_head_angle = np.zeros(len(onsets))
+    avg_hdir = np.zeros(len(onsets))
+    starting_hdir = np.zeros(len(onsets))
+
+    for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
+        hsa = tracking_data["hdir_shelt"][onset:offset+session.video.fps]
+        hbarpre = tracking_data["hdir_barrier"][onset:offset+session.video.fps,0]
+        hbarpost = tracking_data["hdir_barrier"][onset:offset+session.video.fps,1]
+        hdir = tracking_data["hdir"][onset:offset+session.video.fps]
+        starting_hdir[idx] = tracking_data["hdir"][onset]
+        when_running = tracking_data["avg_Velocity"][onset:offset+session.video.fps]>speed_thresh # this is potentially dangerous if this threshold doesn't work for other sessions
+        run_start = np.where(np.diff((when_running).astype(int)) == 1)[0][0]
+        run_end = np.where(np.diff((when_running).astype(int)) == -1)[0][0]
+        if (run_end - run_start) > (session.video.fps/2): # never look at more than .5 second of running
+            run_end = run_start + (session.video.fps/2)
+        avg_hdir[idx] = np.mean(hdir[run_start:int(run_end)])
+        avg_hsa[idx] = np.mean(hsa[run_start:int(run_end)])
+        avg_pre_flip_head_angle[idx] = np.mean(hbarpre[run_start:int(run_end)])
+        avg_post_flip_head_angle[idx] = np.mean(hbarpost[run_start:int(run_end)])
+
+    dic = {"avg_hdir": avg_hdir, "avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
+    
+    return dic, starting_hdir
+
+def get_avg_homing_angle_for_first15cm_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
+    """For the first 5 to 15cm of each homing, compute the average angle to each reference locations
     (shelter, pre flip goal, post flip goal).
 
     Note - 15cm is arbitrary and could be changed in settings_homings.py
@@ -578,6 +625,7 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
     avg_hsa = np.zeros(len(onsets))  # One value per homing
     avg_pre_flip_head_angle = np.zeros(len(onsets))
     avg_post_flip_head_angle = np.zeros(len(onsets))
+    avg_hdir = np.zeros(len(onsets))
     starting_hdir = np.zeros(len(onsets))
 
     # extract
@@ -601,6 +649,8 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
         if frame_index == None:
             continue
         
+        avg_hdir[i] = circmean(tracking_data["hdir"][start_frame:frame_index])
+        
         hsa = hsa_data[start_frame:frame_index]
         avg_hsa[i] = circmean(hsa)
 
@@ -612,7 +662,7 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
 
-    dic = {"avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
+    dic = {"avg_hdir": avg_hdir, "avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
 
     return dic, starting_hdir
 

@@ -51,6 +51,7 @@ class Settings_homings:
     max_time_within_session: float
     threat_area_width: int
     cum_threshold: int
+    speed_threshold: int
     threat_area_height: int
     # subgoal_locations: list
     # duration_after_crossing: float

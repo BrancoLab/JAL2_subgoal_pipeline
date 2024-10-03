@@ -42,8 +42,11 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, tria
                 onset_frame = onset_frames[trial_counter]
                 stimulus_duration = stimulus_durations[trial_counter]
                 condition = trial_conditions[trial_counter]
+                if np.isnan(onset_frame):
+                    continue
 
                 # set up axes with shelt and barrier locations
+
                 if plotting:
                     ax = fig.add_subplot(gs[row, col])
                     Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=condition, barrier_coordinates=session.barrier_location)
