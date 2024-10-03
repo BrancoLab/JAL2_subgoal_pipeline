@@ -28,6 +28,7 @@ from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.rm_escapes_from_homings import remove_escapes_from_homings_object
 from behave_analysis.analyze.behaviour.utils import plot_trajectories
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
+from behave_analysis.homings.homings import cum_distance
 
 
 def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
@@ -238,6 +239,156 @@ def plot_the_probability_of_start_locations(session, onset_frames, all_condition
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+"_loc_probability.png")))
     plt.close()
 
+def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, tracking_data, title):
+    """Finds the cosine similarity between the heading of the mouse when he starts running in the homing and the angle with the three goals
+    Assigns the homing heading to the goal it is most similar to
+    Doesn't differentiate between below and above the barrier so a lot of shelter targets are actually below the barrier"""
+
+    conditions = identify_conditions(session)
+
+    if "barrier_pre_flip" in conditions:
+        conditions.remove("barrier_present")
+
+    if "shelter_only" in conditions:
+        conditions.remove("shelter_present")
+    
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(15, 5))
+
+    for i, con in enumerate(conditions):
+        pref_heading = np.zeros(3)
+        sum_homings = 0
+        for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
+            trial_condition = all_conditions[idx][0]
+            if isinstance(onset,np.ndarray):
+                onset = onset[0].astype(int)
+
+            if np.logical_or(con == trial_condition, con == "all_time"):
+
+                frame_coords = tracking_data["avg_loc"][onset:offset]
+                _, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+
+                # calculate the preference of mouse heading for one of three targets using cosine similarity
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][0][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][0][1]
+                bprea = - np.arctan2(ydist, xdist)
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][1][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][1][1]
+                bposta = - np.arctan2(ydist, xdist)
+                if tracking_data["bod_shelt_dir"][start_frame] < 0: bsa = tracking_data["bod_shelt_dir"][start_frame] + np.pi
+                if tracking_data["bod_shelt_dir"][start_frame] > 0:  bsa = tracking_data["bod_shelt_dir"][start_frame] - np.pi
+
+                cosim=[]
+                for ang in [bprea,bsa, bposta]:
+                    cosim = np.append(cosim,np.cos(ang-head_angle[idx]))
+                pref_heading[np.argmax(cosim)] += 1
+                sum_homings += 1
+
+            ax[i].bar(np.arange(3),pref_heading,color = ['green','red','blue'])
+            ax[i].set_ylabel('number of homings')
+            ax[i].set_xlabel('homing target')
+            ax[i].set_xticks(np.arange(3))
+            ax[i].set_xticklabels(['preflip','shelter','postflip'])
+            ax[i].set_title(f"{con} (n={sum_homings})")
+    
+    plt.tight_layout()
+
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist"+title+"_heading_angle.png")))
+    plt.close()
+
+def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_start, all_conditions, tracking_data, title):
+    """On a drawing of the arena it plots the heading of the mouse before the homing begins and as the mouse starts running (after the head turn)
+    The heading of the mouse as he is running is colored by the goal it is targeting (using cosine similarity)"""
+    
+    conditions = identify_conditions(session)
+
+    if "barrier_pre_flip" in conditions:
+        conditions.remove("barrier_present")
+
+    if "shelter_only" in conditions:
+        conditions.remove("shelter_present")
+
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions)+1, figsize=(20, 20))
+    length = 180
+
+    for i, con in enumerate(conditions):
+        sum_homings = 0
+        for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
+            trial_condition = all_conditions[idx][0]
+            if isinstance(onset,np.ndarray):
+                onset = onset[0].astype(int)
+
+            if np.logical_or(con == trial_condition, con == "all_time"):
+                # add an arrow for where the mouse was facing before the head turn
+                dx = length * np.cos(hdir_at_start[idx])
+                dy = length * -np.sin(hdir_at_start[idx])
+                mouse = tracking_data["avg_loc"][onset - 1]
+                ax[i].scatter(mouse[0], mouse[1], color="black")
+                ax[i].quiver(mouse[0], mouse[1], dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
+
+                # arrow of which way mouse is facing once it started running, colored by whatever it is targeting
+            
+                frame_coords = tracking_data["avg_loc"][onset:offset]
+                end_fr, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+                mouse = tracking_data["head_loc"][start_frame]
+                dx = length * np.cos(head_angle[idx])
+                dy = length * -np.sin(head_angle[idx])
+
+                # calculate the preference of mouse heading for one of three targets
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][0][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][0][1]
+                bprea = - np.arctan2(ydist, xdist)
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][1][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][1][1]
+                bposta = - np.arctan2(ydist, xdist)
+                if tracking_data["bod_shelt_dir"][start_frame] < 0: bsa = tracking_data["bod_shelt_dir"][start_frame] + np.pi
+                if tracking_data["bod_shelt_dir"][start_frame] > 0:  bsa = tracking_data["bod_shelt_dir"][start_frame] - np.pi
+
+                cosim=[]
+                for ang in [bprea,bsa, bposta]:
+                    cosim = np.append(cosim,np.cos(ang-head_angle))
+                color = ['green','red','blue']
+
+                ax[i].scatter(mouse[0], mouse[1], color=color[np.argmax(cosim)])
+                ax[i].quiver(mouse[0], mouse[1], dx, dy, angles="xy", scale_units="xy", scale=2, color=color[np.argmax(cosim)])
+
+                sum_homings += 1
+
+        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
+        ax[i].set_title(f"{con} (n={sum_homings})")
+
+    # make a legend for the two types of arrows
+    dx = length * np.cos(0)
+    dy = length * -np.sin(0)
+    ax[len(conditions)].quiver(312, 730, dx, dy, angles="xy", scale_units="xy", scale=2, color="red")
+    ax[len(conditions)].text(412,712,'homing run targets shelter')
+    ax[len(conditions)].quiver(312, 630, dx, dy, angles="xy", scale_units="xy", scale=2, color="green")
+    ax[len(conditions)].text(412,612,'homing run targets preflip')
+    ax[len(conditions)].quiver(312, 530, dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
+    ax[len(conditions)].text(412,512,'homing run targets postflip')
+    ax[len(conditions)].quiver(312, 430, dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
+    ax[len(conditions)].text(412,412,'pre homing hdir')
+    ax[len(conditions)].axis("off")
+    ax[len(conditions)].set_aspect("equal")
+    ax[len(conditions)].set_xlim([0, 1024])
+    ax[len(conditions)].set_ylim([0, 1024])
+
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str(title+"_heading_angle.png")))
+    plt.close()
+
+
+def trial_speed_hist(session, avg_speed, title):
+    # histogram of homing speed
+
+    _, ax = plt.subplots(nrows = 1,ncols = 1, figsize = (20,20))
+
+    ax.hist(avg_speed, bins = np.arange(0,200,10))
+    ax.set_xlabel('speed (cm/s)')
+    ax.set_ylabel('number of homings')
+
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_speed_of_"+title+".png")))
+    plt.close()
+
+## ----------------------NON FUNCTIONAL FUNCTIONS
 
 def homing_head_angle_trajectory(session, onsets, offsets, all_conditions, tracking_data, title):
     """Conduct a 2d histrogram normalised to count the probability of starting a homing at a given location"""
@@ -263,64 +414,3 @@ def homing_head_angle_trajectory(session, onsets, offsets, all_conditions, track
     # separate homings into conditions
     # extract hdir from 1s before onset through stim duration plus 1s
     # heatmap it
-
-
-def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_start, all_conditions, tracking_data, title):
-    # histogram of homing head angle targets
-    conditions = identify_conditions(session)
-
-    if "barrier_pre_flip" in conditions:
-        conditions.remove("barrier_present")
-
-    if "shelter_only" in conditions:
-        conditions.remove("shelter_present")
-
-    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
-    length = 180
-
-    for i, con in enumerate(conditions):
-        sum_homings = 0
-        for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
-            trial_condition = all_conditions[idx][0]
-            if isinstance(onset,np.ndarray):
-                onset = onset[0].astype(int)
-
-            if np.logical_or(con == trial_condition, con == "all_time"):
-                # arrow of which way mouse is facing once it started running
-                mouse_pos = tracking_data["head_loc"][onset:offset+session.video.fps]
-                when_running = tracking_data["avg_Velocity"][onset:offset+session.video.fps]>15 # this is potentially dangerous if this threshold doesn't work for other sessions
-                run_start = np.where(np.diff((when_running).astype(int)) == 1)[0][0]
-                mouse = mouse_pos[run_start]
-                dx = length * np.cos(head_angle[idx])
-                dy = length * -np.sin(head_angle[idx])
-                ax[i].scatter(mouse[0], mouse[1], color="black")
-                ax[i].quiver(mouse[0], mouse[1], dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
-
-                # add an arrow for where the mouse was facing before the head turn
-                dx = length * np.cos(hdir_at_start[idx])
-                dy = length * -np.sin(hdir_at_start[idx])
-                mouse = tracking_data["avg_loc"][onset - 1]
-                ax[i].scatter(mouse[0], mouse[1], color="red")
-                ax[i].quiver(mouse[0], mouse[1], dx, dy, angles="xy", scale_units="xy", scale=2, color="red")
-
-                ax[i].set_title(con)
-                sum_homings += 1
-
-        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
-        ax[i].set_title(f"{con} (n={sum_homings})")
-
-    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str(title+"_heading_angle.png")))
-    plt.close()
-
-
-def trial_speed_hist(session, avg_speed, title):
-    # histogram of homing speed
-
-    _, ax = plt.subplots(nrows = 1,ncols = 1, figsize = (20,20))
-
-    ax.hist(avg_speed, bins = np.arange(0,200,10))
-    ax.set_xlabel('speed (cm/s)')
-    ax.set_ylabel('number of homings')
-
-    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_speed_of_"+title+".png")))
-    plt.close()
