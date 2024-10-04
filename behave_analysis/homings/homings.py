@@ -90,7 +90,7 @@ class get_Homings:
         self.get_homing_properties()
 
         # Return main homings object
-        self.session.homing = Homings(
+        self.homing = Homings(
             onset_frames=self.onset_frames,
             offset_frames=self.offset_frames,
             stimulus_durations=self.stimulus_durations,
@@ -159,7 +159,7 @@ class get_Homings:
     def identify_homing_runs_with_logic(self):
         """All the steps needed to ID homings automatically"""
         self.extract_variables()
-        self.is_homing_logic()
+        self.homing_runs_on = self.is_homing_logic()
         self.onset_frames, self.stimulus_durations, self.offset_frames = self.get_onset_and_duration()
         # Remove homings that don't meet the criteria
         self.onset_frames, self.offset_frames, self.stimulus_durations = self.remove_inapplicable_runs(
@@ -558,7 +558,7 @@ def get_condition_homing(video_df, onset_frames, session):
     """Return the experimental condition that the homing happened"""
     condition = []
     for onset in onset_frames:
-        condition.append([identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset)), session)])
+        condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset)), session))
     return condition
 
 def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, speed_thresh = 15) -> dict:

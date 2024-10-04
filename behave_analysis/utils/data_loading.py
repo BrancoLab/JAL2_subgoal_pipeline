@@ -38,7 +38,7 @@ def load_or_extract_homings(session):
     else:
         logger.info("Homings object not found. Extracting homings now...")
         homings_obj = get_Homings(settings=settings_h, session=session)
-        homings = homings_obj.session.homing
+        homings = homings_obj.homing
     return homings
 
 
@@ -62,6 +62,8 @@ def load_or_extract_escapes(session):
     - AssertionError: If the homing data file does not exist at the expected path.
     """
     esc_path = os.path.join(session.base_path, session.processed_path, "escapes", "escapes_obj.pkl")
+    # homings = load_or_extract_homings(session)
+    # escapes = get_Escapes(settings, session, tracking_data = [], video_df = [], homings = homings)
     if os.path.exists(esc_path):
         logger.info("Escape object found. Loading...")
         with open(esc_path, "rb") as dill_file:

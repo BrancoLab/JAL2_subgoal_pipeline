@@ -57,6 +57,27 @@ class get_Escapes:
 
         onset_frames = session.__dict__[settings_a.stim_type].onset_frames
         stimulus_durations = session.__dict__[settings_a.stim_type].stimulus_durations
+        if len(onset_frames) == 0:
+            logger.warning("No escapes in this session!")
+            self.escapes = Escapes(
+            stim_onset_frames=[],
+            stimulus_durations=[],
+            escape_onset_frames=[],
+            escape_end_frames=[],
+            escape_latency_sec=[],
+            freeze_bool=[],
+            escape_condition=[],  # what condition did the escape happen in e.g. 'shelter_only'
+            trajectory_length=[],
+            spatial_efficiency=[],
+            head_orientation=[],
+            start_locs=[],
+            end_locs=[],
+            avg_speed=[],
+            start_head_ori=[],
+        )
+            self.save_session(session)  # save escapes to pickle
+            return
+
         if isinstance(onset_frames[0],np.ndarray):
             onset_frames = [on[0] for on in onset_frames]
             stimulus_durations = [st[0] for st in stimulus_durations]
@@ -133,7 +154,7 @@ class get_Escapes:
                 else:
                     esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / session.video.fps
 
-            condition.append([identify_condition_of_trial(video_df.filter(video_df["frames"] == int(c_fr)), session)])
+            condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(c_fr)), session))
 
         spatial_efficiency_values, trajectory_length = spatial_efficiency(
             onset_frames, stimulus_durations, session, settings, condition, tracking_data, trial_type="Escapes", plotting=False
