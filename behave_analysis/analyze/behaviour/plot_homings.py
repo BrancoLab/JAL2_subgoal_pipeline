@@ -354,6 +354,7 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
                 frame_coords = tracking_data["avg_loc"][onset:offset]
                 end_fr, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
                 mouse = tracking_data["head_loc"][start_frame]
+                if len(mouse) == 1: mouse = mouse[0] # why did this happen once?
                 dx = length * np.cos(head_angle[idx])
                 dy = length * -np.sin(head_angle[idx])
 
