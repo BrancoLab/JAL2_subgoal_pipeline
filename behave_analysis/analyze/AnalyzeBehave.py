@@ -39,57 +39,58 @@ class AnalyzeBehave:
             esc_obj, "stimulus_durations"
         ), "Escape object must have 'onset_frames' and 'stimulus_durations'."
 
-        logger.info(f"Making plots of spatial effciency in escape")
-        spatial_efficiency(
-            esc_obj.escape_onset_frames,
-            esc_obj.stimulus_durations,
-            self.session,
-            settings,
-            esc_obj.escape_condition,
-            self.tracking_data,
-            trial_type="Escapes",
-            plotting=True,
-            save_dir=self.dir,
-        )
+        if len(esc_obj.escape_onset_frames) > 0:
+            logger.info(f"Making plots of spatial effciency in escape")
+            spatial_efficiency(
+                esc_obj.escape_onset_frames,
+                esc_obj.stimulus_durations,
+                self.session,
+                settings,
+                esc_obj.escape_condition,
+                self.tracking_data,
+                trial_type="Escapes",
+                plotting=True,
+                save_dir=self.dir,
+            )
 
-        plot_the_start_of_each_run(session=self.session,
-                                    onsets=esc_obj.escape_onset_frames,
-                                    hdir_at_start=homings_obj.hdir_at_start,
-                                    all_conditions=esc_obj.escape_condition,
-                                    tracking_data=self.tracking_data,
-                                    title="escape")
+            plot_the_start_of_each_run(session=self.session,
+                                        onsets=esc_obj.escape_onset_frames,
+                                        hdir_at_start=esc_obj.start_head_ori,
+                                        all_conditions=esc_obj.escape_condition,
+                                        tracking_data=self.tracking_data,
+                                        title="escape")
 
-        plot_the_probability_of_start_locations(
-            session=self.session, 
-            onset_frames=esc_obj.escape_onset_frames, 
-            all_conditions=esc_obj.escape_condition, 
-            tracking_data=self.tracking_data, 
-            title="escape",
-        )
+            plot_the_probability_of_start_locations(
+                session=self.session, 
+                onset_frames=esc_obj.escape_onset_frames, 
+                all_conditions=esc_obj.escape_condition, 
+                tracking_data=self.tracking_data, 
+                title="escape",
+            )
 
-        trial_speed_hist(session=self.session, 
-                         avg_speed=esc_obj.avg_speed, 
-                         title="escapes")
-        
-        trial_initial_heading_angle(
-            session=self.session,
-            onsets=esc_obj.escape_onset_frames,
-            offsets=esc_obj.escape_end_frames,
-            head_angle=esc_obj.head_orientation["avg_hdir"],
-            hdir_at_start=esc_obj.start_head_ori,
-            all_conditions=esc_obj.escape_condition,
-            tracking_data=self.tracking_data,
-            title="escapes",
-        )
+            trial_speed_hist(session=self.session, 
+                            avg_speed=esc_obj.avg_speed, 
+                            title="escapes")
+            
+            trial_initial_heading_angle(
+                session=self.session,
+                onsets=esc_obj.escape_onset_frames,
+                offsets=esc_obj.escape_end_frames,
+                head_angle=esc_obj.head_orientation["avg_hdir"],
+                hdir_at_start=esc_obj.start_head_ori,
+                all_conditions=esc_obj.escape_condition,
+                tracking_data=self.tracking_data,
+                title="escapes",
+            )
 
-        hist_initial_heading_angle(session=self.session,
-            onsets=esc_obj.escape_onset_frames,
-            offsets=esc_obj.escape_end_frames,
-            head_angle=esc_obj.head_orientation["avg_hdir"],
-            all_conditions=esc_obj.escape_condition,
-            tracking_data=self.tracking_data,
-            title="escapes",
-        )
+            hist_initial_heading_angle(session=self.session,
+                onsets=esc_obj.escape_onset_frames,
+                offsets=esc_obj.escape_end_frames,
+                head_angle=esc_obj.head_orientation["avg_hdir"],
+                all_conditions=esc_obj.escape_condition,
+                tracking_data=self.tracking_data,
+                title="escapes",
+            )
 
         homings_obj = load_or_extract_homings(self.session)
         assert homings_obj is not None, "Failed to load homing data."

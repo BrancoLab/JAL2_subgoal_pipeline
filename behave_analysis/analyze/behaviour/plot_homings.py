@@ -97,7 +97,7 @@ def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
                     homings_obj.onset_frames[trial_counter],
                     homings_obj.stimulus_durations[trial_counter][0],
                 )
-                trial_condition = homings_obj.homing_condition[trial_counter][0]
+                trial_condition = homings_obj.homing_condition[trial_counter]
 
                 # Create subplot
                 ax = fig.add_subplot(gs[row, col])
@@ -119,7 +119,7 @@ def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
         plt.close()
 
 
-def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, tracking_data, title):
+def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, tracking_data, title, show_plots=False):
     """Plot the start of each homing so we can characterise behavioural variability
 
     Args:
@@ -142,7 +142,9 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
     for i, con in enumerate(conditions):
         sum_homings = 0
         for idx, onset in enumerate(onsets):
-            trial_condition = all_conditions[idx][0]
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
             if isinstance(onset,np.ndarray):
                 onset = onset[0].astype(int)
 
@@ -159,10 +161,11 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
         ax[i].set_title(f"{con} (n={sum_homings})")
 
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+".png")))
+    if show_plots: plt.show()
     plt.close()
 
 
-def plot_the_probability_of_start_locations(session, onset_frames, all_conditions, tracking_data, title):
+def plot_the_probability_of_start_locations(session, onset_frames, all_conditions, tracking_data, title, show_plots=False):
     """Conduct a 2d histrogram normalised to count the probability of starting a homing at a given location"""
     conditions = identify_conditions(session)
 
@@ -178,7 +181,9 @@ def plot_the_probability_of_start_locations(session, onset_frames, all_condition
     for i, con in enumerate(conditions):
         start_locs = []
         for idx, onset in enumerate(onset_frames):
-            trial_condition = all_conditions[idx][0]
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
             if isinstance(onset,np.ndarray):
                 onset = onset[0].astype(int)
 
@@ -235,16 +240,19 @@ def plot_the_probability_of_start_locations(session, onset_frames, all_condition
         
         Arena(dim = np.amax(ax[i].get_ylim()), ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
 
-    plt.show()
+    if show_plots: plt.show()
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+"_loc_probability.png")))
     plt.close()
 
-def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, tracking_data, title):
+def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, tracking_data, title, show_plots=False, plotting = True):
     """Finds the cosine similarity between the heading of the mouse when he starts running in the homing and the angle with the three goals
     Assigns the homing heading to the goal it is most similar to
     Doesn't differentiate between below and above the barrier so a lot of shelter targets are actually below the barrier"""
 
     conditions = identify_conditions(session)
+
+    if np.logical_and(not 'barrier_present' in conditions, 'shelter_present' in conditions):
+        conditions = conditions + ['shelter_only']
 
     if "barrier_pre_flip" in conditions:
         conditions.remove("barrier_present")
@@ -252,20 +260,26 @@ def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditi
     if "shelter_only" in conditions:
         conditions.remove("shelter_present")
     
-    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(15, 5))
+    if plotting:    
+        _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(15, 5))
+
+    heading_by_cond = {}
 
     for i, con in enumerate(conditions):
         pref_heading = np.zeros(3)
         sum_homings = 0
         for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
-            trial_condition = all_conditions[idx][0]
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
             if isinstance(onset,np.ndarray):
                 onset = onset[0].astype(int)
 
             if np.logical_or(con == trial_condition, con == "all_time"):
 
                 frame_coords = tracking_data["avg_loc"][onset:offset]
-                _, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+                # _, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+                _, start_frame = cum_distance(onset, offset, frame_coords, 10, 15)
 
                 # calculate the preference of mouse heading for one of three targets using cosine similarity
                 xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][0][0]
@@ -283,22 +297,30 @@ def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditi
                 pref_heading[np.argmax(cosim)] += 1
                 sum_homings += 1
 
+        if plotting: 
             ax[i].bar(np.arange(3),pref_heading,color = ['green','red','blue'])
             ax[i].set_ylabel('number of homings')
             ax[i].set_xlabel('homing target')
             ax[i].set_xticks(np.arange(3))
             ax[i].set_xticklabels(['preflip','shelter','postflip'])
             ax[i].set_title(f"{con} (n={sum_homings})")
+
+        heading_by_cond[con] = pref_heading
     
-    plt.tight_layout()
+    if plotting:
+        plt.tight_layout()
 
-    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist"+title+"_heading_angle.png")))
-    plt.close()
+        plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_"+title+"_heading_angle.png")))
+        if show_plots:
+            plt.show()
+        plt.close()
 
-def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_start, all_conditions, tracking_data, title):
+    return heading_by_cond
+
+def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_start, all_conditions, tracking_data, title, show_plots=False):
     """On a drawing of the arena it plots the heading of the mouse before the homing begins and as the mouse starts running (after the head turn)
     The heading of the mouse as he is running is colored by the goal it is targeting (using cosine similarity)"""
-    
+
     conditions = identify_conditions(session)
 
     if "barrier_pre_flip" in conditions:
@@ -313,7 +335,9 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
     for i, con in enumerate(conditions):
         sum_homings = 0
         for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
-            trial_condition = all_conditions[idx][0]
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
             if isinstance(onset,np.ndarray):
                 onset = onset[0].astype(int)
 
@@ -345,7 +369,7 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
 
                 cosim=[]
                 for ang in [bprea,bsa, bposta]:
-                    cosim = np.append(cosim,np.cos(ang-head_angle))
+                    cosim = np.append(cosim,np.cos(ang-head_angle[idx]))
                 color = ['green','red','blue']
 
                 ax[i].scatter(mouse[0], mouse[1], color=color[np.argmax(cosim)])
@@ -373,10 +397,11 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
     ax[len(conditions)].set_ylim([0, 1024])
 
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str(title+"_heading_angle.png")))
+    if show_plots: plt.show()
     plt.close()
 
 
-def trial_speed_hist(session, avg_speed, title):
+def trial_speed_hist(session, avg_speed, title, show_plots=False):
     # histogram of homing speed
 
     _, ax = plt.subplots(nrows = 1,ncols = 1, figsize = (20,20))
@@ -386,6 +411,7 @@ def trial_speed_hist(session, avg_speed, title):
     ax.set_ylabel('number of homings')
 
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_speed_of_"+title+".png")))
+    if show_plots: plt.show()
     plt.close()
 
 ## ----------------------NON FUNCTIONAL FUNCTIONS

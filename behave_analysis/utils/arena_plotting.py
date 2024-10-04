@@ -14,7 +14,7 @@ class Arena:
             self.draw_shelter(shelter_coordinates)
         self.ax.set_ylim([0, dim])
         self.ax.set_xlim([0, dim])
-        if len(barrier_coordinates) > 0:
+        if not barrier_coordinates == None:
             self.draw_barrier(condition, barrier_coordinates)
         self.ax.axis("off")
         self.ax.set_aspect("equal")

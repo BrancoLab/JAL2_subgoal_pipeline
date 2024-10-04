@@ -27,5 +27,4 @@ def analyze():
 
     logger.success("Analysis pipeline complete")
 
-
 analyze()

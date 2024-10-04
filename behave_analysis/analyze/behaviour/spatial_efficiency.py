@@ -88,11 +88,17 @@ def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, set
     y_loc = tracking_data['head_loc'][onset_frames:onset_frames + stimulus_durations,1]
     speed = tracking_data["avg_Velocity"][onset_frames:onset_frames + stimulus_durations]
     # crop the points after the mouse has entered the shelter
-    in_shelt = np.where(y_loc > tracking_data['shelter_loc'][0][1])[0]
+    in_shelt_y = y_loc > tracking_data['shelter_loc'][0][1]
+    in_shelt_x = np.logical_and(x_loc > tracking_data['shelter_loc'][0][0],x_loc < tracking_data['shelter_loc'][1][0])
+    in_shelt = np.where(np.logical_and(in_shelt_x, in_shelt_y))[0]
     if len(in_shelt)>0:
         x_loc = x_loc[:in_shelt[0]]
         y_loc = y_loc[:in_shelt[0]]
         speed = speed[:in_shelt[0]]
+
+    if len(x_loc) == 0: 
+        print('oppsie')
+        return tracking_data['head_loc'][onset_frames,0], tracking_data['head_loc'][onset_frames,1], 0
     trail_color = np.empty((len(speed),3))
 
     distance_travelled = []
