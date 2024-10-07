@@ -47,7 +47,8 @@ class PreprocessSingleTrialRegression:
         similar_homings=False,
         escape_object=None,
         remove_escapes=False,
-        save_plots=True,
+        save_plots=False,
+        condition=None,
     ):
         logger.info("Initializing the single trial regression preprocessing object")
 
@@ -66,19 +67,40 @@ class PreprocessSingleTrialRegression:
 
         # Preprocessing homing data
         UnitTests.check_attributes_of_homing_dic(self.homings_obj)
-        self.homing_list, homing_df_s1, self.condition_per_homing = self.preprocess_homing_data(select_similar_homings=self.similar_homings, video_df=video_df)
-        self.initial_directions = self.label_each_homing_with_an_initial_direction(
-            self.extract_cumulative_homing_data(self.homings_obj, self.barrier_location)
+        self.homing_list, homing_df_s1, self.condition_per_homing = self.preprocess_homing_data(
+            select_similar_homings=self.similar_homings, video_df=video_df
         )
+        
+        # self.initial_directions = self.label_each_homing_with_an_initial_direction(
+        #     self.extract_cumulative_homing_data(self.homings_obj, self.barrier_location)
+        # )
+
         homing_df_s2 = self.add_dependent_index_variable_to_homing_info(homing_data_single_dataframe=homing_df_s1)
         UnitTests.check_index_is_valid(self.compute_index)
         self.homing_data_single_dataframe = self.add_velocity_data_to_homing_data(homing_df_s2, velocity_data)
 
+        #### LOGIC to filter by condition ----------------------------------------------
+        if condition:
+            # Adding logic to filter by passed condition
+            assert len(self.condition_per_homing) == len(
+                np.unique(self.homing_data_single_dataframe["homing_id"])
+            ), "Check that condition per homing matches ids to use that as a filter"
+            mapping = {k: v for k, v in zip(np.unique(self.homing_data_single_dataframe["homing_id"]), self.condition_per_homing)}
+            homings_ids_in_condition = [
+                homing_id for homing_id in np.unique(self.homing_data_single_dataframe["homing_id"]) if mapping[homing_id] == condition
+            ]
+            if not homings_ids_in_condition:
+                logger.warning(f"There are no homings in the condition {condition}")
+                homings_ids_in_condition = None
+            self.homing_data_single_dataframe = self.homing_data_single_dataframe.filter(pl.col("homing_id").is_in(homings_ids_in_condition))
+            # Will return empty if homings_ids_in_condition is None not sure how this will be handled downstream
+            # NOTE EDGE CASE: If there are no homings in the condition then the design matrix will be empty
+
+        # -------------------------------------------------------------------------------
+
         # Create the design matrix
-        self.design_matrix, self.spike_data_per_homing = self.create_the_design_matrix(
-            self.homing_data_single_dataframe, frame_by_cluster_matrix
-        )
-        self.targets_df = self.create_dependent_dataframe(self.homing_data_single_dataframe)
+        self.design_matrix, self.spike_data_per_homing = self.create_the_design_matrix(self.homing_data_single_dataframe, frame_by_cluster_matrix)
+        self.targets_df = self.create_dependent_dataframe(self.homing_data_single_dataframe)  # Need to upgdate arg with the filtered one by condiiton
         UnitTests.check_the_creation_of_the_design_matrix(self.create_the_design_matrix)
 
         # Descriptive plots
@@ -288,7 +310,7 @@ class PreprocessSingleTrialRegression:
         # check there are left and right homings
         left = initial_direction.count("left edge")
         right = initial_direction.count("right edge")
-        #assert left > 0 and right > 0, "There are no left or right homings"
+        # assert left > 0 and right > 0, "There are no left or right homings"
         if not np.logical_and(left > 0, right > 0):
             logger.warning("There are no left or right homings")
         assert len(initial_direction) == len(self.homing_list), "The length of the initial direction is not the same as the homing list"
@@ -313,7 +335,9 @@ class PreprocessSingleTrialRegression:
         edge_names = check_which_barrier_location_is_which_orientation(barrier_location)
         angle_data = homing_object.homing_angles_dic
         expected_keys = ["avg_pre_flip_head_angle", "avg_post_flip_head_angle", "avg_hsa"]
-        assert all(key in angle_data.keys() for key in expected_keys), "The keys are not as expected in the homing angle data, check the homings object"
+        assert all(
+            key in angle_data.keys() for key in expected_keys
+        ), "The keys are not as expected in the homing angle data, check the homings object"
         if edge_names[0] == "left":
             left = angle_data["avg_pre_flip_head_angle"]
             right = angle_data["avg_post_flip_head_angle"]
@@ -721,11 +745,10 @@ class PreprocessSingleTrialRegression:
         spike_data_per_homing = []
 
         counter = 0
-        homing_ids_len = len(np.unique(data["homing_id"]))
-        for idx in range(homing_ids_len):
+        for idx, id in enumerate(np.unique(data["homing_id"])):
 
             # Get the frames for the homing id for slicing
-            frames = data.filter(data["homing_id"] == idx)["frames"].to_numpy()
+            frames = data.filter(data["homing_id"] == id)["frames"].to_numpy()
 
             # Get the corresponding frame by cluster matrix
             # minus 1 to prevent off by one error, +1 to include the last frame

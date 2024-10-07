@@ -49,6 +49,7 @@ class SingleTrialRegression:
         initial_directions: list,  # of strings e.g. ['north_edge', 'south_edge', 'hsa']
         conversion_from_left_right_to_pre_post_flip: dict,
         session_name="",
+        condition=None,
     ):
         """Initialize the single trial regression analysis object
 
@@ -68,6 +69,7 @@ class SingleTrialRegression:
         self.homing_list = homing_list
         self.spike_homing_list = spike_homing_list
         self.condition_per_homing = condition_per_homing
+        self.condition = condition
         self.tracking_data = tracking_data
         self.save_path = save_path
         self.initial_directions = initial_directions
@@ -89,9 +91,9 @@ class SingleTrialRegression:
 
         # TODO - Choose which analysis methods you want to run
         self.run(
-            run_all_dependent_variables=False,
+            run_all_dependent_variables=True,
             shift_neural_data=False,
-            explore_coeffs_with_other_predictors=True,
+            explore_coeffs_with_other_predictors=False,
             run_hiarchical_regression=False,
             train_and_test_on_different_directions=False,  # Do you want to train ols on south homings and test on north homings e.g
         )
@@ -133,7 +135,7 @@ class SingleTrialRegression:
 
             # Pickle save the results
             make_directory(self.save_path / "r2_scores")
-            file_name = str(self.session_name) + "_r2_scores.pickle"
+            file_name = str(self.session_name) + "_" + self.condition + "_r2_scores.pickle"
             with open(self.save_path / "r2_scores" / file_name, "wb") as f:
                 pickle.dump(r2_score_for_all_dependents, f)
 
@@ -227,7 +229,7 @@ class SingleTrialRegression:
         og_p_values = og_p_values[: self.number_of_neurons]
         comp_predictors_coeffs = comp_predictors_coeffs[: self.number_of_neurons]
         comp_predictors_p_value = comp_predictors_p_value[: self.number_of_neurons]
-        
+
         # bonferroni correction
         alpha = 0.05
         bonforrini_alpha = alpha / len(og_coefficients)
@@ -822,7 +824,6 @@ class SingleTrialRegression:
             X_train, X_test = X_train.to_numpy(), X_test.to_numpy()
 
             if multi_dependent:
-                print("Running multi output regression")
                 ols_fold_results[fold] = self.multi_output_ols_regression(
                     X_train, y_train, fold, save_path, X_test, y_test, name_of_dependent=dependent_var_name, ax=axs[fold]
                 )
@@ -835,7 +836,6 @@ class SingleTrialRegression:
                     )
 
             if not multi_dependent:
-                print("Running signle output regression")
                 ols_fold_results[fold] = self.ols_regression_statsmodel(X_train, y_train, fold, X_test, y_test, ax=axs[fold])
 
                 if not normal_mode:
@@ -1336,8 +1336,8 @@ class RegressionPlotting:
         )
 
         # would need to comment for random perhaps
-        #assert og_moel_significant_coeffs != all_predictors_significant, "The number of significant coefficients is the same for both models"
-        #ssert all_predictors_significant != num_sig, "The number of significant coefficients is the same for both models"
+        # assert og_moel_significant_coeffs != all_predictors_significant, "The number of significant coefficients is the same for both models"
+        # ssert all_predictors_significant != num_sig, "The number of significant coefficients is the same for both models"
 
         # save dictionary as pickle
         dic = {
