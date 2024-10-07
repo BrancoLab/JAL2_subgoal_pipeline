@@ -23,5 +23,5 @@ settings_analyze = Settings_analyze(
     # Note default caused a bug need to fix
     save_folder=Path("data"),
     efiz_file_path="D:/Electrophysiology_data/1677_NoShelterThenShelter_22MAY31_g0/1677_NoShelterThenShelter_22MAY31_g0_imec0/",
-    efizz=False,
+    efizz=True,
 )
