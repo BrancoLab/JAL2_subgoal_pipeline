@@ -3,6 +3,7 @@ import os
 import dill as pickle
 
 from behave_analysis.process.session import get_experiment 
+from behave_analysis.process.process import Process 
 
 '''From tracking data, extract random point positions and assign them to shelter or barrier'''
 
@@ -49,6 +50,7 @@ def tracking_to_features(tracking_data):
 
 def load_prediction_accuracy(session,settings, cond, time_cond):
 
+    coef = []
     coef_path = os.path.join(session.base_path,
                             session.processed_path,
                             'models',
@@ -60,9 +62,11 @@ def load_prediction_accuracy(session,settings, cond, time_cond):
                             cond,
                             str('good_' + cond + '_LDA_pa.pkl'))
     if not os.path.exists(coef_path):
-        print("path still doesn't exist: " + coef_path)
-    with open(coef_path, "rb") as dill_file:
-        coef = pickle.load(dill_file)
+        print("skipping condition! Path still doesn't exist: " + coef_path )
+        return coef
+    else:
+        with open(coef_path, "rb") as dill_file:
+            coef = pickle.load(dill_file)
     
     return coef
 
@@ -117,7 +121,8 @@ def extract_pa_across_sesh(all_angles,experiments_objects, conditions, all_featu
                 # avrage random point pred.acc. for shelter and barrier
                 point_grid = np.array(point_grid)
                 for a in features.keys():
-                    avg_pa[a][s,idx,h_idx] = np.mean(point_grid[features[a]])                        
+                    avg_pa[a][s,idx,h_idx] = np.mean(point_grid[features[a]]) # absolute value of prediction accuracy
+                    # avg_pa[a][s,idx,h_idx] = np.mean(point_grid[features[a]]) - np.mean(point_grid) # prediction accuracy improvement over background
 
         name = sesh.nick_name + '_' + sesh.experiment_date
         all_names.append(name)
@@ -130,3 +135,64 @@ def extract_pa_across_sesh(all_angles,experiments_objects, conditions, all_featu
             avg_pa[a] = avg_pa[a][:,:,0]
 
     return sessy, all_names, avg_pa, pa
+
+def extract_pa_map_across_sesh(experiments_objects, conditions,  settings, time_cond = ['experimental_conditions']):
+    sessy = {}
+    all_names = []
+    pa = {}
+
+    for s,sesh in enumerate(experiments_objects):
+        # find session
+        session = Process(sesh).load_session()
+
+        # load prediction accuracy
+        coef = {}
+        pa_this_sesh = {}
+        for idx,c in enumerate(conditions):
+            
+            point_grid = []
+
+            coef[c] = load_prediction_accuracy(session, settings, c, time_cond[0])
+            
+            if len(coef[c]) == 0:
+                continue
+            
+            for a in coef[c].keys():
+                if 'rand' in a:
+                    point_grid.append(coef[c][a])
+            
+            # random point pred.acc. map
+            point_grid = np.array(point_grid)
+            randP_loc = rand_point_array()
+            _, y = np.unique(randP_loc[:, 0], return_inverse=True)
+            _, x = np.unique(randP_loc[:, 1], return_inverse=True)
+            heatmap = np.zeros(shape=(len(np.unique(randP_loc[:, 0])), len(np.unique(randP_loc[:, 1]))))
+            heatmap[x, y] = point_grid
+
+            # flip it to make sure the preflip is always on the same side!
+            if np.logical_or(c == 'barrier_pre_flip',c == 'barrier_post_flip'):
+                b = [b[0] for b in session.barrier_location]
+                if b[0] > b[1]: # preflip barrier on the right
+                    heatmap = np.fliplr(heatmap)
+                
+            pa_this_sesh[c] = heatmap
+
+        name = sesh.nick_name + '_' + sesh.experiment_date
+        all_names.append(name)
+        pa[name] = pa_this_sesh
+        sessy[name] = coef
+
+    return sessy, all_names, pa
+
+def rand_point_array(numpoints = 64, size = 1024):
+    all_posX=[]
+    all_posY=[]
+    for i in np.arange(numpoints/2,size,numpoints):
+        all_posX = np.append(all_posX,np.arange(numpoints/2,size,numpoints))
+        all_posY = np.append(all_posY,np.ones(len(np.arange(numpoints/2,size,numpoints)))*i)
+    dist = np.sqrt(((all_posX - size/2)**2) + ((all_posY - size/2)**2))
+    all_posX = all_posX[dist<460] # size of arena circle, see register
+    all_posY = all_posY[dist<460]
+    randP_loc = np.vstack([all_posX,all_posY]).T
+
+    return randP_loc
