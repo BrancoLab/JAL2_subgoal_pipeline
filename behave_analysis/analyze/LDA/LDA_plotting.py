@@ -16,6 +16,7 @@ import matplotlib.colors as mcolors
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder
 # from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
 from behave_analysis.analyze.behaviour.utils import base_plotting
+from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.heatplot_utils import add_features, add_features_binned
 
 ## --------------- PLOTTING FUNCTIONS
@@ -464,7 +465,8 @@ def PredictionAccuracyMapped_old(self, prediction_accuracy):
     plt.axis("off")
     # prettify with arena features
     ax = plt.gca()
-    base_plotting(ax, self.tracking_data, self.condition)
+    Arena(ax=ax, shelter_coordinates=self.tracking_data["shelter_loc"], condition=self.condition, barrier_coordinates=self.session.barrier_location)
+    # base_plotting(ax, self.tracking_data, self.condition, session = self.session)
     ax.invert_yaxis()
     ax.set_aspect("equal")
 

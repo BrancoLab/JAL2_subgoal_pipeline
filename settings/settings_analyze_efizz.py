@@ -17,7 +17,7 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_ae = Settings_analyze_efizz(
     # ------------- General settings --------------------------
 
-    stim_type="None",  # 'audio', leave as 'None' if no stims were delivered
+    stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=False,  # whether to run linear shift!
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
@@ -31,14 +31,14 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
     #                                         "barrier_removed"
-    # conditions=["shelter_present",'pre_shelter'],
-    conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
+    conditions=["shelter_present",'pre_shelter','barrier_present'],
+    # conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
     # if 'time_conditions' it compares first vs second half
     # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
     # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
-    compartment_split=['by_position'], # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
+    compartment_split=['all'], # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     # If 'by_position', it will compute LDA decoding by arena position
     
@@ -61,7 +61,7 @@ Settings_ae = Settings_analyze_efizz(
     # --------------LSTM model settings ------------------------
     run_LSTM=False,
     # ------------- LDA model settings --------------------------
-    run_LDA=[],  # if [] it will not run LDA
+    run_LDA='all_angles',  # if [] it will not run LDA
     # if 'all_angles', 'all_distance','all_vectors' it will run it for all possible angles, distances, vectors
     # else:  list of angles ['hsa','hdir','h_postflipbar_a','h_preflipbar_a','h_bar_centre_a', 'randP']
     epoch_num=6,  # number of epochs for cross validation
@@ -70,8 +70,8 @@ Settings_ae = Settings_analyze_efizz(
     exclude_proximal = 0, # this determines how far the mouse has to be from each point for head angle point decoding, if 0 LDA uses all head angles regardless of distance to the target
     exclude_hdir = False,
     dropout = False, # this will iteratively dropout each cluster and recompute the LDA prediction accuracy to see how much that cluster matters
-    PCA_process=[],  # numnber of PCs to use, if left empty it will run without PCA
-    subsampling = False, # whether to subsample to equalize data by angles and space
+    PCA_process=[],  # number of PCs to use, if left empty it will run without PCA
+    subsampling = True, # whether to subsample to equalize data by angles and space
     # ------------ Rayleigh model settings ----------------------
     run_rayleigh=False,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"

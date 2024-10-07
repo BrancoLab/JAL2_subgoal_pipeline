@@ -26,13 +26,12 @@ import matplotlib.gridspec as gridspec
 import seaborn as sns
 from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.rm_escapes_from_homings import remove_escapes_from_homings_object
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial, plot_trajectories
-from behave_analysis.utils.data_loading import load_or_extract_homings
+from behave_analysis.analyze.behaviour.utils import plot_trajectories
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
+from behave_analysis.homings.homings import cum_distance
 
 
-def plot_homings(session, tracking_data, video_df, homings_obj, show_plots=False) -> None:
+def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
     """Plot and visualize the homing trajectories for a given session.
 
     This function creates one or more figures, each containing a grid of subplots, with each subplot representing
@@ -94,24 +93,33 @@ def plot_homings(session, tracking_data, video_df, homings_obj, show_plots=False
                     break
 
                 # Get homing details
-                onset_frame, stimulus_durations = homings_obj.onset_frames[trial_counter], homings_obj.stimulus_durations[trial_counter][0]
-                trial_condition = identify_condition_of_trial(video_df.filter(video_df["frames"] == onset_frame), session)
+                onset_frame, stimulus_durations = (
+                    homings_obj.onset_frames[trial_counter],
+                    homings_obj.stimulus_durations[trial_counter][0],
+                )
+                trial_condition = homings_obj.homing_condition[trial_counter]
 
                 # Create subplot
                 ax = fig.add_subplot(gs[row, col])
-                base_plotting(ax, tracking_data, condition=trial_condition)
+                Arena(
+                    ax=ax,
+                    shelter_coordinates=tracking_data["shelter_loc"],
+                    condition=trial_condition,
+                    barrier_coordinates=session.barrier_location,
+                )
+                # base_plotting(ax, tracking_data, condition=trial_condition, session = session)
                 plot_trajectories(onset_frame, stimulus_durations * session.video.fps, ax, "homing", tracking_data)
 
                 trial_counter += 1
 
         # Save figure
-        fig.savefig(os.path.join(session.base_path, session.processed_path, "homings", f"homings_figure_{figure}.png"))
-    if show_plots:
-        plt.show()
-    plt.close()
+        fig.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", f"homings_figure_{figure}.png"))
+        if show_plots:
+            plt.show()
+        plt.close()
 
 
-def plot_the_start_of_each_homing(session, homing_object, video_df, tracking_data):
+def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, tracking_data, title, show_plots=False):
     """Plot the start of each homing so we can characterise behavioural variability
 
     Args:
@@ -122,147 +130,314 @@ def plot_the_start_of_each_homing(session, homing_object, video_df, tracking_dat
     -- A plot where the head direction and start location of each homing is plotted coloured by the class"""
     conditions = identify_conditions(session)
 
-    if "barrier_present" in conditions:
+    if "barrier_pre_flip" in conditions:
         conditions.remove("barrier_present")
 
-    if "shelter_present" in conditions:
+    if "shelter_only" in conditions:
         conditions.remove("shelter_present")
-        
-    if "pre_shelter" in conditions:
-        conditions.remove("pre_shelter")
 
-    fig, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
     length = 180
-    onsets = homing_object.onset_frames
 
     for i, con in enumerate(conditions):
         sum_homings = 0
-        for onset in onsets:
-            trial_condition = identify_condition_of_trial(video_df.filter(video_df["frames"] == onset), session)
+        for idx, onset in enumerate(onsets):
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
+            if isinstance(onset,np.ndarray):
+                onset = onset[0].astype(int)
 
-            if con == "all_time":
-                head_direction = video_df.filter(video_df["frames"] == onset)["hdir"][0]
-                dx = length * np.cos(head_direction)
-                dy = length * -np.sin(head_direction)
-                x = video_df.filter(video_df["frames"] == onset)["mouse_x_position"][0]
-                y = video_df.filter(video_df["frames"] == onset)["mouse_y_position"][0]
-                ax[i].scatter(x, y, color="black")
-                ax[i].quiver(x, y, dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
+            if np.logical_or(con == trial_condition, con == "all_time"):
+                dx = length * np.cos(hdir_at_start[idx])
+                dy = length * -np.sin(hdir_at_start[idx])
+                mouse = tracking_data["avg_loc"][onset - 1]
+                ax[i].scatter(mouse[0], mouse[1], color="black")
+                ax[i].quiver(mouse[0], mouse[1], dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
                 ax[i].set_title(con)
-                Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=tracking_data["barrier_loc"])
-                
                 sum_homings += 1
 
-            if trial_condition == con:
-                head_direction = video_df.filter(video_df["frames"] == onset)["hdir"][0]
-                dx = length * np.cos(head_direction)
-                dy = length * -np.sin(head_direction)
-                x = video_df.filter(video_df["frames"] == onset)["mouse_x_position"][0]
-                y = video_df.filter(video_df["frames"] == onset)["mouse_y_position"][0]
-                ax[i].scatter(x, y, color="black")
-                ax[i].quiver(x, y, dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
-                Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=tracking_data["barrier_loc"])
-            
-                sum_homings += 1
-                
-        # if yaxes not inverted, then invert
-        if ax[i].get_ylim()[1] > ax[i].get_ylim()[0]:
-            ax[i].invert_yaxis()
-    
+        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
         ax[i].set_title(f"{con} (n={sum_homings})")
-        
-    plt.savefig(os.path.join(session.base_path, session.processed_path, "homings", "start_of_homings.png"))
+
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+".png")))
+    if show_plots: plt.show()
     plt.close()
 
 
-def plot_the_probability_of_start_locations(session, homing_object, video_df, tracking_data):
+def plot_the_probability_of_start_locations(session, onset_frames, all_conditions, tracking_data, title, show_plots=False):
     """Conduct a 2d histrogram normalised to count the probability of starting a homing at a given location"""
     conditions = identify_conditions(session)
 
-    if "barrier_present" in conditions:
+    if "barrier_pre_flip" in conditions:
         conditions.remove("barrier_present")
 
-    if "shelter_present" in conditions:
+    if "shelter_only" in conditions:
         conditions.remove("shelter_present")
 
     fig, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
-    onset_frames = homing_object.onset_frames
+    cbar_ax = fig.add_axes([0.91, 0.13, 0.01, 0.75])
 
     for i, con in enumerate(conditions):
         start_locs = []
-        for onset in onset_frames:
-            trial_condition = identify_condition_of_trial(video_df.filter(video_df["frames"] == onset), session)
+        for idx, onset in enumerate(onset_frames):
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
+            if isinstance(onset,np.ndarray):
+                onset = onset[0].astype(int)
 
-            if con == "all_time":
+            if np.logical_or(con == trial_condition, con == "all_time"):
                 start_locs.append(
                     (
-                        video_df.filter(video_df["frames"] == onset)["mouse_x_position"][0],
-                        video_df.filter(video_df["frames"] == onset)["mouse_y_position"][0],
+                        tracking_data["avg_loc"][onset - 1][0],
+                        tracking_data["avg_loc"][onset - 1][1],
                     )
                 )
 
-            if trial_condition == con:
-                start_locs.append(
-                    (
-                        video_df.filter(video_df["frames"] == onset)["mouse_x_position"][0],
-                        video_df.filter(video_df["frames"] == onset)["mouse_y_position"][0],
-                    )
-                )
+        if len(start_locs) > 0:
+            # Conduct 2D histogram
+            x, y = zip(*start_locs)
+            bins = np.arange(0, 1025, 32)
+            hist, xedges, yedges = np.histogram2d(x, y, bins=bins, density=True)
 
-        # Conduct 2D histogram
-        x, y = zip(*start_locs)
-        center = (512, 512)
-        radius = 512
+            # Step 3: Define a circular mask
+            center_x = 512
+            center_y = 512
+            radius = 512
 
-        # Conduct 2D histogram
-        bins = np.arange(0, 1000, 50)
-        hist, xedges, yedges = np.histogram2d(x, y, bins=bins, density=True)
+            # Create a grid of the bin centers
+            x_bin_centers = (xedges[:-1] + xedges[1:]) / 2
+            y_bin_centers = (yedges[:-1] + yedges[1:]) / 2
+            x_grid, y_grid = np.meshgrid(x_bin_centers, y_bin_centers)
 
-        # Step 3: Define a circular mask
-        center_x = 512
-        center_y = 512
-        radius = 512
+            # Create the circular mask
+            circular_mask = (x_grid - center_x) ** 2 + (y_grid - center_y) ** 2 <= radius**2
 
-        # Create a grid of the bin centers
-        x_bin_centers = (xedges[:-1] + xedges[1:]) / 2
-        y_bin_centers = (yedges[:-1] + yedges[1:]) / 2
-        x_grid, y_grid = np.meshgrid(x_bin_centers, y_bin_centers)
+            # Step 4: Apply the mask and normalize the density within the circle
+            circular_density = (hist.T) * circular_mask
 
-        # Create the circular mask
-        circular_mask = (x_grid - center_x) ** 2 + (y_grid - center_y) ** 2 <= radius**2
+            # Normalize the circular density so it integrates to 1
+            circular_density_normalized = circular_density / circular_density.sum()
 
-        # Step 4: Apply the mask and normalize the density within the circle
-        circular_density = hist * circular_mask
+            #
+            # Define the custom colormap
+            cmap = sns.color_palette("viridis", as_cmap=True).copy()
+            cmap.set_bad("white")  # Color for no data due to no exploration
+            cmap.set_under("grey")  # Color for zero data due to no spikes
 
-        # Normalize the circular density so it integrates to 1
-        circular_density_normalized = circular_density / circular_density.sum()
-
-        #
-        # Define the custom colormap
-        cmap = sns.color_palette("viridis", as_cmap=True)
-        cmap.set_bad("white")  # Color for no data due to no exploration
-        cmap.set_under("grey")  # Color for zero data due to no spikes
-
-        ax[i] = sns.heatmap(
-            circular_density_normalized,
-            cmap=cmap,
-            ax=ax[i],
-        )
+            ax[i] = sns.heatmap(circular_density_normalized,
+                                cmap="coolwarm",
+                                cbar_ax=cbar_ax,
+                                robust=True,
+                                ax=ax[i],
+                                mask=(circular_density_normalized == 0),
+                                cbar_kws={"label": "Normalised time spent in position"},
+                                norm=plt.Normalize(vmin=0, vmax=1))
 
         # Set the title with the number of points
         ax[i].set_title(f"{con} (n={len(start_locs)})")
+        
+        Arena(dim = np.amax(ax[i].get_ylim()), ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
 
-        #
+    if show_plots: plt.show()
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+"_loc_probability.png")))
+    plt.close()
 
-        #Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=tracking_data["barrier_loc"])
+def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, tracking_data, title, show_plots=False, plotting = True):
+    """Finds the cosine similarity between the heading of the mouse when he starts running in the homing and the angle with the three goals
+    Assigns the homing heading to the goal it is most similar to
+    Doesn't differentiate between below and above the barrier so a lot of shelter targets are actually below the barrier"""
 
-        # Set axis range to be between 0 and 1000
-        ax[i].set_xlim(0, 1000)
-        ax[i].set_ylim(0, 1000)
+    conditions = identify_conditions(session)
 
-        # invert y axis
-        ax[i].invert_yaxis()
+    if np.logical_and(not 'barrier_present' in conditions, 'shelter_present' in conditions):
+        conditions = conditions + ['shelter_only']
 
-    # Add color bar for last plot
-    #plt.colorbar(im, fraction=0.046, pad=0.04)
-    plt.show()
+    if "barrier_pre_flip" in conditions:
+        conditions.remove("barrier_present")
+
+    if "shelter_only" in conditions:
+        conditions.remove("shelter_present")
+    
+    if plotting:    
+        _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(15, 5))
+
+    heading_by_cond = {}
+
+    for i, con in enumerate(conditions):
+        pref_heading = np.zeros(3)
+        sum_homings = 0
+        for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
+            if isinstance(onset,np.ndarray):
+                onset = onset[0].astype(int)
+
+            if np.logical_or(con == trial_condition, con == "all_time"):
+
+                frame_coords = tracking_data["avg_loc"][onset:offset]
+                # _, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+                _, start_frame = cum_distance(onset, offset, frame_coords, 10, 15)
+
+                # calculate the preference of mouse heading for one of three targets using cosine similarity
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][0][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][0][1]
+                bprea = - np.arctan2(ydist, xdist)
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][1][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][1][1]
+                bposta = - np.arctan2(ydist, xdist)
+                if tracking_data["bod_shelt_dir"][start_frame] < 0: bsa = tracking_data["bod_shelt_dir"][start_frame] + np.pi
+                if tracking_data["bod_shelt_dir"][start_frame] > 0:  bsa = tracking_data["bod_shelt_dir"][start_frame] - np.pi
+
+                cosim=[]
+                for ang in [bprea,bsa, bposta]:
+                    cosim = np.append(cosim,np.cos(ang-head_angle[idx]))
+                pref_heading[np.argmax(cosim)] += 1
+                sum_homings += 1
+
+        if plotting: 
+            ax[i].bar(np.arange(3),pref_heading,color = ['green','red','blue'])
+            ax[i].set_ylabel('number of homings')
+            ax[i].set_xlabel('homing target')
+            ax[i].set_xticks(np.arange(3))
+            ax[i].set_xticklabels(['preflip','shelter','postflip'])
+            ax[i].set_title(f"{con} (n={sum_homings})")
+
+        heading_by_cond[con] = pref_heading
+    
+    if plotting:
+        plt.tight_layout()
+
+        plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_"+title+"_heading_angle.png")))
+        if show_plots:
+            plt.show()
+        plt.close()
+
+    return heading_by_cond
+
+def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_start, all_conditions, tracking_data, title, show_plots=False):
+    """On a drawing of the arena it plots the heading of the mouse before the homing begins and as the mouse starts running (after the head turn)
+    The heading of the mouse as he is running is colored by the goal it is targeting (using cosine similarity)"""
+
+    conditions = identify_conditions(session)
+
+    if "barrier_pre_flip" in conditions:
+        conditions.remove("barrier_present")
+
+    if "shelter_only" in conditions:
+        conditions.remove("shelter_present")
+
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions)+1, figsize=(20, 20))
+    length = 180
+
+    for i, con in enumerate(conditions):
+        sum_homings = 0
+        for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
+            if isinstance(onset,np.ndarray):
+                onset = onset[0].astype(int)
+
+            if np.logical_or(con == trial_condition, con == "all_time"):
+                # add an arrow for where the mouse was facing before the head turn
+                dx = length * np.cos(hdir_at_start[idx])
+                dy = length * -np.sin(hdir_at_start[idx])
+                mouse = tracking_data["avg_loc"][onset - 1]
+                ax[i].scatter(mouse[0], mouse[1], color="black")
+                ax[i].quiver(mouse[0], mouse[1], dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
+
+                # arrow of which way mouse is facing once it started running, colored by whatever it is targeting
+            
+                frame_coords = tracking_data["avg_loc"][onset:offset]
+                end_fr, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+                mouse = tracking_data["head_loc"][start_frame]
+                if len(mouse) == 1: mouse = mouse[0] # why did this happen once?
+                dx = length * np.cos(head_angle[idx])
+                dy = length * -np.sin(head_angle[idx])
+
+                # calculate the preference of mouse heading for one of three targets
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][0][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][0][1]
+                bprea = - np.arctan2(ydist, xdist)
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][1][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][1][1]
+                bposta = - np.arctan2(ydist, xdist)
+                if tracking_data["bod_shelt_dir"][start_frame] < 0: bsa = tracking_data["bod_shelt_dir"][start_frame] + np.pi
+                if tracking_data["bod_shelt_dir"][start_frame] > 0:  bsa = tracking_data["bod_shelt_dir"][start_frame] - np.pi
+
+                cosim=[]
+                for ang in [bprea,bsa, bposta]:
+                    cosim = np.append(cosim,np.cos(ang-head_angle[idx]))
+                color = ['green','red','blue']
+
+                ax[i].scatter(mouse[0], mouse[1], color=color[np.argmax(cosim)])
+                ax[i].quiver(mouse[0], mouse[1], dx, dy, angles="xy", scale_units="xy", scale=2, color=color[np.argmax(cosim)])
+
+                sum_homings += 1
+
+        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
+        ax[i].set_title(f"{con} (n={sum_homings})")
+
+    # make a legend for the two types of arrows
+    dx = length * np.cos(0)
+    dy = length * -np.sin(0)
+    ax[len(conditions)].quiver(312, 730, dx, dy, angles="xy", scale_units="xy", scale=2, color="red")
+    ax[len(conditions)].text(412,712,'homing run targets shelter')
+    ax[len(conditions)].quiver(312, 630, dx, dy, angles="xy", scale_units="xy", scale=2, color="green")
+    ax[len(conditions)].text(412,612,'homing run targets preflip')
+    ax[len(conditions)].quiver(312, 530, dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
+    ax[len(conditions)].text(412,512,'homing run targets postflip')
+    ax[len(conditions)].quiver(312, 430, dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
+    ax[len(conditions)].text(412,412,'pre homing hdir')
+    ax[len(conditions)].axis("off")
+    ax[len(conditions)].set_aspect("equal")
+    ax[len(conditions)].set_xlim([0, 1024])
+    ax[len(conditions)].set_ylim([0, 1024])
+
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str(title+"_heading_angle.png")))
+    if show_plots: plt.show()
+    plt.close()
+
+
+def trial_speed_hist(session, avg_speed, title, show_plots=False):
+    # histogram of homing speed
+
+    _, ax = plt.subplots(nrows = 1,ncols = 1, figsize = (20,20))
+
+    ax.hist(avg_speed, bins = np.arange(0,200,10))
+    ax.set_xlabel('speed (cm/s)')
+    ax.set_ylabel('number of homings')
+
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_speed_of_"+title+".png")))
+    if show_plots: plt.show()
+    plt.close()
+
+## ----------------------NON FUNCTIONAL FUNCTIONS
+
+def homing_head_angle_trajectory(session, onsets, offsets, all_conditions, tracking_data, title):
+    """Conduct a 2d histrogram normalised to count the probability of starting a homing at a given location"""
+    conditions = identify_conditions(session)
+
+    if "barrier_pre_flip" in conditions:
+        conditions.remove("barrier_present")
+
+    if "shelter_only" in conditions:
+        conditions.remove("shelter_present")
+
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
+
+    max_homing_length = np.amax(offsets-onsets)
+    for i, con in enumerate(conditions):
+        head_traj = np.zeros((max_homing_length + (2*session.video.fps),1))
+        for idx, onset, offset in enumerate(zip(onsets,offsets)):
+            trial_condition = all_conditions[idx][0]
+
+            if np.logical_or(con == trial_condition, con == "all_time"):
+                head_direction = tracking_data["hdir"][onset - session.video.fps:offset+session.video.fps]
+    # plot heatmap of homing head angle trajectories
+    # separate homings into conditions
+    # extract hdir from 1s before onset through stim duration plus 1s
+    # heatmap it

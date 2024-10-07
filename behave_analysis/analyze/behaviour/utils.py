@@ -70,10 +70,12 @@ def base_plotting(ax, tracking, condition, session=[]) -> None:
 
     # draw barrier logic
     if not np.logical_or(condition == "shelter_only", condition == "pre_shelter"):
-        if len(tracking["barrier_loc"]) > 0:
+        if len(session.barrier_location) > 0:
             if np.logical_or(np.logical_or(condition == 'barrier_present',condition == 'all_time'),condition == 'shelter_present'):
                 # draw old two-sided barrier
                 bar_loc = [tracking["barrier_loc"][0][0], tracking["barrier_loc"][1][0]]
+                if np.diff(bar_loc) < arena_radius: # if we didn't flip the barrier and only have one side the "two sides will appear as one"
+                    bar_loc[0] = 512 - arena_radius
 
             if condition == "barrier_pre_flip":
                 # draw barrier from first point to the edge

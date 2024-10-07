@@ -166,7 +166,8 @@ class DLC:
         
     def interpolate_nan_values(self):
         for i, _ in enumerate(self.tracking_data_body_parts['bodyparts']):
-            self.tracking_data_array[:, i, :2] = np.array(pd.DataFrame(self.tracking_data_array[:, i, :2]).interpolate().fillna(method='bfill').fillna(method='ffill'))
+            self.tracking_data_array[:, i, :2] = np.array(pd.DataFrame(self.tracking_data_array[:, i, :2]).bfill().ffill())
+            # self.tracking_data_array[:, i, :2] = np.array(pd.DataFrame(self.tracking_data_array[:, i, :2]).interpolate().fillna(method='bfill').fillna(method='ffill'))
         
     def log_low_confidence_points(self) -> None:
         """

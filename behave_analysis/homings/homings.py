@@ -26,7 +26,7 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
-
+from behave_analysis.analyze.behaviour.utils import identify_condition_of_trial
 
 @dataclass(frozen=False)
 class Homings:
@@ -39,7 +39,9 @@ class Homings:
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
     homing_angles_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
+    hdir_at_start: np.array # head ori when homing is initiated
     spatial_efficiency: list  # the spatial efficiency of the homing
+    trajectory_length: list # how long the trajectory of each homing was
     homing_condition: list  # what condition the homing was in
 
 class get_Homings:
@@ -65,12 +67,7 @@ class get_Homings:
             else:
                 logger.warning("You want to use Borris homing labelling, but Borris file doesn't exist! Automatically detecting homings instead")
         
-        if len(self.session.barrier_time) > 0:
-            self.barrier_location = self.session.barrier_location
-        else:  # add hardcoded barrier location for sessions with no barrier
-            self.barrier_location = [[800, 512], [224, 512], [512, 512]]
-        # The first and second index is the pre flip edge and post flip edge of the barrier loc
-        self.reference_locations = [self.session.video.shelter_location] + self.barrier_location[:-1]
+        self.get_reference_variables()
         
         self.tracking_data = open_tracking_data(self.session)
 
@@ -79,7 +76,6 @@ class get_Homings:
                 self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
             except FileNotFoundError:
                 logger.error("Video df not found, homings will not be computed")
-                print("Video df not found, homings will not be computed")
         else:
             self.video_df = video_df
 
@@ -89,144 +85,91 @@ class get_Homings:
         else:
             # Begin extracting variables for homings
             logger.info("Extracting homings automatically...")
-            self.extract_variables()
-            self.homing_runs_on = self.identify_homing_runs_with_logic()
-            logger.info("Using automatic labels")
-            self.onset_frames, self.stimulus_durations, self.offset_frames = self.get_onset_and_duration()
-            # Remove homings that don't meet the criteria
-            self.onset_frames, self.offset_frames, self.stimulus_durations = self.remove_inapplicable_runs(
-                onsets=self.onset_frames, offsets=self.offset_frames
-            )
+            self.identify_homing_runs_with_logic()
 
-        self.start_locs, self.end_locs = self.get_start_and_end_locs(
-            tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
-        )
-        avg_speed = self.get_avg_speed(self.onset_frames, self.offset_frames, self.tracking_data)
-        homing_angles_dic = get_avg_homing_angle_for_start_of_run(
-            self.session, self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
-        )
-
-        condition, spatial_efficiency_values = spatial_efficiency(
-            self.onset_frames, self.stimulus_durations, session, settings, self.video_df, self.tracking_data, trial_type="Homings", plotting=False
-        )
+        self.get_homing_properties()
 
         # Return main homings object
-        self.session.homing = Homings(
-            self.onset_frames,
-            self.offset_frames,
-            self.stimulus_durations,
-            self.start_locs,
-            self.end_locs,
-            avg_speed,
-            homing_angles_dic,
-            #spatial_efficiency_values,
-            #condition,
+        self.homing = Homings(
+            onset_frames=self.onset_frames,
+            offset_frames=self.offset_frames,
+            stimulus_durations=self.stimulus_durations,
+            start_locs=self.start_locs,
+            end_locs=self.end_locs,
+            avg_speed=self.avg_speed,
+            homing_angles_dic=self.homing_angles_dic,
+            hdir_at_start=self.hdir_at_start,
+            spatial_efficiency=self.spatial_efficiency_values,
+            trajectory_length=self.trajectory_length,
+            homing_condition=self.condition,
         )
 
         self.save_session()
 
     # ------------------- SELECT FEATURES OF HOMINGS ----------------------
 
+    def get_reference_variables(self):
+        if len(self.session.barrier_time) > 0:
+            self.barrier_location = self.session.barrier_location
+        else:  # add hardcoded barrier location for sessions with no barrier
+            self.barrier_location = [[800, 512], [224, 512], [512, 512]]
+        # The first and second index is the pre flip edge and post flip edge of the barrier loc
+        self.reference_locations = [self.session.video.shelter_location] + self.barrier_location[:-1]
+
+    def get_homing_properties(self):
+        """Extract everything we need to know about homies"""
+        self.start_locs, self.end_locs = get_start_and_end_locs(
+            tracking=self.tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
+        )
+        self.avg_speed = get_avg_speed(self.onset_frames, self.offset_frames, self.tracking_data, self.session)
+        self.homing_angles_dic, self.hdir_at_start = get_avg_homing_angle_for_first15cm_of_run(
+            self.session, self.onset_frames, self.offset_frames, self.tracking_data, self.settings.cum_threshold
+        )
+        self.condition = get_condition_homing(self.video_df, self.onset_frames, self.session)
+        self.spatial_efficiency_values, self.trajectory_length = spatial_efficiency(
+            self.onset_frames, self.stimulus_durations, self.session, self.settings, self.condition, self.tracking_data, trial_type="Homings", plotting=False
+        )
+
+    # ------------------- Use manual labels -------------------------------
+
+    def load_manual_labels(self):
+        """Load manual labels from a csv file"""
+        df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv")
+        columns_to_keep = ["Time", "Image index", "Behavior type"]
+        fdf = df[columns_to_keep]
+        time = fdf["Time"].to_numpy()
+        diff = np.diff(time)
+        assert np.all(diff > 0), "Time is not increasing"
+        start = len(fdf[fdf["Behavior type"] == "START"])
+        end = len(fdf[fdf["Behavior type"] == "STOP"])
+        assert start == end, "Start and end homings are not the same length"
+        logger.info("Loaded manual labels")
+        logger.info("Number of homings: {}".format(start))
+        onsets = fdf[fdf["Behavior type"] == "START"]["Image index"].to_numpy()
+        offsets = fdf[fdf["Behavior type"] == "STOP"]["Image index"].to_numpy()
+        assert len(onsets) == len(offsets), "Onsets and offsets are not the same length"
+        assert np.diff(onsets).all() > 0, "Onsets are not increasing"
+        assert np.diff(offsets).all() > 0, "Offsets are not increasing"
+        durations = offsets - onsets
+        durations = np.array([[x] for x in (durations) / self.session.video.fps])  # match the format of the automatic labels
+        return onsets, durations, offsets
+
+    # ------------------- IDENTIFY HOMINGS --------------------------------
+
+    def identify_homing_runs_with_logic(self):
+        """All the steps needed to ID homings automatically"""
+        self.extract_variables()
+        self.homing_runs_on = self.is_homing_logic()
+        self.onset_frames, self.stimulus_durations, self.offset_frames = self.get_onset_and_duration()
+        # Remove homings that don't meet the criteria
+        self.onset_frames, self.offset_frames, self.stimulus_durations = self.remove_inapplicable_runs(
+            onsets=self.onset_frames, offsets=self.offset_frames
+        )
+
     def extract_variables(self):
         """Extract the variables needed to identify homings"""
         self.homing_speed = self.get_homing_speed()
         self.speed_along_y_axis = self.get_speed_along_y_axis()
-
-    def find_frames_were_head_turns_fast_to_shelter_or_edge(self, angular_data_frame):
-        """Returns a boolean array of frames where the head turning speed towards the shelter or edge occurs above a threshold
-        I.e. The mouse must be turning fast towards the shelter or an edge each frame.
-
-        Angular data is in radians from -pi to pi
-
-        Args:
-            -- angular_data_frame: (polars.DataFrame) with the angular data of interest [shelter, subgoal1, subgoal2]"""
-
-        # Convert any negative radians to positive so we can threshold turning speeds
-        hsa_pos = negative_radians_to_positive(angular_data_frame["hsa"].to_numpy())
-        h_bar_pre_flip_pos = negative_radians_to_positive(angular_data_frame["h_preflipbar_a"].to_numpy())
-        h_bar_post_flip_pos = negative_radians_to_positive(angular_data_frame["h_postflipbar_a"].to_numpy())
-
-        # If angle goes from 90 to 0 the diff will be -90, so to convert it to positive so we can threshold we need the negative diff
-        # Convert to angular speed in rad/s
-        hsa_turn_speed = -np.diff(hsa_pos) * self.session.video.fps
-        h_bar_preflip_a_turn_speed = -np.diff(h_bar_pre_flip_pos) * self.session.video.fps
-        h_bar_postflip_a_turn_speed = -np.diff(h_bar_post_flip_pos) * self.session.video.fps
-
-        # Smoothing the angular speed
-        hsa_turn_speed = gaussian_filter1d(hsa_turn_speed, sigma=self.session.video.fps / 10, mode="nearest")
-        h_bar_preflip_a_turn_speed = gaussian_filter1d(h_bar_preflip_a_turn_speed, sigma=self.session.video.fps / 10, mode="nearest")
-        h_bar_postflip_a_turn_speed = gaussian_filter1d(h_bar_postflip_a_turn_speed, sigma=self.session.video.fps / 10, mode="nearest")
-
-        # Pad the data to ensure the length is the same - i.e ad a zero to the start
-        hsa_turn_speed = np.concatenate((np.zeros(1), hsa_turn_speed))
-        h_bar_preflip_a_turn_speed = np.concatenate((np.zeros(1), h_bar_preflip_a_turn_speed))
-        h_bar_postflip_a_turn_speed = np.concatenate((np.zeros(1), h_bar_postflip_a_turn_speed))
-
-        # Thresholding for speed
-        hsa_bool = hsa_turn_speed > self.settings.fast_angular_speed
-        h_bar_preflip_a_bool = h_bar_preflip_a_turn_speed > self.settings.fast_angular_speed
-        h_bar_postflip_a_bool = h_bar_postflip_a_turn_speed > self.settings.fast_angular_speed
-        # Logical where one of the above is true at least per frame. I.e mouse is turning quickly to one of the goals
-        logical_speed = np.logical_or(np.logical_or(hsa_bool, h_bar_preflip_a_bool), h_bar_postflip_a_bool)
-
-        # Thresholding for positive angular speed
-        # Because an angle that went from 0 to 90 would be negative and we don't want any frames where the mouse is turning away from all goals
-        hsa_pos_bool = hsa_turn_speed > 0
-        h_bar_preflip_a_pos_bool = h_bar_preflip_a_turn_speed > 0
-        h_bar_postflip_a_pos_bool = h_bar_postflip_a_turn_speed > 0
-        pos_logiical_or = np.logical_or(np.logical_or(hsa_pos_bool, h_bar_preflip_a_pos_bool), h_bar_postflip_a_pos_bool)
-
-        return logical_speed, pos_logiical_or
-
-    def get_distances_to_reference_locations(self) -> dict:
-        """In order to check if the mouse is moving towards the shelter or an edge, we need to know the distance to each reference location
-
-        Indexes:
-            -- 0: Shelter
-            -- 1: Pre flip edge
-            -- 2: Post flip edge"""
-
-        distance_to_reference_locations = np.zeros((len(self.tracking_data["avg_loc"][:, 0]), len(self.reference_locations)))
-
-        for i, reference_location in enumerate(self.reference_locations):
-            distance_to_reference_locations[:, i] = (
-                (self.tracking_data["avg_loc"][:, 0] - reference_location[0]) ** 2
-                + (self.tracking_data["avg_loc"][:, 1] - reference_location[1]) ** 2
-            ) ** 0.5
-
-        smoothed_distance_to_pre_flip_edge = gaussian_filter1d(
-            distance_to_reference_locations[:, 1], sigma=self.session.video.fps / 10, mode="nearest"
-        )
-        smoothed_distance_to_post_flip_edge = gaussian_filter1d(
-            distance_to_reference_locations[:, 2], sigma=self.session.video.fps / 10, mode="nearest"
-        )
-
-        return {"distance_to_pre_flip_edge": smoothed_distance_to_pre_flip_edge, "distance_to_post_flip_edge": smoothed_distance_to_post_flip_edge}
-
-    def what_is_the_min_distance_to_edges(self, xs: np.array) -> np.array:
-        """Given an array of x values, return the minimum distance to either edge"""
-        f = lambda xs: min(abs(xs - self.barrier_location[1][0]), abs(xs - self.barrier_location[2][0]))
-        distances = [f(x) for x in xs]
-        return np.asarray(distances)
-
-    def get_avg_speed(self, onsets, offsets, tracking_data) -> np.array:
-        """For each homing, compute the average speed in cm/s
-
-        Returns:
-        -- avg_speed: np.array of shape (n_runs, ) with the average speed in cm/s for each homing run"""
-
-        avg_speed = np.zeros(len(onsets))
-
-        for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
-            tracking = tracking_data["avg_loc"][onset:offset]
-            speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
-            speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
-            speed_cm_per_sec = speed_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-            smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=self.session.video.fps / 10, mode="nearest")
-            avg_speed[homing] = np.mean(smoothed_speed_cm_per_sec)
-
-        assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
-        return avg_speed
 
     def get_homing_speed(self) -> np.array:
         """Extraction of homing speed from tracking data returns max speed relative to any reference location per frame.
@@ -283,47 +226,7 @@ class get_Homings:
         speed_along_y_axis = np.concatenate((np.zeros(1), smoothed_speed_y_cm_per_sec))
         return speed_along_y_axis
 
-    def get_start_and_end_locs(self, tracking: object, onset_frames: np.array, offset_frames: np.array) -> tuple:
-        """Return the start and end locations of each homing run
-
-        Returns:
-        -- start_locs: np.array of shape (n_runs, 2) with the start locations of each homing run
-        -- end_locs: np.array of shape (n_runs, 2) with the end locations of each homing run
-
-        Each location is in pixels and stored as [x, y]"""
-        start_locs = tracking["avg_loc"][onset_frames]
-        end_locs = tracking["avg_loc"][offset_frames]
-        assert len(start_locs) == len(end_locs), "Start and end locs are not the same length"
-        assert len(start_locs) == len(onset_frames), "Start locs and number of homings are not the same length"
-        return start_locs, end_locs
-
-    # ------------------- Use manual labels -------------------------------
-
-    def load_manual_labels(self):
-        """Load manual labels from a csv file"""
-        df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv")
-        columns_to_keep = ["Time", "Image index", "Behavior type"]
-        fdf = df[columns_to_keep]
-        time = fdf["Time"].to_numpy()
-        diff = np.diff(time)
-        assert np.all(diff > 0), "Time is not increasing"
-        start = len(fdf[fdf["Behavior type"] == "START"])
-        end = len(fdf[fdf["Behavior type"] == "STOP"])
-        assert start == end, "Start and end homings are not the same length"
-        logger.info("Loaded manual labels")
-        logger.info("Number of homings: {}".format(start))
-        onsets = fdf[fdf["Behavior type"] == "START"]["Image index"].to_numpy()
-        offsets = fdf[fdf["Behavior type"] == "STOP"]["Image index"].to_numpy()
-        assert len(onsets) == len(offsets), "Onsets and offsets are not the same length"
-        assert np.diff(onsets).all() > 0, "Onsets are not increasing"
-        assert np.diff(offsets).all() > 0, "Offsets are not increasing"
-        durations = offsets - onsets
-        durations = np.array([[x] for x in (durations) / self.session.video.fps])  # match the format of the automatic labels
-        return onsets, durations, offsets
-
-    # ------------------- IDENTIFY HOMINGS --------------------------------
-
-    def identify_homing_runs_with_logic(self):
+    def is_homing_logic(self):
         """Using threshold criteria, identify homing runs that turn fast AND move towards a goal
 
         Criteria:
@@ -343,7 +246,54 @@ class get_Homings:
         go_fast_to_shelter_or_edge_padded = self.smooth_bool_array(go_fast_to_shelter_or_edge).astype(bool)
         move_at_all_to_shelter_or_edge_padded = self.smooth_bool_array(move_at_all_to_shelter_or_edge).astype(bool)
         homing_runs_on = np.logical_and(go_fast_to_shelter_or_edge_padded, move_at_all_to_shelter_or_edge_padded).astype(bool)
+        
         return homing_runs_on
+    
+    def find_frames_were_head_turns_fast_to_shelter_or_edge(self, angular_data_frame):
+        """Returns a boolean array of frames where the head turning speed towards the shelter or edge occurs above a threshold
+        I.e. The mouse must be turning fast towards the shelter or an edge each frame.
+
+        Angular data is in radians from -pi to pi
+
+        Args:
+            -- angular_data_frame: (polars.DataFrame) with the angular data of interest [shelter, subgoal1, subgoal2]"""
+
+        # Convert any negative radians to positive so we can threshold turning speeds
+        hsa_pos = negative_radians_to_positive(angular_data_frame["hsa"].to_numpy())
+        h_bar_pre_flip_pos = negative_radians_to_positive(angular_data_frame["h_preflipbar_a"].to_numpy())
+        h_bar_post_flip_pos = negative_radians_to_positive(angular_data_frame["h_postflipbar_a"].to_numpy())
+
+        # If angle goes from 90 to 0 the diff will be -90, so to convert it to positive so we can threshold we need the negative diff
+        # Convert to angular speed in rad/s
+        hsa_turn_speed = -np.diff(hsa_pos) * self.session.video.fps
+        h_bar_preflip_a_turn_speed = -np.diff(h_bar_pre_flip_pos) * self.session.video.fps
+        h_bar_postflip_a_turn_speed = -np.diff(h_bar_post_flip_pos) * self.session.video.fps
+
+        # Smoothing the angular speed
+        hsa_turn_speed = gaussian_filter1d(hsa_turn_speed, sigma=self.session.video.fps / 10, mode="nearest")
+        h_bar_preflip_a_turn_speed = gaussian_filter1d(h_bar_preflip_a_turn_speed, sigma=self.session.video.fps / 10, mode="nearest")
+        h_bar_postflip_a_turn_speed = gaussian_filter1d(h_bar_postflip_a_turn_speed, sigma=self.session.video.fps / 10, mode="nearest")
+
+        # Pad the data to ensure the length is the same - i.e ad a zero to the start
+        hsa_turn_speed = np.concatenate((np.zeros(1), hsa_turn_speed))
+        h_bar_preflip_a_turn_speed = np.concatenate((np.zeros(1), h_bar_preflip_a_turn_speed))
+        h_bar_postflip_a_turn_speed = np.concatenate((np.zeros(1), h_bar_postflip_a_turn_speed))
+
+        # Thresholding for speed
+        hsa_bool = hsa_turn_speed > self.settings.fast_angular_speed
+        h_bar_preflip_a_bool = h_bar_preflip_a_turn_speed > self.settings.fast_angular_speed
+        h_bar_postflip_a_bool = h_bar_postflip_a_turn_speed > self.settings.fast_angular_speed
+        # Logical where one of the above is true at least per frame. I.e mouse is turning quickly to one of the goals
+        logical_speed = np.logical_or(np.logical_or(hsa_bool, h_bar_preflip_a_bool), h_bar_postflip_a_bool)
+
+        # Thresholding for positive angular speed
+        # Because an angle that went from 0 to 90 would be negative and we don't want any frames where the mouse is turning away from all goals
+        hsa_pos_bool = hsa_turn_speed > 0
+        h_bar_preflip_a_pos_bool = h_bar_preflip_a_turn_speed > 0
+        h_bar_postflip_a_pos_bool = h_bar_postflip_a_turn_speed > 0
+        pos_logiical_or = np.logical_or(np.logical_or(hsa_pos_bool, h_bar_preflip_a_pos_bool), h_bar_postflip_a_pos_bool)
+
+        return logical_speed, pos_logiical_or
 
     def get_onset_and_duration(self):
         """Code to get the onset and duration of homing runs
@@ -429,6 +379,12 @@ class get_Homings:
         return onset_frames, offset_frames, stimulus_durations
 
     # -------------------- Utils ----------------------------------------
+
+    def what_is_the_min_distance_to_edges(self, xs: np.array) -> np.array:
+        """Given an array of x values, return the minimum distance to either edge"""
+        f = lambda xs: min(abs(xs - self.barrier_location[1][0]), abs(xs - self.barrier_location[2][0]))
+        distances = [f(x) for x in xs]
+        return np.asarray(distances)
 
     def smooth_bool_array(self, boolean_array):
         """Test function to see if any better than philips box bar filter,
@@ -555,9 +511,97 @@ class get_Homings:
             pickle.dump(self.session.homing, dill_file)
         logger.success("Homings object pickle saved")
 
+##-------- HOMING FEATURE FUNCTIONS--------------
+"""USED ALSO FOR ESCAPES"""
 
-def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
-    """For the first 15cm of each homing, compute the average angle to each reference locations
+def get_avg_speed(onsets, offsets, tracking_data, session) -> np.array:
+    """For each homing, compute the average speed in cm/s
+
+    Returns:
+    -- avg_speed: np.array of shape (n_runs, ) with the average speed in cm/s for each homing run"""
+
+    avg_speed = np.zeros(len(onsets))
+
+    for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
+        y_loc = tracking_data['head_loc'][onset:offset,1]
+        in_shelt = np.where(y_loc > tracking_data['shelter_loc'][0][1])[0]
+        trial_speed = tracking_data["avg_Velocity"][onset:offset]
+        if len(in_shelt)>0:
+            trial_speed = trial_speed[:in_shelt[0]]
+        avg_speed[homing] = np.mean(trial_speed)
+
+        # tracking = tracking_data["avg_loc"][onset:offset]
+        # speed_x_and_y_pixel_per_frame = np.diff(tracking, axis=0)
+        # speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
+        # speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
+        # smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps / 10, mode="nearest")
+        # avg_speed[homing] = np.mean(smoothed_speed_cm_per_sec)
+
+    assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
+    return avg_speed
+
+def get_start_and_end_locs(tracking: object, onset_frames: np.array, offset_frames: np.array) -> tuple:
+    """Return the start and end locations of each homing run
+
+    Returns:
+    -- start_locs: np.array of shape (n_runs, 2) with the start locations of each homing run
+    -- end_locs: np.array of shape (n_runs, 2) with the end locations of each homing run
+
+    Each location is in pixels and stored as [x, y]"""
+    start_locs = tracking["avg_loc"][onset_frames]
+    end_locs = tracking["avg_loc"][offset_frames]
+    assert len(start_locs) == len(end_locs), "Start and end locs are not the same length"
+    assert len(start_locs) == len(onset_frames), "Start locs and number of homings are not the same length"
+    return start_locs, end_locs
+
+def get_condition_homing(video_df, onset_frames, session):
+    """Return the experimental condition that the homing happened"""
+    condition = []
+    for onset in onset_frames:
+        condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset)), session))
+    return condition
+
+def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, speed_thresh = 15) -> dict:
+    """This takes the average head angle after the mouse starts running 
+    Unlike get_avg_homing_angle_for_first15cm_of_run, it doesn't include the head turn at the start of the homing
+    The initial running period is capped at .5 seconds
+    
+    The speed of running is 10cm/s - this may need to be adjusted, TBD
+
+        Returns:
+    -- dic: dictionary with the above arrays stored as values
+    -- starting_hdir: the hdir at the start of the homing (before the head turn)
+    """
+
+    # init arrays to store the average heading angles to the pre and post flip barrier locations
+    avg_hsa = np.zeros(len(onsets))  # One value per homing
+    avg_pre_flip_head_angle = np.zeros(len(onsets))
+    avg_post_flip_head_angle = np.zeros(len(onsets))
+    avg_hdir = np.zeros(len(onsets))
+    starting_hdir = np.zeros(len(onsets))
+
+    for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
+        hsa = tracking_data["hdir_shelt"][onset:offset+session.video.fps]
+        hbarpre = tracking_data["hdir_barrier"][onset:offset+session.video.fps,0]
+        hbarpost = tracking_data["hdir_barrier"][onset:offset+session.video.fps,1]
+        hdir = tracking_data["hdir"][onset:offset+session.video.fps]
+        starting_hdir[idx] = tracking_data["hdir"][onset]
+        when_running = tracking_data["avg_Velocity"][onset:offset+session.video.fps]>speed_thresh # this is potentially dangerous if this threshold doesn't work for other sessions
+        run_start = np.where(np.diff((when_running).astype(int)) == 1)[0][0]
+        run_end = np.where(np.diff((when_running).astype(int)) == -1)[0][0]
+        if (run_end - run_start) > (session.video.fps/2): # never look at more than .5 second of running
+            run_end = run_start + (session.video.fps/2)
+        avg_hdir[idx] = np.mean(hdir[run_start:int(run_end)])
+        avg_hsa[idx] = np.mean(hsa[run_start:int(run_end)])
+        avg_pre_flip_head_angle[idx] = np.mean(hbarpre[run_start:int(run_end)])
+        avg_post_flip_head_angle[idx] = np.mean(hbarpost[run_start:int(run_end)])
+
+    dic = {"avg_hdir": avg_hdir, "avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
+    
+    return dic, starting_hdir
+
+def get_avg_homing_angle_for_first15cm_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
+    """For the first 5 to 15cm of each homing, compute the average angle to each reference locations
     (shelter, pre flip goal, post flip goal).
 
     Note - 15cm is arbitrary and could be changed in settings_homings.py
@@ -581,6 +625,8 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
     avg_hsa = np.zeros(len(onsets))  # One value per homing
     avg_pre_flip_head_angle = np.zeros(len(onsets))
     avg_post_flip_head_angle = np.zeros(len(onsets))
+    avg_hdir = np.zeros(len(onsets))
+    starting_hdir = np.zeros(len(onsets))
 
     # extract
     hsa_data = tracking_data["hdir_shelt"]
@@ -594,13 +640,17 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
             onset = onset[0]
             offset = offset[0]
 
+        starting_hdir[i] = tracking_data["hdir"][onset]
+
         # There shouldn't be a one off error here bcause the onset and offsets should start at 0
         frame_coords = tracking_data["avg_loc"][onset:offset]
         frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
 
         if frame_index == None:
             continue
-
+        
+        avg_hdir[i] = circmean(tracking_data["hdir"][start_frame:frame_index])
+        
         hsa = hsa_data[start_frame:frame_index]
         avg_hsa[i] = circmean(hsa)
 
@@ -612,9 +662,9 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
 
     assert len(avg_hsa) == len(onsets), "Avg hsa and number of homings are not the same length"
 
-    dic = {"avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
+    dic = {"avg_hdir": avg_hdir, "avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
 
-    return dic
+    return dic, starting_hdir
 
 
 def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int) -> int:
@@ -643,6 +693,33 @@ def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int)
     logger.error(f"Mouse never reaches cum threshold {cum_threshold} cm")
     frame = None
     return frame, start_frame
+
+## ---------- NO LONGER USED-----------------------
+
+    # def get_distances_to_reference_locations(self) -> dict:
+    #     """In order to check if the mouse is moving towards the shelter or an edge, we need to know the distance to each reference location
+
+    #     Indexes:
+    #         -- 0: Shelter
+    #         -- 1: Pre flip edge
+    #         -- 2: Post flip edge"""
+
+    #     distance_to_reference_locations = np.zeros((len(self.tracking_data["avg_loc"][:, 0]), len(self.reference_locations)))
+
+    #     for i, reference_location in enumerate(self.reference_locations):
+    #         distance_to_reference_locations[:, i] = (
+    #             (self.tracking_data["avg_loc"][:, 0] - reference_location[0]) ** 2
+    #             + (self.tracking_data["avg_loc"][:, 1] - reference_location[1]) ** 2
+    #         ) ** 0.5
+
+    #     smoothed_distance_to_pre_flip_edge = gaussian_filter1d(
+    #         distance_to_reference_locations[:, 1], sigma=self.session.video.fps / 10, mode="nearest"
+    #     )
+    #     smoothed_distance_to_post_flip_edge = gaussian_filter1d(
+    #         distance_to_reference_locations[:, 2], sigma=self.session.video.fps / 10, mode="nearest"
+    #     )
+
+    #     return {"distance_to_pre_flip_edge": smoothed_distance_to_pre_flip_edge, "distance_to_post_flip_edge": smoothed_distance_to_post_flip_edge}
 
     # def get_homing_angle(self) -> np.array:
     #     """ At each frame, select the min egocentric angle amongst the two edges and the shelter.

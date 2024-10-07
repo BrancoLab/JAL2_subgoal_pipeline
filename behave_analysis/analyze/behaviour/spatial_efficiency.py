@@ -4,12 +4,14 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
+import matplotlib
+matplotlib.use('TkAgg')
 from sklearn.metrics.pairwise import cosine_similarity
 
+from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.color_funcs import get_color_based_on_speed
-from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial
 
-def spatial_efficiency(onset_frames, stimulus_durations, session, settings, video_df, tracking_data, trial_type, plotting = True, interp = 100, save_dir = []):
+def spatial_efficiency(onset_frames, stimulus_durations, session, settings, trial_conditions, tracking_data, trial_type, plotting = True, interp = 100, save_dir = []):
     """ 
     Plot escape trajectories as well as optimal path
     """
@@ -24,8 +26,8 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, vide
     else:
         number_of_figures = 1
 
-    condition = []
     spatial_efficiency_value = np.empty(len(onset_frames))
+    trajectory_length = []
     # Plot up to 20 trials per figure
     trial_counter = 0
     for figure in range(number_of_figures):
@@ -39,16 +41,21 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, vide
                 
                 onset_frame = onset_frames[trial_counter]
                 stimulus_duration = stimulus_durations[trial_counter]
+                condition = trial_conditions[trial_counter]
+                if np.isnan(onset_frame):
+                    continue
 
-                condition.append([identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset_frame)), session)])
                 # set up axes with shelt and barrier locations
+
                 if plotting:
                     ax = fig.add_subplot(gs[row, col])
-                    base_plotting(ax,tracking_data,condition[trial_counter][0])
+                    Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=condition, barrier_coordinates=session.barrier_location)
+                    # base_plotting(ax,tracking_data,condition, session = session)
                 else:
                     ax = []
-                real_x, real_y = plot_escape_trajectories(int(onset_frame),int(stimulus_duration*session.video.fps), tracking_data, settings, interp, ax)
-                optimal_x, optimal_y = plot_optimal_trajectories(int(onset_frame), tracking_data, condition[trial_counter][0], interp, ax)
+                real_x, real_y, trajectory_length_single_trial = plot_escape_trajectories(int(onset_frame),int(stimulus_duration*session.video.fps), tracking_data, settings, interp, ax)
+                trajectory_length = np.append(trajectory_length, trajectory_length_single_trial)
+                optimal_x, optimal_y = plot_optimal_trajectories(int(onset_frame), tracking_data, condition, interp, ax)
 
                 # cosine similarity
                 cs = []
@@ -66,31 +73,44 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, vide
             if settings.show_plots: plt.show()
             plt.close()
 
-    return condition, spatial_efficiency_value
+    return spatial_efficiency_value, trajectory_length
 
 def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, settings,interp = 100, ax = []):
     """ 
     Plot escape trajectories.
     homings/escapes are cropped to when mouse enters the shelter
     for spatial efficiency calculation, the trajectories are interpolated to a uniform lengh given by interp
+    RETURNS: x_loc and y_loc are vectors of x and y position during escape
+    dist is cumulative path length of the trajectory until shelter is reached
     """
     # compute and plot each trajectory
     x_loc = tracking_data['head_loc'][onset_frames:onset_frames + stimulus_durations,0]
     y_loc = tracking_data['head_loc'][onset_frames:onset_frames + stimulus_durations,1]
     speed = tracking_data["avg_Velocity"][onset_frames:onset_frames + stimulus_durations]
     # crop the points after the mouse has entered the shelter
-    in_shelt = np.where(y_loc > tracking_data['shelter_loc'][0][1])[0]
+    in_shelt_y = y_loc > tracking_data['shelter_loc'][0][1]
+    in_shelt_x = np.logical_and(x_loc > tracking_data['shelter_loc'][0][0],x_loc < tracking_data['shelter_loc'][1][0])
+    in_shelt = np.where(np.logical_and(in_shelt_x, in_shelt_y))[0]
     if len(in_shelt)>0:
         x_loc = x_loc[:in_shelt[0]]
         y_loc = y_loc[:in_shelt[0]]
         speed = speed[:in_shelt[0]]
+
+    if len(x_loc) == 0: 
+        print('oppsie')
+        return tracking_data['head_loc'][onset_frames,0], tracking_data['head_loc'][onset_frames,1], 0
     trail_color = np.empty((len(speed),3))
+
+    distance_travelled = []
     for i,stim_status in enumerate(np.arange(len(speed))):
         if ax:
             trail_color[i,:] = get_color_based_on_speed(speed=speed[i], 
                                                         object_to_color="trail", 
                                                         stim_status=stim_status, 
                                                         stim_type=settings.stim_type)
+        if i > 0:
+            distance_travelled = np.append(distance_travelled,
+                                            np.sqrt((x_loc[i] - x_loc[i-1])**2 + (y_loc[i] - y_loc[i-1])**2))
     if ax:
         ax.scatter(x_loc,y_loc,s=5,c=trail_color/255)
 
@@ -98,7 +118,7 @@ def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, set
     x_loc = np.interp(np.arange(0,len(x_loc),len(x_loc)/interp),np.arange(len(x_loc)),x_loc)
     y_loc = np.interp(np.arange(0,len(y_loc),len(y_loc)/interp),np.arange(len(y_loc)),y_loc)  
 
-    return x_loc, y_loc
+    return x_loc, y_loc, np.sum(distance_travelled)
 
 def plot_optimal_trajectories(onset_frames, tracking_data, condition, interp = 100, ax = []):
     """ Plot optimal escape path"""
@@ -106,6 +126,7 @@ def plot_optimal_trajectories(onset_frames, tracking_data, condition, interp = 1
     opt_y = tracking_data['head_loc'][onset_frames,1]
     opt_t = [0]
     # compute and plot each optimal trajectory to barrier
+    if isinstance(condition,list): condition = condition[0]
     if not(any([condition == 'shelter_only',condition == 'pre_shelter', condition == 'barrier_removed',opt_y > 512])): # if no barrier or mouse starts in shelter zone
         opt_t = np.append(opt_t,(interp-1)/2)
         if condition == 'barrier_present': # double sided barrier 

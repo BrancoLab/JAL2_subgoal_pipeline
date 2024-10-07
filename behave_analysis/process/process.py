@@ -43,7 +43,7 @@ class Process():
             self.efizzDataLoaded = LoadEfizz(self.session)
             self.ttl = get_TTL(self.session, self.efizzDataLoaded.imec_sync_path)
         
-        # Retrieve Dev 3 NIDAQ signals
+        # # Retrieve Dev 3 NIDAQ signals
         self.session.camera_trigger = get_Camera_trigger(self.session, drop_frames = True)[0]
         self.session.audio = get_Audio(self.session)
         self.photo_resistor = get_Photoresistor(self.session)
@@ -59,6 +59,9 @@ class Process():
             _, slope, intercept, lastPulse, firstPulse = self.quality_check_new_sessions()
         elif settings_p.efizz == False:
             self.quality_check_new_sessions()
+
+        logger.info("Saving session metadata - building polars df next")
+        self.save_session()
             
         if settings_p.efizz:
             efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
@@ -68,10 +71,7 @@ class Process():
                                                              filePath = os.path.join(self.session.base_path,self.session.processed_path),
                                                              camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
                                                              lastPulse = lastPulse,
-                                                             firstPulse = firstPulse)
-        
-        logger.info("Finished process, saving session metadata")
-        self.save_session()
+                                                             firstPulse = firstPulse)        
         
         return self.session
     

@@ -9,19 +9,19 @@ def get_computer_specific_paths(session_path = ''):
     hostname = socket.gethostname()
     base_path = ''
 
-    if hostname == "W10-221I": # Jasmine machine
+    if hostname == "DESKTOP-AJ2I0CU": # Jasmine machine
         my_machine = r"E:\Experimental_Data"
         ceph_path = r"Z:\Jasmine_Laurence\Experimental_Data"
-        winstor_path = r"W:\branco\Laurence"
-        DLC_path = r"C:\Users\jreggiani\Documents\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
-        # DLC_path = r"Z:\Jasmine_Laurence\DLC\Iteration2\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
+        winstor_path = r"Y:\Laurence"
+        # DLC_path = r"C:\Users\jreggiani\Documents\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
+        DLC_path = r"Z:\Jasmine_Laurence\DLC\DLC_220424_JAL6_7_inc\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
     
     elif hostname == "DESKTOP-FBQJ1VU": #Laurence machine
         ceph_path = r"Z:\Jasmine_Laurence\Experimental_Data"
         winstor_path = r"W:\branco\Laurence"
         # my_machine = r"D:\efizz"
         # DLC_path = r"D:\DLC\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
-        DLC_path = r"Z:\Jasmine_Laurence\DLC\Iteration2\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
+        DLC_path = r"Z:\Jasmine_Laurence\DLC\DLC_220424_JAL6_7_inc\JAL_NPX1-Jasmine-2023-03-22\config.yaml"
     
     else: # unknown machine
         root = tk.Tk()

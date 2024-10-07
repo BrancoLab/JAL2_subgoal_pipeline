@@ -65,6 +65,13 @@ class Track(DLC):
             session (object): session dataclass
         """
         
+        # If no arena regristration details have been found then log it and kill session and rerun process
+        if isinstance(session.video.registration_transform, type(None)):
+            logger.error("This session has not been registered yet. Please register the video before processing tracking data. This could happen if you skip regreistation on the last process you did")
+            logger.error(f"Registration details not found; and subsequently the tracking can't be processed for session: {session.number} - {session.name}")
+            logger.info(f"The transform matrix is currently: {session.video.registration_transform}. This should be a matrix and not None or False.")
+            assert session.video.registration_transform, "The transform regristration details are not found, this is produced when you click on the arena during process."
+
         # Check if processing has FULLY been completed before
         self.processingExists = os.path.isfile(os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle"))
 
@@ -72,13 +79,6 @@ class Track(DLC):
         if self.processingExists and not self.settings.redo_processing_step: 
             logger.info(f"Tracking data already filtered and registered for session: {session.number} - {session.name}")
         
-        # If no arena regristration details have been found then log it and kill session and rerun process
-        if isinstance(session.video.registration_transform, type(None)):
-            logger.error("This session has not been registered yet. Please register the video before processing tracking data. This could happen if you skip regreistation on the last process you did")
-            logger.error(f"Registration details not found; and subsequently the tracking can't be processed for session: {session.number} - {session.name}")
-            logger.info(f"The transform matrix is currently: {session.video.registration_transform}. This should be a matrix and not None or False.")
-            assert session.video.registration_transform, "The transform regristration details are not found, this is produced when you click on the arena during process."
-            
         # If processing has not been done before or you want to redo it then run it
         else:
             if self.settings.redo_processing_step: 

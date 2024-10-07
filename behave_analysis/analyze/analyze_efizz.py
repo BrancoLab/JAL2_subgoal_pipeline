@@ -115,6 +115,7 @@ class AnalyzeEfizz:
             SingleTrialRegression(
                 design_matrix=pp_single_trial_obj.design_matrix,
                 save_path=single_trial_save_path,
+                session=self.session,
                 dependents_df=pp_single_trial_obj.targets_df,
                 tracking_data=self.tracking_data,
                 homing_list=pp_single_trial_obj.homing_list,
