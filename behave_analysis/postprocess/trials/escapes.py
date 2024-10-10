@@ -154,7 +154,7 @@ class get_Escapes:
                 else:
                     esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / session.video.fps
 
-            condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(c_fr)), session))
+            condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(on_fr)), session))
 
         spatial_efficiency_values, trajectory_length = spatial_efficiency(
             onset_frames, stimulus_durations, session, settings, condition, tracking_data, trial_type="Escapes", plotting=False
