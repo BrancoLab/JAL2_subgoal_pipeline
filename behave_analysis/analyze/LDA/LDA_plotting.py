@@ -22,7 +22,7 @@ from behave_analysis.utils.heatplot_utils import add_features, add_features_binn
 ## --------------- PLOTTING FUNCTIONS
 
 
-def plot_LDA_model(self, settings):
+def plot_LDA_model(self):
     """A function to call all plotting functions"""
     # make a plot of prediction accuracy across variables
     with open(self.LDA_out, "rb") as dill_file:
@@ -38,7 +38,7 @@ def plot_LDA_model(self, settings):
         PredictionAccuracyMapped(self, pa, fr=fr)
 
     # make a plot of prediction accuracy across variables with linear shift stats
-    if settings.linear_shift:
+    if self.settings.linear_shift:
         with open(self.LS_out, "rb") as dill_file:
             LS_compiled = pickle.load(dill_file)
         PlotLSPredictionAccuracy(self, LS_compiled, title)
@@ -57,7 +57,7 @@ def plot_LDA_model(self, settings):
             PredictionAccuracyMapped(self, LS_real, "LS_sig", LS_thresh)
 
 
-def plot_LDA_by_position(self, settings, target):
+def plot_LDA_by_position(self, target):
     with open(self.LDA_out, "rb") as dill_file:
         prediction_accuracy = pickle.load(dill_file)
 
@@ -319,7 +319,7 @@ def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_cen
     plt.close()
 
 
-def across_conditions_LDA_map(self, settings):
+def across_conditions_LDA_map(self):
     """
     Function to make a figure of the maps of the prediction accuracy for the angle of the head to each point in the arena
     all the maps for all the conditions are displayed together and color axes are adjusted to match across maps
@@ -330,9 +330,9 @@ def across_conditions_LDA_map(self, settings):
 
     pa = []
 
-    for comp in settings.compartment_split:
+    for comp in self.settings.compartment_split:
         for c in self.all_conditions:
-            self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types, c, comp)
+            self.savepath = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, c, comp)
             LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(c) + "_LDA_pa" + ".pkl"
             with open(LDA_out, "rb") as dill_file:
                 prediction_accuracy = pickle.load(dill_file)
@@ -347,9 +347,9 @@ def across_conditions_LDA_map(self, settings):
 
     # figure set-up
     fig, axs = plt.subplots(
-        nrows=len(settings.compartment_split),
+        nrows=len(self.settings.compartment_split),
         ncols=len(self.all_conditions) + 1,
-        figsize=(24, 6 * len(settings.compartment_split)),
+        figsize=(24, 6 * len(self.settings.compartment_split)),
         sharey=True,
         sharex=True,
     )
@@ -359,8 +359,8 @@ def across_conditions_LDA_map(self, settings):
 
     # Add subtitles for each condition in first column
 
-    for c_counter, c in enumerate(settings.compartment_split):
-        if len(settings.compartment_split) > 1:
+    for c_counter, c in enumerate(self.settings.compartment_split):
+        if len(self.settings.compartment_split) > 1:
             ax_idx = tuple([c_counter, 0])
         else:
             ax_idx = 0
@@ -368,9 +368,9 @@ def across_conditions_LDA_map(self, settings):
         axs[ax_idx].set_axis_off()
 
     data_counter = 0
-    for c_idx, comp in enumerate(settings.compartment_split):
+    for c_idx, comp in enumerate(self.settings.compartment_split):
         for idx, condition in enumerate(self.all_conditions):
-            if len(settings.compartment_split) > 1:
+            if len(self.settings.compartment_split) > 1:
                 ax_idx = tuple([c_idx, idx + 1])
             else:
                 ax_idx = idx + 1
@@ -407,10 +407,10 @@ def across_conditions_LDA_map(self, settings):
 
     # Save and close the figure
     plt.subplots_adjust(wspace=0.05, hspace=0)
-    savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types)
+    savepath = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types)
     plt.savefig(str(savepath) + "/" + "pa_map_compare.png")
     plt.savefig(str(savepath) + "/" + "pa_map_compare.eps", format="eps")
-    if settings.show_plots:
+    if self.settings.show_plots:
         plt.show()
     plt.close()
 

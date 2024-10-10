@@ -358,7 +358,10 @@ class Track(DLC):
         speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data['avg_loc'], axis=0) 
         speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0]**2 + speed_x_and_y_pixel_per_frame[:, 1]**2)**.5
         speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
-        self.region_tracking_data['avg_Velocity'] = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
+        # interpolated to make it the same length as every other variable!!
+        self.region_tracking_data['avg_Velocity'] = np.interp(np.arange(len(self.region_tracking_data['avg_loc'])),
+                                                              np.arange(len(speed_x_and_y_pixel_per_frame))+.5,
+                                                              gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10))
         
     # There seems to be a second component to the old function for the speed calculatuion that is not being used. Leaving as don't understand what it is doing yet.
     # What is the refernece component? 

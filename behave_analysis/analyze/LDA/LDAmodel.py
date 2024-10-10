@@ -35,7 +35,7 @@ from behave_analysis.analyze.LDA.LDA_by_position.LDA_by_position import run_LDA_
 from behave_analysis.analyze.LDA.LDA_fitting import linear_discriminant_analysis, parallel_function
 
 
-def LDA(self, settings):
+def LDA(self):
     """
     A wrapper function that figures out all the conditions across which to run decoding analysis.
     It will iterate over all conditions and compartments.
@@ -44,57 +44,57 @@ def LDA(self, settings):
     """
 
     # determine condition types
-    self.number_of_homings, condition_types = list_conditions(settings)
+    self.number_of_homings, condition_types = list_conditions(self.settings)
 
     # if running dropout or linear shift - initialize the pool
-    if np.logical_or(settings.dropout, settings.linear_shift):
+    if np.logical_or(self.settings.dropout, self.settings.linear_shift):
         self.PPool = PersistentPool()
 
     # run LDA across condition types, across compartments and across conditions
     for cond in condition_types:  # e.g. 'experimental_conditions', 'behavioral_conditions'
         self.condition_types = cond
-        for comp in settings.compartment_split:  # ['all','threat_zone','shelter_compartment', 'left_arena','right_arena','by_position']
+        for comp in self.settings.compartment_split:  # ['all','threat_zone','shelter_compartment', 'left_arena','right_arena','by_position']
             self.compartment = comp
             if comp == 'by_position':
                 # figure out which angles we want to decode
-                if np.logical_or(settings.run_LDA == 'all_vectors', settings.run_LDA == 'all_distance'):
+                if np.logical_or(self.settings.run_LDA == 'all_vectors', self.settings.run_LDA == 'all_distance'):
                     logger.warning("You are running LDA by position to decode vectors or distances, but this dramatically reduces the amount of available data. Run it on 'all_angles' instead")
                 self.number_of_bins = 9
                 self.num_slices = 6
                 self.num_circles = 3
-                target = choose_predictors(settings, self.session, include_rand_points = False)
+                target = choose_predictors(self.settings, self.session, include_rand_points = False)
             else:
-                self.number_of_bins = settings.number_of_bins
-                target = choose_predictors(settings, self.session)
+                self.number_of_bins = self.settings.number_of_bins
+                target = choose_predictors(self.settings, self.session)
             for c in self.all_conditions:
                 # e.g. 'all_time', 'pre_shelter', 'shelter_present', 'barrier_present', 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip'
                 self.condition = c
-                self.savepath = BuildSavingFolder(self.dir, settings, self.cluster_type, self.condition_types, self.condition, self.compartment)
-                check_if_we_do_LDA(self, settings)
+                self.savepath = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, self.condition, self.compartment)
+                check_if_we_do_LDA(self)
                 if np.logical_or(self.do_LDA, self.do_LS):
                     logger.info(
                         f"Run LDA on {self.cluster_type} data with condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
                     )
                     if comp == 'by_position':
-                        run_LDA_model_by_position(self, settings, target)    
+                        run_LDA_model_by_position(self, target)    
                     else:
-                        run_LDA_model(self, settings, target)
+                        run_LDA_model(self, target)
                 else:
                     logger.info(
                         f"LDA already run on this session for condition {self.condition} in condition type {self.condition_types} in compartment {self.compartment}"
                     )
                 logger.info(f"Time for some overview plots")
                 if comp == 'by_position':
-                    plot_LDA_by_position(self, settings, target)
+                    plot_LDA_by_position(self, target)
                 else:
-                    plot_LDA_model(self, settings)
+                    plot_LDA_model(self)
         if comp != 'by_position':
-            across_conditions_LDA_map(self, settings)
+            across_conditions_LDA_map(self)
     
-    if np.logical_or(settings.dropout, settings.linear_shift):
+    if np.logical_or(self.settings.dropout, self.settings.linear_shift):
         self.PPool.close()
 
-def run_LDA_model(self, settings, target_name):
+def run_LDA_model(self, target_name):
     """
     A function that iterates across all angles and runs decoder analysis and linear shift statistics based on user settings
     It will also make bar plots of prediction accuracy across all angles and a map of prediction accuracy for the random points
@@ -108,7 +108,7 @@ def run_LDA_model(self, settings, target_name):
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(self)
-    if settings.subsampling:
+    if self.settings.subsampling:
         bp, _ = BinArenaEqualParts(filtered_video_df, numpoints = 4, numrings = 1, radius = 460, video = self.session.video)
     else:
         bp = np.ones(len(filtered_video_df))
@@ -122,12 +122,12 @@ def run_LDA_model(self, settings, target_name):
             logger.info(f"Running LDA on {variable}")
             
             # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
-            if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
+            if np.logical_and(self.settings.exclude_proximal > 0, variable != "hdir"):
                 logger.warning(
                     "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
                 )
                 self.filtered_video_df = exclude_proximal_frames(
-                    filtered_video_df, variable, self.tracking_data, dist_thresh=settings.exclude_proximal * self.session.video.pixels_per_cm
+                    filtered_video_df, variable, self.tracking_data, dist_thresh=self.settings.exclude_proximal * self.session.video.pixels_per_cm
                 )
             else:
                 self.filtered_video_df = filtered_video_df
@@ -138,21 +138,21 @@ def run_LDA_model(self, settings, target_name):
                     self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable
                 )
             else:
-                target, X = prep_target_and_predictors(self, variable, settings)
+                target, X = prep_target_and_predictors(self, variable)
 
                 # run LDA on different angles
                 if self.do_LDA:
                     pa, coef, frames, y_out = linear_discriminant_analysis(
                         X,
                         pos_ang=target,
-                        epoch_num=settings.epoch_num,
+                        epoch_num=self.settings.epoch_num,
                         fr=self.session.video.fps,
                         return_coef=True,
-                        discriminant_type=settings.discriminant_type,
+                        discriminant_type=self.settings.discriminant_type,
                         plotting=True,
                         self=self,
                         title=variable,
-                        subsampling = settings.subsampling,
+                        subsampling = self.settings.subsampling,
                     )
                     prediction_accuracy.update({variable: pa})
                     prediction_accuracy.update({variable + '_time': frames})
@@ -187,12 +187,12 @@ def run_LDA_model(self, settings, target_name):
             n_randP = self.video_df.select(pl.col("^head_randP_.*$")).width
             for j in tqdm(np.arange(self.video_df.select(pl.col("^head_randP_.*$")).width), desc=f"Running LDA on random point out of  {n_randP}"):
                 # we can run LDA only for times when the mouse is far from the point we're trying to deocde the angle to
-                if settings.exclude_proximal > 0:
+                if self.settings.exclude_proximal > 0:
                     self.filtered_video_df = exclude_proximal_frames(
                         filtered_video_df,
                         variable + str(j),
                         self.tracking_data,
-                        dist_thresh=settings.exclude_proximal * self.session.video.pixels_per_cm,
+                        dist_thresh=self.settings.exclude_proximal * self.session.video.pixels_per_cm,
                     )
                 else:
                     self.filtered_video_df = filtered_video_df
@@ -204,21 +204,21 @@ def run_LDA_model(self, settings, target_name):
                     )
 
                 else:
-                    target, X = prep_target_and_predictors(self, str(variable + str(j)), settings)
+                    target, X = prep_target_and_predictors(self, str(variable + str(j)))
 
                     # run LDA on different angles
                     if self.do_LDA:
                         pa, coef, frames, y_out = linear_discriminant_analysis(
                             X,
                             pos_ang=target,
-                            epoch_num=settings.epoch_num,
+                            epoch_num=self.settings.epoch_num,
                             fr=self.session.video.fps,
                             return_coef=True,
-                            discriminant_type=settings.discriminant_type,
+                            discriminant_type=self.settings.discriminant_type,
                             plotting=False, # TODO: needs to be false!
                             self=self,
                             title=variable,
-                            subsampling = settings.subsampling,
+                            subsampling = self.settings.subsampling,
                         )
                         prediction_accuracy.update({str(variable + str(j)): pa})
                         prediction_accuracy.update({'time_rP'+str(j): frames})

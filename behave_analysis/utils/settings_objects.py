@@ -189,6 +189,7 @@ class Settings_analyze_efizz:
     dropout: bool = False
     classify_cells: bool = False
     subsampling: bool = False
+    exclude_stationary: bool = False
 
 
 @dataclass(frozen=True)

@@ -113,6 +113,7 @@ class BaseDataPostprocessor(ABC):
             -- shelter (bool)
             -- barrier_present (bool)
             -- barrier_flipped (bool)
+            -- speed
 
         Returns:
             Video_df (pl.DataFrame)"""
@@ -181,6 +182,7 @@ class BaseDataPostprocessor(ABC):
                 "hdir": self.tracking_data["hdir"],
                 "mouse_x_position": self.tracking_data["avg_loc"][:, 0],
                 "mouse_y_position": self.tracking_data["avg_loc"][:, 1],
+                "speed": self.tracking_data["avg_Velocity"],
                 "OutofshelterIdx": OutofShelterIdx,  # was the mouse in the shelter?
                 "EscapePeriod": EscapePeriod == 1,  # frames from 1 second before to 10 seconds after escape
                 "shelter": shelter,  # true when the shelter is in the arena

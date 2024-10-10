@@ -72,6 +72,7 @@ Settings_ae = Settings_analyze_efizz(
     dropout = False, # this will iteratively dropout each cluster and recompute the LDA prediction accuracy to see how much that cluster matters
     PCA_process=[],  # number of PCs to use, if left empty it will run without PCA
     subsampling = True, # whether to subsample to equalize data by angles and space
+    exclude_stationary = True, # mouse must be moving > 1cm/s, currently only works for experimental conditions (update filtering functions if you want to use with other settings)
     # ------------ Rayleigh model settings ----------------------
     run_rayleigh=False,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"

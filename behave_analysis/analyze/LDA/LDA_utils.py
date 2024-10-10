@@ -80,6 +80,9 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     if settings.exclude_hdir:
         pathh = str(pathh) + "_excl_hdir"
 
+    if settings.exclude_stationary:
+        pathh = str(pathh) + "_excl_stationary"
+
     # add subfolder for cluster type
     pathh = str(pathh) + "/" + str(cluster_type)
 
@@ -100,7 +103,7 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
 
     return pathh
 
-def check_if_we_do_LDA(self, settings):
+def check_if_we_do_LDA(self):
     """
     This function checks whether the decoder and the linear shift has already be run for this set of conditions, clusters, etc.
     It also checks if the user asked to redo compute
@@ -112,9 +115,9 @@ def check_if_we_do_LDA(self, settings):
     self.dropout_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_dropout_pa" + ".pkl"
     self.LS_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_pa" + ".pkl"
     self.do_LDA = True
-    self.do_dropout = settings.dropout
-    self.do_LS = settings.linear_shift
-    if not settings.redo_compute:
+    self.do_dropout = self.settings.dropout
+    self.do_LS = self.settings.linear_shift
+    if not self.settings.redo_compute:
         if os.path.exists(self.LDA_out):
             self.do_LDA = False
         if os.path.exists(self.LS_out):

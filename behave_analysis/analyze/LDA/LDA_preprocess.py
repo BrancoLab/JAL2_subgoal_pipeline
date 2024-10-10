@@ -34,11 +34,11 @@ def select_relevant_frames(self):
     if any([self.condition_types == "experimental_conditions",
                      self.condition_types == "first_half",
                      self.condition_types == "second_half"]):
-        filtered_video_df = filter_video_dataframe(self.video_df, self.condition)
+        filtered_video_df = filter_video_dataframe(self.video_df, self.condition, excl_stationary = self.settings.exclude_stationary)
         if np.logical_or(self.condition_types == "first_half", self.condition_types == "second_half"):
             filtered_video_df = filter_video_df_time(filtered_video_df, self.condition_types, self.session.video.fps, max_time = 20)
     else:
-        filtered_video_df = filter_video_dataframe(self.video_df, self.condition, exclude_escape=False)
+        filtered_video_df = filter_video_dataframe(self.video_df, self.condition, exclude_escape=False, excl_stationary = self.settings.exclude_stationary)
         if self.condition_types == "good_behavioral_conditions":
             filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, self.condition, self.session, good_homie=True)
         elif self.condition_types == "bad_behavioral_conditions":
@@ -304,7 +304,7 @@ def binDfbyEpoch(matrix, pos_ang, epoch_num, subsampling = False):
     return matrix, matriy, epochs
 
 
-def ProcessPredictors(self, frames, settings):
+def ProcessPredictors(self, frames):
     """
     This is a function for processing the frames x cluster matrix to get it ready for decodr analysis
     """
@@ -321,11 +321,11 @@ def ProcessPredictors(self, frames, settings):
     # X = (X - np.mean(X, axis=0)) / np.std(X, axis=0)
 
     # optional: run PCA
-    if settings.PCA_process:
+    if self.settings.PCA_process:
         pca = PCA(n_components=15)
         X = pca.fit_transform(X)
 
-    if settings.exclude_hdir:
+    if self.settings.exclude_hdir:
         path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "cells"))
         file_name = os.path.join(path, "hdir_cells.pkl")
         # TODO: write conditional that if there are no classified cells you need to classify
@@ -356,7 +356,7 @@ def zscore_predictors(X):
     #     X[:,nanclusters] = np.zeros((np.shape(X)[0],1))
     return ZscoredX
 
-def prep_target_and_predictors(self, variable, settings):
+def prep_target_and_predictors(self, variable):
 
     # extract frame numbers
     frames = self.filtered_video_df["frames"].unique().to_numpy() - 1
@@ -374,6 +374,6 @@ def prep_target_and_predictors(self, variable, settings):
         target = np.vstack((binned_target.T, self.filtered_video_df["binned_position"].to_numpy()))
 
     # prep the predictor matrix
-    X = ProcessPredictors(self, frames, settings)
+    X = ProcessPredictors(self, frames)
 
     return target, X

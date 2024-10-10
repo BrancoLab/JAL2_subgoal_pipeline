@@ -203,8 +203,8 @@ class AnalyzeEfizz:
             sklearn_main(self.session, self.video_df, self.frame_by_cluster_matrix, cluster_labels=self.cluster_Ids)
 
         # ------------------------------ Compute LDA --------------------------------
-        if len(Settings.run_LDA) > 0:
-            LDA(self, Settings)
+        if len(self.settings.run_LDA) > 0:
+            LDA(self)
             logger.success("LDA analysis complete")
 
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------

@@ -23,7 +23,7 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
 )
 from behave_analysis.analyze.LDA.LDA_fitting import linear_discriminant_analysis
 
-def run_LDA_model_by_position(self, settings, target_name):
+def run_LDA_model_by_position(self, target_name):
     """
     A function that iterates across all angles and runs decoder analysis and linear shift statistics based on user settings
     It will also make bar plots of prediction accuracy across all angles and a map of prediction accuracy for the random points
@@ -48,12 +48,12 @@ def run_LDA_model_by_position(self, settings, target_name):
         logger.info(f"Running LDA on {variable}")
         
         # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
-        if np.logical_and(settings.exclude_proximal > 0, variable != "hdir"):
+        if np.logical_and(self.settings.exclude_proximal > 0, variable != "hdir"):
             logger.warning(
                 "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
             )
             self.filtered_video_df_full = exclude_proximal_frames(
-                filtered_video_df, variable, self.tracking_data, dist_thresh=settings.exclude_proximal * self.session.video.pixels_per_cm
+                filtered_video_df, variable, self.tracking_data, dist_thresh=self.settings.exclude_proximal * self.session.video.pixels_per_cm
             )
         else:
             self.filtered_video_df_full = filtered_video_df
@@ -69,7 +69,7 @@ def run_LDA_model_by_position(self, settings, target_name):
                     self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable + '_pos' + str(b)
                 )
             else:
-                target, X = prep_target_and_predictors(self, variable, settings)
+                target, X = prep_target_and_predictors(self, variable)
                 savename = variable + '_pos' + str(b)
 
                 # run LDA on different angles
@@ -77,14 +77,14 @@ def run_LDA_model_by_position(self, settings, target_name):
                     pa, coef, frames, y_out = linear_discriminant_analysis(
                         X,
                         pos_ang=target,
-                        epoch_num=settings.epoch_num,
+                        epoch_num=self.settings.epoch_num,
                         fr=self.session.video.fps,
                         return_coef=True,
-                        discriminant_type=settings.discriminant_type,
+                        discriminant_type=self.settings.discriminant_type,
                         plotting=False,
                         self=self,
                         title=savename,
-                        subsampling = settings.subsampling,
+                        subsampling = self.settings.subsampling,
                     )
                     prediction_accuracy.update({variable + '_pos' + str(b): pa})
                     prediction_accuracy.update({variable + '_time' + str(b): frames})
