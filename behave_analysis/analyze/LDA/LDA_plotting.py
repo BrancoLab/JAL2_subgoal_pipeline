@@ -202,7 +202,8 @@ def PredictionAccuracyMapped(self, pa, title_add="LDA", LS_thresh=None, pos=[], 
         significant_points = (pa - LS_thresh) > 0
         ax.scatter(x[significant_points] + 0.5, y[significant_points] + 0.5, s=3, c="w")
 
-    add_features_binned(ax, self.condition, self.tracking_data, xbins, ybins)
+    Arena(dim = np.shape(heatmap)[0], ax=ax, shelter_coordinates=self.tracking_data["shelter_loc"], condition=self.condition, barrier_coordinates=self.session.barrier_location, no_offset=True)
+    # add_features_binned(ax, self.condition, self.tracking_data, xbins, ybins)
 
     # Remove x and y tick labels and ticks
     ax.set_xticklabels([])
@@ -393,7 +394,8 @@ def across_conditions_LDA_map(self, settings):
                 norm=plt.Normalize(vmin=vmin, vmax=vmax),
             )
 
-            add_features_binned(axs[ax_idx], condition, self.tracking_data, xbins, ybins)
+            Arena(dim = np.shape(heatmap)[0], ax=axs[ax_idx], shelter_coordinates=self.tracking_data["shelter_loc"], condition=condition, barrier_coordinates=self.session.barrier_location, no_offset=True)
+            # add_features_binned(axs[ax_idx], condition, self.tracking_data, xbins, ybins)
 
             # Remove x and y tick labels and ticks
             axs[ax_idx].set_xticklabels([])
