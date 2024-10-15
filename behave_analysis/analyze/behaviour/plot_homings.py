@@ -401,6 +401,56 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
     if show_plots: plt.show()
     plt.close()
 
+def trajectory_by_target(session, onsets, offsets, head_angle, all_conditions, tracking_data, title, show_plots=False):
+    """Plot the trajectory of all homings in each condition, colored by the target in the first 15 cm of the run"""
+    conditions = identify_conditions(session)
+
+    if "barrier_pre_flip" in conditions:
+        conditions.remove("barrier_present")
+
+    if "shelter_only" in conditions:
+        conditions.remove("shelter_present")
+
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
+
+    for i, con in enumerate(conditions):
+        sum_homings = 0
+        for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
+            if np.isnan(onset):
+                continue
+            trial_condition = all_conditions[idx]
+            if isinstance(onset,np.ndarray):
+                onset = onset[0].astype(int)
+
+            if np.logical_or(con == trial_condition, con == "all_time"):
+                frame_coords = tracking_data["avg_loc"][onset:offset]
+                end_fr, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+
+                # calculate the preference of mouse heading for one of three targets - could also use start_frame or the average from start_frame to end_fr
+                xdist = -tracking_data['head_loc'][end_fr, 0]+tracking_data['barrier_loc'][0][0]
+                ydist = -tracking_data['head_loc'][end_fr, 1]+tracking_data['barrier_loc'][0][1]
+                bprea = - np.arctan2(ydist, xdist)
+                xdist = -tracking_data['head_loc'][end_fr, 0]+tracking_data['barrier_loc'][1][0]
+                ydist = -tracking_data['head_loc'][end_fr, 1]+tracking_data['barrier_loc'][1][1]
+                bposta = - np.arctan2(ydist, xdist)
+                if tracking_data["bod_shelt_dir"][end_fr] < 0: bsa = tracking_data["bod_shelt_dir"][end_fr] + np.pi
+                if tracking_data["bod_shelt_dir"][end_fr] > 0:  bsa = tracking_data["bod_shelt_dir"][end_fr] - np.pi
+
+                cosim=[]
+                for ang in [bprea,bsa, bposta]:
+                    cosim = np.append(cosim,np.cos(ang-head_angle[idx]))
+                color = ['green','red','blue']
+
+                x_loc = tracking_data["head_loc"][onset : offset, 0]
+                y_loc = tracking_data["head_loc"][onset : offset, 1]
+                ax[i].scatter(x_loc, y_loc, s=3, color=color[np.argmax(cosim)])
+
+        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
+        ax[i].set_title(f"{con} (n={sum_homings})")
+
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str(title+"_trajectory_by_target.png")))
+    if show_plots: plt.show()
+    plt.close()
 
 def trial_speed_hist(session, avg_speed, title, show_plots=False):
     # histogram of homing speed
