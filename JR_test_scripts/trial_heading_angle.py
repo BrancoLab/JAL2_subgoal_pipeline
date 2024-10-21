@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, tracking_data):
+def initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, tracking_data, exclude_south = False):
     """Finds the cosine similarity between the heading of the mouse when he starts running in the homing and the angle with the three goals
     Assigns the homing heading to the goal it is most similar to
     Doesn't differentiate between below and above the barrier so a lot of shelter targets are actually below the barrier"""
@@ -54,6 +54,10 @@ def initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, 
                 if tracking_data["bod_shelt_dir"][start_frame] < 0: bsa = tracking_data["bod_shelt_dir"][start_frame] + np.pi
                 if tracking_data["bod_shelt_dir"][start_frame] > 0:  bsa = tracking_data["bod_shelt_dir"][start_frame] - np.pi
 
+                if np.logical_and(exclude_south,
+                                  np.logical_or(con == 'barrier_pre_flip', con == 'barrier_post_flip')):
+                    if tracking_data["avg_loc"][onset,1] > 512:
+                        continue
                 cosim=[]
                 for ang in [bprea,bsa, bposta]:
                     cosim = np.append(cosim,np.cos(ang-head_angle[idx]))
