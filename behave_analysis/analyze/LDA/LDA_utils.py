@@ -58,7 +58,10 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     elif settings.discriminant_type == "LSTM":
         pathh = str(basepath) + "/" + "LSTM" + "/"
 
-    pathh = str(pathh) + settings.run_LDA
+    if isinstance(settings.run_LDA, list):
+        pathh = str(pathh) + 'angle_list'
+    else:
+        pathh = str(pathh) + settings.run_LDA
 
     # if subsampling to equalize the bins
     if settings.subsampling:
