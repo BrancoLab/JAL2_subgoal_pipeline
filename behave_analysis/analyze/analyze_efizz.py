@@ -97,21 +97,32 @@ class AnalyzeEfizz:
 
             # Select velocity data
             velocity_data = self.tracking_data["avg_Velocity"]  # Velocity len one less than video df because its between frames
+            
+            condition = "barrier_pre_flip"
 
             pp_single_trial_obj = PreprocessSingleTrialRegression(
                 video_df=self.video_df,
                 homings_obj=self.homings_object,
-                video_and_spike_data=self.video_and_spike_data,
                 frame_by_cluster_matrix=self.frame_by_cluster_matrix,
                 save_path=single_trial_save_path,
                 velocity_data=velocity_data,
-                similar_homings=True,
+                similar_homings=False,
                 barrier_location=self.tracking_data["barrier_loc"],
                 shelter_location=self.tracking_data["shelter_loc"],
                 escape_object=self.escape_object,
                 remove_escapes=False,
+                condition = condition
             )
-                    
+
+            # # Save the preprocessed regression object
+            # with open(single_trial_save_path / "pp_single_trial_obj.pkl", "wb") as f:
+            #     pickle.dump(pp_single_trial_obj, f)
+            #     logger.success("Preprocessed single trial object saved, ready for analysis")
+
+            # path = os.path.join(self.session.base_path, self.session.processed_path, "models", "single_trial", "pp_single_trial_obj.pkl")
+            # with open(path, "rb") as hf:
+            #     pp_single_trial_obj = pickle.load(hf)
+            
             SingleTrialRegression(
                 design_matrix=pp_single_trial_obj.design_matrix,
                 save_path=single_trial_save_path,
@@ -124,9 +135,10 @@ class AnalyzeEfizz:
                 cluster_ids=self.cluster_Ids,
                 initial_directions=pp_single_trial_obj.initial_directions,
                 conversion_from_left_right_to_pre_post_flip=pp_single_trial_obj.convert_left_right_to_pre_post_flip,
+                condition= condition
             )
 
-      #  ----------------- Compute Rayleigh, polar plots and delta hists ------------
+        #  ----------------- Compute Rayleigh, polar plots and delta hists ------------
 
         if Settings.run_rayleigh:
             if not Settings.single_cluster_plots:

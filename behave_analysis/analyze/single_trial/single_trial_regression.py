@@ -11,7 +11,7 @@ import pandas as pd
 from loguru import logger
 import matplotlib.pyplot as plt
 import numpy as np
-
+from sklearn.feature_selection import mutual_info_regression
 import seaborn as sns
 import polars as pl
 from sklearn.model_selection import GroupKFold
@@ -49,7 +49,8 @@ class SingleTrialRegression:
         cluster_ids,
         initial_directions: list,  # of strings e.g. ['north_edge', 'south_edge', 'hsa']
         conversion_from_left_right_to_pre_post_flip: dict,
-        session_name = "",
+        session_name="",
+        condition=None,
     ):
         """Initialize the single trial regression analysis object
 
@@ -70,12 +71,12 @@ class SingleTrialRegression:
         self.homing_list = homing_list
         self.spike_homing_list = spike_homing_list
         self.condition_per_homing = condition_per_homing
+        self.condition = condition
         self.tracking_data = tracking_data
         self.save_path = save_path
         self.initial_directions = initial_directions
         self.dependent_names = list(dependents_df.columns)
         self.conversion_from_left_right_to_pre_post_flip = conversion_from_left_right_to_pre_post_flip
-        logger.info("The dependent variables to run in this regression are: {}", self.dependent_names)
         self.dependents_df = dependents_df
         self.number_of_neurons = self.design_matrix.shape[1] - 1  # Subtract 1 for the homing id column
         self.angular_dependent_vars = [
@@ -90,6 +91,7 @@ class SingleTrialRegression:
         # Initialize the plotting object
         self.plotter = RegressionPlotting(save_path)
 
+        # TODO - Choose which analysis methods you want to run
         self.run(
             run_all_dependent_variables=True,
             shift_neural_data=False,
@@ -97,7 +99,7 @@ class SingleTrialRegression:
             run_hiarchical_regression=False,
             train_and_test_on_different_directions=False,  # Do you want to train ols on south homings and test on north homings e.g
         )
-        
+
         logger.success("The single trial analysis has completed for a single session")
 
         # TODO - update to handle two indexes
@@ -132,13 +134,13 @@ class SingleTrialRegression:
 
         if run_all_dependent_variables:
             r2_score_for_all_dependents, _, _, _ = self.run_all_dependent_variables()
-            
+
             # Pickle save the results
             make_directory(self.save_path / "r2_scores")
-            file_name = str(self.session_name) + "_r2_scores.pickle" 
+            file_name = str(self.session_name) + "_" + self.condition + "_r2_scores.pickle"
             with open(self.save_path / "r2_scores" / file_name, "wb") as f:
                 pickle.dump(r2_score_for_all_dependents, f)
-            
+
             self.plotter.plot_the_r2_scores_for_all_dependents(r2_scores=r2_score_for_all_dependents)
             logger.success("The model has been run for all dependent variables")
 
@@ -149,11 +151,24 @@ class SingleTrialRegression:
             logger.success("The model has been run for all shifts")
 
         if explore_coeffs_with_other_predictors:
-            # Where og is the original gangster and comp is the comparison model
-            sig_idx_in_both_models_north_index, _ = self.run_model_comparison_of_just_neural_vs_other_predictors("pre_flip_index")
-            sig_idx_in_both_models_south_index, _ = self.run_model_comparison_of_just_neural_vs_other_predictors("post_flip_index")
 
-            if 1:  # if you want to plot neural activity onto homings
+            make_directory(self.save_path / "coefficients")
+            run_these_vars = [
+                "random"
+            ]  # NOTE hard code these values cant be circular for now as the library does not support multi output regression values
+
+            for var in run_these_vars:
+                file_name = str(self.session_name) + "_" + var + "_coefficients.pickle"
+                full_path = self.save_path / "coefficients" / file_name
+
+                print(f"Running the model for the dependent variable: {var}")
+
+                # Where og is the original gangster and comp is the comparison model
+                sig_idx_in_both_models_north_index, _ = self.run_model_comparison_of_just_neural_vs_other_predictors(
+                    dependent_var_name=var, file_name=full_path
+                )
+
+            if 0:  # if you want to plot neural activity onto homings
                 # Plot the escape trajectories with the neural activity
                 sig_cluster_ids_north = self.retrieve_clu_ids_sig_to_index(sig_idx_in_both_models_north_index, self.cluster_ids)
                 sig_cluster_ids_south = self.retrieve_clu_ids_sig_to_index(sig_idx_in_both_models_south_index, self.cluster_ids)
@@ -171,11 +186,21 @@ class SingleTrialRegression:
                 )
 
         if run_hiarchical_regression:
-            h_results = self.run_hiararchical_regression(INDEX)
-            self.plotter.plot_adjusted_r2_scores_for_hierarchy(h_results)
+            logger.info("Running the hierarchical regression analysis")
+            var = "pre_flip_index"  # NOTE currently have to hard code this in
+            print(f"Running the model for the dependent variable: {var}")
+            h_results, mi = self.run_hiararchical_regression(var)
+            # self.plotter.plot_adjusted_r2_scores_for_hierarchy(h_results)
+            make_directory(self.save_path / "adjusted_r2_scores")
+            file_name = str(self.session_name) + "_" + var + "_adjusted_r2_scores.pickle"
+            with open(self.save_path / "adjusted_r2_scores" / file_name, "wb") as f:
+                pickle.dump(h_results, f)
+            mi_file_name = str(self.session_name) + "_" + var + "_mutual_information.pickle"
+            with open(self.save_path / "adjusted_r2_scores" / mi_file_name, "wb") as f:
+                pickle.dump(mi, f)
             logger.success("The model has been run for the hierarchical regression")
 
-    def run_model_comparison_of_just_neural_vs_other_predictors(self, index) -> tuple:
+    def run_model_comparison_of_just_neural_vs_other_predictors(self, dependent_var_name, file_name) -> tuple:
         """First runs the model with neural data alone and then adds other predictors to see how the coefficients change
 
         Args:
@@ -185,11 +210,21 @@ class SingleTrialRegression:
             tuple: sig_in_both_models_idxs, og_coefficients[sig_in_both_models_idxs]"""
 
         # Run the model with the original design matrix with just the neural data
-        og_r2_score, og_coefficients, og_p_values = self.run_just_one_dependent_variable(index, self.design_matrix)
+        og_r2_score, og_coefficients, og_p_values = self.run_just_one_dependent_variable(dependent_var_name, self.design_matrix)
 
         # Now add other predictors to the design matrix and run the model again
-        comparison_design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, self.encompasing_set)
-        comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(index, comparison_design_matrix)
+        dependent_var_names = self.dependents_df.columns.tolist()
+        dependent_var_names.remove(dependent_var_name)  # Remove the target to prevent complete predictions
+
+        comparison_design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, dependent_var_names)
+        print(f"The following vars are in the comparison model: {dependent_var_names}")
+        comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(
+            dependent_var_name, comparison_design_matrix
+        )
+
+        # Check that all pvalues arent zero
+        assert np.any(og_p_values), "All p values are zero in the original model"
+        assert np.any(comp_predictors_p_value), "All p values are zero in the comparison model"
 
         # Select only the neural data coefficients and p values (Excluding intercept and non neural coeffs)
         og_coefficients = og_coefficients[: self.number_of_neurons]
@@ -197,13 +232,20 @@ class SingleTrialRegression:
         comp_predictors_coeffs = comp_predictors_coeffs[: self.number_of_neurons]
         comp_predictors_p_value = comp_predictors_p_value[: self.number_of_neurons]
 
-        # Take the indexes that are significant in both models
-        sig_in_both_models_idxs = np.where((og_p_values < 0.05) & (comp_predictors_p_value < 0.05))[0]
+        # bonferroni correction
+        alpha = 0.05
+        bonforrini_alpha = alpha / len(og_coefficients)
 
-        sig_index_coefficients_indices = np.where(og_p_values < 0.05)  # Which coefficients are significant in the original model
+        # Take the indexes that are significant in both models
+        sig_in_both_models_idxs = np.where((og_p_values < bonforrini_alpha) & (comp_predictors_p_value < bonforrini_alpha))[0]
+        sig_index_coefficients_indices = np.where(og_p_values < bonforrini_alpha)  # Which coefficients are significant in the original model
+
+        # Plot the proportion of coefficients that remain significant between the two models
+        assert len(og_p_values) == len(comp_predictors_p_value), "The p values are not the same length, they must match one to one"
         self.plotter.plot_proportion_of_coeffs_that_remain_significant(
-            og_p_values, comp_predictors_p_value, og_r2_score, comp_r2_score, index_string=index
+            og_p_values, comp_predictors_p_value, dependent_var_name=dependent_var_name, file_name=file_name
         )
+
         # Check whether the significant coefficients change significantly between the two models
         x1 = np.ones(len(og_coefficients))
         x2 = 2 * np.ones(len(comp_predictors_coeffs))
@@ -214,7 +256,7 @@ class SingleTrialRegression:
             comp_predictors_coeffs,
             sig_index_coefficients_indices,
             ttest_func=self.repeat_observation_ttest,
-            index_string=index,
+            dependent_var_name=dependent_var_name,
         )
         logger.success("The model has been run to compare base model with encompassing model")
         return sig_in_both_models_idxs, og_coefficients[sig_in_both_models_idxs]
@@ -225,15 +267,23 @@ class SingleTrialRegression:
 
     def run_just_one_dependent_variable(self, dependent_var_name: str, design_matrix: pd.DataFrame) -> tuple:
         """Run the model for just one dependent variable"""
+
+        multiple_dependent_scenario = False
+        if dependent_var_name in self.angular_dependent_vars:
+            multiple_dependent_scenario = True
+
         make_directory(self.save_path / "ols_regression" / dependent_var_name)
         ols_fold_results = self.run_ols_model_with_cross_val(
             design_matrix=design_matrix,
             dependent_variable=self.dependents_df[dependent_var_name].to_numpy(),
             dependent_var_name=dependent_var_name,
+            multi_dependent=multiple_dependent_scenario,
             n_splits=N_SPLITS,
         )
         dic = self.unpack_fold_results_and_average(ols_fold_results)
         r2_scores, coefficients, p_values = dic["mean_r2"], dic["mean_coefficients"], dic["mean_p_values"]
+        assert np.any(p_values), "All p values are zero"
+        assert np.any(coefficients), "All coefficients are zero"
         return r2_scores, coefficients, p_values
 
     def run_all_dependent_variables(self):
@@ -264,7 +314,6 @@ class SingleTrialRegression:
                 design_matrix=self.design_matrix,
                 dependent_variable=self.dependents_df[var_name].to_numpy(),
                 dependent_var_name=var_name,
-                multi_dependent=multiple_dependent_scenario,
                 n_splits=N_SPLITS,
             )
 
@@ -279,39 +328,62 @@ class SingleTrialRegression:
 
         return r2_scores, p_values, coefficients, mse
 
-    def run_hiararchical_regression(self, INDEX):
+    def run_hiararchical_regression(self, dependent_var_name: str) -> dict:
         """Conduct a looping hierarchical regression analysis where predictors are added one by one and the adjusted R2 is calculated"""
-        # hardcode subsets
-        s0 = []  # empty set just neural data
-        s1 = ["hdir"]
-        s2 = ["hdir", "velocity"]
-        s3 = ["hdir", "velocity", "mouse_y_position"]
-        s4 = ["hdir", "velocity", "mouse_y_position", "hsa"]
-        s5 = ["hdir", "velocity", "mouse_y_position", "hsa", "h_preflipbar_a"]
-        full_set = [s0, s1, s2, s3, s4, s5, self.encompasing_set]
+        dependent_var_names = self.dependents_df.columns.tolist()
+        dependent_var_names.remove(dependent_var_name)  # Remove the target to prevent complete predictions
+        hirarchical_results = {}  # Each key is the indepedent variable that has been appended to the model
 
-        # store the results
-        hirarchical_results = {}
+        # Append to the start of the list the dependent variable
+        dependent_var_names.insert(0, "neural_data")
 
-        for i, subset in enumerate(full_set):
-            # First add the subset to the design matrix
-            design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, dependents_to_add=subset)
+        multiple_dependent_scenario = False
+        # If the target is angular run in multi-output regression mode
+        if dependent_var_name in self.angular_dependent_vars:
+            multiple_dependent_scenario = True
 
-            # Run cross validation
+        # Continually append new independent variables to the model and calculate the adjusted R2
+        for i, name in enumerate(dependent_var_names):
+            print(f"Running the model with {name} added to the model. (Neural data is not added twice)")
+            if i == 0:
+                set = []  # When i is 0 then the subset is empty, this is just the neural data
+            else:
+                set = dependent_var_names[1 : i + 2]
+            design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, dependents_to_add=set)
             ols_fold_results = self.run_ols_model_with_cross_val(
                 design_matrix=design_matrix,
-                dependent_variable=self.dependents_df[INDEX].to_numpy(),
-                dependent_var_name=INDEX,
+                dependent_variable=self.dependents_df[dependent_var_name].to_numpy(),
+                dependent_var_name=dependent_var_name,
+                multi_dependent=multiple_dependent_scenario,
+                n_splits=N_SPLITS,
             )
-
             unpacked_results = self.unpack_fold_results_and_average(ols_fold_results)
             unpacked_r2 = unpacked_results["mean_r2"]
             number_of_predictors = design_matrix.shape[1] - 1  # Subtract 1 for the homing id column
-            avg_observations = len(self.design_matrix)
+            avg_observations = len(design_matrix)
             adjusted_r2 = self.calculate_adjusted_r2(unpacked_r2, avg_observations, number_of_predictors)
-            hirarchical_results[i] = adjusted_r2
+            hirarchical_results[name] = adjusted_r2
 
-        return hirarchical_results
+            # only for the last iteration
+            if i == len(dependent_var_names) - 1:
+
+                # remove homingd id
+                design_matrix = design_matrix.drop(columns=["homing_id"])
+
+                # Compute mutual information between the target and the predictors
+                mi = mutual_info_regression(design_matrix, self.dependents_df[dependent_var_name].to_numpy())
+
+                # Index the end of
+                neural_info_slice = len(self.design_matrix.columns) - len(dependent_var_names) + 1
+                task_related_slice = len(dependent_var_names) - 1
+                neural_mi = mi[0:neural_info_slice]
+                task_related_mi = mi[-task_related_slice:]
+                task_related_df = pd.DataFrame(task_related_mi).T
+                task_related_df.columns = dependent_var_names[1:]
+
+                mi_dic = {"neural_mi": neural_mi, "task_related_mi": task_related_df}
+
+        return hirarchical_results, mi_dic
 
     # ANALYSIS TYPE - Train and test on different homings directions ----------------------------------------------
 
@@ -379,7 +451,6 @@ class SingleTrialRegression:
         if dependents_to_add:
             design_matrix = design_matrix.copy()
             for dependent in dependents_to_add:
-
                 # Scale non angular data when adding into design matrix
                 if dependent not in self.angular_dependent_vars:
                     std = np.std(self.dependents_df[dependent].to_numpy())
@@ -711,6 +782,7 @@ class SingleTrialRegression:
         multi_dependent: bool = False,
         directions: dict = None,
         normal_mode: bool = True,
+        plot: bool = False,
     ):
         """Run an OLS statsmodel regression on the data with cross validation
 
@@ -748,59 +820,53 @@ class SingleTrialRegression:
 
         fig, axs = plt.subplots(n_splits, 3, figsize=(18, 10), sharex=False)
         for fold, (train_index, test_index) in enumerate(group_kfold.split(X, y, groups)):
-            # Seperate train and test by homings
             X_train, X_test = X.iloc[train_index], X.iloc[test_index]
             y = np.asarray(y)
             y_train, y_test = y[train_index], y[test_index]
-
-            # Interpolate
-            X_train, y_train = smoter_interpolate(X_train, y_train, k=5, size=len(X_train) * 10)
-            X_test, y_test = smoter_interpolate(X_test, y_test, k=5, size=len(X_test) * 10)
-
-            # unfirom sample
-            bins = np.linspace(-1, 1, 20)
-            ind = uniform_sample(X_test, y_test, bins=bins, samples_per_bin=400)
-            X_test = X_test[ind]
-            y_test = y_test[ind]
+            X_train, X_test = X_train.to_numpy(), X_test.to_numpy()
 
             if multi_dependent:
                 ols_fold_results[fold] = self.multi_output_ols_regression(
                     X_train, y_train, fold, save_path, X_test, y_test, name_of_dependent=dependent_var_name, ax=axs[fold]
                 )
-                # convert back to sclar
-                y_train = np.arctan2(y_train[:, 0], y_train[:, 1])
-                y_test = np.arctan2(y_test[:, 0], y_test[:, 1])
-                self.plotter.overlay_test_and_train_targets(
-                    ax=axs[fold], train_tar=y_train, test_tar=y_test, train_yl="whole arena", test_yl="whole arena", fold=fold
-                )
+                if plot:
+                    # convert back to sclar
+                    y_train = np.arctan2(y_train[:, 0], y_train[:, 1])
+                    y_test = np.arctan2(y_test[:, 0], y_test[:, 1])
+                    self.plotter.overlay_test_and_train_targets(
+                        ax=axs[fold], train_tar=y_train, test_tar=y_test, train_yl="whole arena", test_yl="whole arena", fold=fold
+                    )
 
             if not multi_dependent:
                 ols_fold_results[fold] = self.ols_regression_statsmodel(X_train, y_train, fold, X_test, y_test, ax=axs[fold])
 
                 if not normal_mode:
-                    self.plotter.overlay_test_and_train_targets(
-                        ax=axs[fold],
-                        train_tar=y_train,
-                        test_tar=y_test,
-                        train_yl=directions["trainY_dir"],
-                        test_yl=directions["testY_dir"],
-                        fold=fold,
-                    )
+                    if plot:
+                        self.plotter.overlay_test_and_train_targets(
+                            ax=axs[fold],
+                            train_tar=y_train,
+                            test_tar=y_test,
+                            train_yl=directions["trainY_dir"],
+                            test_yl=directions["testY_dir"],
+                            fold=fold,
+                        )
 
                 if normal_mode:
-                    self.plotter.overlay_test_and_train_targets(
-                        ax=axs[fold],
-                        train_tar=y_train,
-                        test_tar=y_test,
-                        train_yl="whole arena",
-                        test_yl="whole arena",
-                        fold=fold,
-                    )
+                    if plot:
+                        self.plotter.overlay_test_and_train_targets(
+                            ax=axs[fold],
+                            train_tar=y_train,
+                            test_tar=y_test,
+                            train_yl="whole arena",
+                            test_yl="whole arena",
+                            fold=fold,
+                        )
 
-        plt.legend()
-        plt.suptitle(f"Training and testing on {dependent_var_name} with {n_splits} splits")
-        file_name = f"{dependent_var_name}.png"
-        plt.savefig(save_path / file_name)
+        if plot:
+            plt.legend()
+            plt.suptitle(f"Training and testing on {dependent_var_name} with {n_splits} splits")
+            file_name = f"{dependent_var_name}.png"
+            plt.savefig(save_path / file_name)
         plt.close()
 
         return ols_fold_results
@@ -826,12 +892,15 @@ class SingleTrialRegression:
         return t_stat, p_value
 
     def calculate_adjusted_r2(self, r2_score: float, n: int, p: int) -> float:
-        """Calculate the adjusted R2 score
+        """
+        Compute the effect of adding predictors to the model by computing
+        the adjusted R2 score.
 
         Args:
             r2_score (float): The R2 score
             n (int): The number of samples
-            p (int): The number of predictors"""
+            p (int): The number of predictors
+        """
         adjusted_r2 = 1 - (1 - r2_score) * (n - 1) / (n - p - 1)
         return adjusted_r2
 
@@ -1201,7 +1270,7 @@ class RegressionPlotting:
             ax.plot([x1[i], x2[i]], [original_model_coeffs[i], comparison_model_coeffs[i]], color="gray", linestyle="--", linewidth=0.5)
 
     def plot_coefficients_between_models(
-        self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func, index_string
+        self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func, dependent_var_name
     ):
         """Plot all and only the significant coefficients between the two models in separate plots"""
 
@@ -1233,13 +1302,20 @@ class RegressionPlotting:
         are_results_significant = "significant" if p_value < 0.05 else "not significant"
         formatted_p_value = format(p_value, ".4f")
         rounded_p_value = round(p_value, 4)
-        fig.suptitle(f"Sig coeff (absolute) p-value: {rounded_p_value}. \n Difference is {are_results_significant} between models for {index_string}")
-        file_name = index_string + "_coefficients_between_models.png"
+        fig.suptitle(
+            f"Sig coeff (absolute) p-value: {rounded_p_value}. \n Difference is {are_results_significant} between models for {dependent_var_name}"
+        )
+        file_name = dependent_var_name + "_coefficients_between_models.png"
         plt.savefig(self.save_path / file_name)
         plt.close()
 
     def plot_proportion_of_coeffs_that_remain_significant(
-        self, original_model_pvalues: np.ndarray, comparison_model_pvalues: np.ndarray, og_r2_score, comp_r2_score, index_string, alpha=0.05
+        self,
+        original_model_pvalues: np.ndarray,
+        comparison_model_pvalues: np.ndarray,
+        dependent_var_name,
+        alpha=0.05,
+        file_name=None,
     ) -> None:
         """Plots a bar chart showing the proportion of coefficients that remain significant between the two models, neural coefficients only
 
@@ -1261,6 +1337,20 @@ class RegressionPlotting:
             [num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05]
         )
 
+        # would need to comment for random perhaps
+        # assert og_moel_significant_coeffs != all_predictors_significant, "The number of significant coefficients is the same for both models"
+        # ssert all_predictors_significant != num_sig, "The number of significant coefficients is the same for both models"
+
+        # save dictionary as pickle
+        dic = {
+            "num_og_model_coeffs": og_moel_significant_coeffs,
+            "num_all_predictors_significant": all_predictors_significant,
+            "num_remaining_sig": num_sig,
+        }
+
+        with open(file_name, "wb") as f:
+            pickle.dump(dic, f)
+
         # Plot the number of cells that remain significant
         _, ax = plt.subplots()
         ax.bar(
@@ -1270,8 +1360,8 @@ class RegressionPlotting:
         # rotate the x labels
         plt.xticks(rotation=10)
         ax.set_ylabel("Number of significant coefficients")
-        ax.set_title(f" {num_sig} / {len(original_model_pvalues)} coeffs are significant under both models for {index_string}")
-        file_name = index_string + "_proportion_of_significant_coeffs.png"
+        ax.set_title(f" {num_sig} / {len(original_model_pvalues)} coeffs are significant under both models for {dependent_var_name}")
+        file_name = dependent_var_name + "_proportion_of_significant_coeffs.png"
         plt.savefig(self.save_path / file_name)
         plt.close()
 
