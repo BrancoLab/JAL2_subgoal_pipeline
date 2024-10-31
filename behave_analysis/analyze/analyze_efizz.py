@@ -15,7 +15,7 @@ from behave_analysis.analyze.LDA.LDAmodel import LDA
 
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
-from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh, compute_single_cluster_tuning
+from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh
 from behave_analysis.analyze.single_trial.predict_future import select_neural_activity_chunk, explore_neural_activity_over_time
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
@@ -129,14 +129,10 @@ class AnalyzeEfizz:
       #  ----------------- Compute Rayleigh, polar plots and delta hists ------------
 
         if Settings.run_rayleigh:
-            if not Settings.single_cluster_plots:
-                logger.info(f"Compute Rayleigh on {self.cluster_type} data")
-                all_angles = identify_angles(self.session)
-                base_path = os.path.join(self.dir, "Rayleigh", self.cluster_type, Settings.condition_types)
-                compute_all_clusters_rayleigh(self, Settings, all_angles, self.all_conditions, base_path)
-            else:
-                logger.info(f"Making single cluster polar plots on {self.cluster_type} data")
-                compute_single_cluster_tuning(self, Settings)
+            logger.info(f"Compute Rayleigh on {self.cluster_type} data")
+            all_angles = identify_angles(self.session)
+            compute_all_clusters_rayleigh(self, all_angles, self.all_conditions)
+
 
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
             # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
