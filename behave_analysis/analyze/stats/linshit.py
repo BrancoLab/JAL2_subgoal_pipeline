@@ -47,7 +47,6 @@ class LinearShift:
         self.T, self.N, self.shifts = self.init_params(X)
         self.real_stat = self.compute_V0_statistic(X, y.T) # the transposed matrix is necessary for LDA!
         self.pseudo_stats = self.parallel_compute_shifted_statistics(X, y.T, self.shifts, PPool)
-        print('ppool complete!')
         self.reject_null, self.alpha, self.M, self.sig_level = self.compute_significance()
 
     def __check_inputs(self, X):
@@ -125,17 +124,16 @@ class LinearShift:
                     y_matrix.append(y[int(this_shift + self.N) : int(this_shift + self.T - self.N)])  # transpose y so it is in the shape n x time (where n is the number of variables in y)
             else:
                 assert type(X) == np.ndarray, "Your data is in polars - I'm not sure parallel processing can currently handle that"
-                # if i == 0:
-                #     y_matrix = y.slice(this_shift + self.N, self.T - 2 * self.N)
-                # else:
-                #     y_matrix = np.vstack((y_matrix,y.slice(this_shift + self.N, self.T - 2 * self.N)))
+                if i == 0: # this is slicing polars the same way as before but storing it in a matrix for parallelization
+                    y_matrix = y.slice(this_shift + self.N, self.T - 2 * self.N)
+                else:
+                    y_matrix = np.vstack((y_matrix,y.slice(this_shift + self.N, self.T - 2 * self.N)))
 
         # zip the vars
         args_list = [(xFiltered, y) for y in y_matrix]
 
         # parallel process
         # Define the number of processes to use
-        print('Engaging parallel pool')
         if pool == None:
             num_processes = multiprocessing.cpu_count()-1  # Adjust as needed
             with Pool(num_processes) as pool:

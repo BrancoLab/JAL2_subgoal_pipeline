@@ -51,10 +51,11 @@ def compute_all_clusters_rayleigh(self, all_angles: list, all_conditions: list) 
                     X = X[frames, :]
                     logger.info("Calculating Rayleigh vectors for " + str(a) + " in condition: " + str(c))
                     rayleigh_vector(self, this_df, X, a, data_path, compartment)#, pool)
-            if self.settings.single_cluster_plots:
-                data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, condition = [], compartment = [])
-                plot_save_path = make_directory(os.path.join(data_path, "single_cluster_plots"))
-                single_cluster_plots(self, all_angles, self.all_conditions, data_path, plot_save_path)
+        # plot all conditions in this condition types for each cluster
+        if self.settings.single_cluster_plots:
+            data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, condition = [], compartment = [])
+            plot_save_path = make_directory(os.path.join(data_path, "single_cluster_plots"))
+            single_cluster_plots(self, all_angles, self.all_conditions, data_path, plot_save_path)
     if self.settings.linear_shift:
         pool.close()
 
@@ -231,10 +232,6 @@ def rayleigh_vector(
         Rayleigh_cluster[count] = cluster_Ids[count]
 
         # ----------------------------Whole arena computations-----------------------------------------------------------
-        # skip if cluster is all zeros
-        if sum(X[:, count] == 0) == len(X[:, count]):
-            logger.warning(f"Cluster {count} has no spikes, skipping")
-
         # Check if all the spike counts across frames for this cluster are zero
         if sum(X[:, count] == 0) == len(X[:, count]):
             logger.warning(f"Cluster {count} has no spikes, skipping")
@@ -293,8 +290,8 @@ def rayleigh_vector(
 
     # histogram of rayleighs
     plt.figure()
-    plt.hist(Rayleigh, np.arange(0, 1, 0.1))
-    plt.hist(Rayleigh[Rayleigh_sig == 1], np.arange(0, 1, 0.1))
+    plt.hist(Rayleigh, np.arange(0, 1, 0.1), alpha = 0.5)
+    plt.hist(Rayleigh[Rayleigh_sig == 1,:], np.arange(0, 1, 0.1), alpha = 0.5)
     plt.xlabel("Rayleigh R")
     plt.ylabel("number of clusters")
     plt.savefig(plot_save_path + "/" + str(angle_filt) + "_Rayleigh_vector_hist.png")
@@ -456,10 +453,14 @@ def init_rayleigh(number_of_clusters, compartments, bin_angle_center):
 
 def rayleigh(angles, firing) -> tuple:
     """Compute the rayleigh vector for a given set of angles and firing rates"""
-    x = np.sum(np.cos(angles) * (firing)) / np.sum(firing)
-    y = np.sum(np.sin(angles) * (firing)) / np.sum(firing)
-    theta = np.arctan2(y, x)
-    r = np.sqrt(x**2 + y**2)
+    if np.sum(firing) == 0:
+        theta = 0
+        r = 0
+    else:
+        x = np.sum(np.cos(angles) * (firing)) / np.sum(firing)
+        y = np.sum(np.sin(angles) * (firing)) / np.sum(firing)
+        theta = np.arctan2(y, x)
+        r = np.sqrt(x**2 + y**2)
     return r, theta
 
 
