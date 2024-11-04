@@ -131,7 +131,7 @@ class AnalyzeEfizz:
         if Settings.run_rayleigh:
             logger.info(f"Compute Rayleigh on {self.cluster_type} data")
             all_angles = identify_angles(self.session)
-            compute_all_clusters_rayleigh(self, all_angles, self.all_conditions)
+            compute_all_clusters_rayleigh(self, all_angles)
 
 
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first

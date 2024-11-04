@@ -27,7 +27,7 @@ from behave_analysis.utils.PersistentPool import PersistentPool
 # ----------------------------- Main functions from analyze efizz -----------------------------
 
 
-def compute_all_clusters_rayleigh(self, all_angles: list, all_conditions: list) -> None:
+def compute_all_clusters_rayleigh(self, all_angles: list) -> None:
     """Compute rayleigh for all angles in all desired conditions AND if Settings_analyze_efizz.multi_cluster_plots = True,
     it also plots all clusters per angle"""
     if self.settings.linear_shift:
@@ -38,7 +38,7 @@ def compute_all_clusters_rayleigh(self, all_angles: list, all_conditions: list) 
     self.number_of_homings, condition_types = list_conditions(self.settings)
     for cond in condition_types:  # e.g. 'experimental_conditions', 'behavioral_conditions'
         self.condition_types = cond
-        for c in all_conditions:
+        for c in self.all_conditions:
             self.condition = c
             filtered_video_df = select_relevant_frames(self)
             data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, self.condition, compartment = [])
@@ -64,13 +64,12 @@ def compute_all_clusters_rayleigh(self, all_angles: list, all_conditions: list) 
 
 def check_if_rayleigh_exists(self, all_angles):
     """Check if the Rayleigh vectors have already been computed and saved"""
-    for c in self.all_conditions:
-        data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, c)
-        for a in all_angles:
-            if os.path.isfile(data_path + "/" + str(a) + "_Rayleigh.arrow"):
-                continue
-            else:
-                return False
+    data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, self.condition)
+    for a in all_angles:
+        if os.path.isfile(data_path + "/" + str(a) + "_Rayleigh.arrow"):
+            continue
+        else:
+            return False
     logger.info("Rayleigh vectors exist, either recompute or move on to plotting")
     return True
 
@@ -123,11 +122,10 @@ def single_cluster_plots(self, all_angles, all_conditions, data_path, plot_save_
             # Create actual polar plots for each condition and angle
             for c_counter, condition in enumerate(all_conditions):
                 counter = ((ncols) * (c_counter + 1)) + 1
-                data_path = os.path.join(data_path, condition)
                 for a_counter, a in enumerate(all_angles):
                     counter = counter + 1
                     ax = plt.subplot(nrows, ncols, counter, projection="polar")
-                    rayleigh_results = pl.read_ipc(data_path + "/" + str(a) + "_Rayleigh.arrow")
+                    rayleigh_results = pl.read_ipc(os.path.join(data_path, condition) + "/" + str(a) + "_Rayleigh.arrow")
                     pcentile = compute_95th_percentile_rayleigh(rayleigh_results)
                     # make actual polar plot for a given angle in a given condition
                     polar_plot(
@@ -290,8 +288,10 @@ def rayleigh_vector(
 
     # histogram of rayleighs
     plt.figure()
-    plt.hist(Rayleigh, np.arange(0, 1, 0.1), alpha = 0.5)
-    plt.hist(Rayleigh[Rayleigh_sig == 1,:], np.arange(0, 1, 0.1), alpha = 0.5)
+    plt.hist(Rayleigh, np.arange(0, 1, 0.1), alpha = .5, color = ['cornflowerblue','darkorchid'])
+    plt.hist([Rayleigh[Rayleigh_sig[:,0] == 1,0],Rayleigh[Rayleigh_sig[:,1] == 1,1]], np.arange(0, 1, 0.1), alpha = .5, color = ['cornflowerblue','darkorchid'])
+    # plt.hist(Rayleigh, np.arange(0, 1, 0.1), alpha = 0.5)
+    # plt.hist(Rayleigh[Rayleigh_sig == 1,:], np.arange(0, 1, 0.1), alpha = 0.5)
     plt.xlabel("Rayleigh R")
     plt.ylabel("number of clusters")
     plt.savefig(plot_save_path + "/" + str(angle_filt) + "_Rayleigh_vector_hist.png")
@@ -454,8 +454,8 @@ def init_rayleigh(number_of_clusters, compartments, bin_angle_center):
 def rayleigh(angles, firing) -> tuple:
     """Compute the rayleigh vector for a given set of angles and firing rates"""
     if np.sum(firing) == 0:
-        theta = 0
-        r = 0
+        theta = np.float64(0)
+        r = np.float64(0)
     else:
         x = np.sum(np.cos(angles) * (firing)) / np.sum(firing)
         y = np.sum(np.sin(angles) * (firing)) / np.sum(firing)
