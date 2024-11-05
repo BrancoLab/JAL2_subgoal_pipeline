@@ -7,7 +7,7 @@ from loguru import logger
 import numpy as np
 import polars as pl
 
-from behave_analysis.database.synthetic_data.synthetic_main import generate_synthetic_dataframe
+from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.postprocess.trials.escapes import get_Escapes
 from behave_analysis.utils.data_loading import load_or_extract_homings
@@ -229,7 +229,7 @@ class BaseDataPostprocessor(ABC):
 
         return video_df
 
-    def count_spikes_and_units_to_frames(self) -> pl.DataFrame:
+    def count_spikes_and_units_to_frames(self, regenerate=False) -> pl.DataFrame:
         """
         Uses polars query logic to map each cluster to a frame and count how many times each cluster fired in that frame.
         The lazy() function means that computations are not immediately executed. This allows the computer to plan the operations before
@@ -237,6 +237,34 @@ class BaseDataPostprocessor(ABC):
 
         #NOTE - This logic seems suspciious, doesn't delete exsisting files when running the code again
         """
+
+        if regenerate:
+            logger.info("Regeneration was selected, creating a new spike count by frame and cluster dataframe")
+            logger.info("Commencing long computation to count spikes for each cluster for each frame")
+            logger.info("This can take up to 1.5 hours depending on the size of the data")
+            if hasattr(self.spike_data, "groupby"):
+                query = (
+                    self.spike_data.lazy()
+                    .groupby(["spike_aligned_to_frame", "spike_clusters"])
+                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+                )  # Lazy query to plan computation
+            elif hasattr(self.spike_data, "group_by"):
+                query = (
+                    self.spike_data.lazy()
+                    .group_by(["spike_aligned_to_frame", "spike_clusters"])
+                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+                )  # Lazy query to plan computation
+            start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
+            spikecountbyframe_neuron = query.collect()
+            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
+            spikecountbyframe_neuron.write_csv(
+                os.path.join(self.session.base_path, self.session.processed_path)
+                + "/"
+                + "spike_count_by_frame_and_"
+                + self.select_cluster_labels
+                + "cluster.csv"
+            )
+            return spikecountbyframe_neuron
 
         try:
             logger.info("Attempting to load a previously computed spike frame count")
@@ -287,7 +315,7 @@ class BaseDataPostprocessor(ABC):
         -- rows: frames
         -- columns: all angles, postition, spike counts, cluster ids"""
         logger.info("merging video df and spike df into a super df")
-        if hasattr(pl.col("frames"),'apply'):
+        if hasattr(pl.col("frames"), "apply"):
             video_df = video_df.select(
                 [pl.col("frames").apply(float), pl.exclude("frames")]
             )  # Cast frames to float to permit join and remove old frames column with wrong type
@@ -296,9 +324,7 @@ class BaseDataPostprocessor(ABC):
         large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
         large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
         large_dataFrame.write_parquet(
-            os.path.join(
-                self.session.base_path, self.session.processed_path + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet"
-            )
+            os.path.join(self.session.base_path, self.session.processed_path + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet")
         )
         return large_dataFrame
 
@@ -311,9 +337,9 @@ class BaseDataPostprocessor(ABC):
         logger.info("Building a frame by cluster matrix of firing rates -- very slow")
         clu = spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
         # group the  data
-        if hasattr(spikeCountByFrameAndCluster, 'groupby'):
+        if hasattr(spikeCountByFrameAndCluster, "groupby"):
             df = spikeCountByFrameAndCluster.groupby(["spike_aligned_to_frame"]).all()
-        elif hasattr(spikeCountByFrameAndCluster, 'group_by'):
+        elif hasattr(spikeCountByFrameAndCluster, "group_by"):
             df = spikeCountByFrameAndCluster.group_by(["spike_aligned_to_frame"]).all()
         df = df.sort("spike_aligned_to_frame")
 
@@ -360,26 +386,26 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         self.csv_path = os.path.join(session.base_path, session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
+        self.settings = settings
         video_df = self.track_to_polars()
         if settings.efizz:
             self.check_synthetic_data_exists_if_not_generate_it(video_df)  # creates a csv in working dir
             self.spike_data = self.load_spike_data()
             self.clu_label = self.extract_cluster_labels()
-            spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
+            spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(regenerate=settings.regenerate_synthetic_data)
             self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
             self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
 
     def check_synthetic_data_exists_if_not_generate_it(self, video_df) -> None:
-        if not os.path.exists(self.csv_path):
+        """If the path doesn't exist or the user has requested to regenerate the data, generate the synthetic data"""
+        if not os.path.exists(self.csv_path) or self.settings.regenerate_synthetic_data:
             self.activate_synthetic_data_generation(video_df)
         else:
             logger.info("Synthetic spike data found")
 
     def activate_synthetic_data_generation(self, video_df) -> None:
         logger.info("Synthetic spike data doesn't exist and will now be generated")
-        tuning = []
-        if "hdir" in self.select_clusters:
-            tuning.append("hdir")
+        tuning = ["hdir"]
         if np.logical_or(
             np.logical_and(len(self.session.shelter_time) > 0, self.select_clusters == "synthetic"),
             "hsa" in self.select_clusters,
@@ -451,9 +477,7 @@ class DataPostprocessor(BaseDataPostprocessor):
 
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
-        QcPreProcessedData._check_for_vals_outside_arena(
-            video_df, self.session
-        )  # For now just log the warning and don't touch the data
+        QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session)  # For now just log the warning and don't touch the data
         if settings.homings:
             homings = load_or_extract_homings(session)
             escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
@@ -567,9 +591,7 @@ class QcPreProcessedData:
 
             # Find the indexs of the frames that are outside the bounds of the arena
             idx = np.where(dist > CENTER)[0]
-            logger.info(
-                f"{len(idx)} frames outside the bounds of arena out of {len(dist)} frames. -> {len(idx)/len(dist)*100:0.1f}% of the data."
-            )
+            logger.info(f"{len(idx)} frames outside the bounds of arena out of {len(dist)} frames. -> {len(idx)/len(dist)*100:0.1f}% of the data.")
 
             # Replace the rows that are outside the bounds of the arena with Nans
             mask = pl.Series(np.arange(len(video_df))).is_in(pl.Series(idx))  # boolean mask
