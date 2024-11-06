@@ -50,7 +50,7 @@ def compute_all_clusters_rayleigh(self, all_angles: list) -> None:
                     X = self.frame_by_cluster_matrix
                     X = X[frames, :]
                     logger.info("Calculating Rayleigh vectors for " + str(a) + " in condition: " + str(c))
-                    rayleigh_vector(self, this_df, X, a, data_path, compartment)#, pool)
+                    rayleigh_vector(self, this_df, X, a, data_path, compartment, pool)
         # plot all conditions in this condition types for each cluster
         if self.settings.single_cluster_plots:
             data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, condition = [], compartment = [])
