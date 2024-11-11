@@ -138,7 +138,7 @@ def single_cluster_plots(self, all_angles, all_conditions, data_path, plot_save_
                     )
 
             # Save and close the figure
-            plt.tight_layout()
+            # plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
             if self.settings.show_plots:
                 plt.show()
@@ -162,7 +162,7 @@ def extract_max_hz(clu: int, all_angles: list, all_conditions: list, base_path: 
             rayleigh_results = pl.read_ipc(data_path + "/" + str(angle) + "_Rayleigh.arrow")
             rayleigh_results = rayleigh_results.filter(rayleigh_results["clusterID"] == clu)
             max_element = np.max([np.max(sub_array) for sub_array in rayleigh_results["angle_firing_hist"].to_numpy()])
-            if max_element > max_firing_rate:
+            if np.logical_and(max_element > max_firing_rate, max_element < 500):
                 max_firing_rate = max_element
     return int(max_firing_rate)
 
@@ -421,7 +421,7 @@ def all_clusters_polar_plots(rayleigh_results, save_path, show_plots):
 
         # save the whole figure
         if np.logical_or(counter - (nrows * ncols * (fnum - 1)) == (ncols * nrows) - 1, counter == number_of_clusters - 1):
-            plt.tight_layout()
+            # plt.tight_layout()
             plt.savefig(str(save_path) + "/cluster_polar_plots_" + str(fnum) + ".png")
             if show_plots:
                 plt.show()
@@ -437,15 +437,15 @@ def init_rayleigh(number_of_clusters, compartments, bin_angle_center):
     Arguments:
     -- comparmentts (int): the number of compartments in the arena which is 2"""
 
-    rayleigh_theta = np.empty([len(number_of_clusters), compartments])  # preferred angle
-    rayleigh = np.empty([len(number_of_clusters), compartments])  # amplitude of Rayleigh vector
+    rayleigh_theta = np.zeros([len(number_of_clusters), compartments])  # preferred angle
+    rayleigh = np.zeros([len(number_of_clusters), compartments])  # amplitude of Rayleigh vector
     rayleigh_sig = np.zeros([len(number_of_clusters), compartments])  # is the Ryleigh significant?
-    rayleigh_cluster = np.empty([len(number_of_clusters)])  # which cluster ID is this Rayleigh value for?
-    angle_firing_hist = np.empty([len(number_of_clusters), len(bin_angle_center), compartments])
+    rayleigh_cluster = np.zeros([len(number_of_clusters)])  # which cluster ID is this Rayleigh value for?
+    angle_firing_hist = np.zeros([len(number_of_clusters), len(bin_angle_center), compartments])
 
     # Whole arena values
-    arena_rayleigh_theta = np.empty([len(number_of_clusters)])  # preferred angle for the whole arena
-    arena_rayleigh = np.empty([len(number_of_clusters)])  # amplitude of Rayleigh vector for the whole arena
+    arena_rayleigh_theta = np.zeros([len(number_of_clusters)])  # preferred angle for the whole arena
+    arena_rayleigh = np.zeros([len(number_of_clusters)])  # amplitude of Rayleigh vector for the whole arena
     arena_sig = np.zeros([len(number_of_clusters)])  # is the Ryleigh significant for the whole arena?
 
     return rayleigh_theta, rayleigh, rayleigh_sig, rayleigh_cluster, angle_firing_hist, arena_rayleigh_theta, arena_rayleigh, arena_sig
@@ -572,7 +572,8 @@ def polar_plot(df, ax, fig, pcentile, max_firing_rate, cluster_title=True, plot_
             # Polar plot area with no fill, just outline
             elif plot_type == "line":
                 ax.plot(angles, values, color=col[compartment], linewidth=1.5)
-                ax.set_ylim(bottom=0, top=max_firing_rate)  # set the y-axis limits to the max firing rate to make the plot more readable
+                if max_firing_rate > 0:
+                    ax.set_ylim(bottom=0, top=max_firing_rate)  # set the y-axis limits to the max firing rate to make the plot more readable
 
     # Settings for the polar plot grid
     ax.grid(True, linestyle="--", linewidth=0.5, color="gray", alpha=0.5, markevery=3)
