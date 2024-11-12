@@ -25,6 +25,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from behave_analysis.analyze.stats.linshit import LinearShift
+from behave_analysis.utils.PersistentPool import PersistentPool
 from behave_analysis.analyze.TunED.stats import TunEDModelStats
 from behave_analysis.analyze.TunED.tuning_curves import (
     ComputeObservedTuningFunction,
@@ -154,6 +155,7 @@ class TunEdModel:
         + does not load significant clusters
         """
 
+        pool = PersistentPool(workers = 10)
         # Remove time mouse is in the shelter
         df = self.video_spike_count_df  # shorten name
         clean_spike_df = df.filter((df["OutofshelterIdx"] == True))
@@ -173,9 +175,11 @@ class TunEdModel:
 
             # Filter and remove dud clusters because they cause issues
             x = clean_spike_df.filter(pl.col("spike_clusters") == cluster)
+            print(cluster)
             if self.skip_cluster_if_dud(cluster=cluster, cluster_df=x, spike_thres=self.spike_threshold):
                 continue
 
+            print('why are we here')
             for shift_var in shifted_variables:
                 # Compute the null distribution for each shifted variable
                 result = LinearShift(
@@ -183,6 +187,7 @@ class TunEdModel:
                     y=x[shift_var],
                     stat_computation_func=self.user_defined_func_lin_shit,
                     size_of_central_chunk=int(len(x) / 3),
+                    PPool = 'no', # pool for when we figure out the engineering problem
                 )
 
                 # Reject or accept the null hypotheses
@@ -213,7 +218,7 @@ class TunEdModel:
         """The func passed to the lin shift class"""
         # Prepare data
         filtered_df = X
-        filtered_df = filtered_df.with_column(y)  # Replace the NH column with the shifted NH column
+        filtered_df = filtered_df.with_columns(y)  # Replace the NH column with the shifted NH column
         Nsamples, Nbins, hdir, hsa, raster = self.init_model_inputs(filtered_df)
 
         # Compute observed tuning functions

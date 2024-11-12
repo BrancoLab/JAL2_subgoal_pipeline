@@ -144,7 +144,7 @@ class AnalyzeEfizz:
                 os.mkdir(self.dir + "\\" + "tunED")
             model_path = os.path.join(self.dir, "tunED")
             TunEdModel(
-                video_spike_count_df=self.video_spike_count_df,
+                video_spike_count_df=self.video_and_spike_data,
                 analyze_efizz_settings=Settings,
                 save_dir=model_path,
                 session=self.session,
