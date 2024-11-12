@@ -11,16 +11,13 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-matplotlib.use("TkAgg")
+matplotlib.use("Agg") # only use TkAgg in debugger
 
 from settings.settings_analyze_efizz import Settings_ae
 from behave_analysis.analyze.stats.linshit import LinearShift
 from behave_analysis.analyze.LDA.LDA_preprocess import select_relevant_frames
 from behave_analysis.analyze.LDA.LDA_utils import list_conditions, BuildSavingFolder
-from behave_analysis.analyze.filtering_data.filtering_functions import (
-    identify_angles,
-    generate_bins,
-)
+from behave_analysis.analyze.filtering_data.filtering_functions import generate_bins
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.utils.PersistentPool import PersistentPool
 
