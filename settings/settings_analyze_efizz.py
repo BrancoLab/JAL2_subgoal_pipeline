@@ -19,8 +19,9 @@ Settings_ae = Settings_analyze_efizz(
 
     stim_type="None",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=True,  # whether to run linear shift!
+    parallel_pool_linshit = True, # if True, uses parallel pool to compute linear shift
     # This does not effect Tuned, this model needs linear shift to work
-    redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
+    redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type=['good'],  # ['synthetic','synthetichdir','all','good'], # Can list multiple!
     show_plots=False,
     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
@@ -66,9 +67,10 @@ Settings_ae = Settings_analyze_efizz(
     run_LSTM=False,
 
     # ------------- LDA model settings --------------------------
-    run_LDA=[],  # if [] it will not run LDA
+    run_LDA='all_angles',  # if [] it will not run LDA
     # if 'all_angles', 'all_distance','all_vectors' it will run it for all possible angles, distances, vectors
     # else:  list of angles ['hsa','hdir','h_postflipbar_a','h_preflipbar_a','h_bar_centre_a', 'randP']
+    # TODO: linear shift doesn't curently work for vect or dist because of binning and other inputs neede in linear_discriminant_analysis function
     epoch_num=6,  # number of epochs for cross validation
     use_firing_rate=True,
     discriminant_type="linear",  # 'linear' or 'quadratic' or 'LSTM'
@@ -80,7 +82,7 @@ Settings_ae = Settings_analyze_efizz(
     exclude_stationary = True, # mouse must be moving > 1cm/s, currently only works for experimental conditions (update filtering functions if you want to use with other settings)
     
     # ------------ Rayleigh model settings ----------------------
-    run_rayleigh=True,
+    run_rayleigh=False,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=True,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster

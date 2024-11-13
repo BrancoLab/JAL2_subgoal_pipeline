@@ -144,7 +144,6 @@ class LinearShift:
             with Pool(num_processes) as pool:
                 pseudo_stats = pool.map(self.parallel_function, args_list)
         else:
-            print("We're starting the pool for linear shift")
             pseudo_stats = pool.mp_pool.map(self.parallel_function, args_list)
 
         return pseudo_stats

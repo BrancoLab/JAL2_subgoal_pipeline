@@ -154,8 +154,11 @@ class TunEdModel:
         + does not compute per condition
         + does not load significant clusters
         """
+        if self.settings.parallel_pool_linshit:
+            pool = PersistentPool(workers = 10) # pool for when we figure out the engineering problem
+        else:
+            pool = 'no' # doesn't use parallel computing
 
-        pool = PersistentPool(workers = 10)
         # Remove time mouse is in the shelter
         df = self.video_spike_count_df  # shorten name
         clean_spike_df = df.filter((df["OutofshelterIdx"] == True))
@@ -175,11 +178,9 @@ class TunEdModel:
 
             # Filter and remove dud clusters because they cause issues
             x = clean_spike_df.filter(pl.col("spike_clusters") == cluster)
-            print(cluster)
             if self.skip_cluster_if_dud(cluster=cluster, cluster_df=x, spike_thres=self.spike_threshold):
                 continue
 
-            print('why are we here')
             for shift_var in shifted_variables:
                 # Compute the null distribution for each shifted variable
                 result = LinearShift(
@@ -187,7 +188,7 @@ class TunEdModel:
                     y=x[shift_var],
                     stat_computation_func=self.user_defined_func_lin_shit,
                     size_of_central_chunk=int(len(x) / 3),
-                    PPool = 'no', # pool for when we figure out the engineering problem
+                    PPool = pool, 
                 )
 
                 # Reject or accept the null hypotheses
