@@ -198,3 +198,4 @@ class Settings_postprocess:
     efizz: bool = False
     homings: bool = False
     response_thresh: int = 5
+    regenerate_synthetic_data: bool = False
