@@ -51,37 +51,45 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     - a folder for each condition (e.g. 'shelter_only','barrier_pre_flip')
     """
     # folder name
-    if settings.discriminant_type == "linear":
-        pathh = str(basepath) + "/" + "LDA" + "/"
-    elif settings.discriminant_type == "quadratic":
-        pathh = str(basepath) + "/" + "QDA" + "/"
-    elif settings.discriminant_type == "LSTM":
-        pathh = str(basepath) + "/" + "LSTM" + "/"
+    if len(settings.run_LDA) > 0:
+        if settings.discriminant_type == "linear":
+            pathh = str(basepath) + "/" + "LDA" + "/"
+        elif settings.discriminant_type == "quadratic":
+            pathh = str(basepath) + "/" + "QDA" + "/"
+        elif settings.discriminant_type == "LSTM":
+            pathh = str(basepath) + "/" + "LSTM" + "/"
 
-    pathh = str(pathh) + settings.run_LDA
+        if isinstance(settings.run_LDA, list):
+            pathh = str(pathh) + 'angle_list'
+        else:
+            pathh = str(pathh) + settings.run_LDA
+        
+        # if subsampling to equalize the bins
+        if settings.subsampling:
+            pathh = str(pathh) + "_subsampled"
 
-    # if subsampling to equalize the bins
-    if settings.subsampling:
-        pathh = str(pathh) + "_subsampled"
+        # if PCA, add to folder name
+        if len(settings.PCA_process) > 0:
+            pathh = str(pathh) + "_PCA"
 
-    # if PCA, add to folder name
-    if len(settings.PCA_process) > 0:
-        pathh = str(pathh) + "_PCA"
+        # if using fr, add to folder name
+        if settings.use_firing_rate:
+            pathh = str(pathh) + "_fr"
 
-    # if using fr, add to folder name
-    if settings.use_firing_rate:
-        pathh = str(pathh) + "_fr"
+        # if excluding proximal points for head angle decoding, add to folder name
+        if settings.exclude_proximal > 0:
+            pathh = str(pathh) + "_excl_prox_" + str(settings.exclude_proximal) + 'cm' 
 
-    # if excluding proximal points for head angle decoding, add to folder name
-    if settings.exclude_proximal > 0:
-        pathh = str(pathh) + "_excl_prox_" + str(settings.exclude_proximal) + 'cm' 
+        # if excluding hdir
+        if settings.exclude_hdir:
+            pathh = str(pathh) + "_excl_hdir"
 
-    # if excluding hdir
-    if settings.exclude_hdir:
-        pathh = str(pathh) + "_excl_hdir"
+        if settings.exclude_stationary:
+            pathh = str(pathh) + "_excl_stationary"
 
-    if settings.exclude_stationary:
-        pathh = str(pathh) + "_excl_stationary"
+
+    elif settings.run_rayleigh:
+        pathh = str(basepath) + "/" + "Rayleigh" + "/"
 
     # add subfolder for cluster type
     pathh = str(pathh) + "/" + str(cluster_type)

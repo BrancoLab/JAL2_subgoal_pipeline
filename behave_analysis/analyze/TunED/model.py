@@ -25,6 +25,7 @@ from loguru import logger
 from tqdm import tqdm
 
 from behave_analysis.analyze.stats.linshit import LinearShift
+from behave_analysis.utils.PersistentPool import PersistentPool
 from behave_analysis.analyze.TunED.stats import TunEDModelStats
 from behave_analysis.analyze.TunED.tuning_curves import (
     ComputeObservedTuningFunction,
@@ -153,6 +154,10 @@ class TunEdModel:
         + does not compute per condition
         + does not load significant clusters
         """
+        if self.settings.parallel_pool_linshit:
+            pool = PersistentPool(workers = 10) # pool for when we figure out the engineering problem
+        else:
+            pool = 'no' # doesn't use parallel computing
 
         # Remove time mouse is in the shelter
         df = self.video_spike_count_df  # shorten name
@@ -183,6 +188,7 @@ class TunEdModel:
                     y=x[shift_var],
                     stat_computation_func=self.user_defined_func_lin_shit,
                     size_of_central_chunk=int(len(x) / 3),
+                    PPool = pool, 
                 )
 
                 # Reject or accept the null hypotheses
@@ -213,7 +219,7 @@ class TunEdModel:
         """The func passed to the lin shift class"""
         # Prepare data
         filtered_df = X
-        filtered_df = filtered_df.with_column(y)  # Replace the NH column with the shifted NH column
+        filtered_df = filtered_df.with_columns(y)  # Replace the NH column with the shifted NH column
         Nsamples, Nbins, hdir, hsa, raster = self.init_model_inputs(filtered_df)
 
         # Compute observed tuning functions

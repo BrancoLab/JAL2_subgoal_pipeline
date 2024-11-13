@@ -18,9 +18,9 @@ def correct_and_register_frame(frame: object, video: object, fisheye_correction_
             frame = cv2.warpPerspective(frame, regTransform, frame.shape[0:2])
     return frame.astype(np.uint8)
 
-def load_fisheye_correction_map(video: object):
-    if video.fisheye_correction_file:
-        fisheye_correction = np.load(video.fisheye_correction_file)
+def load_fisheye_correction_map(fisheye_correction_file):
+    if fisheye_correction_file:
+        fisheye_correction = np.load(fisheye_correction_file)
         fisheye_correction_map = (fisheye_correction[:, :, 0:2], fisheye_correction[:, :, 2] * 0)
     else:
         fisheye_correction_map = None

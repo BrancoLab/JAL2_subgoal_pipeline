@@ -9,7 +9,7 @@ def get_computer_specific_paths(session_path = ''):
     hostname = socket.gethostname()
     base_path = ''
 
-    if hostname == "DESKTOP-AJ2I0CU": # Jasmine machine
+    if hostname == "DESKTOP-9CMVP13": # Jasmine machine
         my_machine = r"E:\Experimental_Data"
         ceph_path = r"Z:\Jasmine_Laurence\Experimental_Data"
         winstor_path = r"Y:\Laurence"

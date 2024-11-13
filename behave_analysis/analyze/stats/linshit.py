@@ -39,14 +39,17 @@ class LinearShift:
         """
         self.D = size_of_central_chunk
         self.step_n = step_n # number of steps you want to take
-        self.alpha_thresh = 0.01  # threshold for determining a significant p-value
+        self.alpha_thresh = 0.05  # threshold for determining a significant p-value
         self.step = step  # this should be at least 40 (fps)
-        self.min_step = min_step # this value is in frames
+        self.min_step = min_step # this value is in frames, smallest step away from the V0 statistic (5s to avoid correlated behavior)
         self.user_defined_function = stat_computation_func
         self.__check_inputs(X)
         self.T, self.N, self.shifts = self.init_params(X)
-        self.real_stat = self.compute_V0_statistic(X, y.T) # the transposed matrix is necessary for LDA!
-        self.pseudo_stats = self.parallel_compute_shifted_statistics(X, y.T, self.shifts, PPool)
+        self.real_stat = self.compute_V0_statistic(X, y) # the transposed matrix is necessary for LDA!
+        if PPool == 'no':
+            self.pseudo_stats = self.compute_shifted_statistics(X, y, self.shifts)
+        else:
+            self.pseudo_stats = self.parallel_compute_shifted_statistics(X, y, self.shifts, PPool)
         self.reject_null, self.alpha, self.M, self.sig_level = self.compute_significance()
 
     def __check_inputs(self, X):
@@ -67,13 +70,17 @@ class LinearShift:
         is len(shifts)
         """
         T = len(X)
-        N = int((T - self.D) / 2)
+        N = int((T - self.D) / 2) # this is also the max_step size
         
-        # ensure 0 step is not included 
-        shifts_one_sided = np.arange(self.min_step,self.min_step+((self.step_n/2)*self.step), self.step)
-        shifts = np.sort(np.hstack((shifts_one_sided,-shifts_one_sided)))
-        # shifts = np.arange(-(((self.step_n/2)*self.step)), (((self.step_n/2)*self.step))+1, self.step)   
-        # shifts = np.delete(shifts,shifts == 0)    
+        # ensure 0 step is not included (thanks to min step away from the 0 stat!)
+        if self.min_step+((self.step_n/2)*self.step) < N:   
+            shifts_one_sided = np.arange(self.min_step,self.min_step+((self.step_n/2)*self.step), self.step)
+            # now double them so we go in both directions
+            shifts = np.sort(np.hstack((shifts_one_sided,-shifts_one_sided)))
+        else: # preserve number of steps but randomize the step size
+            shifts_one_sided = np.random.randint(self.min_step,high = N,size = self.step_n)
+            # half of the should be negative
+            shifts = np.sort(np.hstack((shifts_one_sided[:int(self.step_n/2)],-shifts_one_sided[int(self.step_n/2):])))
 
         return T, N, shifts
 
@@ -82,14 +89,16 @@ class LinearShift:
         Compute the real statistic for the simulatenously recorded central chunk
         """
         if type(X) == np.ndarray:
+            y = y.T
             X_filtered = X[self.N : self.T - self.N]
-            y_filtered = y[self.N : self.T - self.N]
+            y_filtered = y[self.N : self.T - self.N] # this only works on matrices (for LDA) if you transposed y when you called the function! the shape needs to be time x n
+            y_filtered = y_filtered.T
         else:
             # Filtering rows in Polars
             X_filtered = X.slice(self.N, self.T - 2 * self.N)  # starts from self.N and takes (self.T - 2*self.N) rows
             y_filtered = y.slice(self.N, self.T - 2 * self.N)  # same for y
 
-        return self.user_defined_function(X_filtered, y_filtered.T)
+        return self.user_defined_function(X_filtered, y_filtered)
 
     def parallel_compute_shifted_statistics(self, X, y, shifts, pool):
         """
@@ -105,16 +114,28 @@ class LinearShift:
 
         # prep Y matrix of shifts
         y_matrix = []
-        for i, this_shift in enumerate(shifts):
-            if type(X) == np.ndarray:
-                # y could be a vector or a matrix
-                y_matrix.append(y[int(this_shift + self.N) : int(this_shift + self.T - self.N)])  # transpose y so it is in the shape n x time (where n is the number of variables in y)
-            else:
-                assert type(X) == np.ndarray, "Your data is in polars - I'm not sure parallel processing can currently handle that"
-                # y_matrix[i,:] = y.slice(this_shift + self.N, self.T - 2 * self.N)
 
-        # zip the vars
-        args_list = [(xFiltered, y) for y in y_matrix]
+        # fill ymatrix with shifted variables
+        if type(X) == np.ndarray:
+            for i, this_shift in enumerate(shifts):
+                y = y.T
+                if len(np.shape(y)) == 1: # y is a vector
+                    if i == 0:
+                        y_matrix = y[int(this_shift + self.N) : int(this_shift + self.T - self.N)]
+                    else:
+                        y_matrix = np.vstack((y_matrix,y[int(this_shift + self.N) : int(this_shift + self.T - self.N)]))
+                
+                else: # y is a matrix (this is for LDA)
+                    y_matrix.append(y[int(this_shift + self.N) : int(this_shift + self.T - self.N)])  # transpose y so it is in the shape n x time (where n is the number of variables in y)
+            # zip the vars
+            args_list = [(xFiltered, y) for y in y_matrix]
+            
+        else: # polars for tuned
+            for i, this_shift in enumerate(shifts):
+                if i == 0: # this is slicing polars the same way as before but storing it in a matrix for parallelization
+                    args_list = [(xFiltered, y.slice(int(this_shift) + self.N, self.T - 2 * self.N))]
+                else:
+                    args_list.append((xFiltered, y.slice(int(this_shift) + self.N, self.T - 2 * self.N)))
 
         # parallel process
         # Define the number of processes to use
@@ -129,7 +150,9 @@ class LinearShift:
 
     def parallel_function(self,args):
         X,y = args
-        out = self.user_defined_function(X, y.T) # np.array([np.shape(X),np.shape(y.T)])
+        if type(X) == np.ndarray:
+            y = y.T
+        out = self.user_defined_function(X, y) # np.array([np.shape(X),np.shape(y.T)])
         return out
 
     def compute_shifted_statistics(self, X, y, shifts):
@@ -139,18 +162,20 @@ class LinearShift:
         """
 
         pseudo_stats = np.zeros(len(shifts)) # How many pseudo statistics to compute
+        if type(X) == np.ndarray:
+            y = y.T
 
-        for shift_idx in range(len(shifts)):
-            s = shifts[shift_idx]  # How much to shift the central chunk by
+        for shift_idx, s in enumerate(shifts):  # How much to shift the central chunk by
 
             if type(X) == np.ndarray:
                 xFiltered = X[self.N : self.T - self.N]
                 yFiltered = y[s + self.N : s + self.T - self.N]
+                yFiltered = yFiltered.T
             else:
                 xFiltered = X.slice(self.N, self.T - 2 * self.N)
-                yFiltered = y.slice(s + self.N, self.T - 2 * self.N)
+                yFiltered = y.slice(int(s) + self.N, self.T - 2 * self.N)
             
-            pseudo_stats[shift_idx] = self.user_defined_function(xFiltered, yFiltered.T)
+            pseudo_stats[shift_idx] = self.user_defined_function(xFiltered, yFiltered)
 
         return pseudo_stats
 
@@ -170,7 +195,7 @@ class LinearShift:
         # if M <= alpha*(self.N + 1): # If true, reject the Null hypothesis. Your data is 'probably' significant. Rejoice.
         #     reject_null = True
         
-        p_val = M / ((len(self.pseudo_stats) / 2) + 1)  # alpha = M / (N+1)
+        p_val = M / ((len(self.pseudo_stats) / 2) + 1)  # alpha = M / (N+1), two-tailed!
         reject_null = False
         if p_val < self.alpha_thresh:
             # If true, reject the Null hypothesis. Your data is 'probably' significant. Rejoice.

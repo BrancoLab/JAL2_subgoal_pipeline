@@ -24,9 +24,10 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
     binDfbyEpoch,
     zscore_predictors,
 )
+
+from behave_analysis.analyze.filtering_data.filtering_functions import generate_bins
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.LSTM_within_LDA import fit_LSTM, predict_LSTM
-
-
+from settings.settings_analyze_efizz import Settings_ae as Settings
 
 ## --------------- MAIN LDA FUNCTION
 
@@ -42,14 +43,20 @@ def linear_discriminant_analysis(
     pos_ang can have multiple columns - only the first column is the target of our predictions, but the other columns are used for binning the data (e.g. by position)
 
     """
+
+    n_bins = len(np.unique(pos_ang[0, :]))
+    if self == None:
+        _, bin_centre = generate_bins(n_bins+1, -np.pi, np.pi)
+    else:
+        bin_centre = self.bin_centre
+
     # confirm that if you have invalid y values, you delete those rows now!
     # (this can happen when doing LDa for distance if the mouse is in invalid distances)
-    bad_frames = np.logical_or(pos_ang[0, :] < 1, pos_ang[0, :] > len(self.bin_centre))
+    bad_frames = np.logical_or(pos_ang[0, :] < 1, pos_ang[0, :] > len(bin_centre))
     X = X[bad_frames == False, :]
     pos_ang = pos_ang[:, bad_frames == False]
 
     # initialize variables
-    n_bins = len(np.unique(pos_ang[0, :]))
     coef_matrix = np.empty((n_bins, np.shape(X)[1] - 1, epoch_num))  # -1 on the number of clusters, because we have an extra column in X
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
@@ -91,7 +98,7 @@ def linear_discriminant_analysis(
                     f"You're attempting to run the LDA pipeline with LSTM decoding - this may not work on distance or vectors. It certainly doesn't work with linshift"
                 )
                 # run LSTM
-                model, seq_length = fit_LSTM(X1, self.bin_centre[y1 - 1], X2, self.bin_centre[y2 - 1])
+                model, seq_length = fit_LSTM(X1, bin_centre[y1 - 1], X2, bin_centre[y2 - 1])
                 y_hat_train = predict_LSTM(model, X1, seq_length).reshape(-1)
                 y_hat_test = predict_LSTM(model, X2, seq_length).reshape(-1)
 
@@ -127,8 +134,8 @@ def linear_discriminant_analysis(
                     titleclass = "angle (rad)"
 
                 if "vect" not in title:
-                    y_hat_train = self.bin_centre[y_hat_train.astype(int) - 1]
-                    y1 = self.bin_centre[y1.astype(int) - 1]
+                    y_hat_train = bin_centre[y_hat_train.astype(int) - 1]
+                    y1 = bin_centre[y1.astype(int) - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 1))
@@ -148,8 +155,8 @@ def linear_discriminant_analysis(
 
             if plotting:
                 if "vect" not in title:
-                    y_hat_test = self.bin_centre[y_hat_test.astype(int) - 1]
-                    y2 = self.bin_centre[y2.astype(int) - 1]
+                    y_hat_test = bin_centre[y_hat_test.astype(int) - 1]
+                    y2 = bin_centre[y2.astype(int) - 1]
 
                 # scatter residuals vs predictions
                 ax = plt.subplot2grid(shape=(4, 4), loc=(2, 3))
@@ -197,7 +204,7 @@ def linear_discriminant_analysis(
                 plt.show()
             plt.close()
 
-        if hasattr(self, "target_key"):  # TODO this will break in linshit
+        if np.logical_and(self != None, hasattr(self, "target_key")):  # TODO this will break in linshit
             prediction_accuracy = compute_prediction_accuracy_vect(np.mean(conf_matrix_all_test, axis=2), self.target_key[:, np.unique(Y) - 1])
         else:
             prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))

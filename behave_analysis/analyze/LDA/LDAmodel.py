@@ -88,7 +88,7 @@ def LDA(self):
                     plot_LDA_by_position(self, target)
                 else:
                     plot_LDA_model(self)
-        if comp != 'by_position':
+        if np.logical_and(comp != 'by_position', not isinstance(self.settings.run_LDA, list)):
             across_conditions_LDA_map(self)
     
     if np.logical_or(self.settings.dropout, self.settings.linear_shift):

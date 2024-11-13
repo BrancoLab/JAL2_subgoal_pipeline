@@ -11,7 +11,7 @@ from behave_analysis.analyze.behaviour.plot_homings import (
     plot_homings,
     plot_the_start_of_each_run,
     plot_the_probability_of_start_locations,
-    homing_head_angle_trajectory,
+    trajectory_by_target,
     hist_initial_heading_angle,
     trial_initial_heading_angle,
     trial_speed_hist,
@@ -83,6 +83,16 @@ class AnalyzeBehave:
                 title="escapes",
             )
 
+            trajectory_by_target(
+                session=self.session,
+                onsets=esc_obj.escape_onset_frames,
+                offsets=esc_obj.escape_end_frames,
+                head_angle=esc_obj.head_orientation["avg_hdir"],
+                all_conditions=esc_obj.escape_condition,
+                tracking_data=self.tracking_data,
+                title="escapes",
+            )
+
             hist_initial_heading_angle(session=self.session,
                 onsets=esc_obj.escape_onset_frames,
                 offsets=esc_obj.escape_end_frames,
@@ -134,6 +144,16 @@ class AnalyzeBehave:
             offsets=homings_obj.offset_frames,
             head_angle=homings_obj.homing_angles_dic["avg_hdir"],
             hdir_at_start=homings_obj.hdir_at_start,
+            all_conditions=homings_obj.homing_condition,
+            tracking_data=self.tracking_data,
+            title="homing",
+        )
+
+        trajectory_by_target(
+            session=self.session,
+            onsets=homings_obj.onset_frames,
+            offsets=homings_obj.offset_frames,
+            head_angle=homings_obj.homing_angles_dic["avg_hdir"],
             all_conditions=homings_obj.homing_condition,
             tracking_data=self.tracking_data,
             title="homing",

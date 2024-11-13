@@ -53,14 +53,15 @@ def select_relevant_frames(self):
             )
 
     # subselect relevant frames based on compartment
-    if self.compartment == "threat_zone":
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() < 512))
-    elif self.compartment == "shelter_compartment":
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() > 512))
-    if self.compartment == "left_arena":
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() < 512))
-    elif self.compartment == "right_arena":
-        filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() > 512))
+    if hasattr(self,'compartment'):
+        if self.compartment == "threat_zone":
+            filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() < 512))
+        elif self.compartment == "shelter_compartment":
+            filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() > 512))
+        if self.compartment == "left_arena":
+            filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() < 512))
+        elif self.compartment == "right_arena":
+            filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() > 512))
 
     return filtered_video_df
 

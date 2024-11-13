@@ -405,7 +405,9 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
 
     def activate_synthetic_data_generation(self, video_df) -> None:
         logger.info("Synthetic spike data doesn't exist and will now be generated")
-        tuning = ["hdir"]
+        tuning = []
+        if np.logical_or(self.select_clusters == "synthetic","hdir" in self.select_clusters):
+            tuning.append("hdir")
         if np.logical_or(
             np.logical_and(len(self.session.shelter_time) > 0, self.select_clusters == "synthetic"),
             "hsa" in self.select_clusters,

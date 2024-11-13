@@ -190,7 +190,7 @@ class Settings_analyze_efizz:
     classify_cells: bool = False
     subsampling: bool = False
     exclude_stationary: bool = False
-
+    parallel_pool_linshit: bool = True
 
 @dataclass(frozen=True)
 class Settings_postprocess:
