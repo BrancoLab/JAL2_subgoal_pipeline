@@ -36,7 +36,10 @@ class Visualize_efizz:
             self.spike_data = pl.read_csv(os.path.join(base_path, settings_v.cluster_type + "_spike_data.csv"))
             self.video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
             self.clu_ids = np.load(os.path.join(base_path, settings_v.cluster_type + "_cluster_ids.npy"))
-            self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+            if hasattr(self.spike_data, 'groupby'):
+                self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+            elif hasattr(self.spike_data, 'group_by'):
+                self.clu_label = self.spike_data.group_by(["spike_clusters"]).first()
             self.video_spike_count_df = pl.read_parquet(
                 os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet"), 
                 low_memory=True,

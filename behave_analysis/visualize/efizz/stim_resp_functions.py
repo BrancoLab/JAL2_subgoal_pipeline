@@ -68,11 +68,16 @@ def PSTH_single_neurons(data, session, stim_type, save_path, show_plots):
                     (data['aligned_spike_times'] > time1) &
                     (data['aligned_spike_times'] < time2)
         )
-        filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/session.video.fps)),
-                            pl.col('spike_clusters'),
-                            pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
+        if hasattr(pl.col('aligned_spike_times'),'apply'):
+            filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/session.video.fps)),
+                                pl.col('spike_clusters'),
+                                pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
+        else:
+            filt = filt.select([(pl.col('aligned_spike_times') - (onset_frames / session.video.fps)).alias('aligned_spike_times'),
+                                pl.col('spike_clusters'),
+                                pl.lit((trial + 1)).cast(int).alias('trial')])
         if trial == 0: spikes_trial = filt
-        else: spikes_trial =spikes_trial.vstack(filt)      
+        else: spikes_trial = spikes_trial.vstack(filt)      
 
     # How many plots do we need?
     number_of_clusters = data["spike_clusters"].unique()
@@ -176,9 +181,14 @@ def single_cluster_raster(data, session, stim_type, save_path, show_plots):
         time1 = (onset_frames / session.video.fps) - timeBeforeStim 
         time2 = (onset_frames / session.video.fps) + stimulus_durations
         filt = data.filter((data['aligned_spike_times'] > time1) & (data['aligned_spike_times'] < time2))
-        filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/session.video.fps)),
-                            pl.col('spike_clusters'),
-                            pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
+        if hasattr(pl.col('aligned_spike_times'), 'apply'):
+            filt = filt.select([pl.col('aligned_spike_times').apply(lambda x: x -(onset_frames/session.video.fps)),
+                                pl.col('spike_clusters'),
+                                pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
+        else:
+            filt = filt.select([(pl.col('aligned_spike_times') - (onset_frames / session.video.fps)).alias('aligned_spike_times'),
+                                pl.col('spike_clusters'),
+                                pl.Series("trial", np.ones(len(filt)).astype(int)*(trial+1))])
         if trial == 0: spikes_trial = filt
         else: spikes_trial = spikes_trial.vstack(filt)      
 
