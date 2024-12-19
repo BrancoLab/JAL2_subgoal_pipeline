@@ -108,3 +108,15 @@ def firing_by_bin(var, neural_activity, nbins):
     group_sums = np.bincount(var, weights=neural_activity)
     angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
     return angles_firing[unique_groups]
+
+def check_not_list(var):
+    if np.logical_or(isinstance(var[0], list),
+                     isinstance(var[0], np.ndarray)):
+        var = [x[0] for x in var]
+    return var
+
+def load_homing(session):
+    homie_path = os.path.join(session.base_path, session.processed_path, "homings", "homings_obj.pkl")
+    with open(homie_path, "rb") as dill_file:
+        homings = pickle.load(dill_file)
+    return homings.onset_frames, homings.offset_frames
