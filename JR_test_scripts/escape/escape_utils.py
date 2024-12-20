@@ -2,6 +2,7 @@ from behave_analysis.process.process import Process
 import os
 import polars as pl
 import numpy as np
+import dill as pickle
 
 
 def load(exp):
