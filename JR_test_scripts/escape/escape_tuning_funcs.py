@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
+from scipy.optimize import curve_fit
 
 from JR_test_scripts.escape.escape_utils import firing_by_bin 
 
@@ -69,8 +70,9 @@ def create_xval_tuning_curve(esc_var, escape_matrix, bins, start = [], xval_thre
         train_var = esc_var[epochs != i]
         test_mat = escape_matrix[:,epochs == i]
         train_mat = escape_matrix[:,epochs != i]
-        test_tuning = creat_tuning_curve(test_var, test_mat, bins)
-        train_tuning = creat_tuning_curve(train_var, train_mat, bins)
+        # if bins = bins the max will be the max of all the bins, but if not all bins are visited in this condition, it's better to use for bins only up to the the max bin used
+        test_tuning = creat_tuning_curve(test_var, test_mat, int(np.amax(esc_var)+1)) 
+        train_tuning = creat_tuning_curve(train_var, train_mat, int(np.amax(esc_var)+1))
 
         # compare tuning curves, iterate over neurons and compute the similarity
         for it in np.arange(len(result)):
@@ -180,12 +182,74 @@ def single_trial_tuning(escape_matrix, var, cond, h_start):
             # iterate through trials, pull out firing by bin
             for tr, _ in enumerate(cond_start[:-1]):
                 neur = n[cond_start[tr]:cond_start[tr+1]]
+                v = var[cond_start[tr]:cond_start[tr+1]]
                 mat[j, tr,:] = firing_by_bin(v.astype(int), neur, bins, remove_empty = False)
         mat_by_cond.append(mat)
     return mat_by_cond
+
+def fit_gaussian(firing_rates, distances):
+    """Fit a Gaussian to the data and return the fitted curve, R squared and parameters
+    
+    INPUTS:
+        firing_rates: the firing rates of the neuron
+        var: the bins at which the firing rate is calculated (0:1:nbins)
+    
+    RETURNS:
+        y_fitted: the fitted Gaussian curve
+        R: the R squared value of the fit
+        params: the parameters of the Gaussian fit (A, mu, sigma)        
+    """
+    # Fit Gaussian to the data
+    initial_guess = [max(firing_rates), distances[np.argmax(firing_rates)], np.std(distances)]  # Initial guesses for A, mu, sigma
+    params, _ = curve_fit(gaussian, distances, firing_rates, p0=initial_guess)
+
+    # Extract parameters
+    A, mu, sigma = params
+    print(f"Fitted parameters: A = {A:.2f}, mu = {mu:.2f}, sigma = {sigma:.2f}")
+
+    # Generate points for the fitted Gaussian
+    x_fitted = distances
+    y_fitted = gaussian(x_fitted, A, mu, sigma)
+    R = compute_r_squared(firing_rates, y_fitted)
+
+    return y_fitted, R, params
+
+def fit_double_gaussian(firing_rates, distances, initial_guess_double):
+    """Fit a Gaussian to the data and return the fitted curve, R squared and parameters
+    
+    INPUTS:
+        firing_rates: the firing rates of the neuron
+        var: the bins at which the firing rate is calculated (0:1:nbins)
+    
+    RETURNS:
+        y_fitted: the fitted Gaussian curve
+        R: the R squared value of the fit
+        params: the parameters of the Gaussian fit (A, mu, sigma)        
+    """
+    params_double, _ = curve_fit(double_gaussian, distances, firing_rates, p0=initial_guess_double)
+
+    # Extract fitted parameters
+    A1, mu1, sigma1, A2, mu2, sigma2 = params_double
+    print(f"Fitted parameters (Double Gaussian): A1 = {A1:.2f}, mu1 = {mu1:.2f}, sigma1 = {sigma1:.2f}, A2 = {A2:.2f}, mu2 = {mu2:.2f}, sigma2 = {sigma2:.2f}")
+
+    # Generate points for the fitted Gaussian
+    x_fitted = distances
+    y_fitted_double = double_gaussian(x_fitted, A1, mu1, sigma1, A2, mu2, sigma2)
+    R_double = compute_r_squared(firing_rates, y_fitted_double)
+    
+    return y_fitted_double, R_double, params_double
 
 def compute_r_squared(y_observed, y_predicted):
     ss_res = np.sum((y_observed - y_predicted) ** 2)
     ss_tot = np.sum((y_observed - np.mean(y_observed)) ** 2)
     r_squared = 1 - (ss_res / ss_tot)
     return r_squared
+
+def gaussian(x, A, mu, sigma):
+    return A * np.exp(-((x - mu) ** 2) / (2 * sigma ** 2))
+
+# Define double Gaussian function
+def double_gaussian(x, A1, mu1, sigma1, A2, mu2, sigma2):
+    gaussian1 = A1 * np.exp(-((x - mu1) ** 2) / (2 * sigma1 ** 2))
+    gaussian2 = A2 * np.exp(-((x - mu2) ** 2) / (2 * sigma2 ** 2))
+    return gaussian1 + gaussian2
