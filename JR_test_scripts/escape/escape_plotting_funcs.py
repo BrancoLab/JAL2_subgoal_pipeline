@@ -312,9 +312,9 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
             axs[0].scatter(distances, firing_rates - shift_constant, label="Original Data", s=3, color="blue")
             axs[0].plot(distances, y_fitted - shift_constant, label="Fitted Gaussian", color="red")
             if double_wins:
-                axs[0].scatter([params[1], params[4]],[params[0] - shift_constant, params[3] - shift_constant],label = "Gaussian mu", s = 4, color = "red")
+                axs[0].scatter([params[1], params[4]],[params[0] - shift_constant, params[3] - shift_constant], label = "Gaussian mu", s = 10, color = "green")
             else:
-                axs[0].scatter(params[1],params[0] - shift_constant, label = "Gaussian mu", s = 5, color = "green")
+                axs[0].scatter(params[1],params[0] - shift_constant, label = "Gaussian mu", s = 10, color = "green")
             axs[0].set_ylabel("Firing Rate")
             axs[0].set_xlabel(comp)
             axs[0]. set_xlim([0, np.shape(test)[1]])
@@ -325,9 +325,12 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
             else:
                 axs[0].set_title(f"Gaussian R^2 = {R:.2f}")
 
-            xval_mat = mat_by_cond[condition][xval[:,condition] == xval_true,:,:]
-            axs[1].imshow(xval_mat[neuron,:,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
-            axs[1].set_ylabel("Trials")
+            if len(mat_by_cond) > 0:
+                xval_mat = mat_by_cond[condition][xval[:,condition] == xval_true,:,:]
+                axs[1].imshow(xval_mat[neuron,:,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+                axs[1].set_ylabel("Trials")
+            else:
+                fig.delaxes(axs[1])
 
             c = ['shelter_only', 'barrier', 'barrier_flipped']
             if xval_true:
