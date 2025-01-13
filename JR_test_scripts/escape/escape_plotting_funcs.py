@@ -1,6 +1,9 @@
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.signal import find_peaks
+from scipy.ndimage import gaussian_filter1d
 
+from JR_test_scripts.escape.escape_tuning_funcs import fit_gaussian, fit_double_gaussian
 from behave_analysis.utils.creating_directories import make_directory
 
 ###------------------------PLOTTING FUNCTIONS----------------------
@@ -225,3 +228,112 @@ def xval_compare(xval1, xval2, name1, name2, nickname, dump_path):
     dump_path = make_directory(dump_path)
     fig.savefig(dump_path + "/" + nickname + ".png")
     plt.close()
+
+def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_true = True):
+    """This fits a single and a double gaussian and plots both"""
+
+    for condition in np.arange(len(tuning)):
+        test = tuning[condition][xval[:,condition] == int(xval_true),:]
+        for neuron in np.arange(test.shape[0]):
+            flatline = np.where(np.diff((np.mean(test, axis = 0) == 0).astype(int)) == 1)[0]
+            if len(flatline) > 0:
+                test = test[:,:flatline[0]]
+            firing_rates  = test[neuron,:]
+            shift_constant = abs(np.amin(firing_rates))+ 1e-6 # Add a small epsilon to avoid exact zero
+            firing_rates = firing_rates + shift_constant
+            distances = np.arange(len(firing_rates))
+
+            # Initialize variables
+            y_fitted = np.zeros_like(firing_rates)
+            R = 0
+            y_fitted_double = np.zeros_like(firing_rates)
+            R_double = 0
+            prominent_peaks = []
+
+            # from scipy.ndimage import gaussian_filter1d
+            sigma = 4.0  # Standard deviation of the Gaussian kernel
+            smoothed_firing_rates = gaussian_filter1d(firing_rates, sigma)
+
+            # Find peaks in firing rates
+            peak_indices, _ = find_peaks(smoothed_firing_rates, height=0)  # Only positive peaks
+
+            # Sort peaks by prominence
+            if len(peak_indices) > 0:
+                sorted_peaks = sorted(peak_indices, key=lambda i: firing_rates[i], reverse=True)
+                prominent_peaks = sorted_peaks[0]
+                # fit single gaussian
+                params = [firing_rates[prominent_peaks], prominent_peaks, np.std(distances)]  # Initial guesses for A, mu, sigma
+                bounds = ([0, min(distances), 0], [np.inf, max(distances), np.inf])
+                try:
+                    y_fitted, R, params = fit_gaussian(smoothed_firing_rates, distances, initial_guess = params, constraints = bounds)
+                except:
+                    print("Gaussian fit failed")
+                # fit double gaussian
+                fit_double = False
+                std = np.amin([20,np.amax([10,params[2]])])
+                kept_peaks = peak_indices[np.logical_or(peak_indices < prominent_peaks - std, peak_indices > prominent_peaks + std)]
+                if len(kept_peaks) > 0:
+                    sorted_peaks_2 = sorted(kept_peaks, key=lambda i: firing_rates[i], reverse=True)
+                    prominent_peaks = np.append(prominent_peaks, sorted_peaks_2[0])
+                    params_double = [firing_rates[prominent_peaks[0]],  # A1
+                                    prominent_peaks[0],  # mu1 (left peak)
+                                    np.std(distances),  # sigma1
+                                    firing_rates[prominent_peaks[1]],  # A1
+                                    prominent_peaks[1],  # mu2 (right peak)
+                                    np.std(distances)]   # sigma2
+                    bounds = ([0, min(distances), 0, 0, min(distances), 0],  # Lower bounds
+                            [np.inf, max(distances), np.inf, np.inf, max(distances), np.inf])  # Upper bounds
+                            
+                    try:
+                        y_fitted_double, R_double, params_double = fit_double_gaussian(smoothed_firing_rates, distances, initial_guess_double = params_double, constraints = bounds)
+                        A1, mu1, sigma1, A2, mu2, sigma2 = params_double
+                        # Prominence as relative amplitude
+                        A1_relative = A1 / (A1 + A2)
+                        A2_relative = A2 / (A1 + A2)
+
+                        # Separation of peaks
+                        peak_separation = abs(mu2 - mu1)
+                        max_sigma = max(sigma1, sigma2)
+                        distinct_peaks = peak_separation > 2 * max_sigma
+                        fit_double = True
+                    except:
+                        print("Double Gaussian fit failed")
+
+            double_wins = False
+            if fit_double:
+                if np.logical_and(R_double > R, distinct_peaks == True):
+                    y_fitted = y_fitted_double
+                    R = R_double
+                    params = params_double
+                    double_wins = True
+
+            # Plot original data and fitted Gaussian
+            fig, axs = plt.subplots(1,2,figsize = (12,4))
+            axs[0].scatter(distances, firing_rates - shift_constant, label="Original Data", s=3, color="blue")
+            axs[0].plot(distances, y_fitted - shift_constant, label="Fitted Gaussian", color="red")
+            if double_wins:
+                axs[0].scatter([params[1], params[4]],[params[0] - shift_constant, params[3] - shift_constant],label = "Gaussian mu", s = 4, color = "red")
+            else:
+                axs[0].scatter(params[1],params[0] - shift_constant, label = "Gaussian mu", s = 5, color = "green")
+            axs[0].set_ylabel("Firing Rate")
+            axs[0].set_xlabel(comp)
+            axs[0]. set_xlim([0, np.shape(test)[1]])
+            axs[0].legend()
+            if double_wins:
+                axs[0].set_title((f"Double Gaussian R^2 = {R:.2f}\n" 
+                                f"relative amplitude = {A1_relative:.2f}, {A2_relative:.2f}"))
+            else:
+                axs[0].set_title(f"Gaussian R^2 = {R:.2f}")
+
+            xval_mat = mat_by_cond[condition][xval[:,condition] == xval_true,:,:]
+            axs[1].imshow(xval_mat[neuron,:,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+            axs[1].set_ylabel("Trials")
+
+            c = ['shelter_only', 'barrier', 'barrier_flipped']
+            if xval_true:
+                fig.savefig(dump_path + "/xval_neuron" + str(neuron) + '_' + c[condition] + ".png")
+            else:
+                fig.savefig(dump_path + "/neuron" + str(neuron) + '_' + c[condition] + ".png")
+            plt.close()
+
+    return y_fitted, R, params, shift_constant, double_wins

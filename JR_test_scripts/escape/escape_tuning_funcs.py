@@ -187,7 +187,7 @@ def single_trial_tuning(escape_matrix, var, cond, h_start):
         mat_by_cond.append(mat)
     return mat_by_cond
 
-def fit_gaussian(firing_rates, distances):
+def fit_gaussian(firing_rates, distances, initial_guess = [], constraints = []):
     """Fit a Gaussian to the data and return the fitted curve, R squared and parameters
     
     INPUTS:
@@ -199,9 +199,11 @@ def fit_gaussian(firing_rates, distances):
         R: the R squared value of the fit
         params: the parameters of the Gaussian fit (A, mu, sigma)        
     """
+    # how to pick initial params
+    if len(initial_guess) == 0:
+        initial_guess = [max(firing_rates), distances[np.argmax(firing_rates)], np.std(distances)]  # Initial guesses for A, mu, sigma
     # Fit Gaussian to the data
-    initial_guess = [max(firing_rates), distances[np.argmax(firing_rates)], np.std(distances)]  # Initial guesses for A, mu, sigma
-    params, _ = curve_fit(gaussian, distances, firing_rates, p0=initial_guess)
+    params, _ = curve_fit(gaussian, distances, firing_rates, p0=initial_guess, bounds = constraints)
 
     # Extract parameters
     A, mu, sigma = params
@@ -214,7 +216,7 @@ def fit_gaussian(firing_rates, distances):
 
     return y_fitted, R, params
 
-def fit_double_gaussian(firing_rates, distances, initial_guess_double):
+def fit_double_gaussian(firing_rates, distances, initial_guess_double, constraints = []):
     """Fit a Gaussian to the data and return the fitted curve, R squared and parameters
     
     INPUTS:
@@ -226,7 +228,7 @@ def fit_double_gaussian(firing_rates, distances, initial_guess_double):
         R: the R squared value of the fit
         params: the parameters of the Gaussian fit (A, mu, sigma)        
     """
-    params_double, _ = curve_fit(double_gaussian, distances, firing_rates, p0=initial_guess_double)
+    params_double, _ = curve_fit(double_gaussian, distances, firing_rates, p0=initial_guess_double, bounds = constraints)
 
     # Extract fitted parameters
     A1, mu1, sigma1, A2, mu2, sigma2 = params_double
