@@ -207,7 +207,9 @@ def tuning_curve_compare(tuning1, tuning2, xval1, name1, name2, nickname, dump_p
     plt.close()
 
 def xval_compare(xval1, xval2, name1, name2, nickname, dump_path):
-    """This function makes a bar plot to show how many neurons have xval tuning curves in two sets of time and in different conditions"""
+    """This function makes a bar plot to show how many neurons have xval'd tuning curves in two sets of time (e.g. homing/escape vs explore) and in different conditions (e.g. 'shelter_only', 'barrier','flipped_barrier')
+    It produces a figure with n subplots one for each condition. Each subplot has 4 bars showing how many neurons passed xval in neither set of time, in only one of the two sets of time or in both.
+    """
     
     condy = ['shelter only', 'barrier','flipped barrier']
     fig, axs = plt.subplots(1,3,figsize = (12,4))
@@ -230,10 +232,38 @@ def xval_compare(xval1, xval2, name1, name2, nickname, dump_path):
     plt.close()
 
 def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_true = True):
-    """This fits a single and a double gaussian and plots both"""
+    """This models the tuning of each neuron in each condition using either a single or double gaussian and returns the parameters of the best fit.
+    It makes a plot with in one subplot the average firing by bin and the fitted firing by bin. 
+    The other subplot has the activity per bin on each trial (if you have trial based activity like in homing/escape)
+
+    INPUTS:
+        tuning: is a list of len(conditions), each entry is a matrix of tuning curves of shape neurons x bins
+        xval: matrix of length neurons x conditions, indicating if the neuron's tuning passed xval
+        dump_path: where to save the figures (usually a folder named after the session + the behavioral vairable being studied)
+        mat_by_cond: is a list of len(conditions), each entry is a matrix of firing rates neurons x trials x bins 
+        comp: a string of the name of the behavioral variable of interest (e.g. 'speed', 'escape', 'distance_shelter')
+        xval_true: it will only do the fitting for neurons that have passed xval
+    RETURNS:
+        y_fitted_all: is a list of len(conditions), each entry is a matrix (neurons x bins) of the predicted firing rate by bin based on the fit
+        R_all: matrix of length neurons x conditions of the R squared of the fit
+        param_all: matrix (params x neurons x conditions) for single gauss [amplitude, mu, sigma] for double gaussian [A1, mu1, sigma1, A2, mu2, sigma2]
+        shift_constant_all: matrix of length neurons x conditions of how much did we shift the firing rates to ensure they were all positive before fitting. This will have to be subtracted from the amplitude param!
+        double_wins_all: boolean matrix of length neurons x conditions of whether the double gaussian was the better fit
+    """
+    # find the cells that have xval'd tuning curves in at least one condition
+    xval_any = np.sum(xval, axis = 1) > 0
+    xval_id = np.where(xval_any)[0]
+
+    # initialize variables for output
+    y_fitted_all = []
+    R_all = np.zeros((np.sum(xval_any), np.shape(xval)[1])) # neurons x conditions
+    param_all = np.zeros((6, np.sum(xval_any), np.shape(xval)[1])) # params x neurons x conditions
+    shift_constant_all = np.zeros((np.sum(xval_any), np.shape(xval)[1])) # neurons x conditions
+    double_wins_all = np.zeros((np.sum(xval_any), np.shape(xval)[1])).astype(bool) # neurons x conditions
 
     for condition in np.arange(len(tuning)):
-        test = tuning[condition][xval[:,condition] == int(xval_true),:]
+        test = tuning[condition][xval_any == xval_true,:]
+        y_fit_this_condition = np.zeros_like(test)
         for neuron in np.arange(test.shape[0]):
             flatline = np.where(np.diff((np.mean(test, axis = 0) == 0).astype(int)) == 1)[0]
             if len(flatline) > 0:
@@ -244,6 +274,9 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
             distances = np.arange(len(firing_rates))
 
             # Initialize variables
+            fit_double = False
+            double_wins = False
+            params = np.zeros(3)
             y_fitted = np.zeros_like(firing_rates)
             R = 0
             y_fitted_double = np.zeros_like(firing_rates)
@@ -268,8 +301,8 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
                     y_fitted, R, params = fit_gaussian(smoothed_firing_rates, distances, initial_guess = params, constraints = bounds)
                 except:
                     print("Gaussian fit failed")
+                
                 # fit double gaussian
-                fit_double = False
                 std = np.amin([20,np.amax([10,params[2]])])
                 kept_peaks = peak_indices[np.logical_or(peak_indices < prominent_peaks - std, peak_indices > prominent_peaks + std)]
                 if len(kept_peaks) > 0:
@@ -299,7 +332,6 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
                     except:
                         print("Double Gaussian fit failed")
 
-            double_wins = False
             if fit_double:
                 if np.logical_and(R_double > R, distinct_peaks == True):
                     y_fitted = y_fitted_double
@@ -317,7 +349,7 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
                 axs[0].scatter(params[1],params[0] - shift_constant, label = "Gaussian mu", s = 10, color = "green")
             axs[0].set_ylabel("Firing Rate")
             axs[0].set_xlabel(comp)
-            axs[0]. set_xlim([0, np.shape(test)[1]])
+            axs[0].set_xlim(0, np.shape(test)[1])
             axs[0].legend()
             if double_wins:
                 axs[0].set_title((f"Double Gaussian R^2 = {R:.2f}\n" 
@@ -326,7 +358,7 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
                 axs[0].set_title(f"Gaussian R^2 = {R:.2f}")
 
             if len(mat_by_cond) > 0:
-                xval_mat = mat_by_cond[condition][xval[:,condition] == xval_true,:,:]
+                xval_mat = mat_by_cond[condition][xval_any == xval_true,:,:]
                 axs[1].imshow(xval_mat[neuron,:,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
                 axs[1].set_ylabel("Trials")
             else:
@@ -334,9 +366,18 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
 
             c = ['shelter_only', 'barrier', 'barrier_flipped']
             if xval_true:
-                fig.savefig(dump_path + "/xval_neuron" + str(neuron) + '_' + c[condition] + ".png")
+                fig.savefig(dump_path + "/xval_neuron" + str(xval_id[neuron]) + '_' + c[condition] + ".png")
             else:
-                fig.savefig(dump_path + "/neuron" + str(neuron) + '_' + c[condition] + ".png")
+                fig.savefig(dump_path + "/neuron" + str(xval_id[neuron]) + '_' + c[condition] + ".png")
             plt.close()
 
-    return y_fitted, R, params, shift_constant, double_wins
+            # dump parameters into the variables to return
+            R_all[neuron, condition] = R
+            shift_constant_all[neuron, condition] = shift_constant
+            double_wins_all[neuron, condition] = double_wins
+            param_all[:len(params),neuron, condition] = params
+            y_fit_this_condition[neuron, :len(y_fitted)] = y_fitted
+
+        y_fitted_all.append(y_fit_this_condition)
+
+    return y_fitted_all, R_all, param_all, shift_constant_all, double_wins_all
