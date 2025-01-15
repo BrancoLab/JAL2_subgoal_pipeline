@@ -12,6 +12,7 @@ i.e angles must be as different as possible with a high rayleigh score in both c
 TODO: Include the output of the Tuned Model
 
 """
+
 import os
 
 import numpy as np
@@ -21,13 +22,14 @@ import matplotlib.pyplot as plt
 
 from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.utils.rayleigh.manipulate_rayleigh_df import extract_compartment_values
 
 # User defined constants
 RAYLEIGH_THRESHOLD = 0.5
 SIMILAR_ANGLE_THRESHOLD = 0.8
 
 
-def classify_hdir(session: object, cluster_type: str) -> list:
+def classify_hdir(session: object, cluster_type: str = "good") -> list:
     """Label cells as head direction based on a set of criteria
 
     Returns:
@@ -63,19 +65,6 @@ def check_both_compartments_significant(sig: tuple) -> bool:
     return sig[0] and sig[1]
 
 
-def extract_compartment_values(data, column_name: str) -> tuple:
-    """Extract compartment values from a polars DataFrame
-
-    Returns:
-    -- compartment values (tuple) for each cell e.g ((x1, y1), (x2, y2), ...
-    first value is shelter zone, second value is threat zone"""
-    first = [x[0] for x in data[column_name]]
-    second = [x[1] for x in data[column_name]]
-    output = tuple(zip(first, second))
-    assert len(output) == len(data), "Length of extracted compartment values does not match length of data"
-    return output
-
-
 def rayleigh_threshold(mag1: float, mag2: float) -> bool:
     """Return True if both magnitudes are above the threshold"""
     return mag1 > RAYLEIGH_THRESHOLD and mag2 > RAYLEIGH_THRESHOLD
@@ -107,51 +96,53 @@ def angle_similarity(theta1: float, theta2: float) -> float:
 
     return similarity_score
 
-def plot_hdir_tuning(data,head_direction_cells, path):
-    '''
+
+def plot_hdir_tuning(data, head_direction_cells, path):
+    """
     Takes the tuning curves for hdir and not hdir and plots them to show similarity across compartments - just a visual check of the classification
-    '''
+    """
     # unpack the data and the histograms (polar plots)
-    n_bins = int(len(data['angle_firing_hist'][0]))
-    alls = np.array([x for x in data['angle_firing_hist']])
-    shelt = (alls[:,np.arange(0,n_bins,2)].T/np.amax(alls[:,np.arange(0,n_bins,2)],axis=1)).T
-    threat = (alls[:,np.arange(1,n_bins,2)].T/np.amax(alls[:,np.arange(1,n_bins,2)],axis=1)).T
+    n_bins = int(len(data["angle_firing_hist"][0]))
+    alls = np.array([x for x in data["angle_firing_hist"]])
+    shelt = (alls[:, np.arange(0, n_bins, 2)].T / np.amax(alls[:, np.arange(0, n_bins, 2)], axis=1)).T
+    threat = (alls[:, np.arange(1, n_bins, 2)].T / np.amax(alls[:, np.arange(1, n_bins, 2)], axis=1)).T
 
     # which ones are hdirs
-    hdir = np.isin(data['clusterID'].to_numpy().astype(int),np.array(head_direction_cells).astype(int))
+    hdir = np.isin(data["clusterID"].to_numpy().astype(int), np.array(head_direction_cells).astype(int))
 
-    fig, axs = plt.subplots(2,2)
+    fig, axs = plt.subplots(2, 2)
     fig.set_figheight = 10
     fig.set_figwidth = 5
     # first plot rayleigh for hdirs sorted on shelter
-    hh = shelt[hdir,:]
-    sorting = np.argsort(np.argmax(hh, axis = 1))
-    axs[0,0].imshow(hh[sorting,:],aspect = 'auto')
-    axs[0,0].set_title('shelter compartment')
-    hh = threat[hdir,:]
-    axs[0,1].imshow(hh[sorting,:],aspect = 'auto')
-    axs[0,1].set_title('threat compartment')
+    hh = shelt[hdir, :]
+    sorting = np.argsort(np.argmax(hh, axis=1))
+    axs[0, 0].imshow(hh[sorting, :], aspect="auto")
+    axs[0, 0].set_title("shelter compartment")
+    hh = threat[hdir, :]
+    axs[0, 1].imshow(hh[sorting, :], aspect="auto")
+    axs[0, 1].set_title("threat compartment")
 
     # then plot rayleigh for NOT hdirs sorted on shelter
-    hh = shelt[hdir == False,:]
-    sorting = np.argsort(np.argmax(hh, axis = 1))
-    axs[1,0].imshow(hh[sorting,:],aspect = 'auto')
-    hh = threat[hdir == False,:]
-    axs[1,1].imshow(hh[sorting,:],aspect = 'auto')
+    hh = shelt[hdir == False, :]
+    sorting = np.argsort(np.argmax(hh, axis=1))
+    axs[1, 0].imshow(hh[sorting, :], aspect="auto")
+    hh = threat[hdir == False, :]
+    axs[1, 1].imshow(hh[sorting, :], aspect="auto")
 
     # add some labels
-    for i in [0,1]:
-        for j in [0,1]:
+    for i in [0, 1]:
+        for j in [0, 1]:
             if i == 0:
-                axs[i,j].set_ylabel('hdir neurons')
+                axs[i, j].set_ylabel("hdir neurons")
             elif i == 1:
-                axs[i,j].set_ylabel('NOT hdir neurons')
-            axs[i,j].set_xlabel('angles')
+                axs[i, j].set_ylabel("NOT hdir neurons")
+            axs[i, j].set_xlabel("angles")
 
     # save figure
     plt.tight_layout()
     file_name = os.path.join(path, "hdir_cells.png")
     fig.savefig(file_name)
+
 
 def save_cell_ids(path, cell_ids) -> None:
     """Saves the cell ids to a pickle file to a within a folder called cells"""
