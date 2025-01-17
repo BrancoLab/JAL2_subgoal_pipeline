@@ -325,6 +325,8 @@ def create_discretized_behave_var(
         var = compute_dist_shelt(this_x, this_y, c, session)
     elif compression_var == "distance_first_goal":
         var = compute_dist_first_goal(this_x, this_y, c, session)
+    elif compression_var in ['bird_dist_shelter','bird_dist_first_goal']:
+        var = compute_dist_shelt(this_x, this_y, cond = np.zeros_like(this_x), session = session) # straight distance computed by pretending there is never a barrier
     elif compression_var == "y_pos":
         var = this_y
     elif "escape" in compression_var:
