@@ -8,20 +8,25 @@ from behave_analysis.utils.creating_directories import make_directory
 
 ###------------------------PLOTTING FUNCTIONS----------------------
 
-def tuning_curve_by_condition(tuning, xval, nickname, vmax = 1.2, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
+def tuning_curve_by_condition(tuning, xval, nickname, peak_firing_condition = [], vmax = 1.2, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
     """A plot of tuning curves, by condition sorted for that condition and the sorting applied to the other two conditions
     INPUTS:
         tuning: is a list of len(conditions), each entry is a matrix of tuning curves of shape neurons x bins
         xval: vector of length neurons x conditions, indicating if the neuron's tuning passed xval
         nickname: a string of the session information (mouse name and date) and the behavioral variable
+        peak_firing_condition: is a matrix of neurons x condition, where each entry is the bin that neuron is tuned to in that condition to the behavioral variable
     """
     condy = ['shelter only', 'barrier','flipped barrier']
     fig, axs = plt.subplots(3,3,figsize = (9,9))
     fig.suptitle(nickname)
 
     for j, cc in enumerate(condy):
-        t = tuning[j][xval[:,j] == 1,:]
-        idx = np.argmax(t, axis = 1)
+        if len(peak_firing_condition) == 0:
+            t = tuning[j][xval[:,j] == 1,:]
+            idx = np.argmax(t, axis = 1)
+        else:
+            xval_peak_firing = peak_firing_condition[xval[:,j] == 1,:]
+            idx = xval_peak_firing[:,j]
         isort = np.argsort(idx)
         axs[j,0].set_ylabel('neurons sorted by ' + cc)
         for i, c in enumerate(condy):
@@ -41,7 +46,7 @@ def plot_pref_firing_condition(peak_firing_condition, xval, nickname, dump_path 
     It only shows neurons that passed the xval test
     
     INPUTS:
-        peak_firing_condition: is a matrix of neurons x condition, where each entry is the bin with the peak firing for that neuron in that condition to the behavioral variable
+        peak_firing_condition: is a matrix of neurons x condition, where each entry is the bin that neuron is tuned to in that condition to the behavioral variable
         xval: vector of length neurons x conditions, indicating if the neuron's tuning passed xval 
         nickname: a string of the session information (mouse name and date) and the behavioral variable
     """
@@ -69,7 +74,81 @@ def plot_pref_firing_condition(peak_firing_condition, xval, nickname, dump_path 
     fig.savefig(dump_path + "/" + nickname + ".png")
     plt.close()
 
-def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var, esc_start, h_start, xval, nickname, dump_path = "Z:/Jasmine_Laurence/homing/tuning"):
+def plot_dist_pref_tuning_diff(peak_firing_condition, xval, nickname, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
+    """This function compares the pref tuning bin for each neuron in each condition and plots the distribution of the difference.
+    
+    INPUTS:
+        peak_firing_condition: is a matrix of neurons x condition, where each entry is the bin that neuron is tuned to in that condition to the behavioral variable
+        xval: vector of length neurons x conditions, indicating if the neuron's tuning passed xval 
+        nickname: a string of the session information (mouse name and date) and the behavioral variable
+
+    TODO: what is the null?
+    """
+
+    c = ['shelter only', 'barrier','flipped barrier']
+    fig, axs = plt.subplots(1,3,figsize = (9,9))
+    fig.suptitle(nickname)
+
+    axlim = [- np.amax(peak_firing_condition),np.amax(peak_firing_condition)]
+
+    xval_any = np.sum(xval, axis = 1) > 0
+    pfc = peak_firing_condition[xval_any == True,:]
+
+    if len(pfc) > 0:
+        for i, (x, y) in enumerate(zip([0,0,1],[1,2,2])):
+            axs[i].hist(pfc[:,x] - pfc[:,y])
+            axs[i].set_xlabel('diff in pref tuning\n (' + c[x] + ' - ' + c[y] + ')')
+            axs[i].set_ylabel('fraction of neurons')
+            axs[i].set_xlim(axlim)
+            ylim = axs[i].get_ylim()
+            axs[i].plot([0,0],ylim,'--k')
+
+    plt.tight_layout()
+    dump_path = make_directory(dump_path)
+    fig.savefig(dump_path + "/" + nickname + ".png")
+    plt.close()
+
+def plot_dist_pref_tuning_diff_compare(peak_firing_condition1, peak_firing_condition2, xval1, xval2, name1, name2, nickname, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
+    """This function compares the pref tuning bin for each neuron in each condition across two datasets and plots the distribution of the difference.
+    
+    INPUTS:
+        peak_firing_condition1, peak_firing_condition2: are two matrices of neurons x condition, where each entry is the bin that neuron is tuned to in that condition to the behavioral variable
+        xval1, xval2: vector of length neurons x conditions, indicating if the neuron's tuning passed xval 
+        nickname: a string of the session information (mouse name and date) and the behavioral variable
+
+    TODO: what is the null?
+    """
+
+    c = ['shelter only', 'barrier','flipped barrier']
+    fig, axs = plt.subplots(2,3,figsize = (9,9))
+    fig.suptitle(nickname)
+
+    combined_pfc = [peak_firing_condition1, peak_firing_condition2]
+    combined_xval = [xval1, xval2]
+
+    for row in [0,1]:
+        axlim = [- np.amax(combined_pfc[row]),np.amax(combined_pfc[row])]
+
+        xval_any = np.sum(combined_xval[row], axis = 1) > 0
+        pfc1 = peak_firing_condition1[xval_any == True,:]
+        pfc2 = peak_firing_condition2[xval_any == True,:]
+
+        if len(np.where(xval_any)[0]) > 0:
+            for i in np.arange(np.shape(peak_firing_condition1)[1]):
+                axs[row,i].hist(pfc1[:,i] - pfc2[:,i])
+                axs[row,i].set_xlabel('diff in pref tuning\n (' + name1 + ' - ' + name2 + ')')
+                axs[row,i].set_ylabel('fraction of neurons')
+                axs[row,i].set_title(c[i])
+                axs[row,i].set_xlim(axlim)
+                ylim = axs[row,i].get_ylim()
+                axs[row,i].plot([0,0],ylim,'--k')
+
+    plt.tight_layout()
+    dump_path = make_directory(dump_path)
+    fig.savefig(dump_path + "/" + nickname + ".png")
+    plt.close()
+
+def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var, esc_start, h_start, xval, nickname, peak_firing_condition = [], dump_path = "Z:/Jasmine_Laurence/homing/tuning"):
     """This creates a figure with three rows of subplots, one for each condition.
     In each row the left plot is the tuning curve (neurons x bins) and the right plot is the complete neural data for that condition (neurons x time),
     with the start of escape periods in red and the start of homings in blue. 
@@ -88,6 +167,7 @@ def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var,
         esc_start: the start time of the escapes only, duration of homing/escape is cropped to when the mouse reaches shelter
         xval: vector of length neurons x conditions, indicating if the neuron's tuning passed xval 
         nickname: a string of the session information (mouse name and date) and the behavioral variable
+        peak_firing_condition: is a matrix of neurons x condition, where each entry is the bin that neuron is tuned to in that condition to the behavioral variable
     """
 
     condy = ["shelter only", "barrier", "flipped barrier"]
@@ -117,7 +197,11 @@ def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var,
         full_mat = escape_matrix[xval[:,i] == 1,:]
         
         # define the sorting index of neurons based on their peak firing in the tuning curve
-        idx = np.argmax(mat, axis=1)
+        if len(peak_firing_condition) == 0:
+            idx = np.argmax(mat, axis=1)
+        else:
+            xval_peak_firing = peak_firing_condition[xval[:,i] == 1,:]
+            idx = xval_peak_firing[:,i]
         isort = np.argsort(idx)
         
         # tuning curve, by condition
@@ -173,33 +257,120 @@ def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var,
     fig.savefig(dump_path + "/" + nickname + ".png")
     plt.close()
 
-def tuning_curve_compare(tuning1, tuning2, xval1, name1, name2, nickname, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
+def tuning_curve_compare(tuning, xval1, name, nickname, peak_firing_condition = [], dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
     """This function compares tuning curves for two sets of time (e.g. explore vs homing/escape, or homing vs escape, or homing in different time periods)
     
     INPUTS:
-        tuning1, tuning2: are lists for the two sets of time of len(conditions), each entry is a matrix of tuning curves of shape neurons x bins
-        xval1: matrix of length neurons x conditions, indicating if the neuron's tuning passed xval (this is assumed to be based on tuning1 curves)
-        name1, name2: strings indicating the two sets of time
+        tuning: is a list of length n (sets to compare), each list is a list of len(conditions), each entry is a matrix of tuning curves of shape neurons x bins
+        xval1: matrix of length neurons x conditions, indicating if the neuron's tuning passed xval (this is assumed to be based on tuning[0] curves)
+        name: is a list of strings indicating the n sets of time
+        peak_firing_condition: is a matrix of neurons x condition, where each entry is the bin that neuron is tuned to in that condition to the behavioral variable, if given it is based on tuning[0]
         nickname: string to name the figure for saving
         dump_path: where to save the figure
     """
     condy = ['shelter only', 'barrier','flipped barrier']
-    fig, axs = plt.subplots(3,2,figsize = (9,9))
+    fig, axs = plt.subplots(3,len(tuning),figsize = (9,9))
     fig.suptitle(nickname)
 
     for j, cc in enumerate(condy):
-        t = tuning1[j][xval1[:,j] == 1,:]
-        if len(t) == 0:
-            continue
-        idx = np.argmax(t, axis = 1)
-        isort = np.argsort(idx)
-        axs[j,0].set_ylabel('neurons sorted by ' + cc)
-        axs[j,0].imshow(t[isort,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
-        t2 = tuning2[j][xval1[:,j] == 1,:]
-        axs[j,1].imshow(t2[isort,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+        for i in np.arange(len(tuning)):
+            # reference tuning curves used for sorting
+            if len(peak_firing_condition) == 0:
+                t = tuning[0][j][xval1[:,j] == 1,:]
+                if len(t) == 0:
+                    continue
+                idx = np.argmax(t, axis = 1)
+            else:
+                xval_peak_firing = peak_firing_condition[xval1[:,j] == 1,:]
+                idx = xval_peak_firing[:,j]
+            isort = np.argsort(idx)
+            # actually picking out the xval neurons from the tuning curves we're plotting
+            t = tuning[i][j][xval1[:,j] == 1,:]
+            axs[j,i].set_ylabel('neurons sorted by ' + cc)
+            axs[j,i].imshow(t[isort,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
 
-    axs[0,0].set_title(name1)
-    axs[0,1].set_title(name2)
+    for i in np.arange(len(tuning)):
+        axs[0,i].set_title(name[i])
+
+    plt.tight_layout()
+    dump_path = make_directory(dump_path)
+    fig.savefig(dump_path + "/" + nickname + ".png")
+    plt.close()
+
+def tuning_curve_sorter(sorter, sortee, xval_sorter, name_sorter, name_sorted, nickname, peak_firing_condition_sorter = [], dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
+    """This function compares tuning curves for two sets of time (e.g. explore vs homing/escape, or homing vs escape, or homing in different time periods)
+    
+    INPUTS:
+        sorter: is a list of matrices of tuning curves of shape neurons x bins
+        sortee: is a list of matrices of tuning curves of shape neurons x bins to which the sorting will be applied
+        xval: is a list (!) of boolean vectors of length neurons, indicating if the neuron's tuning passed xval (this is assumed to be based on sorter curves)
+        name_sorter: is a list of strings indicating the name of the sorter
+        name_sorted: is a list of strings indicating the name of the sorted matrices
+        peak_firing_condition: is a list(!) of vectors of neurons, where each entry is the bin that neuron is tuned to in that condition to the behavioral variable, if given it is based on tuning[0]
+        nickname: string to name the figure for saving
+        dump_path: where to save the figure
+
+    RETURNS:
+        a figure with len(sorter) rows and len(sorteee)+1 columns of subplots 
+        in each row the first plot is the heatmap of sorter, sorted based on peak_firing_condition (if that is not passed the max of each neuron is used)
+        the next plots are the sortee matrices, all sorted the same way
+    """
+    fig, axs = plt.subplots(len(sorter),len(sortee)+1,figsize = ((len(sortee)+1)*5,(len(sorter)+1)*5))
+    if len(sorter) == 1:
+        axs = np.atleast_2d(axs)
+    fig.suptitle(nickname)
+
+    for j in np.arange(len(sorter)):
+        # reference tuning curves used for sorting
+        t = sorter[j][xval_sorter[j],:]
+        if len(peak_firing_condition_sorter) == 0:
+            if len(t) == 0:
+                continue
+            idx = np.argmax(t, axis = 1)
+        else:
+            idx = peak_firing_condition_sorter[j][xval_sorter[j]]
+        isort = np.argsort(idx)
+        axs[j,0].set_ylabel('neurons sorted by ' + name_sorter[j])
+        axs[j,0].set_title(name_sorter[j])
+        axs[j,0].imshow(t[isort,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+        for i in np.arange(len(sortee)):
+            # actually picking out the xval neurons from the tuning curves we're plotting
+            t = sortee[i][xval_sorter[j],:]
+            axs[j,i+1].set_title(name_sorted[i])
+            axs[j,i+1].imshow(t[isort,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+
+    plt.tight_layout()
+    dump_path = make_directory(dump_path)
+    fig.savefig(dump_path + "/" + nickname + ".png")
+    plt.close()
+
+def pref_tuning_comparer_hist(reference, comparisons, xval_reference, name_reference, name_comparisons, nickname, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
+    """This function compares tuning curves for two sets of time (e.g. explore vs homing/escape, or homing vs escape, or homing in different time periods)
+    
+    INPUTS:
+        reference: is a list of vectors of len(neurons), where each entry is the bin that neuron is tuned to in that condition to the behavioral variable, in eah subplot comparisons will be subtracted from each reference
+        comparisons: is a list (len(reference)) of lists of of vectors of len(neurons), where each entry is the bin that neuron is tuned to in that condition to the behavioral variable
+        xval_reference: is a list (!) of boolean vectors of len(neurons), indicating if the neuron's tuning passed xval (this is assumed to be based on sorter curves)
+        name_reference: is a list of strings indicating the name of the sorter
+        name_comparisons: is a list (len(reference)) of lists of strings indicating the name of the sorted matrices
+        nickname: string to name the figure for saving
+        dump_path: where to save the figure
+
+    RETURNS:
+        a figure with len(reference) subplots 
+        in each subplot is a set of histograms of the difference in pref tuning between the reference and the comparisons using peak_firing_condition (if that is not passed the max of each neuron is used)
+    """
+    fig, axs = plt.subplots(1, len(reference),figsize = ((len(reference))*5,5))
+    fig.suptitle(nickname)
+
+    # find bin range
+
+    for j in np.arange(len(reference)):
+
+        axs[j].set_title('reference ' + name_reference[j])
+        for i in np.arange(len(comparisons[j])):
+            axs[j].hist(reference[j][xval_reference[j]] - comparisons[j][i][xval_reference[j]], alpha = .5, label = name_comparisons[j][i])
+        axs[j].legend()
 
     plt.tight_layout()
     dump_path = make_directory(dump_path)
@@ -231,7 +402,7 @@ def xval_compare(xval1, xval2, name1, name2, nickname, dump_path):
     fig.savefig(dump_path + "/" + nickname + ".png")
     plt.close()
 
-def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_true = True):
+def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_true = True, verbose = False):
     """This models the tuning of each neuron in each condition using either a single or double gaussian and returns the parameters of the best fit.
     It makes a plot with in one subplot the average firing by bin and the fitted firing by bin. 
     The other subplot has the activity per bin on each trial (if you have trial based activity like in homing/escape)
@@ -250,16 +421,19 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
         shift_constant_all: matrix of length neurons x conditions of how much did we shift the firing rates to ensure they were all positive before fitting. This will have to be subtracted from the amplitude param!
         double_wins_all: boolean matrix of length neurons x conditions of whether the double gaussian was the better fit
     """
+
+    peak_sep = [10,15] # the number of bins to exclude when looking for the peak of the second gaussian
+
     # find the cells that have xval'd tuning curves in at least one condition
     xval_any = np.sum(xval, axis = 1) > 0
-    xval_id = np.where(xval_any)[0]
+    xval_id = np.where(xval_any == xval_true)[0] # we're going to use this to name the figure so that we can find neurons across conditions
 
     # initialize variables for output
     y_fitted_all = []
-    R_all = np.zeros((np.sum(xval_any), np.shape(xval)[1])) # neurons x conditions
-    param_all = np.zeros((6, np.sum(xval_any), np.shape(xval)[1])) # params x neurons x conditions
-    shift_constant_all = np.zeros((np.sum(xval_any), np.shape(xval)[1])) # neurons x conditions
-    double_wins_all = np.zeros((np.sum(xval_any), np.shape(xval)[1])).astype(bool) # neurons x conditions
+    R_all = np.zeros((len(xval_id), np.shape(xval)[1])) # neurons x conditions
+    param_all = np.zeros((6, len(xval_id), np.shape(xval)[1])) # params x neurons x conditions
+    shift_constant_all = np.zeros((len(xval_id), np.shape(xval)[1])) # neurons x conditions
+    double_wins_all = np.zeros((len(xval_id), np.shape(xval)[1])).astype(bool) # neurons x conditions
 
     for condition in np.arange(len(tuning)):
         test = tuning[condition][xval_any == xval_true,:]
@@ -300,10 +474,11 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
                 try:
                     y_fitted, R, params = fit_gaussian(smoothed_firing_rates, distances, initial_guess = params, constraints = bounds)
                 except:
-                    print("Gaussian fit failed")
+                    if verbose:
+                        print("Gaussian fit failed")
                 
                 # fit double gaussian
-                std = np.amin([20,np.amax([10,params[2]])])
+                std = np.amin([peak_sep[1],np.amax([peak_sep[0],params[2]])])
                 kept_peaks = peak_indices[np.logical_or(peak_indices < prominent_peaks - std, peak_indices > prominent_peaks + std)]
                 if len(kept_peaks) > 0:
                     sorted_peaks_2 = sorted(kept_peaks, key=lambda i: firing_rates[i], reverse=True)
@@ -330,7 +505,8 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
                         distinct_peaks = peak_separation > 2 * max_sigma
                         fit_double = True
                     except:
-                        print("Double Gaussian fit failed")
+                        if verbose:
+                            print("Double Gaussian fit failed")
 
             if fit_double:
                 if np.logical_and(R_double > R, distinct_peaks == True):
@@ -349,7 +525,7 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
                 axs[0].scatter(params[1],params[0] - shift_constant, label = "Gaussian mu", s = 10, color = "green")
             axs[0].set_ylabel("Firing Rate")
             axs[0].set_xlabel(comp)
-            axs[0].set_xlim(0, np.shape(test)[1])
+            axs[0].set_xlim((0, np.shape(tuning[condition])[1]))
             axs[0].legend()
             if double_wins:
                 axs[0].set_title((f"Double Gaussian R^2 = {R:.2f}\n" 
@@ -381,3 +557,38 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
         y_fitted_all.append(y_fit_this_condition)
 
     return y_fitted_all, R_all, param_all, shift_constant_all, double_wins_all
+
+##-------------DEPRECATED----------
+
+# def tuning_curve_compare(tuning1, tuning2, xval1, name1, name2, nickname, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
+#     """This function compares tuning curves for two sets of time (e.g. explore vs homing/escape, or homing vs escape, or homing in different time periods)
+    
+#     INPUTS:
+#         tuning1, tuning2: are lists for the two sets of time of len(conditions), each entry is a matrix of tuning curves of shape neurons x bins
+#         xval1: matrix of length neurons x conditions, indicating if the neuron's tuning passed xval (this is assumed to be based on tuning1 curves)
+#         name1, name2: strings indicating the two sets of time
+#         nickname: string to name the figure for saving
+#         dump_path: where to save the figure
+#     """
+#     condy = ['shelter only', 'barrier','flipped barrier']
+#     fig, axs = plt.subplots(3,2,figsize = (9,9))
+#     fig.suptitle(nickname)
+
+#     for j, cc in enumerate(condy):
+#         t = tuning1[j][xval1[:,j] == 1,:]
+#         if len(t) == 0:
+#             continue
+#         idx = np.argmax(t, axis = 1)
+#         isort = np.argsort(idx)
+#         axs[j,0].set_ylabel('neurons sorted by ' + cc)
+#         axs[j,0].imshow(t[isort,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+#         t2 = tuning2[j][xval1[:,j] == 1,:]
+#         axs[j,1].imshow(t2[isort,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+
+#     axs[0,0].set_title(name1)
+#     axs[0,1].set_title(name2)
+
+#     plt.tight_layout()
+#     dump_path = make_directory(dump_path)
+#     fig.savefig(dump_path + "/" + nickname + ".png")
+#     plt.close()

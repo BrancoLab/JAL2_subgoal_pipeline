@@ -52,19 +52,29 @@ def load_homing(session, n_frames):
 
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 
-def compute_escape_trajectory(xpos, ypos):
+def compute_escape_trajectory(xpos, ypos, start = 0, stop = -1):
     # compute cumulative distance travelled at every time point
-    distance_travelled = [0]
-    for i, stim_status in enumerate(np.arange(len(xpos))):
-        if i > 0:
+    distance_travelled = np.zeros_like(xpos)
+    all_time = np.arange(len(xpos)+1)
+    used_time = all_time[start:stop]
+    for n, i in enumerate(used_time):
+        if n > 0:
             dist = np.sqrt((xpos[i] - xpos[i - 1]) ** 2 + (ypos[i] - ypos[i - 1]) ** 2)
-            distance_travelled = np.append(
-                distance_travelled, dist + distance_travelled[-1]
-            )
+            distance_travelled[i] = dist + distance_travelled[i-1]
     return distance_travelled
 
 
 def compute_dist_shelt(x_pos, y_pos, cond, session):
+    """This function creates a vector of the distance of the mouse to the shelter at any position.
+    The distance is computed as the shortest path between mouse and shelter (around barrier, if necessary)
+    INPUTS:
+        x_pos, y_pos: vector of the x and y position of the mouse at any given time
+        cond: vector of the condition the mouse is in at any given time (0 for shelter_only, 1 for barrier, 2 for flipped_barrier)
+        session: session object
+
+    RETURNS:
+        dist: a vector of length x_pos of the fistance of the mouse to the shelter.
+    """
     dist = np.zeros((len(x_pos)))
     shelter = [
         np.mean([session.shelter_location[0][0], session.shelter_location[1][0]]),
@@ -84,6 +94,40 @@ def compute_dist_shelt(x_pos, y_pos, cond, session):
     )
     # measure the distance of the mouse to shelt in the bottom half of arena
     dist = dist + np.sqrt(((x_pos - shelter[0]) ** 2) + ((y_pos - shelter[1]) ** 2))
+    return dist
+
+def compute_dist_first_goal(x_pos, y_pos, cond, session):
+    """This function creates a vector of the distance of the mouse to the first goal at any position.
+    In shelter_only, the first goal is the shelter, but in any barrier condition the first goal is the barrier edge.
+    The distance is computed as the shortest path between mouse and the first goal.
+    INPUTS:
+        x_pos, y_pos: vector of the x and y position of the mouse at any given time
+        cond: vector of the condition the mouse is in at any given time (0 for shelter_only, 1 for barrier, 2 for flipped_barrier)
+        session: session object
+
+    RETURNS:
+        dist: a vector of length x_pos of the fistance of the mouse to the first goal.
+    """
+    dist = np.zeros((len(x_pos)))
+    shelter = [
+        np.mean([session.shelter_location[0][0], session.shelter_location[1][0]]),
+        session.shelter_location[0][1],
+    ]
+    bar1 = session.barrier_location[0]
+    bar2 = session.barrier_location[1]
+    # in barrier conditions, measure distance to barrier (for now we're ignoring which side of the barrier the mouse is on)
+    top_barrier = cond == 1
+    dist[top_barrier] = np.sqrt(
+        ((x_pos[top_barrier] - bar1[0]) ** 2) + ((y_pos[top_barrier] - bar1[1]) ** 2)
+    )
+    top_barrierflip = cond == 2
+    dist[top_barrierflip] = np.sqrt(
+        ((x_pos[top_barrierflip] - bar2[0]) ** 2)
+        + ((y_pos[top_barrierflip] - bar2[1]) ** 2)
+    )
+    # shelter only, compute distance to shelter
+    shelter_only = cond == 0
+    dist[shelter_only] = np.sqrt(((x_pos[shelter_only] - shelter[0]) ** 2) + ((y_pos[shelter_only] - shelter[1]) ** 2))
     return dist
 
 ###------------------------PROCESS DATA----------------------

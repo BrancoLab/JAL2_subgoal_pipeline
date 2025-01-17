@@ -63,6 +63,7 @@ def create_xval_tuning_curve(esc_var, escape_matrix, bins, start = [], xval_thre
     epochs = create_xval_epochs(len(esc_var), start, n_epochs, epoch_method)
 
     result = np.zeros((np.shape(escape_matrix)[0],len(np.unique(epochs))))
+    bad_neurons = np.all(np.isnan(escape_matrix), axis=1)
     for i in np.unique(epochs):
 
         # compute tuning curve for each epoch
@@ -76,6 +77,8 @@ def create_xval_tuning_curve(esc_var, escape_matrix, bins, start = [], xval_thre
 
         # compare tuning curves, iterate over neurons and compute the similarity
         for it in np.arange(len(result)):
+            if bad_neurons[it] == True: # this means it's an all nan neuron!
+                continue
             curve1 = test_tuning[it,:]
             curve2 = train_tuning[it,:]
             if normalize_tuning_curve:
@@ -187,7 +190,7 @@ def single_trial_tuning(escape_matrix, var, cond, h_start):
         mat_by_cond.append(mat)
     return mat_by_cond
 
-def fit_gaussian(firing_rates, distances, initial_guess = [], constraints = []):
+def fit_gaussian(firing_rates, distances, initial_guess = [], constraints = [], verbose = False):
     """Fit a Gaussian to the data and return the fitted curve, R squared and parameters
     
     INPUTS:
@@ -207,7 +210,8 @@ def fit_gaussian(firing_rates, distances, initial_guess = [], constraints = []):
 
     # Extract parameters
     A, mu, sigma = params
-    print(f"Fitted parameters: A = {A:.2f}, mu = {mu:.2f}, sigma = {sigma:.2f}")
+    if verbose:
+        print(f"Fitted parameters: A = {A:.2f}, mu = {mu:.2f}, sigma = {sigma:.2f}")
 
     # Generate points for the fitted Gaussian
     x_fitted = distances
@@ -216,7 +220,7 @@ def fit_gaussian(firing_rates, distances, initial_guess = [], constraints = []):
 
     return y_fitted, R, params
 
-def fit_double_gaussian(firing_rates, distances, initial_guess_double, constraints = []):
+def fit_double_gaussian(firing_rates, distances, initial_guess_double, constraints = [], verbose = False):
     """Fit a Gaussian to the data and return the fitted curve, R squared and parameters
     
     INPUTS:
@@ -232,7 +236,8 @@ def fit_double_gaussian(firing_rates, distances, initial_guess_double, constrain
 
     # Extract fitted parameters
     A1, mu1, sigma1, A2, mu2, sigma2 = params_double
-    print(f"Fitted parameters (Double Gaussian): A1 = {A1:.2f}, mu1 = {mu1:.2f}, sigma1 = {sigma1:.2f}, A2 = {A2:.2f}, mu2 = {mu2:.2f}, sigma2 = {sigma2:.2f}")
+    if verbose:
+        print(f"Fitted parameters (Double Gaussian): A1 = {A1:.2f}, mu1 = {mu1:.2f}, sigma1 = {sigma1:.2f}, A2 = {A2:.2f}, mu2 = {mu2:.2f}, sigma2 = {sigma2:.2f}")
 
     # Generate points for the fitted Gaussian
     x_fitted = distances
