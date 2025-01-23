@@ -14,7 +14,7 @@ from sklearn.linear_model import LogisticRegression
 import matplotlib.pyplot as plt
 
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.analyze.overview.homing_analysis.decoding_spatial_eff.data_gen import load_video_data
+from behave_analysis.analyze.overview.homing_analysis.decoding_spatial_eff.helper.data_gen import load_video_data
 
 
 # ---------------------------- MAIN FUNCTION ------------------------------
@@ -111,6 +111,93 @@ def compute_accuracy_data(data_type, data_type_name, experiments_objects, random
     return save_data
 
 
+def compute_down_sampled_accuracy_data(data_type, experiments_objects, behaviour_to_subsample: str):
+
+    accuracy_data = defaultdict(float)
+
+    for (session_name, data), experiment in zip(data_type.items(), experiments_objects):
+        logger.info(f"Running logistic regression for session: {session_name}")
+        design_matrix = data["design_matrix"]  # The X data
+        classes_extended = np.asarray(data["classes_extended"])  # The y data
+        xBalanced, y_balanced, groups_balanced = handle_class_imbalance(
+            classes_extended, session_name, design_matrix, data, cutoff=400 # 10s of data
+        )  # There must be at least 10 bad homings (200 frames, 500ms is 1 homing)
+        video_df = load_video_data(experiment)
+        if xBalanced is None:  # If the cutoff for the amount of data has not been met
+            continue  # Skip this session
+        group_kfold = GroupKFold(n_splits=2)  # k-fold iterator variation with non-overlapping groups
+        fold_accuracies = []
+        frame_numbers = xBalanced[:, -1].astype(int)  # Access the last column of the design matrix
+        xBalanced = xBalanced[:, :-1]  # Remove the last column of the design matrix
+
+        for fold, (train_index, test_index) in enumerate(group_kfold.split(xBalanced, y_balanced, groups_balanced)):
+
+            good_indices = np.where(y_balanced[train_index] == 1)[0]
+            bad_indices = np.where(y_balanced[train_index] == 0)[0]
+            good_frames = frame_numbers[good_indices]
+            bad_frames = frame_numbers[bad_indices]
+            good_x_positions = video_df[behaviour_to_subsample][good_frames]
+            bad_x_positions = video_df[behaviour_to_subsample][bad_frames]
+
+            bins = np.linspace(min(min(good_x_positions), min(bad_x_positions)), max(max(good_x_positions), max(bad_x_positions)), 25)
+            good_hist, _ = np.histogram(good_x_positions, bins=bins)
+            bad_hist, _ = np.histogram(bad_x_positions, bins=bins)
+            overlap = np.minimum(good_hist, bad_hist)
+
+            # plt.figure()
+            # plt.hist(good_x_positions, bins=bins, alpha=0.5, label="Good")
+            # plt.hist(bad_x_positions, bins=bins, alpha=0.5, label="Bad")
+            # plt.plot(bins[:-1], overlap, label="Overlap", linestyle="--", color="red")
+            # plt.title(f"{behaviour_to_subsample} Distribution for Session {session_name}, Fold {fold}")
+            # plt.xlabel(behaviour_to_subsample)
+            # plt.ylabel("Frequency")
+            # plt.legend()
+            # plt.show()
+
+            overlap_frames = []  # Collect the indices of the frames that are in the overlap
+            for i in range(len(bins) - 1):
+                if overlap[i] > 0:  # Check if there is overlap in the bin
+                    # Masks for the current bin
+                    bin_mask_good = (good_x_positions >= bins[i]) & (good_x_positions < bins[i + 1])
+                    bin_mask_bad = (bad_x_positions >= bins[i]) & (bad_x_positions < bins[i + 1])
+
+                    # Get the corresponding frame indices for the current bin
+                    good_bin_frames = good_frames[bin_mask_good]
+                    bad_bin_frames = bad_frames[bin_mask_bad]
+
+                    # Collect all frames that meet the bin criteria
+                    overlap_frames.extend(good_bin_frames.tolist())
+                    overlap_frames.extend(bad_bin_frames.tolist())
+
+            # Return the indices of the frame_numbers that are in the overlap
+            overlap_indices = np.where(np.isin(frame_numbers, overlap_frames))[0]
+
+            # Extract intersected data
+            X_train = xBalanced[train_index][overlap_indices]
+            y_train = y_balanced[train_index][overlap_indices]
+            X_test = xBalanced[test_index]
+            y_test = y_balanced[test_index]
+
+            if not check_there_are_two_classes(y_train):
+                break
+
+            down_count_ans = count_class_labels(y_train)
+            logger.info(f"Class distribution for fold: {fold}. 0: {down_count_ans[0]}, 1: {down_count_ans[1]}")
+            model = LogisticRegression(
+                class_weight="balanced",
+                random_state=1337,
+                max_iter=10000,
+            ).fit(X_train, y_train)
+            y_pred = model.predict(X_test)
+            accuracy = accuracy_score(y_test, y_pred)
+            fold_accuracies.append(accuracy)
+
+        accuracy_data[session_name] = np.mean(fold_accuracies)
+        logger.info(f"Mean accuracy for session {session_name}: {accuracy_data[session_name]}")
+
+    return accuracy_data
+
+
 # - Helper functions for the model -
 
 
@@ -159,12 +246,12 @@ def check_there_are_two_classes(y_train):
     return True
 
 
-def handle_class_imbalance(classes_extended, session_name, design_matrix, data):
+def handle_class_imbalance(classes_extended, session_name, design_matrix, data, cutoff=80):
     # Check the class distribution before down sampling
     count_ans = count_class_labels(classes_extended)  # How many frames have 0 or 1
     logger.info(f"Class distribution before down sampling. 0: {count_ans[0]}, 1: {count_ans[1]}")
     if not check_there_is_enough_data(
-        count_ans, session_name, cutoff=80
+        count_ans, session_name, cutoff=cutoff
     ):  # If there are less than x seconds of data in either class, skip this session
         return None, None, None  # The cuttoff has not been met
 
