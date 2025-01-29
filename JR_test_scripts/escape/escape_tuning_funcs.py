@@ -3,10 +3,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from scipy.stats import pearsonr
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
+from scipy.signal import find_peaks
 
-from JR_test_scripts.escape.escape_utils import firing_by_bin 
+from JR_test_scripts.escape.escape_utils import firing_by_bin, firing_by_bin_median
 
-def neuron_tuning_by_var(esc_var, escape_matrix, cond, h_start = [], epoch_method = 'trial', xval_method = 'cosinesim', n_epochs = 3, xval_thresh = .7):
+def neuron_tuning_by_var(esc_var, escape_matrix, cond, h_start = [], epoch_method = 'trial', xval_method = 'cosinesim', n_epochs = 3, xval_thresh = .7, averaging = 'median'):
     """What is the tuning curve and peak firing bin of each neuron per condition?
     INPUTS:
         esc_var: is in time, the variable we want to compute the tuning for
@@ -40,7 +41,7 @@ def neuron_tuning_by_var(esc_var, escape_matrix, cond, h_start = [], epoch_metho
         tuning_by_cond.append(tuning_matrix)
     return peak_firing_condition, tuning_by_cond, xval.astype(int)
 
-def create_xval_tuning_curve(esc_var, escape_matrix, bins, start = [], xval_thresh = .7, epoch_method = 'trial', xval_method = 'cosinesim', n_epochs = 3, normalize_tuning_curve = False, plot = False):
+def create_xval_tuning_curve(esc_var, escape_matrix, bins, start = [], xval_thresh = .7, epoch_method = 'trial', xval_method = 'cosinesim', n_epochs = 3, normalize_tuning_curve = False, plot = False, averaging = 'median'):
     """Function that computes the tuning of each neuron for a given variable, cross vlaidates it and checks if it's a reliable cell
     several methods can be implemented for xval: separate by trial, even and odd time point, time
     NB: you can call this by condition or for all time!
@@ -122,7 +123,7 @@ def create_xval_tuning_curve(esc_var, escape_matrix, bins, start = [], xval_thre
 
     return full_tuning, xval_pass
 
-def creat_tuning_curve(esc_var, escape_matrix, nbins):
+def creat_tuning_curve(esc_var, escape_matrix, nbins, averaging = 'median'):
     """This function creates a matrix of neurons x bins, where each line is the tuning of that neuron for the variable
     INPUT: 
         escape_matrix: is neurons x time
@@ -131,9 +132,12 @@ def creat_tuning_curve(esc_var, escape_matrix, nbins):
     RETURNS:
         tuning_matrix: is neurons x bins, where each line is the tuning of that neuron for the variable
     """
-    tuning_matrix = np.empty((np.shape(escape_matrix)[0],nbins))
+    tuning_matrix = np.full((np.shape(escape_matrix)[0],nbins), np.nan)
     for i, n in enumerate(escape_matrix):
-        tuning_matrix[i,:] = firing_by_bin(esc_var.astype(int), n, nbins, remove_empty = False)
+        if averaging == 'median':
+            tuning_matrix[i,:] = firing_by_bin_median(esc_var.astype(int), n, nbins, remove_empty = False)
+        elif averaging == 'mean':
+            tuning_matrix[i,:] = firing_by_bin(esc_var.astype(int), n, nbins, remove_empty = False)
     return tuning_matrix
 
 def create_xval_epochs(time, start, n_epochs, epoch_method):
@@ -163,7 +167,7 @@ def create_xval_epochs(time, start, n_epochs, epoch_method):
             epochs = np.mod(epochs, n_epochs) # these epochs are not equal in size, because the trials are all of different lengths!!
     return epochs
 
-def single_trial_tuning(escape_matrix, var, cond, h_start):
+def single_trial_tuning(escape_matrix, var, cond, h_start, averaging = 'median'):
     """Make a matrix for each neuron of activity per bin on each trial
     INPUT: 
         escape_matrix: is neurons x time (firing rates)
@@ -179,14 +183,17 @@ def single_trial_tuning(escape_matrix, var, cond, h_start):
         cond_start.append(np.sum(cond == i))
         # initialize variable, neurons x trials x bins
         bins = int(np.amax(var)+1)
-        mat = np.zeros((np.shape(escape_matrix)[0],len(cond_start),bins))
+        mat = np.full((np.shape(escape_matrix)[0],len(cond_start),bins), np.nan)
         # iterate through neurons
         for j, n in enumerate(escape_matrix):
             # iterate through trials, pull out firing by bin
             for tr, _ in enumerate(cond_start[:-1]):
                 neur = n[cond_start[tr]:cond_start[tr+1]]
                 v = var[cond_start[tr]:cond_start[tr+1]]
-                mat[j, tr,:] = firing_by_bin(v.astype(int), neur, bins, remove_empty = False)
+                if averaging == 'median':
+                    mat[j, tr,:] = firing_by_bin_median(v.astype(int), neur, bins, remove_empty = False)
+                elif averaging == 'mean':
+                    mat[j, tr,:] = firing_by_bin(v.astype(int), neur, bins, remove_empty = False)
         mat_by_cond.append(mat)
     return mat_by_cond
 
@@ -260,3 +267,71 @@ def double_gaussian(x, A1, mu1, sigma1, A2, mu2, sigma2):
     gaussian1 = A1 * np.exp(-((x - mu1) ** 2) / (2 * sigma1 ** 2))
     gaussian2 = A2 * np.exp(-((x - mu2) ** 2) / (2 * sigma2 ** 2))
     return gaussian1 + gaussian2
+
+def gaussian_fitting(smoothed_firing_rates, distances, verbose = False):
+    """For a single cell try to fit a single gaussian and a double gaussian"""
+
+    peak_sep = [10,15] # the number of bins to exclude when looking for the peak of the second gaussian
+    
+    # Initialize variables
+    fit_double = False
+    double_wins = False
+    params = np.zeros(3)
+    y_fitted = np.zeros_like(smoothed_firing_rates)
+    R = 0
+    y_fitted_double = np.zeros_like(smoothed_firing_rates)
+    R_double = 0
+    prominent_peaks = []
+
+    # Find peaks in firing rates
+    peak_indices, _ = find_peaks(smoothed_firing_rates, height=0)  # Only positive peaks
+
+    # Sort peaks by prominence
+    if len(peak_indices) > 0:
+        sorted_peaks = sorted(peak_indices, key=lambda i: smoothed_firing_rates[i], reverse=True)
+        prominent_peaks = sorted_peaks[0]
+        # fit single gaussian
+        params = [smoothed_firing_rates[prominent_peaks], prominent_peaks, np.std(distances)]  # Initial guesses for A, mu, sigma
+        bounds = ([0, min(distances), 0], [np.inf, max(distances), np.inf])
+        try:
+            y_fitted, R, params = fit_gaussian(smoothed_firing_rates, distances, initial_guess = params, constraints = bounds)
+        except:
+            if verbose:
+                print("Gaussian fit failed")
+        
+        # fit double gaussian
+        std = np.amin([peak_sep[1],np.amax([peak_sep[0],params[2]])])
+        kept_peaks = peak_indices[np.logical_or(peak_indices < prominent_peaks - std, peak_indices > prominent_peaks + std)]
+        if len(kept_peaks) > 0:
+            sorted_peaks_2 = sorted(kept_peaks, key=lambda i: smoothed_firing_rates[i], reverse=True)
+            prominent_peaks = np.append(prominent_peaks, sorted_peaks_2[0])
+            params_double = [smoothed_firing_rates[prominent_peaks[0]],  # A1
+                            prominent_peaks[0],  # mu1 (left peak)
+                            np.std(distances),  # sigma1
+                            smoothed_firing_rates[prominent_peaks[1]],  # A1
+                            prominent_peaks[1],  # mu2 (right peak)
+                            np.std(distances)]   # sigma2
+            bounds = ([0, min(distances), 0, 0, min(distances), 0],  # Lower bounds
+                    [np.inf, max(distances), np.inf, np.inf, max(distances), np.inf])  # Upper bounds
+                    
+            try:
+                y_fitted_double, R_double, params_double = fit_double_gaussian(smoothed_firing_rates, distances, initial_guess_double = params_double, constraints = bounds)
+                A1, mu1, sigma1, A2, mu2, sigma2 = params_double
+
+                # Separation of peaks
+                peak_separation = abs(mu2 - mu1)
+                max_sigma = max(sigma1, sigma2)
+                distinct_peaks = peak_separation > 1 * max_sigma
+                fit_double = True
+            except:
+                if verbose:
+                    print("Double Gaussian fit failed")
+
+    if fit_double:
+        if np.logical_and(R_double > R, distinct_peaks == True):
+            y_fitted = y_fitted_double
+            R = R_double
+            params = params_double
+            double_wins = True
+
+    return R, y_fitted, params, double_wins

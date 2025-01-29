@@ -1,9 +1,11 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.signal import find_peaks
 from scipy.ndimage import gaussian_filter1d
+import matplotlib.gridspec as gridspec
+import matplotlib.colors as mcolors
 
-from JR_test_scripts.escape.escape_tuning_funcs import fit_gaussian, fit_double_gaussian
+from JR_test_scripts.escape.escape_tuning_funcs import fit_gaussian, fit_double_gaussian, gaussian_fitting
+from JR_test_scripts.escape.escape_utils import smooth_firing_by_bin_by_trial
 from behave_analysis.utils.creating_directories import make_directory
 
 ###------------------------PLOTTING FUNCTIONS----------------------
@@ -402,7 +404,7 @@ def xval_compare(xval1, xval2, name1, name2, nickname, dump_path):
     fig.savefig(dump_path + "/" + nickname + ".png")
     plt.close()
 
-def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_true = True, verbose = False):
+def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_true = True, verbose = False, method = 'across_trials'):
     """This models the tuning of each neuron in each condition using either a single or double gaussian and returns the parameters of the best fit.
     It makes a plot with in one subplot the average firing by bin and the fitted firing by bin. 
     The other subplot has the activity per bin on each trial (if you have trial based activity like in homing/escape)
@@ -422,139 +424,118 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
         double_wins_all: boolean matrix of length neurons x conditions of whether the double gaussian was the better fit
     """
 
-    peak_sep = [10,15] # the number of bins to exclude when looking for the peak of the second gaussian
+    colors = ['#228B22','#FF8C00','#008B8B']
+    custom_cmap = mcolors.ListedColormap(colors)
+    c_names = ['shelter_only', 'barrier', 'barrier_flipped']
 
     # find the cells that have xval'd tuning curves in at least one condition
-    xval_any = np.sum(xval, axis = 1) > 0
+    xval_any = np.ones(len(xval))
     xval_id = np.where(xval_any == xval_true)[0] # we're going to use this to name the figure so that we can find neurons across conditions
 
     # initialize variables for output
-    y_fitted_all = []
+    y_fitted_all = np.zeros((len(tuning), tuning[0].shape[0], tuning[0].shape[1])) # conditions x neurons x n_bins
     R_all = np.zeros((len(xval_id), np.shape(xval)[1])) # neurons x conditions
     param_all = np.zeros((6, len(xval_id), np.shape(xval)[1])) # params x neurons x conditions
     shift_constant_all = np.zeros((len(xval_id), np.shape(xval)[1])) # neurons x conditions
     double_wins_all = np.zeros((len(xval_id), np.shape(xval)[1])).astype(bool) # neurons x conditions
+    total_trials = np.sum([np.shape(a)[1] for a in mat_by_cond])
 
-    for condition in np.arange(len(tuning)):
-        test = tuning[condition][xval_any == xval_true,:]
-        y_fit_this_condition = np.zeros_like(test)
-        for neuron in np.arange(test.shape[0]):
-            flatline = np.where(np.diff((np.mean(test, axis = 0) == 0).astype(int)) == 1)[0]
-            if len(flatline) > 0:
-                test = test[:,:flatline[0]]
-            firing_rates  = test[neuron,:]
-            shift_constant = abs(np.amin(firing_rates))+ 1e-6 # Add a small epsilon to avoid exact zero
-            firing_rates = firing_rates + shift_constant
-            distances = np.arange(len(firing_rates))
+    for neuron in np.arange(len(xval_id)):
+        matrix_this_neuron = np.full((total_trials, tuning[0].shape[1]), np.nan)
+        trials_by_cond = np.zeros(total_trials)
+        c = 0
+        # initialize plot for this neuron
+        if len(mat_by_cond) > 0:
+            fig = plt.figure(figsize=(12, 8))
+            gs = gridspec.GridSpec(2, 3, width_ratios=[10, 10, .5], height_ratios=[1, 1])
+            # Add plots
+            ax1 = fig.add_subplot(gs[0, 0])  # Top-left
+            ax2 = fig.add_subplot(gs[1, 0])  # Bottom left
+            ax3 = fig.add_subplot(gs[:, 1])  # right column
+            ax3b = fig.add_subplot(gs[:, 2])  # Spanning both rows
+        else:
+            fig = plt.figure(figsize=(4, 4))
+            gs = gridspec.GridSpec(1, 1, figure=fig)  # 2 rows, 2 columns
+            # Add plots
+            ax1 = fig.add_subplot(gs[0, 0])  # Top-left
 
-            # Initialize variables
-            fit_double = False
-            double_wins = False
-            params = np.zeros(3)
-            y_fitted = np.zeros_like(firing_rates)
-            R = 0
-            y_fitted_double = np.zeros_like(firing_rates)
-            R_double = 0
-            prominent_peaks = []
-
-            # from scipy.ndimage import gaussian_filter1d
-            sigma = 4.0  # Standard deviation of the Gaussian kernel
-            smoothed_firing_rates = gaussian_filter1d(firing_rates, sigma)
-
-            # Find peaks in firing rates
-            peak_indices, _ = find_peaks(smoothed_firing_rates, height=0)  # Only positive peaks
-
-            # Sort peaks by prominence
-            if len(peak_indices) > 0:
-                sorted_peaks = sorted(peak_indices, key=lambda i: firing_rates[i], reverse=True)
-                prominent_peaks = sorted_peaks[0]
-                # fit single gaussian
-                params = [firing_rates[prominent_peaks], prominent_peaks, np.std(distances)]  # Initial guesses for A, mu, sigma
-                bounds = ([0, min(distances), 0], [np.inf, max(distances), np.inf])
-                try:
-                    y_fitted, R, params = fit_gaussian(smoothed_firing_rates, distances, initial_guess = params, constraints = bounds)
-                except:
-                    if verbose:
-                        print("Gaussian fit failed")
-                
-                # fit double gaussian
-                std = np.amin([peak_sep[1],np.amax([peak_sep[0],params[2]])])
-                kept_peaks = peak_indices[np.logical_or(peak_indices < prominent_peaks - std, peak_indices > prominent_peaks + std)]
-                if len(kept_peaks) > 0:
-                    sorted_peaks_2 = sorted(kept_peaks, key=lambda i: firing_rates[i], reverse=True)
-                    prominent_peaks = np.append(prominent_peaks, sorted_peaks_2[0])
-                    params_double = [firing_rates[prominent_peaks[0]],  # A1
-                                    prominent_peaks[0],  # mu1 (left peak)
-                                    np.std(distances),  # sigma1
-                                    firing_rates[prominent_peaks[1]],  # A1
-                                    prominent_peaks[1],  # mu2 (right peak)
-                                    np.std(distances)]   # sigma2
-                    bounds = ([0, min(distances), 0, 0, min(distances), 0],  # Lower bounds
-                            [np.inf, max(distances), np.inf, np.inf, max(distances), np.inf])  # Upper bounds
-                            
-                    try:
-                        y_fitted_double, R_double, params_double = fit_double_gaussian(smoothed_firing_rates, distances, initial_guess_double = params_double, constraints = bounds)
-                        A1, mu1, sigma1, A2, mu2, sigma2 = params_double
-                        # Prominence as relative amplitude
-                        A1_relative = A1 / (A1 + A2)
-                        A2_relative = A2 / (A1 + A2)
-
-                        # Separation of peaks
-                        peak_separation = abs(mu2 - mu1)
-                        max_sigma = max(sigma1, sigma2)
-                        distinct_peaks = peak_separation > 2 * max_sigma
-                        fit_double = True
-                    except:
-                        if verbose:
-                            print("Double Gaussian fit failed")
-
-            if fit_double:
-                if np.logical_and(R_double > R, distinct_peaks == True):
-                    y_fitted = y_fitted_double
-                    R = R_double
-                    params = params_double
-                    double_wins = True
-
-            # Plot original data and fitted Gaussian
-            fig, axs = plt.subplots(1,2,figsize = (12,4))
-            axs[0].scatter(distances, firing_rates - shift_constant, label="Original Data", s=3, color="blue")
-            axs[0].plot(distances, y_fitted - shift_constant, label="Fitted Gaussian", color="red")
-            if double_wins:
-                axs[0].scatter([params[1], params[4]],[params[0] - shift_constant, params[3] - shift_constant], label = "Gaussian mu", s = 10, color = "green")
-            else:
-                axs[0].scatter(params[1],params[0] - shift_constant, label = "Gaussian mu", s = 10, color = "green")
-            axs[0].set_ylabel("Firing Rate")
-            axs[0].set_xlabel(comp)
-            axs[0].set_xlim((0, np.shape(tuning[condition])[1]))
-            axs[0].legend()
-            if double_wins:
-                axs[0].set_title((f"Double Gaussian R^2 = {R:.2f}\n" 
-                                f"relative amplitude = {A1_relative:.2f}, {A2_relative:.2f}"))
-            else:
-                axs[0].set_title(f"Gaussian R^2 = {R:.2f}")
+        for condition in np.arange(len(tuning)):
 
             if len(mat_by_cond) > 0:
+                # process the firing by bin for each trial for this neuron in this 
                 xval_mat = mat_by_cond[condition][xval_any == xval_true,:,:]
-                axs[1].imshow(xval_mat[neuron,:,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
-                axs[1].set_ylabel("Trials")
-            else:
-                fig.delaxes(axs[1])
+                matrix = xval_mat[neuron,:,:]
+            all_time = tuning[condition][xval_any == xval_true,:]
+            # obtain firing rates by taking the median in each bin for all time
+            flatline = np.where(np.diff((np.mean(all_time, axis = 0) == 0).astype(int)) == 1)[0]
+            if len(flatline) > 0:
+                all_time = all_time[:,:flatline[0]]
+            fr_all_time  = all_time[neuron,:]
 
-            c = ['shelter_only', 'barrier', 'barrier_flipped']
-            if xval_true:
-                fig.savefig(dump_path + "/xval_neuron" + str(xval_id[neuron]) + '_' + c[condition] + ".png")
-            else:
-                fig.savefig(dump_path + "/neuron" + str(xval_id[neuron]) + '_' + c[condition] + ".png")
-            plt.close()
+            distances, smoothed_firing_rates, shift_constant, smooth_test = smooth_firing_by_bin_by_trial(matrix, fr_all_time, method)
+
+            R, y, params, double_wins = gaussian_fitting(smoothed_firing_rates[~np.isnan(smoothed_firing_rates)], np.arange(np.sum(~np.isnan(smoothed_firing_rates))), verbose = verbose)
+            y_fitted = np.full_like(smoothed_firing_rates, np.nan)
+            y_fitted[~np.isnan(smoothed_firing_rates)] = y
 
             # dump parameters into the variables to return
             R_all[neuron, condition] = R
             shift_constant_all[neuron, condition] = shift_constant
             double_wins_all[neuron, condition] = double_wins
             param_all[:len(params),neuron, condition] = params
-            y_fit_this_condition[neuron, :len(y_fitted)] = y_fitted
+            y_fitted_all[condition, neuron, :len(y_fitted)] = y_fitted
 
-        y_fitted_all.append(y_fit_this_condition)
+            # Plot data and gaussian fit
+            # top left plot: original data and gaussian fit for each condition (diff colour for each)
+            ax1.plot(distances, smoothed_firing_rates - shift_constant, label="Smoothed Data " + c_names[condition], linestyle = '--', color=colors[condition])
+            ax1.set_ylabel('z-scored firing rates')
+            if double_wins:
+                ax1.plot(distances, y_fitted - shift_constant, label=f"Double Gaussian R^2 = {R:.2f}", linestyle = '-', color=colors[condition])
+            else:
+                ax1.plot(distances, y_fitted - shift_constant, label=f"Gaussian R^2 = {R:.2f}", linestyle = '-', color=colors[condition])
+            
+            if len(mat_by_cond) > 0:
+                # botom left plot: plot of activity on each trial (diff colour for each condition)
+                ax2.plot(smooth_test.T, color=colors[condition], linewidth = .5, alpha = .5)
+                ax2.plot(smoothed_firing_rates - shift_constant, color=colors[condition], linewidth = 2)
+                ax2.set_xlabel(comp)
+                ax2.set_ylabel('z-scored firing rates')
+                matrix_this_neuron[c:c+smooth_test.shape[0],:] = smooth_test
+                trials_by_cond[c:c+smooth_test.shape[0]] = np.ones(np.shape(smooth_test)[0])*condition
+                c += smooth_test.shape[0]
+
+        # right plot: heatmap of firing rate by bin on each trial, side bar indicating conditions
+        if len(mat_by_cond) > 0:
+            all_nan_rows = np.all(np.isnan(matrix_this_neuron), axis=1)
+            trials_by_cond = trials_by_cond[~all_nan_rows]
+            ax3.imshow(matrix_this_neuron[~all_nan_rows,:], cmap="gray_r", vmin = -1, vmax = 1, aspect="auto", interpolation = "none")
+            ax3.set_ylabel("Trials")
+            ax3.set_xlabel(comp)
+            ax3.set_title('Median activity per trial')
+            ax3b.imshow(trials_by_cond[:, np.newaxis], cmap=custom_cmap, aspect="auto")
+            ax3b.set_xticks([])  # Hide x-axis ticks
+            ax3b.set_yticks([])  # Hide y-axis ticks
+            # Fine-tune the indicator's position to move it closer to the main heatmap
+            pos_main = ax3.get_position()  # Get position of the main heatmap
+            pos_indicator = ax3b.get_position()  # Get position of the indicator heatmap
+
+            # Adjust the indicator's position
+            new_x0 = pos_main.x1 + 0  # Position slightly to the right of the main heatmap
+            new_x1 = new_x0 + (pos_indicator.x1 - pos_indicator.x0)  # Maintain the same width
+            ax3b.set_position([new_x0, pos_indicator.y0, new_x1 - new_x0, pos_indicator.y1 - pos_indicator.y0])
+
+            ax2.set_xlim((0, np.shape(tuning[condition])[1]))
+
+        ax1.set_xlim((0, np.shape(tuning[condition])[1]))
+        if len(mat_by_cond) == 0:
+            ax1.set_xlabel(comp)
+        ax1.legend(fontsize="small", markerscale=0.5)
+
+        if xval_true:
+            fig.savefig(dump_path + "/xval_neuron" + str(xval_id[neuron]) + "_allcond.png")
+        else:
+            fig.savefig(dump_path + "/neuron" + str(xval_id[neuron]) + "_allcond.png")
+        plt.close()
 
     return y_fitted_all, R_all, param_all, shift_constant_all, double_wins_all
 
@@ -592,3 +573,102 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
 #     dump_path = make_directory(dump_path)
 #     fig.savefig(dump_path + "/" + nickname + ".png")
 #     plt.close()
+
+# def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_true = True, verbose = False):
+#     """This models the tuning of each neuron in each condition using either a single or double gaussian and returns the parameters of the best fit.
+#     It makes a plot with in one subplot the average firing by bin and the fitted firing by bin. 
+#     The other subplot has the activity per bin on each trial (if you have trial based activity like in homing/escape)
+
+#     INPUTS:
+#         tuning: is a list of len(conditions), each entry is a matrix of tuning curves of shape neurons x bins
+#         xval: matrix of length neurons x conditions, indicating if the neuron's tuning passed xval
+#         dump_path: where to save the figures (usually a folder named after the session + the behavioral vairable being studied)
+#         mat_by_cond: is a list of len(conditions), each entry is a matrix of firing rates neurons x trials x bins 
+#         comp: a string of the name of the behavioral variable of interest (e.g. 'speed', 'escape', 'distance_shelter')
+#         xval_true: it will only do the fitting for neurons that have passed xval
+#     RETURNS:
+#         y_fitted_all: is a list of len(conditions), each entry is a matrix (neurons x bins) of the predicted firing rate by bin based on the fit
+#         R_all: matrix of length neurons x conditions of the R squared of the fit
+#         param_all: matrix (params x neurons x conditions) for single gauss [amplitude, mu, sigma] for double gaussian [A1, mu1, sigma1, A2, mu2, sigma2]
+#         shift_constant_all: matrix of length neurons x conditions of how much did we shift the firing rates to ensure they were all positive before fitting. This will have to be subtracted from the amplitude param!
+#         double_wins_all: boolean matrix of length neurons x conditions of whether the double gaussian was the better fit
+#     """
+
+    
+#     # find the cells that have xval'd tuning curves in at least one condition
+#     xval_any = np.sum(xval, axis = 1) > 0
+#     xval_id = np.where(xval_any == xval_true)[0] # we're going to use this to name the figure so that we can find neurons across conditions
+
+#     # initialize variables for output
+#     y_fitted_all = []
+#     R_all = np.zeros((len(xval_id), np.shape(xval)[1])) # neurons x conditions
+#     param_all = np.zeros((6, len(xval_id), np.shape(xval)[1])) # params x neurons x conditions
+#     shift_constant_all = np.zeros((len(xval_id), np.shape(xval)[1])) # neurons x conditions
+#     double_wins_all = np.zeros((len(xval_id), np.shape(xval)[1])).astype(bool) # neurons x conditions
+
+#     for condition in np.arange(len(tuning)):
+#         test = tuning[condition][xval_any == xval_true,:]
+#         y_fit_this_condition = np.zeros_like(test)
+#         for neuron in np.arange(test.shape[0]):
+#             flatline = np.where(np.diff((np.mean(test, axis = 0) == 0).astype(int)) == 1)[0]
+#             if len(flatline) > 0:
+#                 test = test[:,:flatline[0]]
+#             firing_rates  = test[neuron,:]
+#             # from scipy.ndimage import gaussian_filter1d
+#             sigma = 3.0  # Standard deviation of the Gaussian kernel
+#             smoothed_firing_rates = gaussian_filter1d(firing_rates, sigma)
+
+#             # make firing rates positive
+#             shift_constant = abs(np.amin(smoothed_firing_rates))+ 1e-6 # Add a small epsilon to avoid exact zero
+#             smoothed_firing_rates = smoothed_firing_rates + shift_constant
+#             distances = np.arange(len(smoothed_firing_rates))
+
+#             R, y_fitted, params, double_wins = gaussian_fitting(smoothed_firing_rates, distances, verbose = False)
+
+#             # Plot original data and fitted Gaussian
+#             fig, axs = plt.subplots(1,2,figsize = (12,4))
+#             axs[0].scatter(distances, firing_rates - shift_constant, label="Original Data", s=3, color="blue")
+#             axs[0].plot(distances, y_fitted - shift_constant, label="Fitted Gaussian", color="red")
+#             if double_wins:
+#                 axs[0].scatter([params[1], params[4]],[params[0] - shift_constant, params[3] - shift_constant], label = "Gaussian mu", s = 10, color = "green")
+#             else:
+#                 axs[0].scatter(params[1],params[0] - shift_constant, label = "Gaussian mu", s = 10, color = "green")
+#             axs[0].set_ylabel("Firing Rate")
+#             axs[0].set_xlabel(comp)
+#             axs[0].set_xlim((0, np.shape(tuning[condition])[1]))
+#             axs[0].legend()
+#             if double_wins:
+#                 A1 = params[0]
+#                 A2 = params[3]
+#                 # Prominence as relative amplitude
+#                 A1_relative = A1 / (A1 + A2)
+#                 A2_relative = A2 / (A1 + A2)
+#                 axs[0].set_title((f"Double Gaussian R^2 = {R:.2f}\n" 
+#                                 f"relative amplitude = {A1_relative:.2f}, {A2_relative:.2f}"))
+#             else:
+#                 axs[0].set_title(f"Gaussian R^2 = {R:.2f}")
+
+#             if len(mat_by_cond) > 0:
+#                 xval_mat = mat_by_cond[condition][xval_any == xval_true,:,:]
+#                 axs[1].imshow(xval_mat[neuron,:,:], cmap="gray_r", vmin = 0, vmax = 1.2, aspect="auto", interpolation = "none")
+#                 axs[1].set_ylabel("Trials")
+#             else:
+#                 fig.delaxes(axs[1])
+
+#             c = ['shelter_only', 'barrier', 'barrier_flipped']
+#             if xval_true:
+#                 fig.savefig(dump_path + "/xval_neuron" + str(xval_id[neuron]) + '_' + c[condition] + ".png")
+#             else:
+#                 fig.savefig(dump_path + "/neuron" + str(xval_id[neuron]) + '_' + c[condition] + ".png")
+#             plt.close()
+
+#             # dump parameters into the variables to return
+#             R_all[neuron, condition] = R
+#             shift_constant_all[neuron, condition] = shift_constant
+#             double_wins_all[neuron, condition] = double_wins
+#             param_all[:len(params),neuron, condition] = params
+#             y_fit_this_condition[neuron, :len(y_fitted)] = y_fitted
+
+#         y_fitted_all.append(y_fit_this_condition)
+
+#     return y_fitted_all, R_all, param_all, shift_constant_all, double_wins_all

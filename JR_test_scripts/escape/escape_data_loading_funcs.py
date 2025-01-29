@@ -21,6 +21,7 @@ def extract_homing_and_escape_periods(
     compression_var,
     ons,
     offs,
+    shifted_vec = [],
     interpolation=True,
     no_stationary=False,
     return_escape=False,
@@ -45,6 +46,25 @@ def extract_homing_and_escape_periods(
 
     # extract the time around escapes
     ons, offs, esc_ons = homing_escape_onsets(session, ons, offs)
+    if len(shifted_vec) > 0:
+        # which ones to keep
+        mask = np.logical_and(shifted_vec[ons], shifted_vec[offs])
+        ons = ons[mask]
+        offs = offs[mask]
+        esc_ons = [x for x in esc_ons if x in ons]
+        # find the new timepoints
+        on_vec = np.zeros_like(shifted_vec)
+        on_vec[ons] = 1
+        on_vec = on_vec[shifted_vec]
+        ons = np.where(on_vec == 1)[0]
+        off_vec = np.zeros_like(shifted_vec)
+        off_vec[offs] = 1
+        off_vec = off_vec[shifted_vec]
+        offs = np.where(off_vec == 1)[0]
+        eon_vec = np.zeros_like(shifted_vec)
+        eon_vec[esc_ons] = 1
+        eon_vec = eon_vec[shifted_vec]
+        esc_ons = np.where(eon_vec == 1)[0]
 
     # initialize variables:
     # start is the list of all start times, with homings and escapes of full duration
@@ -158,7 +178,6 @@ def extract_homing_and_escape_periods(
     cond = cond[all_frames_to_keep == 1]
     esc_var = esc_var[all_frames_to_keep == 1]
     escape_matrix = escape_matrix[:, all_frames_to_keep == 1]
-
     # zscore the neural data
     escape_matrix = zscore(escape_matrix, axis=1)
 
@@ -325,19 +344,19 @@ def create_discretized_behave_var(
         var = compute_dist_shelt(this_x, this_y, c, session)
     elif compression_var == "distance_first_goal":
         var = compute_dist_first_goal(this_x, this_y, c, session)
-    elif compression_var in ['bird_dist_shelter','bird_dist_first_goal']:
-        var = compute_dist_shelt(this_x, this_y, cond = np.zeros_like(this_x), session = session) # straight distance computed by pretending there is never a barrier
+    elif compression_var in ["bird_dist_shelter", "bird_dist_first_goal"]:
+        var = compute_dist_shelt(this_x, this_y, cond=np.zeros_like(this_x), session=session)  # straight distance computed by pretending there is never a barrier
     elif compression_var == "y_pos":
         var = this_y
     elif "escape" in compression_var:
         start, stop = [0, -1]
-        if np.logical_and(c[0] > 0, compression_var == "escape_shelter"): # don't crop for shelter only trials
+        if np.logical_and(c[0] > 0, compression_var == "escape_shelter"):  # don't crop for shelter only trials
             start = np.where(this_y > 512)[0]
             if len(start) > 0:
                 start = start[0]
             else:
                 return np.zeros_like(this_x)
-        if np.logical_and(c[0] > 0, compression_var == "escape_first_goal"): # don't crop for shelter only trials
+        if np.logical_and(c[0] > 0, compression_var == "escape_first_goal"):  # don't crop for shelter only trials
             stop = np.where(this_y < 512)[0]
             if len(stop) > 0:
                 stop = stop[-1]
