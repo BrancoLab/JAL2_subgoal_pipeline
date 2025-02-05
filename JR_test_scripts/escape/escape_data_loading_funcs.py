@@ -11,20 +11,7 @@ from JR_test_scripts.escape.escape_utils import (
 
 
 def extract_homing_and_escape_periods(
-    session,
-    frame_by_cluster_matrix,
-    behave,
-    y_pos,
-    x_pos,
-    bar,
-    barflip,
-    compression_var,
-    ons,
-    offs,
-    shifted_vec = [],
-    interpolation=True,
-    no_stationary=False,
-    return_escape=False,
+    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True
 ):
     """For a given session, extract the time around escapes and homing periods in neural data and a behavioral variable of interest (compression_var)
     INPUTS:
@@ -80,12 +67,8 @@ def extract_homing_and_escape_periods(
         mult = 2
 
     # initialize variables
-    escape_matrix = np.zeros(
-        (
-            np.shape(frame_by_cluster_matrix)[1],
-            np.sum(offs - ons) * mult,
-        )
-    )  # x 2 because of interpolation over time
+    n_neur = frame_by_cluster_matrix.shape[1]
+    escape_matrix = np.zeros((n_neur, np.sum(offs - ons) * mult))  # x 2 because of interpolation over time
     esc_var = np.zeros(np.sum(offs - ons) * mult)
     all_frames_to_keep = np.zeros(np.sum(offs - ons) * mult)
     cond = np.zeros(np.sum(offs - ons) * mult)
@@ -121,14 +104,14 @@ def extract_homing_and_escape_periods(
             frames_to_keep = in_shelt == 0
 
         # find times when the mouse is in the first or second leg of the escape, use this for cropping after
-        # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop the time when the mouse was in the threat zone
+        # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop away the time when the mouse was in the threat zone
         if np.logical_and(
             compression_var in ["distance_shelter", "escape_shelter"],
             bar[of] == True,
         ):
             shelter_zone = this_y > 512
             frames_to_keep = np.logical_and(frames_to_keep, shelter_zone)
-        # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop the time when the mouse was in the shelter zone
+        # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop away the time when the mouse was in the shelter zone
         if np.logical_and(
             compression_var in ["distance_first_goal", "escape_first_goal"],
             bar[of] == True,
@@ -167,6 +150,8 @@ def extract_homing_and_escape_periods(
         start.append(start[-1] + len(disc_var))
         if len(np.where(frames_to_keep == 0)[0]) == 0:
             h_start.append(h_start[-1] + len(disc_var))  # never reaches shelter
+        elif len(disc_var[frames_to_keep]) == 0:
+            h_start = h_start
         else:
             h_start.append(h_start[-1] + len(disc_var[frames_to_keep]))  # only keep homing until mouse reaches shelter
 
@@ -179,7 +164,8 @@ def extract_homing_and_escape_periods(
     esc_var = esc_var[all_frames_to_keep == 1]
     escape_matrix = escape_matrix[:, all_frames_to_keep == 1]
     # zscore the neural data
-    escape_matrix = zscore(escape_matrix, axis=1)
+    if zscore:
+        escape_matrix = zscore(escape_matrix, axis=1)
 
     if return_escape:
         return (

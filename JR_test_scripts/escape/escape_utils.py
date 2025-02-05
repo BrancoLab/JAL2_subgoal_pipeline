@@ -1,7 +1,11 @@
 import os
 import polars as pl
+import pandas as pd
 import numpy as np
 from scipy.ndimage import gaussian_filter1d
+from scipy.signal import savgol_filter
+from numba import njit
+import speedystats as ss
 
 from behave_analysis.process.process import Process
 from behave_analysis.utils.data_loading import load_or_extract_homings
@@ -164,18 +168,19 @@ def compress_vars(var, neural_matrix):
             new_activity = np.vstack((new_activity, compressed_activity))
     return new_activity, new_pos
 
-
 def discretize_x_axis(var, bin_size=10):
     """Bin the x-axis of the neural data by a variable of choice (e.g. speed, position, distance to shelter)"""
     bins = np.arange(0, np.amax(var), bin_size)
     disc_var = np.digitize(var, bins)
     return disc_var
 
-def firing_by_bin_median(var, neural_activity, nbins, remove_empty=False):
+def firing_by_bin_median_np(var, neural_activity, nbins, remove_empty=False):
     """For each bin of a variable, calculate the median neural activity.
     remove_empty: if True remove bins with no behavioral data.
-    THIS VARIANT USES THE MEDIAN"""
-    from scipy.stats import mode
+    THIS VARIANT USES THE MEDIAN
+     SLOW!!!
+      """
+    # from scipy.stats import mode
     angles_firing = np.full(nbins, np.nan)  # Start with NaN to handle empty bins
     for i in range(nbins):
         mask = (var == i)  # Find data points in the current bin
@@ -188,9 +193,80 @@ def firing_by_bin_median(var, neural_activity, nbins, remove_empty=False):
         angles_firing[np.isnan(angles_firing)] = 0
     return angles_firing
 
+def firing_by_bin_median_ss(var, neural_activity, nbins, remove_empty=False):
+    """For each bin of a variable, calculate the median neural activity.
+    remove_empty: if True remove bins with no behavioral data.
+    THIS VARIANT USES THE MEDIAN
+    speedystats!!!
+    """
+    angles_firing = np.full(nbins, np.nan)  # Start with NaN to handle empty bins
+    for i in range(nbins):
+        mask = (var == i)  # Find data points in the current bin
+        if np.any(mask):  # Check if the bin has any data
+            angles_firing[i] = ss.median(neural_activity[mask])
+    if remove_empty:
+        angles_firing = angles_firing[~np.isnan(angles_firing)]  # Remove empty bins
+    else:
+        angles_firing[np.isnan(angles_firing)] = 0
+    return angles_firing
+
+@njit
+def firing_by_bin_median_numba(var, neural_activity, nbins, remove_empty=False):
+    """Compute the median firing rate per bin using Numba."""
+    var = np.asarray(var)
+    neural_activity = np.asarray(neural_activity)
+
+    # Step 1: Pre-allocate a large 2D array to store values
+    max_entries = len(var)  # Worst case: all data points in one bin
+    bin_storage = np.full((nbins, max_entries), np.nan)  # Fill with NaNs
+    bin_counts = np.zeros(nbins, dtype=np.int32)  # Track how many entries in each bin
+
+    # Step 2: Assign values to bins
+    for i in range(len(var)):
+        bin_idx = var[i]
+        if 0 <= bin_idx < nbins:
+            count = bin_counts[bin_idx]  # Current count in bin
+            bin_storage[bin_idx, count] = neural_activity[i]  # Store value
+            bin_counts[bin_idx] += 1  # Increment bin count
+
+    # Step 3: Compute medians
+    angles_firing = np.full(nbins, np.nan)
+    for i in range(nbins):
+        if bin_counts[i] > 0:
+            angles_firing[i] = np.median(bin_storage[i, :bin_counts[i]])  # Take median of non-NaN values
+
+    # Step 4: Handle empty bins
+    if remove_empty:
+        return angles_firing[~np.isnan(angles_firing)]  # Remove NaNs
+    else:
+        angles_firing[np.isnan(angles_firing)] = 0  # Set empty bins to 0
+        return angles_firing
+
+def firing_by_bin_median_pandas(var, neural_activity, nbins, remove_empty=False):
+    """For each bin of a variable, calculate the median neural activity.
+    remove_empty: if True remove bins with no behavioral data.
+    THIS VARIANT USES THE MEDIAN"""
+    
+    df = pd.DataFrame({'var': var, 'neural_activity': neural_activity})
+    grouped = df.groupby('var')['neural_activity'].median()
+    
+    # Create an output array with NaNs
+    angles_firing = np.full(nbins, np.nan)
+    
+    # Assign the computed medians to their corresponding bins
+    angles_firing[grouped.index] = grouped.values
+    
+    if remove_empty:
+        angles_firing = angles_firing[~np.isnan(angles_firing)]
+    else:
+        angles_firing[np.isnan(angles_firing)] = 0
+
+    return angles_firing
+
 def firing_by_bin(var, neural_activity, nbins, remove_empty = False):
     """For each bin of a variable of choice (e.g. speed, position, distance to shelter) what is the mean enural activity
-    remove_empty: if True remove bins with no behavioral data (and therefore no firing data)"""
+    remove_empty: if True remove bins with no behavioral data (and therefore no firing data)
+    THIS FUNCTION USES THE MEAN"""
     angles_firing = np.full(nbins, np.nan)
     unique_groups, group_counts = np.unique(var, return_counts=True)
     # mean firing
@@ -220,7 +296,7 @@ def check_not_list(var):
         var = [x[0] for x in var]
     return var
 
-def smooth_firing_by_bin_by_trial(matrix, fr_all_time, method):
+def smooth_firing_by_bin_by_trial(matrix, fr_all_time, method, filtering = 'savgol'):
     """Take the matrix of firing by bin on each trial and/or across all time and smooth it
     INPUTS:
         fr_all_time: is a vector of firing x bins across all time
@@ -234,11 +310,15 @@ def smooth_firing_by_bin_by_trial(matrix, fr_all_time, method):
         # remove trials that are all nan
         all_nan_rows = np.all(np.isnan(matrix), axis=1)
         matrix = matrix[~all_nan_rows,:]
-        smooth_test = np.zeros_like(matrix)
+        smooth_test = np.full_like(matrix, np.nan)
         for sidx, sxm in enumerate(matrix):
             this_line = np.full_like(sxm, np.nan)
             where_nan = np.isnan(sxm)
-            this_line[~where_nan] = gaussian_filter1d(sxm[~where_nan], 3)
+            if filtering == 'gaussian':
+                smoothed = gaussian_filter1d(sxm[~where_nan], 2, mode = 'nearest')
+                this_line[~where_nan] = smoothed * (np.mean(sxm[~where_nan]) / np.mean(smoothed))
+            if filtering == 'savgol':
+                this_line[~where_nan] = savgol_filter(sxm[~where_nan], window_length=11, polyorder=3)
             smooth_test[sidx,:] = this_line
 
     # extract firing by bin for this neuron in this condition
@@ -254,8 +334,11 @@ def smooth_firing_by_bin_by_trial(matrix, fr_all_time, method):
         smoothed_firing_rates[~np.isnan(fr_all_time)] = gaussian_filter1d(fr_all_time[~np.isnan(fr_all_time)], sigma)
 
     # make firing rates positive
-    shift_constant = abs(np.nanmin(smoothed_firing_rates))+ 1e-6 # Add a small epsilon to avoid exact zero
-    smoothed_firing_rates = smoothed_firing_rates + shift_constant
+    if np.nanmin(smoothed_firing_rates) < 0:
+        shift_constant = abs(np.nanmin(smoothed_firing_rates))+ 1e-6 # Add a small epsilon to avoid exact zero
+        smoothed_firing_rates = smoothed_firing_rates + shift_constant
+    else:
+        shift_constant = 0
     distances = np.arange(len(smoothed_firing_rates))
 
     return distances, smoothed_firing_rates, shift_constant, smooth_test
