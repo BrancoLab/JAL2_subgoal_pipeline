@@ -198,6 +198,7 @@ def extract_explore_periods(
     outofshelter,
     interpolation=True,
     no_stationary=False,
+    zscore=False,
 ):
     """A functon to extract the neural data and discretized behavioral variable for all exploration periods
     These are times when the mouse is out of the shelter, not in a homing or escape period.
@@ -222,12 +223,7 @@ def extract_explore_periods(
 
     if interpolation:
         # interpolate over time, double the samples
-        this_speed, this_y, this_x, neur = interpolate_time(
-            x_pos,
-            y_pos,
-            behave,
-            frame_by_cluster_matrix,
-        )
+        this_speed, this_y, this_x, neur = interpolate_time(x_pos, y_pos, behave, frame_by_cluster_matrix)
 
     # create vector of conditions
     if interpolation:
@@ -240,14 +236,7 @@ def extract_explore_periods(
     cond[barflip == True] += 1
 
     # create discretized behavioral varable
-    disc_var = create_discretized_behave_var(
-        session,
-        compression_var,
-        this_x,
-        this_y,
-        this_speed,
-        cond,
-    )
+    disc_var = create_discretized_behave_var(session, compression_var, this_x, this_y, this_speed, cond)
 
     # remove data when mouse is in shelter or in homing/escape
     frames_to_remove = np.logical_or(
@@ -255,14 +244,7 @@ def extract_explore_periods(
         outofshelter == False,
     )
     if interpolation:
-        frames_to_remove = (
-            np.interp(
-                new_time,
-                current_time,
-                frames_to_remove,
-            )
-            > 0
-        )
+        frames_to_remove = (np.interp(new_time,current_time, frames_to_remove) > 0)
 
     if no_stationary:
         stationary = this_speed < 0.5
@@ -273,9 +255,66 @@ def extract_explore_periods(
     esc_var = disc_var[frames_to_remove == False]
 
     # zscore the neural data
-    escape_matrix = zscore(escape_matrix, axis=1)
+    if zscore:
+        escape_matrix = zscore(escape_matrix, axis=1)
 
     return esc_var, escape_matrix, cond
+
+
+def build_shift_vector(bar, barflip, session, ons, offs, shifts_one_sided):
+    """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics"""
+
+    shelter = np.where(bar == True)[0][0]  # the end of the shelter_only condition
+    bar_in = np.where(barflip == True)[0][0]  # the end of the barrier condition
+    mid_shelter = [int(shelter / 3), int((shelter / 3) * 2)]
+    mid_bar = [int(shelter + ((bar_in - shelter) / 3)), int(shelter + (((bar_in - shelter) / 3) * 2))]
+    mid_flip = [int(bar_in + ((len(bar) - bar_in) / 3)), int(bar_in + (((len(bar) - bar_in) / 3) * 2))]
+
+    # check that this gives us at least 2(?) homings/escapes
+    all_ons, _, _ = homing_escape_onsets(session, ons, offs)
+    min_h = 5  # minimum number of homings per condition
+    if np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1])) < min_h:
+        mid_shelter = [
+            all_ons[int(np.round(len(all_ons[all_ons < shelter]) / 3))] - 1,  # starting a third of the way into the homings
+            (all_ons[int(np.round(len(all_ons[all_ons < shelter]) / 3))] - 1) + int(shelter / 3),
+        ]
+        if mid_shelter[0] < np.amax(shifts_one_sided):
+            mid_shelter = [x + (np.amax(shifts_one_sided) - mid_shelter[0]) for x in mid_shelter]
+        if mid_shelter[1] > (shelter - np.amax(shifts_one_sided)):
+            mid_shelter = [x - (mid_shelter[1] - (shelter - np.amax(shifts_one_sided))) for x in mid_shelter]
+        print("Number of homings in shelter_only centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1]))))
+    if np.sum(np.logical_and(all_ons > mid_bar[0], all_ons < mid_bar[1])) < min_h:
+        h_bar = all_ons[np.logical_and(all_ons > shelter, all_ons < bar_in)]
+        mid_bar = [h_bar[int(np.round(len(h_bar) / 3))] - 1, int(shelter + h_bar[int(np.round(len(h_bar) / 3))] - 1)]
+        if mid_bar[0] < (shelter + np.amax(shifts_one_sided)):
+            mid_bar = [x + ((shelter + np.amax(shifts_one_sided)) - mid_bar[0]) for x in mid_bar]
+        if mid_bar[1] > (bar_in - np.amax(shifts_one_sided)):
+            mid_bar = [bar_in - np.amax(shifts_one_sided) - ((bar_in - shelter) / 3), bar_in - np.amax(shifts_one_sided)]
+        print("Number of homings in barrier centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_bar[0], all_ons < mid_bar[1]))))
+    if np.sum(np.logical_and(all_ons > mid_flip[0], all_ons < mid_flip[1])) < min_h:
+        h_flip = all_ons[np.logical_and(all_ons > bar_in, all_ons < len(bar))]
+        mid_flip = [h_flip[int(np.round(len(h_flip) / 3))] - 1, int(bar_in + h_flip[int(np.round(len(h_flip) / 3))] - 1)]
+        if mid_flip[0] < (bar_in + np.amax(shifts_one_sided)):
+            mid_flip = [x + ((bar_in + np.amax(shifts_one_sided)) - mid_flip[0]) for x in mid_flip]
+        if mid_flip[1] > (len(bar) - np.amax(shifts_one_sided)):
+            mid_flip = [len(bar) - np.amax(shifts_one_sided) - ((len(bar) - bar_in) / 3), len(bar) - np.amax(shifts_one_sided)]
+        print("Number of homings in flipped barrier centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_flip[0], all_ons < mid_flip[1]))))
+
+    # build the vector that gives us the central chunk of each conditon
+    shift_vector = np.zeros(len(bar))
+    shift_vector[int(mid_shelter[0]) : int(mid_shelter[1])] = 1
+    shift_vector[int(mid_bar[0]) : int(mid_bar[1])] = 1
+    shift_vector[int(mid_flip[0]) : int(mid_flip[1])] = 1
+    shift_vector = shift_vector.astype(bool)
+
+    # make sure we're not shifting our of range
+    shifts_left = shifts_one_sided[shifts_one_sided < mid_shelter[0]]
+    shifts_right = shifts_one_sided[(shifts_one_sided + mid_flip[1]) < len(bar)]
+
+    # now double them so we go in both directions
+    shifts = np.sort(np.hstack((shifts_right, -shifts_left)))
+
+    return shifts, shift_vector
 
 
 ##-----------------UTILS----------------------

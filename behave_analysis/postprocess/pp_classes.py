@@ -334,6 +334,7 @@ class BaseDataPostprocessor(ABC):
         populating a large matrix.
         Additionally it uses a sliding window to estimate firing rate.
         Output: a matrix of frames x clusters of firing rates in Hz"""
+        
         logger.info("Building a frame by cluster matrix of firing rates -- very slow")
         clu = spikeCountByFrameAndCluster["spike_clusters"].unique().to_numpy()
         # group the  data

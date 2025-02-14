@@ -539,6 +539,96 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
 
     return y_fitted_all, R_all, param_all, shift_constant_all, double_wins_all
 
+def plot_reliability(mat_full_cond, fr_full, full_reliability, comp, colors, c_names, n_cond, dump_path):   
+    """Plotting reliability!
+    Makes a figure for each neuron showing the trial by trial response for each condition, with the average firing rate overlaid."""
+
+    # compute min/max for this neuron across all conditions
+    vmin, vmax = np.nanmin(mat_full_cond, axis=(0, 2, 3)), np.nanmax(mat_full_cond, axis=(0, 2, 3))  # Ignore NaNs
+
+    # compute min/max for the average also
+    ymin, ymax = [np.nanmin(fr_full, axis=(0, 2)), np.nanmax(fr_full, axis=(0, 2))]
+
+    for neur in range(3):
+        fig, axs = plt.subplots(1,3, figsize = (12,4), constrained_layout=True)
+
+        ylim = [ymin[neur], ymax[neur]]
+        if ylim == [0,0]: ylim = [0,1]
+
+        for c in range(n_cond):
+            nan_rows = np.all(np.isnan(mat_full_cond[c,neur,:,:]), axis=1)
+            im = axs[c].imshow(mat_full_cond[c,neur,~nan_rows,:], cmap="gray_r", vmin = vmin[neur], vmax = vmax[neur], aspect="auto", interpolation = "none")
+            axs[c].set_title(c_names[c] + f'\n Reliability = {full_reliability[c,neur]:.2f}')
+            axs[c]. set_xlabel(comp)
+            if c == 0:
+                axs[c].set_ylabel('trials')
+
+            ax2 = axs[c].twinx()
+            ax2.plot(fr_full[c,neur,:], linewidth = 2, color = colors[c])
+            ax2.spines["right"].set_color(colors[c])
+            ax2.tick_params(axis="y", colors=colors[c])  # Change tick color
+            ax2.yaxis.label.set_color(colors[c])  # Change axis label color
+            ax2.set_ylim(ylim)
+            
+            if c == 2:
+                ax2.set_ylabel('Firing rate')
+                cbar = fig.colorbar(im, ax=axs[c], location="right", pad=0.1)
+                cbar.set_label('Firing rate')
+
+            fig.savefig(dump_path + "/neuron" + str(neur) + "_loo_reliability.png")
+            plt.close()
+
+def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real, R_shift, R_real, comp, n_neur, n_cond, colors, c_names, dump_path):
+    """Plot linear shift and real stats"""
+
+    # compute min/max for the average also
+    ymin = np.nanmin((np.nanmin(y_fitted_shift, axis = (0,1,3)), np.nanmin(y_fitted_real, axis = (0,2))), axis = 0)
+    ymax = np.nanmax((np.nanmax(y_fitted_shift, axis = (0,1,3)), np.nanmax(y_fitted_real, axis = (0,2))), axis = 0)
+
+    for neuron in range(n_neur):
+        fig, axs = plt.subplots(3,3,figsize = (12,12))
+        
+        ylim = [ymin[neuron], ymax[neuron]]
+        if ylim == [0,0]: ylim = [0,1]
+
+        for c in range(n_cond):
+            # fit in real vs shifted trials
+            axs[c,0].plot(y_fitted_shift[:,c,neuron,:].T,'k', alpha = .3)
+            axs[c,0].plot(y_fitted_real[c,neuron,:],color = colors[c], linewidth = 3)
+            # axs[c,0].plot(fr_shift[:,c,neuron,:].T,'k', alpha = .3)
+            # axs[c,0].plot(fr_real[c,neuron,:],color = colors[c], linewidth = 3)
+            axs[c,0].set_title(c_names[c])
+            axs[c,0].set_ylabel('Firing rate')
+            axs[c,0].set_ylim(ylim)
+            axs[c,0].set_xlabel(comp)
+
+            # fit amplitude
+            axs[c,1].hist(params_shifts[:,neuron,c,0], edgecolor = None, facecolor = 'k', alpha = .3)
+            yl = axs[c,1].get_ylim()
+            axs[c,1].plot([params_real[neuron, c, 0],params_real[neuron, c, 0]],yl,color = colors[c])
+            axs[c,1].set_xlabel('Firing rate')
+            axs[c,1].set_xlim(ylim)
+            axs[c,1].set_ylabel('Linear shifts')
+            if params_real[neuron, c, 0] > np.percentile(params_shifts[:,neuron,c,0],95):
+                axs[c,1].set_title('Fit amp. 95th perc: sig')
+            else:
+                axs[c,1].set_title('Fit amp. 95th perc: not sig')
+            
+            # goodness of fit
+            axs[c,2].hist(R_shift[:,neuron,c], edgecolor = None, facecolor = 'k', alpha = .3)
+            yl = axs[c,2].get_ylim()
+            axs[c,2].plot([R_real[neuron, c],R_real[neuron, c]],yl,color = colors[c])
+            if R_real[neuron,c] > np.percentile(R_shift[:,neuron,c],95):
+                axs[c,2].set_title('Fit goodness 95th perc.: sig')
+            else:
+                axs[c,2].set_title('Fit goodness 95th perc.: not sig')
+            axs[c,2].set_xlabel('R^2')
+            axs[c,2].set_ylabel('Linear shifts')
+
+        plt.tight_layout()
+        fig.savefig(dump_path + "/neuron" + str(neuron) + "_linshit.png")
+        plt.close()
+
 ##-------------DEPRECATED----------
 
 # def tuning_curve_compare(tuning1, tuning2, xval1, name1, name2, nickname, dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):

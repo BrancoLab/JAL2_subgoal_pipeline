@@ -374,28 +374,37 @@ def leave_one_out_reliability(var, escape_matrix, cond, h_start, bins, n_cond, n
             # step 4: take median across trials
             all_nan_cols = np.all(np.isnan(mat), axis=0)
             smoothed_firing_rates = np.full(bins, np.nan)
-            smoothed_firing_rates[~all_nan_cols] = np.nanmedian(mat[:,~all_nan_cols], axis = 0)
-            # dump together for output
-            fr_full[i, j, :] = smoothed_firing_rates
+            if np.any(~all_nan_cols):  # Ensure at least one valid column exists
+                smoothed_firing_rates[~all_nan_cols] = np.nanmedian(mat[:, ~all_nan_cols], axis=0)
 
             # leave one out median
             tr_corr_coeff = np.full(mat_num_cond.shape[2], np.nan)
             tr_rms = np.full(mat_num_cond.shape[2], np.nan)
             if np.sum(smoothed_firing_rates) > 0:
-                for tr in range(mat_num_cond.shape[2]):
+                for tr in range(mat_num_cond.shape[2]): # loop over trials and leave one out of the median
                     loo_mat = np.delete(mat, tr, axis = 0)
+                    if loo_mat.shape[0] == 0:  # Prevent empty matrix issues
+                        continue
                     all_nan_cols = np.all(np.isnan(loo_mat), axis=0)
                     loo = np.full(bins, np.nan)
-                    loo[~all_nan_cols] = np.nanmedian(loo_mat[:,~all_nan_cols], axis = 0)
+                    if np.any(~all_nan_cols):
+                        loo[~all_nan_cols] = np.nanmedian(loo_mat[:,~all_nan_cols], axis = 0)
+                    
                     # corr coeff for each trial
                     id_nans = np.logical_or(np.isnan(loo),np.isnan(mat[tr,:]))
-                    tr_corr_coeff[tr] = np.corrcoef(loo[~id_nans], mat[tr,~id_nans])[0, 1]
+                    valid_corr_values = np.sum(~id_nans)  # Count non-NaN values
+                    if valid_corr_values > 1 and np.std(loo[~id_nans]) > 0 and np.std(mat[tr, ~id_nans]) > 0:
+                        tr_corr_coeff[tr] = np.corrcoef(loo[~id_nans], mat[tr,~id_nans])[0, 1]
                     tr_rms[tr] = (np.sqrt(np.mean(mat[tr,:]**2)))
+                
                 # average across trial
                 id_nans = np.logical_or(np.isnan(tr_corr_coeff), np.isnan(tr_rms))
                 if np.sum(id_nans) < len(id_nans):
                     reliability[i,j] = np.average(tr_corr_coeff[~id_nans], weights = tr_rms[~id_nans])
-    
+                
+            # dump together for output
+            fr_full[i, j, :] = smoothed_firing_rates
+
     return fr_full, mat_num_cond, reliability
 
 def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur):
@@ -419,10 +428,15 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur):
         for i, n in enumerate(neur):
             smoothed_firing_rates = firing_by_bin_median_numba(v.astype(int), n, bins, remove_empty = False)
             
-            # step 4: gaussian fit
-            R, y, params, _ = gaussian_fitting(smoothed_firing_rates[~np.isnan(smoothed_firing_rates)], np.arange(np.sum(~np.isnan(smoothed_firing_rates))), verbose = False)
+            # Gaussian fitting
+            distances = np.arange(len(smoothed_firing_rates))
+            valid_idx = ~np.isnan(smoothed_firing_rates)
             y_fitted = np.full_like(smoothed_firing_rates, np.nan)
-            y_fitted[~np.isnan(smoothed_firing_rates)] = y
+            if np.any(valid_idx):
+                R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
+                y_fitted[valid_idx] = y
+            else:
+                R, params = 0, np.full(6, np.nan)
 
             # dump together for output
             fr_full[c, i, :] = smoothed_firing_rates
@@ -479,18 +493,24 @@ def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur):
             mat = mat_num_cond[i, j, :,:]
             all_nan_cols = np.all(np.isnan(mat), axis=0)
             smoothed_firing_rates = np.full(bins, np.nan)
-            smoothed_firing_rates[~all_nan_cols] = np.nanmedian(mat[:,~all_nan_cols], axis = 0)
-
-            # step 5: gaussian fit
-            R, y, params, double_wins = gaussian_fitting(smoothed_firing_rates[~np.isnan(smoothed_firing_rates)], np.arange(np.sum(~np.isnan(smoothed_firing_rates))), verbose = False)
-            y_fitted = np.full_like(smoothed_firing_rates, np.nan)
-            y_fitted[~np.isnan(smoothed_firing_rates)] = y
+            if np.any(~all_nan_cols):  # Ensure at least one valid column exists
+                smoothed_firing_rates[~all_nan_cols] = np.nanmedian(mat[:, ~all_nan_cols], axis=0)
+            
+            # Step 5: Gaussian fit
+            distances = np.arange(len(smoothed_firing_rates))
+            valid_idx = ~np.isnan(smoothed_firing_rates)
+            y_fitted = np.full(bins, np.nan)
+            if np.any(valid_idx):
+                R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
+                y_fitted[valid_idx] = y
+            else:
+                R, params = 0, np.full(6, np.nan)
 
             # dump together for output
             fr_full[i, j, :] = smoothed_firing_rates
             R_full[j, i] = R
             params_full[j, i,:len(params)] = params
-            y_fitted_full[i, j, :len(y_fitted)] = y_fitted
+            y_fitted_full[i, j, :] = y_fitted
             
     return y_fitted_full, R_full, fr_full, params_full, mat_num_cond
 
@@ -542,7 +562,6 @@ def tuning_method_no_trials_with_pool(var, escape_matrix, cond, bins, n_cond, n_
 
     # Initialize persistent multiprocessing pool
     PPool = PersistentPool()
-    print('Pool set up!')
 
     # Step 3: Compute firing by bin across all time
     for c in range(n_cond):

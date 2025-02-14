@@ -276,19 +276,19 @@ def firing_by_bin(var, neural_activity, nbins, remove_empty = False):
         angles_firing = angles_firing[unique_groups]
     return angles_firing
 
-def smoothed_firing_by_bin(var, neural_activity, nbins):
-    """This function is an alternative for interpolation.
-     It creates teeny tiny bins and computes the time in each bin as well as the activity in each bin and then divides the activity by the time in each bin"""
-    # TODO: This function is not working yet
+# def smoothed_firing_by_bin(var, neural_activity, nbins):
+#     """This function is an alternative for interpolation.
+#      It creates teeny tiny bins and computes the time in each bin as well as the activity in each bin and then divides the activity by the time in each bin"""
+#     # TODO: This function is not working yet
 
-    # neural_activity = escape_matrix[0,:]
-    # nbins = int(np.amax(esc_var+1))
-    bin_occupancy = np.zeros(nbins)
-    bin_sum_activity = np.zeros(nbins)
-    unique_groups, group_counts = np.unique(var, return_counts=True)
-    group_sums = np.bincount(var, weights=neural_activity)
-    angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
-    return angles_firing
+#     # neural_activity = escape_matrix[0,:]
+#     # nbins = int(np.amax(esc_var+1))
+#     bin_occupancy = np.zeros(nbins)
+#     bin_sum_activity = np.zeros(nbins)
+#     unique_groups, group_counts = np.unique(var, return_counts=True)
+#     group_sums = np.bincount(var, weights=neural_activity)
+#     angles_firing[unique_groups] = group_sums[unique_groups] / group_counts
+#     return angles_firing
 
 def check_not_list(var):
     if np.logical_or(isinstance(var[0], list),
