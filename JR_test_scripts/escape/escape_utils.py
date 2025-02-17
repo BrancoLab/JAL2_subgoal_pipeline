@@ -6,6 +6,7 @@ from scipy.ndimage import gaussian_filter1d
 from scipy.signal import savgol_filter
 from numba import njit
 import speedystats as ss
+from scipy.stats import mstats
 
 from behave_analysis.process.process import Process
 from behave_analysis.utils.data_loading import load_or_extract_homings
@@ -187,6 +188,28 @@ def firing_by_bin_median_np(var, neural_activity, nbins, remove_empty=False):
         if np.any(mask):  # Check if the bin has any data
             # angles_firing[i] = mode(neural_activity[mask], nan_policy='omit')[0][0]
             angles_firing[i] = np.median(neural_activity[mask])
+    if remove_empty:
+        angles_firing = angles_firing[~np.isnan(angles_firing)]  # Remove empty bins
+    else:
+        angles_firing[np.isnan(angles_firing)] = 0
+    return angles_firing
+
+def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
+    """For each bin of a variable, calculate the median neural activity.
+    remove_empty: if True remove bins with no behavioral data.
+    THIS VARIANT USES THE MEDIAN
+     SLOW!!!
+      """
+    # from scipy.stats import mode
+    angles_firing = np.full(nbins, np.nan)  # Start with NaN to handle empty bins
+    for i in range(nbins):
+        mask = (var == i)  # Find data points in the current bin
+        if np.any(mask):  # Check if the bin has any data
+            angles_firing[i] = np.median(neural_activity[mask])
+            arr = neural_activity[mask]
+            non_nan_arr = arr[~np.isnan(arr)]  # Remove NaNs
+            if len(non_nan_arr) > 0:
+                angles_firing[i] = np.mean(mstats.winsorize(non_nan_arr, limits=(.15, .15)))
     if remove_empty:
         angles_firing = angles_firing[~np.isnan(angles_firing)]  # Remove empty bins
     else:

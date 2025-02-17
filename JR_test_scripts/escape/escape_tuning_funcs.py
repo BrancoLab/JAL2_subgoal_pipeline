@@ -5,8 +5,9 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from multiprocessing import shared_memory
+from scipy.stats import mstats
 
-from JR_test_scripts.escape.escape_utils import firing_by_bin, firing_by_bin_median_numba
+from JR_test_scripts.escape.escape_utils import firing_by_bin, firing_by_bin_median_numba, firing_by_bin_winz_mean
 from behave_analysis.utils.PersistentPool import PersistentPool
 
 def neuron_tuning_by_var(esc_var, escape_matrix, cond, h_start = [], epoch_method = 'trial', xval_method = 'cosinesim', n_epochs = 3, xval_thresh = .7, averaging = 'median'):
@@ -407,8 +408,12 @@ def leave_one_out_reliability(var, escape_matrix, cond, h_start, bins, n_cond, n
 
     return fr_full, mat_num_cond, reliability
 
-def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur):
-    """Filter (gauss or savgol) the full trace -> take median across all time"""
+def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg = 'winsorized'):
+    """Filter (gauss or savgol) the full trace -> take median across all time
+    INPUTS:
+        avg: is a string that tells us the method to be used for averaging across trials. 
+            'median' takes the median, 
+            'winsorized' takes the winsorized mean, ignoring the 90th and 10th perc of the data"""
     # step 1: filter the full trace
     # Assuming the filtered trace is what is passed as an arg to extract_homing_and_escape_periods
 
@@ -426,7 +431,10 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur):
         neur = escape_matrix[:,cond == c]
         v = var[cond == c]
         for i, n in enumerate(neur):
-            smoothed_firing_rates = firing_by_bin_median_numba(v.astype(int), n, bins, remove_empty = False)
+            if avg == 'median':
+                smoothed_firing_rates = firing_by_bin_median_numba(v.astype(int), n, bins, remove_empty = False)
+            elif avg == 'winsorized':
+                smoothed_firing_rates = firing_by_bin_winz_mean(v.astype(int), n, bins, remove_empty = False)
             
             # Gaussian fitting
             distances = np.arange(len(smoothed_firing_rates))
@@ -446,9 +454,12 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur):
 
     return y_fitted_full, R_full, fr_full, params_full
 
-def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur):
+def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg = 'winsorized'):
     """Filter (gauss or savgol) the full trace -> take median per trial -> take median across trials -> fit gaussian
     INPUTS:
+        avg: is a string that tells us the method to be used for averaging across trials. 
+            'median' takes the median, 
+            'winsorized' takes the winsorized mean, ignoring the 90th and 10th perc of the data
     
     RETURNS:
         y_fitted_full: matrix of conditions x neurons x n_bins of the gaussian fits of the average data across trials
@@ -494,7 +505,10 @@ def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur):
             all_nan_cols = np.all(np.isnan(mat), axis=0)
             smoothed_firing_rates = np.full(bins, np.nan)
             if np.any(~all_nan_cols):  # Ensure at least one valid column exists
-                smoothed_firing_rates[~all_nan_cols] = np.nanmedian(mat[:, ~all_nan_cols], axis=0)
+                if avg == 'median':
+                    smoothed_firing_rates[~all_nan_cols] = np.nanmedian(mat[:, ~all_nan_cols], axis=0)
+                elif avg == 'winsorized':
+                    smoothed_firing_rates[~all_nan_cols] = nan_winsorized_mean_2d(mat[:,~all_nan_cols], limits=(.15, .15), axis = 0)
             
             # Step 5: Gaussian fit
             distances = np.arange(len(smoothed_firing_rates))
@@ -681,3 +695,28 @@ def tuning_method_with_pool(var, escape_matrix, cond, h_start, bins, n_cond, n_n
     escape_shm.unlink()
 
     return y_fitted_full, R_full, fr_full, params_full, mat_num_cond
+
+##------------ UTILS
+
+def nan_winsorized_mean_2d(data, limits=(0.1, 0.1), axis=0):
+    """
+    Compute the winsorized mean along a given axis while ignoring NaNs.
+
+    Parameters:
+        data (ndarray): 2D input array, may contain NaNs.
+        limits (tuple): Fraction to trim from (low, high) ends.
+        axis (int): Axis along which to compute the winsorized mean.
+
+    Returns:
+        ndarray: Winsorized mean along the specified axis.
+    """
+    data = np.asarray(data)
+    
+    # Apply Winsorization along the specified axis while ignoring NaNs
+    def winsorize_nan_safe(arr):
+        non_nan_arr = arr[~np.isnan(arr)]  # Remove NaNs
+        if len(non_nan_arr) == 0:
+            return np.nan  # Return NaN if all values were NaN
+        return np.mean(mstats.winsorize(non_nan_arr, limits=limits))  # Winsorized mean
+    
+    return np.apply_along_axis(winsorize_nan_safe, axis, data)

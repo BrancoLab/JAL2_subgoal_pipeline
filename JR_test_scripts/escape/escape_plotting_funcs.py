@@ -539,7 +539,7 @@ def plot_gaussian_fit_tuning(tuning, xval, dump_path, mat_by_cond, comp, xval_tr
 
     return y_fitted_all, R_all, param_all, shift_constant_all, double_wins_all
 
-def plot_reliability(mat_full_cond, fr_full, full_reliability, comp, colors, c_names, n_cond, dump_path):   
+def plot_reliability(mat_full_cond, fr_full, full_reliability, comp, colors, c_names, n_cond, n_neur, dump_path):   
     """Plotting reliability!
     Makes a figure for each neuron showing the trial by trial response for each condition, with the average firing rate overlaid."""
 
@@ -549,7 +549,7 @@ def plot_reliability(mat_full_cond, fr_full, full_reliability, comp, colors, c_n
     # compute min/max for the average also
     ymin, ymax = [np.nanmin(fr_full, axis=(0, 2)), np.nanmax(fr_full, axis=(0, 2))]
 
-    for neur in range(3):
+    for neur in range(n_neur):
         fig, axs = plt.subplots(1,3, figsize = (12,4), constrained_layout=True)
 
         ylim = [ymin[neur], ymax[neur]]
