@@ -531,7 +531,7 @@ def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg =
 ##------------ TUNING FUNCTIONS USING PARALLEL PROCESSING
 ##------------ WARNING: THESE ARE SLOWER THAN THE UNPARALLEL ONES
 
-def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neuron_index, cond_indices, bins, var):
+def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neuron_index, cond_indices, bins, var, avg = 'winsorized'):
     """Worker function to process a single neuron using shared memory.
     Process a single neuron for a given condition."""
     
@@ -544,7 +544,10 @@ def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neur
     v = var[cond_indices]
 
     # Compute firing rates
-    smoothed_firing_rates = firing_by_bin_median_numba(v.astype(int), n, bins, remove_empty=False)
+    if avg == 'median':
+        smoothed_firing_rates = firing_by_bin_median_numba(v.astype(int), n, bins, remove_empty = False)
+    elif avg == 'winsorized':
+        smoothed_firing_rates = firing_by_bin_winz_mean(v.astype(int), n, bins, remove_empty = False)
 
     # Gaussian fitting
     valid_idx = ~np.isnan(smoothed_firing_rates)

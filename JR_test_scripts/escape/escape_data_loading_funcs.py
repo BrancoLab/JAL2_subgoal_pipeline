@@ -11,7 +11,7 @@ from JR_test_scripts.escape.escape_utils import (
 
 
 def extract_homing_and_escape_periods(
-    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True
+    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True, bin_size = 10
 ):
     """For a given session, extract the time around escapes and homing periods in neural data and a behavioral variable of interest (compression_var)
     INPUTS:
@@ -133,6 +133,7 @@ def extract_homing_and_escape_periods(
             this_y,
             this_speed,
             c,
+            bin_size=bin_size,
         )
 
         # add data from this trial to the escape matrix and behavioral variable
@@ -199,6 +200,7 @@ def extract_explore_periods(
     interpolation=True,
     no_stationary=False,
     zscore=False,
+    bin_size=10,
 ):
     """A functon to extract the neural data and discretized behavioral variable for all exploration periods
     These are times when the mouse is out of the shelter, not in a homing or escape period.
@@ -236,7 +238,7 @@ def extract_explore_periods(
     cond[barflip == True] += 1
 
     # create discretized behavioral varable
-    disc_var = create_discretized_behave_var(session, compression_var, this_x, this_y, this_speed, cond)
+    disc_var = create_discretized_behave_var(session, compression_var, this_x, this_y, this_speed, cond, bin_size=bin_size)
 
     # remove data when mouse is in shelter or in homing/escape
     frames_to_remove = np.logical_or(
@@ -346,6 +348,7 @@ def create_discretized_behave_var(
     this_y,
     this_speed,
     c,
+    bin_size = 10, # set bin size for discritizing behavioral variables, this will be changed depending on the behavioral variable
 ):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
@@ -358,9 +361,6 @@ def create_discretized_behave_var(
     RETURNS:
         disc_var: the discretized behavioral variable of interest, in time
     """
-
-    # set bin size for discritizing behavioral variables
-    bin_size = 10  # this will be changed depending on the behavioral variable
 
     if compression_var in [
         "full_distance_shelter",
