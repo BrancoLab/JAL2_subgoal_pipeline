@@ -113,8 +113,10 @@ class get_Homings:
             self.barrier_location = self.session.barrier_location
         else:  # add hardcoded barrier location for sessions with no barrier
             self.barrier_location = [[800, 512], [224, 512], [512, 512]]
+        shelter_location = [int(np.mean([self.session.shelter_location[0][0],self.session.shelter_location[1][0]])),
+                            int(np.mean([self.session.shelter_location[0][1],self.session.shelter_location[1][1]]))]
         # The first and second index is the pre flip edge and post flip edge of the barrier loc
-        self.reference_locations = [self.session.video.shelter_location] + self.barrier_location[:-1]
+        self.reference_locations = shelter_location + self.barrier_location[:-1]
 
     def get_homing_properties(self):
         """Extract everything we need to know about homies"""

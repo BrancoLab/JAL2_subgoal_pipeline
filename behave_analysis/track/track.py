@@ -191,7 +191,9 @@ class Track(DLC):
         if len(self.settings.random_points) > 0 :self.compute_angle_random_points(session)
         self.compute_new_average_speed(session)
         # Reincluding philips compute speed function as it has a relative to shelter var needed for homings
-        self.compute_speed(session, reference_location=session.video.shelter_location, reference_name=' rel. to shelter')
+        shelter_location = [int(np.mean([session.shelter_location[0][0],session.shelter_location[1][0]])),
+                            int(np.mean([session.shelter_location[0][1],session.shelter_location[1][1]]))]
+        self.compute_speed(session, reference_location = shelter_location, reference_name=' rel. to shelter')
         self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
         
     def map_regions_of_interest(self) -> dict:

@@ -26,7 +26,7 @@ class Video:
     radius: int
     
     #! replace these values with your own parameters
-    shelter_location: tuple=(512, 921) # CHANGE IF NEEDED (x, y) coordinates of the shelter
+    # shelter_location: tuple=(512, 921) # CHANGE IF NEEDED (x, y) coordinates of the shelter, this is DEPRECATED and should be removed
     x_offset: int=128 # if the video frame is cropped, how far from the top left edge is it
     y_offset: int=0   # (this is for the fisheye correction step)
 
