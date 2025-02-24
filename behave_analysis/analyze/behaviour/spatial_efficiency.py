@@ -1,6 +1,8 @@
 '''A function to calculate spatial efficiency as in Shamash et al. 2021'''
 
 # OS Lib
+import os
+import re
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -10,6 +12,8 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.color_funcs import get_color_based_on_speed
+from behave_analysis.database.computer_ID import get_computer_specific_paths
+from behave_analysis.utils.creating_directories import make_directory
 
 def spatial_efficiency(onset_frames, stimulus_durations, session, settings, trial_conditions, tracking_data, trial_type, plotting = True, interp = 100, save_dir = []):
     """ 
@@ -18,7 +22,14 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, tria
     ntrials = len(onset_frames)
     nrows = 4
     ncols = 5
-        # plt.subplots_adjust(hspace=0.3)
+
+    # paths for saving in summary dir
+    ceph_path, _ = get_computer_specific_paths(session_path = '', return_ceph = True)
+    ceph_path = os.path.dirname(ceph_path)
+    overall_path = make_directory(os.path.join(ceph_path, 'summary_plots', trial_type + '_plots'))
+    match = re.search(r'(\d{4}_\d{2}_\d{2})T', session.file_path) # these three lines could be replaced with session.date if process is rerun
+    if match:
+        date_str = match.group(1)
 
     # Determine number of figures
     if ntrials > 20:
@@ -67,9 +78,12 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, tria
                 trial_counter += 1
     
         if plotting:
-            # save figure
+            # save figure in session dir
             filename = str(save_dir) + "/" + trial_type + f"_SpatialEfficiency_{figure}.png"
             plt.savefig(filename)
+            # save in summary dir
+            filename = session.mouse + '_' + date_str + '_' + trial_type + f"_SpatialEfficiency_{figure}.png"
+            plt.savefig(overall_path + '/' + filename)
             if settings.show_plots: plt.show()
             plt.close()
 

@@ -4,7 +4,7 @@ import tkinter as tk
 from tkinter import filedialog
 from loguru import logger
 
-def get_computer_specific_paths(session_path = ''):
+def get_computer_specific_paths(session_path = '', return_ceph = False):
 
     hostname = socket.gethostname()
     base_path = ''
@@ -41,4 +41,7 @@ def get_computer_specific_paths(session_path = ''):
     if len(base_path) == 0:
         logger.warning("You sessions is not on winstor or ceph (or you need to reconnect), please check paths!")
 
-    return base_path, DLC_path
+    if return_ceph:
+        return ceph_path, DLC_path
+    else:
+        return base_path, DLC_path

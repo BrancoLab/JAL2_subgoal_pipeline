@@ -58,19 +58,19 @@ class AnalyzeBehave:
                                         hdir_at_start=esc_obj.start_head_ori,
                                         all_conditions=esc_obj.escape_condition,
                                         tracking_data=self.tracking_data,
-                                        title="escape")
+                                        title="Escapes")
 
             plot_the_probability_of_start_locations(
                 session=self.session, 
                 onset_frames=esc_obj.escape_onset_frames, 
                 all_conditions=esc_obj.escape_condition, 
                 tracking_data=self.tracking_data, 
-                title="escape",
+                title="Escapes",
             )
 
             trial_speed_hist(session=self.session, 
                             avg_speed=esc_obj.avg_speed, 
-                            title="escapes")
+                            title="Escapes")
             
             trial_initial_heading_angle(
                 session=self.session,
@@ -80,7 +80,7 @@ class AnalyzeBehave:
                 hdir_at_start=esc_obj.start_head_ori,
                 all_conditions=esc_obj.escape_condition,
                 tracking_data=self.tracking_data,
-                title="escapes",
+                title="Escapes",
             )
 
             trajectory_by_target(
@@ -90,7 +90,7 @@ class AnalyzeBehave:
                 head_angle=esc_obj.head_orientation["avg_hdir"],
                 all_conditions=esc_obj.escape_condition,
                 tracking_data=self.tracking_data,
-                title="escapes",
+                title="Escapes",
             )
 
             hist_initial_heading_angle(session=self.session,
@@ -99,7 +99,7 @@ class AnalyzeBehave:
                 head_angle=esc_obj.head_orientation["avg_hdir"],
                 all_conditions=esc_obj.escape_condition,
                 tracking_data=self.tracking_data,
-                title="escapes",
+                title="Escapes",
             )
 
         homings_obj = load_or_extract_homings(self.session)
@@ -116,7 +116,7 @@ class AnalyzeBehave:
             settings,
             homings_obj.homing_condition,
             self.tracking_data,
-            trial_type="Homings",
+            trial_type="Homing",
             plotting=True,
             save_dir=self.dir,
         )
@@ -127,7 +127,7 @@ class AnalyzeBehave:
             hdir_at_start=homings_obj.hdir_at_start,
             all_conditions=homings_obj.homing_condition,
             tracking_data=self.tracking_data,
-            title="homings",
+            title="Homing",
         )
 
         plot_the_probability_of_start_locations(
@@ -135,7 +135,7 @@ class AnalyzeBehave:
             onset_frames=homings_obj.onset_frames, 
             all_conditions=homings_obj.homing_condition, 
             tracking_data=self.tracking_data, 
-            title="homings",
+            title="Homing",
         )
 
         trial_initial_heading_angle(
@@ -146,7 +146,7 @@ class AnalyzeBehave:
             hdir_at_start=homings_obj.hdir_at_start,
             all_conditions=homings_obj.homing_condition,
             tracking_data=self.tracking_data,
-            title="homing",
+            title="Homing",
         )
 
         trajectory_by_target(
@@ -156,7 +156,7 @@ class AnalyzeBehave:
             head_angle=homings_obj.homing_angles_dic["avg_hdir"],
             all_conditions=homings_obj.homing_condition,
             tracking_data=self.tracking_data,
-            title="homing",
+            title="Homing",
         )
 
         hist_initial_heading_angle(
@@ -166,10 +166,10 @@ class AnalyzeBehave:
             head_angle=homings_obj.homing_angles_dic["avg_hdir"],
             all_conditions=homings_obj.homing_condition,
             tracking_data=self.tracking_data,
-            title="homing",
+            title="Homing",
         )
 
-        trial_speed_hist(self.session, homings_obj.avg_speed, title="homings")
+        trial_speed_hist(self.session, homings_obj.avg_speed, title="Homing")
 
         # this one is kind of redundant with the spatial efficiency plots
         # plot_homings(self.session, self.tracking_data, homings_obj, settings.show_plots)

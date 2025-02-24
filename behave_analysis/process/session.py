@@ -14,6 +14,7 @@ class NEW_Session:
     name: str
     number: int
     mouse: str
+    date: str
     experiment: str
     shelter_time: None
     barrier_time: None
@@ -48,6 +49,7 @@ def get_experiment(experiment_data_class):
     return NEW_Session(name = experiment_description, 
                        number = experiment_repeat, # Maybe this is incorrect and the wrong number after the refactor
                        mouse = mouse, 
+                       date = experiment_data_class.experiment_date,
                        experiment = experiment_type, 
                        shelter_time = experiment_data_class.shelter_time,
                        barrier_time = experiment_data_class.barrier_time,

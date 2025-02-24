@@ -17,7 +17,7 @@ Note:
 """
 
 import os
-
+import re
 import dill as pickle
 import numpy as np
 import matplotlib.pyplot as plt
@@ -29,7 +29,8 @@ from behave_analysis.utils.rm_escapes_from_homings import remove_escapes_from_ho
 from behave_analysis.analyze.behaviour.utils import plot_trajectories
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
 from behave_analysis.homings.homings import cum_distance
-
+from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.database.computer_ID import get_computer_specific_paths
 
 def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
     """Plot and visualize the homing trajectories for a given session.
@@ -128,6 +129,15 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
 
     Executes:
     -- A plot where the head direction and start location of each homing is plotted coloured by the class"""
+
+    # paths for saving in summary dir
+    ceph_path, _ = get_computer_specific_paths(session_path = '', return_ceph = True)
+    ceph_path = os.path.dirname(ceph_path)
+    overall_path = make_directory(os.path.join(ceph_path, 'summary_plots', title + '_plots'))
+    match = re.search(r'(\d{4}_\d{2}_\d{2})T', session.file_path) # these three lines could be replaced with session.date if process is rerun
+    if match:
+        date_str = match.group(1)
+
     conditions = identify_conditions(session)
 
     if "barrier_pre_flip" in conditions:
@@ -136,7 +146,7 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
     if "shelter_only" in conditions:
         conditions.remove("shelter_present")
 
-    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 4))
     length = 180
 
     for i, con in enumerate(conditions):
@@ -160,13 +170,25 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
         Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
         ax[i].set_title(f"{con} (n={sum_homings})")
 
+    # save figure in session dir
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+".png")))
+    # save in summary dir
+    filename = session.mouse + '_' + date_str + '_' + str("start_of_"+title+".png")
+    plt.savefig(overall_path + '/' + filename)
     if show_plots: plt.show()
     plt.close()
 
-
 def plot_the_probability_of_start_locations(session, onset_frames, all_conditions, tracking_data, title, show_plots=False):
     """Conduct a 2d histrogram normalised to count the probability of starting a homing at a given location"""
+
+    # paths for saving in summary dir
+    ceph_path, _ = get_computer_specific_paths(session_path = '', return_ceph = True)
+    ceph_path = os.path.dirname(ceph_path)
+    overall_path = make_directory(os.path.join(ceph_path, 'summary_plots', title + '_plots'))
+    match = re.search(r'(\d{4}_\d{2}_\d{2})T', session.file_path) # these three lines could be replaced with session.date if process is rerun
+    if match:
+        date_str = match.group(1)
+
     conditions = identify_conditions(session)
 
     if "barrier_pre_flip" in conditions:
@@ -175,7 +197,7 @@ def plot_the_probability_of_start_locations(session, onset_frames, all_condition
     if "shelter_only" in conditions:
         conditions.remove("shelter_present")
 
-    fig, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
+    fig, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 4))
     cbar_ax = fig.add_axes([0.91, 0.13, 0.01, 0.75])
 
     for i, con in enumerate(conditions):
@@ -241,13 +263,25 @@ def plot_the_probability_of_start_locations(session, onset_frames, all_condition
         Arena(dim = np.amax(ax[i].get_ylim()), ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
 
     if show_plots: plt.show()
+    # save figure in session dir
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+"_loc_probability.png")))
+    # save in summary dir
+    filename = session.mouse + '_' + date_str + '_' + str("start_of_"+title+"_loc_probability.png")
+    plt.savefig(overall_path + '/' + filename)
     plt.close()
 
 def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditions, tracking_data, title, show_plots=False, plotting = True):
     """Finds the cosine similarity between the heading of the mouse when he starts running in the homing and the angle with the three goals
     Assigns the homing heading to the goal it is most similar to
     Doesn't differentiate between below and above the barrier so a lot of shelter targets are actually below the barrier"""
+
+    # paths for saving in summary dir
+    ceph_path, _ = get_computer_specific_paths(session_path = '', return_ceph = True)
+    ceph_path = os.path.dirname(ceph_path)
+    overall_path = make_directory(os.path.join(ceph_path, 'summary_plots', title + '_plots'))
+    match = re.search(r'(\d{4}_\d{2}_\d{2})T', session.file_path) # these three lines could be replaced with session.date if process is rerun
+    if match:
+        date_str = match.group(1)
 
     conditions = identify_conditions(session)
 
@@ -309,8 +343,11 @@ def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditi
     
     if plotting:
         plt.tight_layout()
-
+        # save figure in session dir
         plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_"+title+"_heading_angle.png")))
+        # save in summary dir
+        filename = session.mouse + '_' + date_str + '_' + str("hist_"+title+"_heading_angle.png")
+        plt.savefig(overall_path + '/' + filename)
         if show_plots:
             plt.show()
         plt.close()
@@ -321,6 +358,14 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
     """On a drawing of the arena it plots the heading of the mouse before the homing begins and as the mouse starts running (after the head turn)
     The heading of the mouse as he is running is colored by the goal it is targeting (using cosine similarity)"""
 
+    # paths for saving in summary dir
+    ceph_path, _ = get_computer_specific_paths(session_path = '', return_ceph = True)
+    ceph_path = os.path.dirname(ceph_path)
+    overall_path = make_directory(os.path.join(ceph_path, 'summary_plots', title + '_plots'))
+    match = re.search(r'(\d{4}_\d{2}_\d{2})T', session.file_path) # these three lines could be replaced with session.date if process is rerun
+    if match:
+        date_str = match.group(1)
+
     conditions = identify_conditions(session)
 
     if "barrier_pre_flip" in conditions:
@@ -329,7 +374,7 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
     if "shelter_only" in conditions:
         conditions.remove("shelter_present")
 
-    _, ax = plt.subplots(nrows=1, ncols=len(conditions)+1, figsize=(20, 20))
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions)+1, figsize=(20, 4))
     length = 180
 
     for i, con in enumerate(conditions):
@@ -352,7 +397,7 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
                 # arrow of which way mouse is facing once it started running, colored by whatever it is targeting
             
                 frame_coords = tracking_data["avg_loc"][onset:offset]
-                end_fr, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+                _, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
                 mouse = tracking_data["head_loc"][start_frame]
                 if len(mouse) == 1: mouse = mouse[0] # why did this happen once?
                 dx = length * np.cos(head_angle[idx])
@@ -385,24 +430,37 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
     dx = length * np.cos(0)
     dy = length * -np.sin(0)
     ax[len(conditions)].quiver(312, 730, dx, dy, angles="xy", scale_units="xy", scale=2, color="red")
-    ax[len(conditions)].text(412,712,'homing run targets shelter')
+    ax[len(conditions)].text(412,712, title + ' run targets shelter')
     ax[len(conditions)].quiver(312, 630, dx, dy, angles="xy", scale_units="xy", scale=2, color="green")
-    ax[len(conditions)].text(412,612,'homing run targets preflip')
+    ax[len(conditions)].text(412,612, title + ' run targets preflip')
     ax[len(conditions)].quiver(312, 530, dx, dy, angles="xy", scale_units="xy", scale=2, color="blue")
-    ax[len(conditions)].text(412,512,'homing run targets postflip')
+    ax[len(conditions)].text(412,512, title + ' run targets postflip')
     ax[len(conditions)].quiver(312, 430, dx, dy, angles="xy", scale_units="xy", scale=2, color="black")
-    ax[len(conditions)].text(412,412,'pre homing hdir')
+    ax[len(conditions)].text(412,412,'pre ' + title + ' hdir')
     ax[len(conditions)].axis("off")
     ax[len(conditions)].set_aspect("equal")
     ax[len(conditions)].set_xlim([0, 1024])
     ax[len(conditions)].set_ylim([0, 1024])
 
+    # save figure in session dir
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str(title+"_heading_angle.png")))
+    # save in summary dir
+    filename = session.mouse + '_' + date_str + '_' + str(title+"_heading_angle.png")
+    plt.savefig(overall_path + '/' + filename)
     if show_plots: plt.show()
     plt.close()
 
 def trajectory_by_target(session, onsets, offsets, head_angle, all_conditions, tracking_data, title, show_plots=False):
     """Plot the trajectory of all homings in each condition, colored by the target in the first 15 cm of the run"""
+
+    # paths for saving in summary dir
+    ceph_path, _ = get_computer_specific_paths(session_path = '', return_ceph = True)
+    ceph_path = os.path.dirname(ceph_path)
+    overall_path = make_directory(os.path.join(ceph_path, 'summary_plots', title + '_plots'))
+    match = re.search(r'(\d{4}_\d{2}_\d{2})T', session.file_path) # these three lines could be replaced with session.date if process is rerun
+    if match:
+        date_str = match.group(1)
+        
     conditions = identify_conditions(session)
 
     if "barrier_pre_flip" in conditions:
@@ -411,7 +469,7 @@ def trajectory_by_target(session, onsets, offsets, head_angle, all_conditions, t
     if "shelter_only" in conditions:
         conditions.remove("shelter_present")
 
-    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 20))
+    _, ax = plt.subplots(nrows=1, ncols=len(conditions), figsize=(20, 4))
 
     for i, con in enumerate(conditions):
         sum_homings = 0
@@ -424,17 +482,17 @@ def trajectory_by_target(session, onsets, offsets, head_angle, all_conditions, t
 
             if np.logical_or(con == trial_condition, con == "all_time"):
                 frame_coords = tracking_data["avg_loc"][onset:offset]
-                end_fr, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
+                _, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, 15)
 
                 # calculate the preference of mouse heading for one of three targets - could also use start_frame or the average from start_frame to end_fr
-                xdist = -tracking_data['head_loc'][end_fr, 0]+tracking_data['barrier_loc'][0][0]
-                ydist = -tracking_data['head_loc'][end_fr, 1]+tracking_data['barrier_loc'][0][1]
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][0][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][0][1]
                 bprea = - np.arctan2(ydist, xdist)
-                xdist = -tracking_data['head_loc'][end_fr, 0]+tracking_data['barrier_loc'][1][0]
-                ydist = -tracking_data['head_loc'][end_fr, 1]+tracking_data['barrier_loc'][1][1]
+                xdist = -tracking_data['head_loc'][start_frame, 0]+tracking_data['barrier_loc'][1][0]
+                ydist = -tracking_data['head_loc'][start_frame, 1]+tracking_data['barrier_loc'][1][1]
                 bposta = - np.arctan2(ydist, xdist)
-                if tracking_data["bod_shelt_dir"][end_fr] < 0: bsa = tracking_data["bod_shelt_dir"][end_fr] + np.pi
-                if tracking_data["bod_shelt_dir"][end_fr] > 0:  bsa = tracking_data["bod_shelt_dir"][end_fr] - np.pi
+                if tracking_data["bod_shelt_dir"][start_frame] < 0: bsa = tracking_data["bod_shelt_dir"][start_frame] + np.pi
+                if tracking_data["bod_shelt_dir"][start_frame] > 0:  bsa = tracking_data["bod_shelt_dir"][start_frame] - np.pi
 
                 cosim=[]
                 for ang in [bprea,bsa, bposta]:
@@ -448,20 +506,35 @@ def trajectory_by_target(session, onsets, offsets, head_angle, all_conditions, t
         Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
         ax[i].set_title(f"{con} (n={sum_homings})")
 
+    # save figure in session dir
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str(title+"_trajectory_by_target.png")))
+    # save in summary dir
+    filename = session.mouse + '_' + date_str + '_' + str(title+"_trajectory_by_target.png")
+    plt.savefig(overall_path + '/' + filename)
     if show_plots: plt.show()
     plt.close()
 
 def trial_speed_hist(session, avg_speed, title, show_plots=False):
     # histogram of homing speed
+    # paths for saving in summary dir
+    ceph_path, _ = get_computer_specific_paths(session_path = '', return_ceph = True)
+    ceph_path = os.path.dirname(ceph_path)
+    overall_path = make_directory(os.path.join(ceph_path, 'summary_plots', title + '_plots'))
+    match = re.search(r'(\d{4}_\d{2}_\d{2})T', session.file_path) # these three lines could be replaced with session.date if process is rerun
+    if match:
+        date_str = match.group(1)
 
-    _, ax = plt.subplots(nrows = 1,ncols = 1, figsize = (20,20))
+    _, ax = plt.subplots(nrows = 1,ncols = 1, figsize = (4,4))
 
     ax.hist(avg_speed, bins = np.arange(0,200,10))
     ax.set_xlabel('speed (cm/s)')
     ax.set_ylabel('number of homings')
 
+    # save figure in session dir
     plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("hist_speed_of_"+title+".png")))
+    # save in summary dir
+    filename = session.mouse + '_' + date_str + '_' + str("hist_speed_of_"+title+".png")
+    plt.savefig(overall_path + '/' + filename)
     if show_plots: plt.show()
     plt.close()
 
