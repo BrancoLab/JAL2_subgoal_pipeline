@@ -150,7 +150,7 @@ def plot_dist_pref_tuning_diff_compare(peak_firing_condition1, peak_firing_condi
     fig.savefig(dump_path + "/" + nickname + ".png")
     plt.close()
 
-def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var, esc_start, h_start, xval, nickname, peak_firing_condition = [], dump_path = "Z:/Jasmine_Laurence/homing/tuning"):
+def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var, esc_start, h_start, xval, nickname, peak_firing_condition = [], dump_path = "Z:/Jasmine_Laurence/homing/tuning", show = False):
     """This creates a figure with three rows of subplots, one for each condition.
     In each row the left plot is the tuning curve (neurons x bins) and the right plot is the complete neural data for that condition (neurons x time),
     with the start of escape periods in red and the start of homings in blue. 
@@ -255,9 +255,12 @@ def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var,
         ax.set_ylim([0, len(isort)])
         ax.set_xlim([0, len(var[cond == i])])
 
-    dump_path = make_directory(dump_path)
-    fig.savefig(dump_path + "/" + nickname + ".png")
-    plt.close()
+    if show:
+        plt.show()
+    else:
+        dump_path = make_directory(dump_path)
+        fig.savefig(dump_path + "/" + nickname + ".png")
+        plt.close()
 
 def tuning_curve_compare(tuning, xval1, name, nickname, peak_firing_condition = [], dump_path = "Z:/Jasmine_Laurence/homing/peak_firing_condition"):
     """This function compares tuning curves for two sets of time (e.g. explore vs homing/escape, or homing vs escape, or homing in different time periods)
@@ -578,7 +581,7 @@ def plot_reliability(mat_full_cond, fr_full, full_reliability, comp, colors, c_n
             fig.savefig(dump_path + "/neuron" + str(neur) + "_loo_reliability.png")
             plt.close()
 
-def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real, R_shift, R_real, comp, n_neur, n_cond, colors, c_names, dump_path):
+def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real, R_shift, R_real, comp, n_neur, n_cond, colors, c_names, dump_path = []):
     """Plot linear shift and real stats"""
 
     # compute min/max for the average also
@@ -626,8 +629,11 @@ def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real,
             axs[c,2].set_ylabel('Linear shifts')
 
         plt.tight_layout()
-        fig.savefig(dump_path + "/neuron" + str(neuron) + "_linshit.png")
-        plt.close()
+        if len(dump_path) == 0:
+            plt.show()
+        else:
+            fig.savefig(dump_path + "/neuron" + str(neuron) + "_linshit.png")
+            plt.close()
 
 ##-------------DEPRECATED----------
 
