@@ -454,7 +454,7 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg 
 
     return y_fitted_full, R_full, fr_full, params_full
 
-def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg = 'winsorized'):
+def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg = 'winsorized', fitting = True):
     """Filter (gauss or savgol) the full trace -> take median per trial -> take median across trials -> fit gaussian
     INPUTS:
         avg: is a string that tells us the method to be used for averaging across trials. 
@@ -514,11 +514,11 @@ def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg =
             distances = np.arange(len(smoothed_firing_rates))
             valid_idx = ~np.isnan(smoothed_firing_rates)
             y_fitted = np.full(bins, np.nan)
-            if np.any(valid_idx):
-                R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
-                y_fitted[valid_idx] = y
-            else:
-                R, params = 0, np.full(6, np.nan)
+            R, params = 0, np.full(6, np.nan)
+            if fitting:
+                if np.any(valid_idx):
+                    R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
+                    y_fitted[valid_idx] = y
 
             # dump together for output
             fr_full[i, j, :] = smoothed_firing_rates

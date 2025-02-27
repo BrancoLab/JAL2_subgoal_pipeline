@@ -179,15 +179,14 @@ def plot_tuning_matrix(tuning_matrix, cond, compression_var, escape_matrix, var,
     grid = plt.GridSpec(26, 20, figure=fig, wspace=0.05, hspace=0.3)
 
     # create a vector of len(var) which is nan for all homing periods but has the behavioral data for the escape periods
-    # this allows us to plot the behavior during escape sa different color
-    esc_var = np.zeros_like(var)
+    # this allows us to plot the behavior during escapes a different color
+    esc_var = np.full_like(var, np.nan)
     for it, st in enumerate(h_start):
         if st in esc_start:
             if it < len(h_start) - 1:
                 esc_var[st : h_start[it + 1]] = var[st : h_start[it + 1]]
             else:
                 esc_var[st : ] = var[st : ] # this is the case that the last h_start is an escape!
-    esc_var[esc_var == 0] = np.nan
 
     # iterate over the three conditions, given by where we want their plots to be in the figure grid
     for i, lim in enumerate([[1, 8], [10, 17], [19, 26]]):
