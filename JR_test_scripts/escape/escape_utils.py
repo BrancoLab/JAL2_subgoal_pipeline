@@ -169,9 +169,8 @@ def compress_vars(var, neural_matrix):
             new_activity = np.vstack((new_activity, compressed_activity))
     return new_activity, new_pos
 
-def discretize_x_axis(var, bin_size=10):
+def discretize_x_axis(var, bins):
     """Bin the x-axis of the neural data by a variable of choice (e.g. speed, position, distance to shelter)"""
-    bins = np.arange(0, np.amax(var), bin_size)
     disc_var = np.digitize(var, bins)
     return disc_var
 

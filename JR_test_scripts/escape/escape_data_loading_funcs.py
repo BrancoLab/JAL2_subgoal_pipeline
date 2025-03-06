@@ -11,7 +11,7 @@ from JR_test_scripts.escape.escape_utils import (
 
 
 def extract_homing_and_escape_periods(
-    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True, bin_size = 10
+    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True, bins = []
 ):
     """For a given session, extract the time around escapes and homing periods in neural data and a behavioral variable of interest (compression_var)
     INPUTS:
@@ -133,7 +133,7 @@ def extract_homing_and_escape_periods(
             this_y,
             this_speed,
             c,
-            bin_size=bin_size,
+            bins=bins,
         )
 
         # add data from this trial to the escape matrix and behavioral variable
@@ -348,7 +348,7 @@ def create_discretized_behave_var(
     this_y,
     this_speed,
     c,
-    bin_size = 10, # set bin size for discritizing behavioral variables, this will be changed depending on the behavioral variable
+    bins = [], # set bin size for discritizing behavioral variables, this will be changed depending on the behavioral variable
 ):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
@@ -358,6 +358,7 @@ def create_discretized_behave_var(
         this_y: y position of the mouse
         this_speed: speed of the mouse
         c: experimental condition of this trial [0 for shelter_only, 1 for barrier, 2 for barrier_flip]
+        bins: if vector it defnes the bin ranges, if number how many bins to use
     RETURNS:
         disc_var: the discretized behavioral variable of interest, in time
     """
@@ -389,12 +390,21 @@ def create_discretized_behave_var(
                 return np.zeros_like(this_x)
         dd = compute_escape_trajectory(this_x, this_y, start, stop)
         var = dd / np.amax(dd)
-        bin_size = 0.01  # .01
+        if bins == []:
+            bins = np.arange(0,1,.01)  # .01
     elif compression_var == "speed":
         var = this_speed
-        bin_size = 1  # 1
+        if bins == []:
+            bins = np.arange(0,np.amax(var),1)  # 1
 
-    disc_var = discretize_x_axis(var, bin_size)
+    if (isinstance(bins, list)):
+        if (not bins) & ('dist' in compression_var):
+            bins = np.arange(np.amin(var), np.amax(var), np.amax(var)/10)
+    
+    if isinstance(bins, int):
+        bins = np.arange(0,np.amax(var),np.amax(var)/bins)
+
+    disc_var = discretize_x_axis(var, bins) - 1
     return disc_var
 
 
