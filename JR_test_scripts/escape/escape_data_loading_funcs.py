@@ -11,7 +11,7 @@ from JR_test_scripts.escape.escape_utils import (
 
 
 def extract_homing_and_escape_periods(
-    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True, bins = []
+    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True, bins=[]
 ):
     """For a given session, extract the time around escapes and homing periods in neural data and a behavioral variable of interest (compression_var)
     INPUTS:
@@ -23,6 +23,7 @@ def extract_homing_and_escape_periods(
         ons, offs: the vectors of onsets and offsets of homings
         interpolation: if True, interpolate over time to double the number of samples
         no_stationary: if True, exclude stationary periods from the analysis (i.e. when speed < 0.5 cm/s) # TODO might not work
+        bins: could be an emty list, an integer (number of bins) or a list of bin edges
     RETURNS:
         esc_var: the behavioral variable of interest, discretized into bins
         escape_matrix: a matrix of neural data, neurons x time
@@ -185,23 +186,7 @@ def extract_homing_and_escape_periods(
         )
 
 
-def extract_explore_periods(
-    session,
-    frame_by_cluster_matrix,
-    behave,
-    y_pos,
-    x_pos,
-    bar,
-    barflip,
-    compression_var,
-    homie,
-    escape,
-    outofshelter,
-    interpolation=True,
-    no_stationary=False,
-    zscore=False,
-    bin_size=10,
-):
+def extract_explore_periods(session,frame_by_cluster_matrix,behave,y_pos,x_pos,bar,barflip,compression_var,homie,escape,outofshelter,bins=[],interpolation=True,no_stationary=False,zscore=False):
     """A functon to extract the neural data and discretized behavioral variable for all exploration periods
     These are times when the mouse is out of the shelter, not in a homing or escape period.
     INPUTS:
@@ -213,6 +198,7 @@ def extract_explore_periods(
         ons, offs: the vectors of onsets and offsets of homings
         interpolation: if True, interpolate over time to double the number of samples
         no_stationary: if True, exclude stationary periods from the analysis (i.e. when speed < 0.5 cm/s) # TODO might not work
+        bins: could be an emty list, an integer (number of bins) or a list of bin edges
     RETURNS:
         esc_var: the behavioral variable of interest, discretized into bins
         escape_matrix: a matrix of neural data, neurons x time
@@ -238,7 +224,7 @@ def extract_explore_periods(
     cond[barflip == True] += 1
 
     # create discretized behavioral varable
-    disc_var = create_discretized_behave_var(session, compression_var, this_x, this_y, this_speed, cond, bin_size=bin_size)
+    disc_var = create_discretized_behave_var(session, compression_var, this_x, this_y, this_speed, cond, bins = bins)
 
     # remove data when mouse is in shelter or in homing/escape
     frames_to_remove = np.logical_or(
@@ -246,7 +232,7 @@ def extract_explore_periods(
         outofshelter == False,
     )
     if interpolation:
-        frames_to_remove = (np.interp(new_time,current_time, frames_to_remove) > 0)
+        frames_to_remove = np.interp(new_time, current_time, frames_to_remove) > 0
 
     if no_stationary:
         stationary = this_speed < 0.5
@@ -348,7 +334,7 @@ def create_discretized_behave_var(
     this_y,
     this_speed,
     c,
-    bins = [], # set bin size for discritizing behavioral variables, this will be changed depending on the behavioral variable
+    bins=[],  # set bin size for discritizing behavioral variables, this will be changed depending on the behavioral variable
 ):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
@@ -390,19 +376,21 @@ def create_discretized_behave_var(
                 return np.zeros_like(this_x)
         dd = compute_escape_trajectory(this_x, this_y, start, stop)
         var = dd / np.amax(dd)
-        if bins == []:
-            bins = np.arange(0,1,.01)  # .01
+        if isinstance(bins, list):
+            if (not bins) & ("dist" in compression_var):
+                bins = np.arange(0, 1, 0.01)  # .01
     elif compression_var == "speed":
         var = this_speed
-        if bins == []:
-            bins = np.arange(0,np.amax(var),1)  # 1
+        if isinstance(bins, list):
+            if (not bins) & ("dist" in compression_var):
+                bins = np.arange(0, np.amax(var), 1)  # 1
 
-    if (isinstance(bins, list)):
-        if (not bins) & ('dist' in compression_var):
-            bins = np.arange(np.amin(var), np.amax(var), np.amax(var)/10)
-    
+    if isinstance(bins, list):
+        if (not bins) & ("dist" in compression_var):
+            bins = np.arange(0, np.amax(var), np.amax(var) / 10)
+
     if isinstance(bins, int):
-        bins = np.arange(0,np.amax(var),np.amax(var)/bins)
+        bins = np.arange(0, np.amax(var), np.amax(var) / bins)
 
     disc_var = discretize_x_axis(var, bins) - 1
     return disc_var
