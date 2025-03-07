@@ -21,9 +21,9 @@ def neuron_tuning_by_var(esc_var, escape_matrix, cond, h_start = [], epoch_metho
         peak_firing_condition is a matrix of neurons x condition, where each entry is the bin with the peak firing for that nruon in that condition to the behavioral variable
         tuning_by_cond: is a list of len(conditions), each entry is a matrix of tuning curves of shape neurons x bins
         xval: vector of length neurons x conditions, indicating if the neuron's tuning passed xval"""
-    peak_firing_condition = np.zeros((np.shape(escape_matrix)[0], len(np.unique(cond))))
+    peak_firing_condition = np.full((np.shape(escape_matrix)[0], len(np.unique(cond))), np.nan)
     tuning_by_cond = []
-    xval = np.zeros((np.shape(escape_matrix)[0], len(np.unique(cond))))
+    xval = np.full((np.shape(escape_matrix)[0], len(np.unique(cond))), np.nan)
     cond_start = []
     for i in np.unique(cond):
         # start by condition
@@ -66,7 +66,7 @@ def create_xval_tuning_curve(esc_var, escape_matrix, bins, start = [], xval_thre
     # divide into epochs
     epochs = create_xval_epochs(len(esc_var), start, n_epochs, epoch_method)
 
-    result = np.zeros((np.shape(escape_matrix)[0],len(np.unique(epochs))))
+    result = np.full((np.shape(escape_matrix)[0],len(np.unique(epochs))), np.nan)
     bad_neurons = np.all(np.isnan(escape_matrix), axis=1)
     for i in np.unique(epochs):
 
@@ -281,9 +281,9 @@ def gaussian_fitting(smoothed_firing_rates, distances, verbose = False):
     fit_double = False
     double_wins = False
     params = np.zeros(3)
-    y_fitted = np.zeros_like(smoothed_firing_rates)
+    y_fitted = np.full(len(smoothed_firing_rates), np.nan)
     R = 0
-    y_fitted_double = np.zeros_like(smoothed_firing_rates)
+    y_fitted_double = np.full(len(smoothed_firing_rates), np.nan)
     R_double = 0
     prominent_peaks = []
 
@@ -353,7 +353,7 @@ def leave_one_out_reliability(var, escape_matrix, cond, h_start, bins, n_cond, n
     
     # initialize variables for output
     reliability = np.full((n_cond, n_neur), np.nan)
-    fr_full = np.zeros((n_cond, n_neur, bins)) # conditions x neurons x n_bins
+    fr_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
     c = [len([x for x in h_start if cond[x] == i]) for i in range(n_cond)]
     mat_num_cond = np.full((n_cond, n_neur, max(c),bins), np.nan) # conditions x neurons x trials x bins
 
@@ -422,8 +422,8 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg 
 
     # initialize variables for output
     y_fitted_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
-    R_full = np.zeros((n_neur, n_cond)) # neurons x conditions
-    fr_full = np.zeros((n_cond, n_neur, bins)) # conditions x neurons x n_bins
+    R_full = np.full((n_neur, n_cond), np.nan) # neurons x conditions
+    fr_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
     params_full = np.full((n_neur, n_cond, 6), np.nan)
 
     # step 3: compute firing by bin across all time
@@ -439,7 +439,7 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg 
             # Gaussian fitting
             distances = np.arange(len(smoothed_firing_rates))
             valid_idx = ~np.isnan(smoothed_firing_rates)
-            y_fitted = np.full_like(smoothed_firing_rates, np.nan)
+            y_fitted = np.full(len(smoothed_firing_rates), np.nan)
             if np.any(valid_idx):
                 R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
                 y_fitted[valid_idx] = y
@@ -478,8 +478,8 @@ def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg =
 
     # initialize variables for output
     y_fitted_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
-    R_full = np.zeros((n_neur, n_cond)) # neurons x conditions
-    fr_full = np.zeros((n_cond, n_neur, bins)) # conditions x neurons x n_bins
+    R_full = np.full((n_neur, n_cond), np.nan) # neurons x conditions
+    fr_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
     params_full = np.full((n_neur, n_cond, 6), np.nan)
     c = [len([x for x in h_start if cond[x] == i]) for i in range(n_cond)] # what is the max number of trials across all conditions
     mat_num_cond = np.full((n_cond, n_neur, max(c),bins), np.nan) # conditions x neurons x trials x bins
@@ -573,8 +573,8 @@ def tuning_method_no_trials_with_pool(var, escape_matrix, cond, bins, n_cond, n_
 
     # Initialize output arrays
     y_fitted_full = np.full((n_cond, n_neur, bins), np.nan)
-    R_full = np.zeros((n_neur, n_cond))
-    fr_full = np.zeros((n_cond, n_neur, bins))
+    R_full = np.full((n_neur, n_cond), np.nan)
+    fr_full = np.full((n_cond, n_neur, bins), np.nan)
     params_full = np.full((n_neur, n_cond, 6), np.nan)
 
     # Initialize persistent multiprocessing pool
@@ -664,8 +664,8 @@ def tuning_method_with_pool(var, escape_matrix, cond, h_start, bins, n_cond, n_n
 
     # Initialize output arrays
     y_fitted_full = np.full((n_cond, n_neur, bins), np.nan)
-    R_full = np.zeros((n_neur, n_cond))
-    fr_full = np.zeros((n_cond, n_neur, bins))
+    R_full = np.full((n_neur, n_cond), np.nan)
+    fr_full = np.full((n_cond, n_neur, bins), np.nan)
     params_full = np.full((n_neur, n_cond, 6), np.nan)
     c = [len([x for x in h_start if cond[x] == i]) for i in range(n_cond)]
     mat_num_cond = np.full((n_cond, n_neur, max(c), bins), np.nan)

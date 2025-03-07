@@ -189,8 +189,7 @@ def firing_by_bin_median_np(var, neural_activity, nbins, remove_empty=False):
             angles_firing[i] = np.median(neural_activity[mask])
     if remove_empty:
         angles_firing = angles_firing[~np.isnan(angles_firing)]  # Remove empty bins
-    else:
-        angles_firing[np.isnan(angles_firing)] = 0
+
     return angles_firing
 
 def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
@@ -211,8 +210,7 @@ def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
                 angles_firing[i] = np.mean(mstats.winsorize(non_nan_arr, limits=(.15, .15)))
     if remove_empty:
         angles_firing = angles_firing[~np.isnan(angles_firing)]  # Remove empty bins
-    else:
-        angles_firing[np.isnan(angles_firing)] = 0
+
     return angles_firing
 
 def firing_by_bin_median_ss(var, neural_activity, nbins, remove_empty=False):
@@ -228,8 +226,7 @@ def firing_by_bin_median_ss(var, neural_activity, nbins, remove_empty=False):
             angles_firing[i] = ss.median(neural_activity[mask])
     if remove_empty:
         angles_firing = angles_firing[~np.isnan(angles_firing)]  # Remove empty bins
-    else:
-        angles_firing[np.isnan(angles_firing)] = 0
+
     return angles_firing
 
 @njit
@@ -261,7 +258,6 @@ def firing_by_bin_median_numba(var, neural_activity, nbins, remove_empty=False):
     if remove_empty:
         return angles_firing[~np.isnan(angles_firing)]  # Remove NaNs
     else:
-        angles_firing[np.isnan(angles_firing)] = 0  # Set empty bins to 0
         return angles_firing
 
 def firing_by_bin_median_pandas(var, neural_activity, nbins, remove_empty=False):
@@ -280,8 +276,6 @@ def firing_by_bin_median_pandas(var, neural_activity, nbins, remove_empty=False)
     
     if remove_empty:
         angles_firing = angles_firing[~np.isnan(angles_firing)]
-    else:
-        angles_firing[np.isnan(angles_firing)] = 0
 
     return angles_firing
 
