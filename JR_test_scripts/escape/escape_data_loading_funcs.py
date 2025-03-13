@@ -377,7 +377,7 @@ def create_discretized_behave_var(
         dd = compute_escape_trajectory(this_x, this_y, start, stop)
         var = dd / np.amax(dd)
         if isinstance(bins, list):
-            if (not bins) & ("dist" in compression_var):
+            if (not bins):
                 bins = np.arange(0, 1, 0.01)  # .01
     elif compression_var == "speed":
         var = this_speed
@@ -392,7 +392,7 @@ def create_discretized_behave_var(
     if isinstance(bins, int):
         bins = np.arange(0, np.amax(var), np.amax(var) / bins)
 
-    disc_var = discretize_x_axis(var, bins) - 1
+    disc_var = discretize_x_axis(var, bins)
     return disc_var
 
 

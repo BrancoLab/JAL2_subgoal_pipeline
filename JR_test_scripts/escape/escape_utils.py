@@ -172,7 +172,9 @@ def compress_vars(var, neural_matrix):
 def discretize_x_axis(var, bins):
     """Bin the x-axis of the neural data by a variable of choice (e.g. speed, position, distance to shelter)"""
     disc_var = np.digitize(var, bins)
-    return disc_var
+    shifted_disc_var = (disc_var - 1).astype(float)
+    shifted_disc_var[disc_var >= len(bins)] = np.nan  # Handle values above the last bin
+    return shifted_disc_var
 
 def firing_by_bin_median_np(var, neural_activity, nbins, remove_empty=False):
     """For each bin of a variable, calculate the median neural activity.
@@ -203,7 +205,6 @@ def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
     for i in range(nbins):
         mask = (var == i)  # Find data points in the current bin
         if np.any(mask):  # Check if the bin has any data
-            angles_firing[i] = np.median(neural_activity[mask])
             arr = neural_activity[mask]
             non_nan_arr = arr[~np.isnan(arr)]  # Remove NaNs
             if len(non_nan_arr) > 0:

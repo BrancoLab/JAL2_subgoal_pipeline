@@ -6,6 +6,7 @@ from scipy.optimize import curve_fit
 from scipy.signal import find_peaks
 from multiprocessing import shared_memory
 from scipy.stats import mstats
+from scipy.ndimage import gaussian_filter1d
 
 from JR_test_scripts.escape.escape_utils import firing_by_bin, firing_by_bin_median_numba, firing_by_bin_winz_mean
 from behave_analysis.utils.PersistentPool import PersistentPool
@@ -144,7 +145,8 @@ def creat_tuning_curve(esc_var, escape_matrix, nbins, averaging = 'median'):
     return tuning_matrix
 
 def create_xval_epochs(time, start, n_epochs, epoch_method):
-    """This function creates a vector of integers indicating the epochs for cross validation
+    """
+    This function creates a vector of integers indicating the epochs for cross validation
     INPUTS:
         time: in frames usually (it's the length of time we want to chunk into epochs), gives us the length of the epochs
         n_epochs: how many epochs we want to chunk into
@@ -217,7 +219,10 @@ def fit_gaussian(firing_rates, distances, initial_guess = [], constraints = [], 
     if len(initial_guess) == 0:
         initial_guess = [max(firing_rates), distances[np.argmax(firing_rates)], np.std(distances)]  # Initial guesses for A, mu, sigma
     # Fit Gaussian to the data
-    params, _ = curve_fit(gaussian, distances, firing_rates, p0=initial_guess, bounds = constraints)
+    if len(constraints) == 0:
+        params, _ = curve_fit(gaussian, distances, firing_rates, p0=initial_guess)
+    else:
+        params, _ = curve_fit(gaussian, distances, firing_rates, p0=initial_guess, bounds = constraints)
 
     # Extract parameters
     A, mu, sigma = params
@@ -408,7 +413,7 @@ def leave_one_out_reliability(var, escape_matrix, cond, h_start, bins, n_cond, n
 
     return fr_full, mat_num_cond, reliability
 
-def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg = 'winsorized'):
+def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg = 'winsorized', fitting = True):
     """Filter (gauss or savgol) the full trace -> take median across all time
     INPUTS:
         avg: is a string that tells us the method to be used for averaging across trials. 
@@ -439,12 +444,17 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg 
             # Gaussian fitting
             distances = np.arange(len(smoothed_firing_rates))
             valid_idx = ~np.isnan(smoothed_firing_rates)
-            y_fitted = np.full(len(smoothed_firing_rates), np.nan)
+            R, y_fitted, params = 0, np.full_like(smoothed_firing_rates, np.nan), np.full(6, np.nan)
+            v = np.where(valid_idx)[0]
             if np.any(valid_idx):
-                R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
-                y_fitted[valid_idx] = y
-            else:
-                R, params = 0, np.full(6, np.nan)
+                if fitting:
+                    R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
+                    y_fitted[valid_idx] = y
+                else:
+                    y = gaussian_filter1d(smoothed_firing_rates[valid_idx], 2)
+                    params[0] = np.nanmax(y[1:-1])
+                    y_fitted[valid_idx] = y
+                    params[1] = v[np.argmax(y[1:-1])+1] # WARNING: I'm not allowing the max to be at the edges
 
             # dump together for output
             fr_full[c, i, :] = smoothed_firing_rates
@@ -513,12 +523,18 @@ def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg =
             # Step 5: Gaussian fit
             distances = np.arange(len(smoothed_firing_rates))
             valid_idx = ~np.isnan(smoothed_firing_rates)
+            v = np.where(valid_idx)[0]
             y_fitted = np.full(bins, np.nan)
             R, params = 0, np.full(6, np.nan)
-            if fitting:
-                if np.any(valid_idx):
+            if np.any(valid_idx):
+                if fitting:
                     R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
                     y_fitted[valid_idx] = y
+                else:
+                    y = gaussian_filter1d(smoothed_firing_rates[v[1:-1]], 2)
+                    params[0] = np.nanmax(y) # WARNING: I'm not allowing the max to be at the edges
+                    params[1] = v[np.argmax(y)+1]
+                    y_fitted[valid_idx] = gaussian_filter1d(smoothed_firing_rates[valid_idx], 2)
 
             # dump together for output
             fr_full[i, j, :] = smoothed_firing_rates
@@ -531,7 +547,7 @@ def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg =
 ##------------ TUNING FUNCTIONS USING PARALLEL PROCESSING
 ##------------ WARNING: THESE ARE SLOWER THAN THE UNPARALLEL ONES
 
-def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neuron_index, cond_indices, bins, var, avg = 'winsorized'):
+def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neuron_index, cond_indices, bins, var, fitting, avg = 'winsorized'):
     """Worker function to process a single neuron using shared memory.
     Process a single neuron for a given condition."""
     
@@ -550,19 +566,24 @@ def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neur
         smoothed_firing_rates = firing_by_bin_winz_mean(v.astype(int), n, bins, remove_empty = False)
 
     # Gaussian fitting
+    R, y_fitted, params = 0, np.full_like(smoothed_firing_rates, np.nan), np.full(6, np.nan)
     valid_idx = ~np.isnan(smoothed_firing_rates)
-    y_fitted = np.full_like(smoothed_firing_rates, np.nan)
+    v = np.where(valid_idx)[0]
     if np.any(valid_idx):
-        R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], np.arange(np.sum(valid_idx)), verbose=False)
-        y_fitted[valid_idx] = y
-    else:
-        R, params = 0, np.full(6, np.nan)
+        if fitting:
+            R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], np.arange(np.sum(valid_idx)), verbose=False)
+            y_fitted[valid_idx] = y
+        else:
+            y = gaussian_filter1d(smoothed_firing_rates[v[1:-1]], 2)
+            params[0] = np.nanmax(y)
+            params[1] = v[np.argmax(y)+1] # WARNING: I'm not allowing the max to be at the edges
+            y_fitted[valid_idx] = gaussian_filter1d(smoothed_firing_rates[valid_idx], 2)
 
     existing_shm.close()  # Close shared memory connection in worker
 
     return i, neuron_index, smoothed_firing_rates, R, params, y_fitted
 
-def tuning_method_no_trials_with_pool(var, escape_matrix, cond, bins, n_cond, n_neur):
+def tuning_method_no_trials_with_pool(var, escape_matrix, cond, bins, n_cond, n_neur, fitting = True):
     """Optimized version using shared memory and parallelization for neurons.
     Filter (gauss or savgol) the full trace -> take median across all time"""
     
@@ -585,7 +606,7 @@ def tuning_method_no_trials_with_pool(var, escape_matrix, cond, bins, n_cond, n_
         cond_indices = np.where(cond == c)[0]  # Precompute condition indices to avoid slicing overhead
 
         # Prepare arguments for multiprocessing
-        args_list = [(escape_shm.name, escape_matrix.shape, escape_matrix.dtype, c, i, cond_indices, bins, var) for i in range(n_neur)]
+        args_list = [(escape_shm.name, escape_matrix.shape, escape_matrix.dtype, c, i, cond_indices, bins, var, fitting) for i in range(n_neur)]
 
         # Use multiprocessing pool to process neurons in parallel
         results = PPool.mp_pool.starmap(tuning_method_no_trials_parallel_function, args_list)
@@ -604,7 +625,7 @@ def tuning_method_no_trials_with_pool(var, escape_matrix, cond, bins, n_cond, n_
 
     return y_fitted_full, R_full, fr_full, params_full
 
-def tuning_method_parallel_function(shared_name, shape, dtype, i, j, neuron_index, cond_start, var, bins):
+def tuning_method_parallel_function(shared_name, shape, dtype, i, j, neuron_index, cond_start, var, bins, fitting):
     """Worker function to process a single neuron using shared memory.
     """
     
@@ -629,13 +650,19 @@ def tuning_method_parallel_function(shared_name, shape, dtype, i, j, neuron_inde
     smoothed_firing_rates[~all_nan_cols] = np.nanmedian(mat_num_cond_i_j[:, ~all_nan_cols], axis=0)
 
     # Step 5: Gaussian fit
+    distances = np.arange(len(smoothed_firing_rates))
+    R, y_fitted, params = 0, np.full_like(smoothed_firing_rates, np.nan), np.full(6, np.nan)
     valid_idx = ~np.isnan(smoothed_firing_rates)
+    v = np.where(valid_idx)[0]
     if np.any(valid_idx):
-        R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], np.arange(np.sum(valid_idx)), verbose=False)
-        y_fitted = np.full_like(smoothed_firing_rates, np.nan)
-        y_fitted[valid_idx] = y
-    else:
-        R, y_fitted, params = 0, np.full_like(smoothed_firing_rates, np.nan), np.full(6, np.nan)
+        if fitting:
+            R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
+            y_fitted[valid_idx] = y
+        else:
+            y = gaussian_filter1d(smoothed_firing_rates[valid_idx], 2)
+            params[0] = np.nanmax(y[1:-1])
+            y_fitted[valid_idx] = y
+            params[1] = v[np.argmax(y[1:-1])+1] # WARNING: I'm not allowing the max to be at the edges
 
     existing_shm.close()  # Close shared memory connection in worker
 

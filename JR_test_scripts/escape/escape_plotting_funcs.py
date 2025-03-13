@@ -580,18 +580,23 @@ def plot_reliability(mat_full_cond, fr_full, full_reliability, comp, colors, c_n
             fig.savefig(dump_path + "/neuron" + str(neur) + "_loo_reliability.png")
             plt.close()
 
-def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real, R_shift, R_real, comp, n_neur, n_cond, colors, c_names, dump_path = []):
+def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real, R_shift, R_real, comp, n_neur, n_cond, colors, c_names, dump_path = [], name = []):
     """Plot linear shift and real stats"""
 
     # compute min/max for the average also
-    ymin = np.nanmin((np.nanmin(y_fitted_shift, axis = (0,1,3)), np.nanmin(y_fitted_real, axis = (0,2))), axis = 0)
-    ymax = np.nanmax((np.nanmax(y_fitted_shift, axis = (0,1,3)), np.nanmax(y_fitted_real, axis = (0,2))), axis = 0)
+    nancells = (np.sum(np.isnan(y_fitted_shift), axis = (0,1,3)) == (y_fitted_shift.shape[0]*y_fitted_shift.shape[1]*y_fitted_shift.shape[3])) | (np.sum(np.isnan(y_fitted_real), axis = (0,2)) == (y_fitted_real.shape[0]*y_fitted_real.shape[2]))
+    ymin = np.full(y_fitted_shift.shape[2], np.nan)
+    ymax = np.full(y_fitted_shift.shape[2], np.nan)
+    ymin[~nancells] = np.nanmin((np.nanmin(y_fitted_shift[:,:,~nancells,:], axis = (0,1,3)), np.nanmin(y_fitted_real[:,~nancells,:], axis = (0,2))), axis = 0)
+    ymax[~nancells] = np.nanmax((np.nanmax(y_fitted_shift[:,:,~nancells,:], axis = (0,1,3)), np.nanmax(y_fitted_real[:,~nancells,:], axis = (0,2))), axis = 0)
 
     for neuron in range(n_neur):
         fig, axs = plt.subplots(3,3,figsize = (12,12))
         
         ylim = [ymin[neuron], ymax[neuron]]
         if ylim == [0,0]: ylim = [0,1]
+        if np.sum(np.isnan(ylim)) == 2:
+            continue
 
         for c in range(n_cond):
             # fit in real vs shifted trials
@@ -611,10 +616,8 @@ def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real,
             axs[c,1].set_xlabel('Firing rate')
             axs[c,1].set_xlim(ylim)
             axs[c,1].set_ylabel('Linear shifts')
-            if params_real[neuron, c, 0] > np.percentile(params_shifts[:,neuron,c,0],95):
-                axs[c,1].set_title('Fit amp. 95th perc: sig')
-            else:
-                axs[c,1].set_title('Fit amp. 95th perc: not sig')
+            sig = params_real[neuron, c, 0] > np.percentile(params_shifts[:,neuron,c,0],95)
+            axs[c,1].set_title('Fit amp. 95th perc sig: ' + str(sig))
             
             # goodness of fit
             axs[c,2].hist(R_shift[:,neuron,c], edgecolor = None, facecolor = 'k', alpha = .3)
@@ -631,7 +634,71 @@ def plot_linear_shift(y_fitted_shift, y_fitted_real, params_shifts, params_real,
         if len(dump_path) == 0:
             plt.show()
         else:
-            fig.savefig(dump_path + "/neuron" + str(neuron) + "_linshit.png")
+            fig.savefig(dump_path + "/neuron" + str(neuron) + "_linshit" + name + ".png")
+            plt.close()
+
+def new_plot_linear_shift(y_fitted_shift, y_fitted_real, y_fitted_full, params_shifts, params_real, fr_full, fr_shift, params_full, comp, n_neur, n_cond, colors, c_names, dump_path = [], name = []):
+    """Plot linear shift and real stats"""
+
+    # compute min/max for the average also
+    nancells = (np.sum(np.isnan(y_fitted_shift), axis = (0,1,3)) == (y_fitted_shift.shape[0]*y_fitted_shift.shape[1]*y_fitted_shift.shape[3])) | (np.sum(np.isnan(y_fitted_real), axis = (0,2)) == (y_fitted_real.shape[0]*y_fitted_real.shape[2]))
+    ymin = np.full(y_fitted_shift.shape[2], np.nan)
+    ymax = np.full(y_fitted_shift.shape[2], np.nan)
+    ymin[~nancells] = np.nanmin((np.nanmin(y_fitted_shift[:,:,~nancells,:], axis = (0,1,3)), 
+                                 np.nanmin(y_fitted_real[:,~nancells,:], axis = (0,2)),
+                                 np.nanmin(y_fitted_full[:,~nancells,:], axis = (0,2)),
+                                 np.nanmin(fr_full[:,~nancells,:], axis = (0,2))), axis = 0)
+    ymax[~nancells] = np.nanmax((np.nanmax(y_fitted_shift[:,:,~nancells,:], axis = (0,1,3)), 
+                                 np.nanmax(y_fitted_real[:,~nancells,:], axis = (0,2)),
+                                 np.nanmax(y_fitted_full[:,~nancells,:], axis = (0,2)),
+                                 np.nanmax(fr_full[:,~nancells,:], axis = (0,2))), axis = 0)
+
+    for neuron in range(n_neur):
+        fig, axs = plt.subplots(3,3,figsize = (12,12))
+        
+        ylim = [ymin[neuron], ymax[neuron]]
+        if ylim == [0,0]: ylim = [0,1]
+        if np.sum(np.isnan(ylim)) == 2:
+            continue
+
+        for c in range(n_cond):
+            # fit in real vs shifted trials
+            axs[c,0].plot(y_fitted_full[c,neuron,:], c = 'C1', label = 'full_smoothed')
+            axs[c,0].plot(y_fitted_real[c,neuron,:], c = 'C0', label = 'real_smoothed')
+            axs[c,0].plot(fr_full[c,neuron,:], c = 'k', label = 'full_firing_rate')
+            axs[c,0].legend()
+            axs[c,0].scatter(params_full[neuron,c,1], params_full[neuron,c,0], s=15, c = 'C1')
+            axs[c,0].scatter(params_real[neuron,c,1], params_real[neuron,c,0], s=15, c = 'C0')
+            axs[c,0].set_title(c_names[c])
+            axs[c,0].set_ylabel('Firing rate')
+            axs[c,0].set_ylim(ylim)
+            axs[c,0].set_xlabel(comp)
+
+            # plot the linear shifts
+            axs[c,1].plot(fr_shift[1:,c,neuron,:].T, c = 'k',alpha = .25, linewidth = .5)
+            axs[c,1].plot(fr_shift[0,c,neuron,:].T, c = 'k',alpha = .25, linewidth = .5, label = 'shifted_firing_rate')
+            axs[c,1].plot(y_fitted_shift[1:,c,neuron,:].T, c = 'r',alpha = .25, linewidth = .5)
+            axs[c,1].plot(y_fitted_shift[0,c,neuron,:].T, c = 'r',alpha = .25, linewidth = .5, label = 'shifted_smoothed')
+            axs[c,1].scatter(params_shifts[:,neuron,c,1], params_shifts[:,neuron,c,0], s=5, c = 'r')
+            axs[c,1].legend()
+            axs[c,1].set_ylim(ylim)
+            axs[c,1].set_xlabel(comp)
+
+            # fit amplitude
+            axs[c,2].hist(params_shifts[:,neuron,c,0], edgecolor = None, facecolor = 'k', alpha = .3)
+            yl = axs[c,2].get_ylim()
+            axs[c,2].plot([params_real[neuron, c, 0],params_real[neuron, c, 0]],yl,color = colors[c])
+            axs[c,2].set_xlabel('Firing rate')
+            axs[c,2].set_xlim(ylim)
+            axs[c,2].set_ylabel('Linear shifts')
+            sig = params_real[neuron, c, 0] > np.percentile(params_shifts[:,neuron,c,0],95)
+            axs[c,2].set_title('Fit amp. 95th perc sig: ' + str(sig))
+
+        plt.tight_layout()
+        if len(dump_path) == 0:
+            plt.show()
+        else:
+            fig.savefig(dump_path + "/neuron" + str(neuron) + "_linshit" + name + ".png")
             plt.close()
 
 ##-------------DEPRECATED----------
