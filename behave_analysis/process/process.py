@@ -114,7 +114,8 @@ class Process():
         try:
             with open(os.path.join(self.session.base_path, self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
-                session.base_path, _ = get_computer_specific_paths(session.file_path)
+                logger.info("All data has been moved from winstor to ceph so we always load ceph data now")
+                session.base_path, _ = get_computer_specific_paths(session.file_path, return_ceph=True)
 
         except FileNotFoundError:
             print(f"Meta data file for path {os.path.join(self.session.base_path, self.session.metadata_file)} not found, aborting script")
