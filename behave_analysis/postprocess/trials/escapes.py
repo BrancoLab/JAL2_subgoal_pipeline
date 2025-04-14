@@ -35,9 +35,7 @@ class Escapes:
     start_locs: np.array  # x,y pixel locations of the start of each homing run
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
-    head_orientation: (
-        dict  # In the first 15cm of the homing run, avg angle to reference locations
-    )
+    head_orientation: dict  # In the first 15cm of the homing run, avg angle to reference locations
     start_head_ori: np.array
     escape_condition: list  # the condition the escape happened in e.g. 'shelter_only', 'barrier_pre_flip'
     trajectory_length: list  # how long the path of each escape was
@@ -61,10 +59,7 @@ class get_Escapes:
         if len(tracking_data) == 0:
             tracking_data = open_tracking_data(session)
         if len(video_df) == 0:
-            video_df = pl.read_csv(
-                os.path.join(session.base_path, session.processed_path) + "\\"
-                "full_video_dataframe.csv"
-            )
+            video_df = pl.read_csv(os.path.join(session.base_path, session.processed_path) + "\\" "full_video_dataframe.csv")
 
         onset_frames = session.__dict__[settings_a.stim_type].onset_frames
         stimulus_durations = session.__dict__[settings_a.stim_type].stimulus_durations
@@ -95,12 +90,8 @@ class get_Escapes:
 
         # init varsq
         esc_onset = list(onset_frames)  # when did the actual escape start
-        esc_offset = [
-            a + b for a, b in zip(onset_frames, stimulus_durations)
-        ]  # when did the actual escape start
-        esc_latency = np.zeros_like(onset_frames).astype(
-            float
-        )  # how many seconds after stim onset did the mouse escape
+        esc_offset = [a + b for a, b in zip(onset_frames, stimulus_durations)]  # when did the actual escape start
+        esc_latency = np.zeros_like(onset_frames).astype(float)  # how many seconds after stim onset did the mouse escape
         freeze = np.zeros_like(onset_frames)  # did the mouse freeze?
         start_locs = np.zeros((len(onset_frames), 2))
         end_locs = np.zeros((len(onset_frames), 2))
@@ -126,17 +117,17 @@ class get_Escapes:
                 esc_onset[c_fr],
                 esc_latency[c_fr],
                 homings,
-            ) = check_if_in_homing_obj(homings, on_fr, settings, session)
+            ) = check_if_in_homing_obj(homings, on_fr, settings, session, head_theta)
 
             # if no homing after escape, did the mouse freeze?
             if esc_onset[c_fr] == 0:  # that means that it wasn't a homing
                 # where was mousie when stim turned on?
-                start_locs, end_locs = get_start_and_end_locs(
-                        tracking=tracking_data,
-                        onset_frames=[on_fr],
-                        offset_frames=[on_fr],
-                    )
-                
+                start_locs[c_fr, :], end_locs[c_fr, :] = get_start_and_end_locs(
+                    tracking=tracking_data,
+                    onset_frames=[on_fr],
+                    offset_frames=[on_fr],
+                )
+
                 # did he run?
                 (
                     esc_onset[c_fr],
@@ -159,11 +150,7 @@ class get_Escapes:
                 else:
                     esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / session.video.fps
 
-            condition.append(
-                identify_condition_of_trial(
-                    video_df.filter(video_df["frames"] == int(on_fr)), session
-                )
-            )
+            condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(on_fr)), session))
 
         spatial_efficiency_values, trajectory_length = spatial_efficiency(
             onset_frames,
@@ -197,9 +184,7 @@ class get_Escapes:
 
     def save_session(self, session) -> None:
         """Save ecape object as a pickle file within the session folder"""
-        folder = make_directory(
-            os.path.join(session.base_path, session.processed_path, "escapes")
-        )
+        folder = make_directory(os.path.join(session.base_path, session.processed_path, "escapes"))
         file_name = os.path.join(folder, "escapes_obj.pkl")
         with open(file_name, "wb") as dill_file:
             pickle.dump(self.escapes, dill_file)
@@ -207,21 +192,16 @@ class get_Escapes:
 
 
 def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
-    h_nearest_to_stim = homings.onset_frames[
-        np.argmin(np.abs(homings.onset_frames - on_fr))
-    ]
+    h_nearest_to_stim = homings.onset_frames[np.argmin(np.abs(homings.onset_frames - on_fr))]
     h_idx = int(np.where(homings.onset_frames == h_nearest_to_stim)[0])
     # find if there is a homing right after the stim
     # DEF: it must start after the stim and within 5 seconds of stim
     if np.logical_or(
         np.logical_and(
             (h_nearest_to_stim - on_fr) > 0,
-            (h_nearest_to_stim - on_fr)
-            <= (settings.response_thresh * session.video.fps),
+            (h_nearest_to_stim - on_fr) <= (settings.response_thresh * session.video.fps),
         ),
-        np.logical_and(
-            (h_nearest_to_stim - on_fr) < 0, homings.offset_frames[h_idx] > on_fr
-        ),
+        np.logical_and((h_nearest_to_stim - on_fr) < 0, homings.offset_frames[h_idx] > on_fr),
     ):
 
         esc_offset = homings.offset_frames[h_idx]
@@ -233,19 +213,14 @@ def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
 
         if np.logical_and(
             (h_nearest_to_stim - on_fr) > 0,
-            (h_nearest_to_stim - on_fr)
-            <= (settings.response_thresh * session.video.fps),
+            (h_nearest_to_stim - on_fr) <= (settings.response_thresh * session.video.fps),
         ):
             esc_onset = h_nearest_to_stim
-            esc_latency = float(
-                (h_nearest_to_stim - on_fr) / session.video.fps
-            )  # in seconds
+            esc_latency = float((h_nearest_to_stim - on_fr) / session.video.fps)  # in seconds
 
         # find if there is a homing started right before the stim
         # DEF: the homing must start before and finish after the stim (no time constraint)
-        elif np.logical_and(
-            (h_nearest_to_stim - on_fr) < 0, homings.offset_frames[h_idx] > on_fr
-        ):
+        elif np.logical_and((h_nearest_to_stim - on_fr) < 0, homings.offset_frames[h_idx] > on_fr):
             esc_onset = on_fr
             esc_latency = 0  # (on_fr) / session.video.fps  # in seconds
 
@@ -253,25 +228,25 @@ def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
         for key in homings.__dict__:
             if key == "homing_angles_dic":
                 for key in homings.homing_angles_dic.keys():
-                    homings.homing_angles_dic[key] = np.delete(
-                        homings.homing_angles_dic[key], h_idx
-                    )
+                    homings.homing_angles_dic[key] = np.delete(homings.homing_angles_dic[key], h_idx)
             else:
                 if isinstance(homings.__dict__[key], list):
                     del homings.__dict__[key][h_idx]
                 elif isinstance(homings.__dict__[key], np.ndarray):
                     homings.__dict__[key] = np.delete(homings.__dict__[key], h_idx, 0)
 
-    return (
-        esc_offset,
-        start_locs,
-        end_locs,
-        avg_speed,
-        head_theta,
-        esc_onset,
-        esc_latency,
-        homings,
-    )
+        return (
+            esc_offset,
+            start_locs,
+            end_locs,
+            avg_speed,
+            head_theta,
+            esc_onset,
+            esc_latency,
+            homings,
+        )
+    else:  # no homing after stim
+        return (0, [0,0], [0,0], 0, head_theta, 0, 0, homings)  # no escape found
 
 
 def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
@@ -282,9 +257,7 @@ def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
         head_theta[a] = np.nan
 
     # what is mouse speed in 20s following stim
-    mousie_speed = tracking_data["avg_Velocity"][
-        int(on_fr) : int(on_fr) + (20 * session.video.fps)
-    ]
+    mousie_speed = tracking_data["avg_Velocity"][int(on_fr) : int(on_fr) + (20 * session.video.fps)]
 
     # find escape
     fast_mousie = np.hstack((np.zeros(fps), mousie_speed > settings_h.fast_speed))
@@ -295,19 +268,13 @@ def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
             mode="same",
         )
     )
-    if (
-        len(np.where(run_onset)[0]) > 0
-    ):  # mousie needs to run at 15cm/s for a few consecutive frames
-        esc_onset = (
-            np.where(run_onset)[0][0] - fps
-        )  # which frame does escape start on? the stim is frame 0
+    if len(np.where(run_onset)[0]) > 0:  # mousie needs to run at 15cm/s for a few consecutive frames
+        esc_onset = np.where(run_onset)[0][0] - fps  # which frame does escape start on? the stim is frame 0
         esc_offset = np.where(run_onset == -1)[0][0] - fps
 
         if (esc_offset - esc_onset) > fps / 2:  # escape needs to last at least .5 sec?
             # get escape properties - these functions want lists!!!
-            avg_speed = get_avg_speed(
-                [esc_onset + on_fr], [esc_offset + on_fr], tracking_data, session
-            )
+            avg_speed = get_avg_speed([esc_onset + on_fr], [esc_offset + on_fr], tracking_data, session)
             head_theta, _ = get_avg_homing_angle_for_first15cm_of_run(
                 session,
                 [on_fr],
