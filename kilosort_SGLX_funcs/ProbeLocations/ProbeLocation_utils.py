@@ -110,11 +110,11 @@ def extract_subject_and_date(path_string):
     parts = normalized_path.split(os.sep)
     
     # Extract the subject ID (JAL006)
-    subject_id = parts[2]
+    subject_id = parts[-2]
     
     # Extract the survey date part (SvyPrb_2024-03-21)
     # Using regex to get everything before the "T" followed by time
-    survey_date_match = re.match(r'(SvyPrb_\d{4}-\d{2}-\d{2})', parts[3])
+    survey_date_match = re.match(r'(SvyPrb_\d{4}-\d{2}-\d{2})', parts[-1])
     survey_date = survey_date_match.group(1) if survey_date_match else None
     
     return subject_id, survey_date
