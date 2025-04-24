@@ -7,6 +7,8 @@ from scipy.signal import savgol_filter
 from numba import njit
 import speedystats as ss
 from scipy.stats import mstats
+from pathlib import Path
+import dill as pickle
 
 from behave_analysis.process.process import Process
 from behave_analysis.utils.data_loading import load_or_extract_homings
@@ -55,6 +57,91 @@ def load_homing(session, n_frames):
         homing_bool[onset - 1 : offset - 1] = True
 
     return homings.onset_frames, homings.offset_frames, homing_bool
+
+def load_hdir_cells(experiments_objects, session_names):
+    """Loads in the pickle with all the hdir cells and the good cluster Ids from the sessions in the experiments_objects list.
+    INPUTS:
+        experiments_objects: list of session objects
+        session_names: list of session names (must match the experiments_objects list)
+    RETURNS:
+        hdir_sesh: list of which good clusters are hdir cells for each session
+    """
+    dir = Path("Z:\Jasmine_Laurence\single_trial_overview\decoding_spatial_efficiency\head_direction_cells.pkl")
+    with open(dir, "rb") as dill_file:
+        hdir = pickle.load(dill_file)
+
+    hdir_sesh = []
+
+    for idx, exp in enumerate(experiments_objects):
+        session = Process(exp).load_session()
+        clu_Ids = np.load(os.path.join(session.base_path, session.processed_path)
+            + "\\"
+            + "good_cluster_Ids.npy"
+        )
+
+        hdir_n = hdir[session_names[idx]]
+        hdir_sesh.append([int(np.where(clu_Ids == int(h))[0][0]) for h in hdir_n])
+    return hdir_sesh
+
+def load_significant_cells(exp, case = "either_tuned", tuning_data = '_25bins'):
+    """Load in the significant cells for each experiment and return a matrix of significant cells
+    INPUTS: 
+        exp: a single session object"""
+
+    explore_path = Path("Z:/Jasmine_Laurence/summary_plots/tuning_curves_explore/")
+    homie_path = Path("Z:/Jasmine_Laurence/summary_plots/tuning_curves/")
+
+    # 1. load in explore tuning curve
+    exp_nickname = exp.nick_name + '_' + exp.experiment_date + '_' + 'bird_dist_shelter'
+    data = np.load(Path(explore_path, exp_nickname + '_Tuning' + tuning_data + '.npz'))
+    # identify cells that are sig tuned to distance to shelter in exploration
+    exp_sig_dist = data['params_real'][:,:,0] > np.nanpercentile(data['params_shifts'][:,:,:,0], 95, axis = 0)
+
+    # 2. load in escape homing/escape tuning curve
+    exp_nickname = exp.nick_name + '_' + exp.experiment_date + '_' + 'escape'
+    data = np.load(Path(homie_path, exp_nickname + '_ProperTuning' + tuning_data + '.npz'))
+    # identify cells that are sig tuned to %escape in homing/escape
+    sig_escape = data['params_real'][:,:,0] > np.nanpercentile(data['params_shifts'][:,:,:,0], 95, axis = 0)
+
+    # 2. load in dist to shelter homing/escape tuning curve
+    exp_nickname = exp.nick_name + '_' + exp.experiment_date + '_' + 'bird_dist_shelter'
+    data = np.load(Path(homie_path, exp_nickname + '_ProperTuning' + tuning_data + '.npz'))
+    # identify cells that are sig tuned to %escape in homing/escape
+    sig_dist = data['params_real'][:,:,0] > np.nanpercentile(data['params_shifts'][:,:,:,0], 95, axis = 0)
+
+    # 4. load in residuals data
+    exp_nickname = exp.nick_name + '_' + exp.experiment_date + '_' + 'escape'
+    data = np.load(Path(homie_path, exp_nickname + '_ResidualsTuning' + tuning_data + '.npz'))
+    # find cells whose residual tuning to %escape - distance to shelter in exploration is significant
+    sig_res = data['params_real_exp'][:,:,0] > np.nanpercentile(data['params_shifts_exp_res'][:,:,:,0], 95, axis = 0)
+
+    """Select the cells I want to analyse"""
+    if case == 'escape_tuned':
+        # cells that are tuned to %escape in homing/escape (subselect ones that are not tuned to distance to shelter in exploration and passed the residual test)
+        xval = np.full_like(sig_escape, np.nan)
+        for c in range(3):
+            A = (sig_escape[:, c] == True) & (exp_sig_dist[:, c] == False) & (sig_res[:, c] == False)  # V1 only
+            AC = (sig_escape[:, c] == True) & (sig_res[:, c] == True)  # Both V1 and V1 regressed
+            xval[:,c] = (A == True) | (AC == True)
+
+    if case == 'dist_tuned':
+        # cells that are tuned to distance to shelter in homing/escape (subselect ones that are not tuned to %escape in homing/escape)
+        xval = np.full_like(sig_escape, np.nan)
+        for c in range(3):
+            A = (sig_dist[:, c] == True)
+            B = (sig_dist[:, c] == True) & (exp_sig_dist[:,c] == False)
+            xval[:,c] = (A == True) # xval[:,c] = (B == True)
+    
+    if case == 'either_tuned':
+        # cells that are tuned to distance to shelter or %escape in homing/escape (subselect ones that are not tuned to distance to shelter in exploration and passed the residual test)
+        xval = np.full_like(sig_escape, np.nan)
+        for c in range(3):
+            A = (sig_escape[:, c] == True) & (exp_sig_dist[:, c] == False) & (sig_res[:, c] == False)
+            AC = (sig_escape[:, c] == True) & (sig_res[:, c] == True) # Both V1 and V1 regressed
+            B = (sig_dist[:, c] == True)
+            xval[:,c] = (A == True) | (AC == True) | (B == True)
+
+    return xval
 
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 

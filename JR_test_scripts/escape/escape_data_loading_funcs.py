@@ -186,6 +186,148 @@ def extract_homing_and_escape_periods(
         )
 
 
+def extract_homing_behave_var(
+    session, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, bins=[]):
+    """For a given session, extract the time around escapes and homing periods in neural data and a behavioral variable of interest (compression_var)
+    INPUTS:
+        session: session object, used to get the escape onsets and offsets
+        frame_by_cluster_matrix: is a matrix of neural data, time x neurons
+        behave, y_pos, x_pos: the vectors of speed, y and x position of the mouse
+        bar, barflip: the vectors of barrier and flipped barrier
+        compression_var: variable to compress the data into bins (full_distance_shelter, y_pos, escape, speed, distance_shelter, distance_first_goal, escape_shelter, escape_first_goal)
+        ons, offs: the vectors of onsets and offsets of homings
+        interpolation: if True, interpolate over time to double the number of samples
+        no_stationary: if True, exclude stationary periods from the analysis (i.e. when speed < 0.5 cm/s) # TODO might not work
+        bins: could be an emty list, an integer (number of bins) or a list of bin edges
+    RETURNS:
+        esc_var: the behavioral variable of interest, discretized into bins
+        escape_matrix: a matrix of neural data, neurons x time
+        cond: a vector of length time indicating what experimental condition the homing/escape was in
+        h_start: the start time of the homings or escapes, duration of homing/escape is cropped to when the mouse reaches shelter
+        esc_start: the start time of the escapes only, duration of homing/escape is cropped to when the mouse reaches shelter
+    """
+
+    # extract the time around escapes
+    ons, offs, esc_ons = homing_escape_onsets(session, ons, offs)
+    if len(shifted_vec) > 0:
+        # which ones to keep
+        mask = np.logical_and(shifted_vec[ons], shifted_vec[offs])
+        ons = ons[mask]
+        offs = offs[mask]
+        esc_ons = [x for x in esc_ons if x in ons]
+        # find the new timepoints
+        on_vec = np.zeros_like(shifted_vec)
+        on_vec[ons] = 1
+        on_vec = on_vec[shifted_vec]
+        ons = np.where(on_vec == 1)[0]
+        off_vec = np.zeros_like(shifted_vec)
+        off_vec[offs] = 1
+        off_vec = off_vec[shifted_vec]
+        offs = np.where(off_vec == 1)[0]
+        eon_vec = np.zeros_like(shifted_vec)
+        eon_vec[esc_ons] = 1
+        eon_vec = eon_vec[shifted_vec]
+        esc_ons = np.where(eon_vec == 1)[0]
+
+    # initialize variables:
+    # start is the list of all start times, with homings and escapes of full duration
+    # h_start is the list of all start times, with duration cropped to when the mouse reaches shelter
+    # esc_start is the list of the start time of the escapes only
+    start = [0]
+    h_start = [0]
+    esc_start = [0]
+
+    # if interpolating, we are doubling time
+    mult = 1
+    if interpolation:
+        mult = 2
+
+    # initialize variables
+    esc_var = np.zeros(np.sum(offs - ons) * mult)
+    all_frames_to_keep = np.zeros(np.sum(offs - ons) * mult)
+    cond = np.zeros(np.sum(offs - ons) * mult)
+
+    for tr, (on, of) in enumerate(zip(ons, offs)):
+        # extract variables
+        this_y = y_pos[on:of]
+        this_x = x_pos[on:of]
+
+        if interpolation:
+            # interpolate over time, double the samples
+            current_time = np.arange(len(this_x))
+            new_time = np.arange(0, len(this_x), 0.5)
+            this_y = np.interp(new_time, current_time, this_y)
+            this_x = np.interp(new_time, current_time, this_x)
+
+        # find actual length of time until mouse is in shelter
+        in_shelt_y = this_y > session.shelter_location[0][1]
+        in_shelt_x = np.logical_and(
+            this_x > session.shelter_location[0][0],
+            this_x < session.shelter_location[1][0],
+        )
+        in_shelt = np.logical_and(in_shelt_x, in_shelt_y)
+
+        frames_to_keep = in_shelt == 0
+
+        # find times when the mouse is in the first or second leg of the escape, use this for cropping after
+        # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop away the time when the mouse was in the threat zone
+        if np.logical_and(
+            compression_var in ["distance_shelter", "escape_shelter"],
+            bar[of] == True,
+        ):
+            shelter_zone = this_y > 512
+            frames_to_keep = np.logical_and(frames_to_keep, shelter_zone)
+        # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop away the time when the mouse was in the shelter zone
+        if np.logical_and(
+            compression_var in ["distance_first_goal", "escape_first_goal"],
+            bar[of] == True,
+        ):
+            threat_zone = this_y < 512
+            frames_to_keep = np.logical_and(frames_to_keep, threat_zone)
+
+        # condition vector
+        c = np.zeros((len(this_y)))
+        if bar[of] == True:
+            c += 1
+        if barflip[of] == True:
+            c += 1
+
+        disc_var = create_discretized_behave_var(
+            session,
+            compression_var,
+            this_x,
+            this_y,
+            [],
+            c,
+            bins=bins,
+        )
+
+        # add data from this trial to the escape matrix and behavioral variable
+        esc_var[start[-1] : start[-1] + len(disc_var)] = disc_var
+        all_frames_to_keep[start[-1] : start[-1] + len(disc_var)] = frames_to_keep
+        cond[start[-1] : start[-1] + len(disc_var)] = c
+
+        # add the start time of this trial to tell us later where the trials were in the escape matrix
+        if on in esc_ons:
+            esc_start.append(h_start[-1])
+        start.append(start[-1] + len(disc_var))
+        if len(np.where(frames_to_keep == 0)[0]) == 0:
+            h_start.append(h_start[-1] + len(disc_var))  # never reaches shelter
+        elif len(disc_var[frames_to_keep]) == 0:
+            h_start = h_start
+        else:
+            h_start.append(h_start[-1] + len(disc_var[frames_to_keep]))  # only keep homing until mouse reaches shelter
+
+    # if the first trial was not as escape, remove 0 from the list of escape start times
+    if np.amin(ons) < np.amin(esc_ons):
+        esc_start = esc_start[1:]
+
+    # crop data to time before the mouse enters the shelter
+    cond = cond[all_frames_to_keep == 1]
+    esc_var = esc_var[all_frames_to_keep == 1]
+
+    return esc_var, cond, h_start[:-1]
+
 def extract_explore_periods(session,frame_by_cluster_matrix,behave,y_pos,x_pos,bar,barflip,compression_var,homie,escape,outofshelter,bins=[],interpolation=True,no_stationary=False,zscore=False):
     """A functon to extract the neural data and discretized behavioral variable for all exploration periods
     These are times when the mouse is out of the shelter, not in a homing or escape period.
