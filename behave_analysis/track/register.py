@@ -18,7 +18,15 @@ def correct_and_register_frame(frame: object, video: object, fisheye_correction_
             frame = cv2.warpPerspective(frame, regTransform, frame.shape[0:2])
     return frame.astype(np.uint8)
 
-def load_fisheye_correction_map(fisheye_correction_file):
+def load_fisheye_correction_map(video: object):
+    """The fisheye correction map is a numpy array contained with the video object, also in sample_data
+    
+    Inputs: The video object that looks like this: 
+        Video(num_frames=275586, camFilePath='001_seq1_3_2023_03_17T08_38_03_cam.avi', fps=40, height=1024, width=1024, 
+        fisheye_correction_file='sample_data\\fisheye_maps.npy', registration_transform=None, registration_type='homography', 
+        registration_size=(1024, 1024), pixels_per_cm=10, radius=460, x_offset=128, y_offset=0)"""
+        
+    fisheye_correction_file = video.fisheye_correction_file
     if fisheye_correction_file:
         fisheye_correction = np.load(fisheye_correction_file)
         fisheye_correction_map = (fisheye_correction[:, :, 0:2], fisheye_correction[:, :, 2] * 0)

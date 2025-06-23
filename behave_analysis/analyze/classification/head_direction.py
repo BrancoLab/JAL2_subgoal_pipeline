@@ -65,7 +65,7 @@ def check_both_compartments_significant(sig: tuple) -> bool:
     return sig[0] and sig[1]
 
 
-def rayleigh_threshold(mag1: float, mag2: float) -> bool:
+def rayleigh_threshold(mag1: float, mag2: float, RAYLEIGH_THRESHOLD) -> bool:
     """Return True if both magnitudes are above the threshold"""
     return mag1 > RAYLEIGH_THRESHOLD and mag2 > RAYLEIGH_THRESHOLD
 

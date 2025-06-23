@@ -171,7 +171,7 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
         ax[i].set_title(f"{con} (n={sum_homings})")
 
     # save figure in session dir
-    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+".png")))
+    plt.savefig(os.path.join(session.base_path, session.processed_path, "analyze_behave", str("start_of_"+title+".eps")))
     # save in summary dir
     filename = session.mouse + '_' + date_str + '_' + str("start_of_"+title+".png")
     plt.savefig(overall_path + '/' + filename)

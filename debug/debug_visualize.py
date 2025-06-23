@@ -1,4 +1,3 @@
-
 """A debug script for visualizing mouse behavior and efizz data""" ""
 
 from loguru import logger
@@ -9,9 +8,10 @@ from behave_analysis.process.process import Process
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 
+
 def visualize():
     """Viusalize mouse behavior and efizz data
-    
+
     Responsibilities:
     -- Create movies of each trial type (homing, escapes)
     -- plot some behavioral statistics
@@ -22,7 +22,7 @@ def visualize():
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_id))
-        #Visualize_behave(session).plot_behavioral_stats()
+        Visualize_behave(session).plot_behavioral_stats()
 
         # # ------ BEHAVIORAL VISUALIZATION ------
         if settings_v.escape_trials:
@@ -38,5 +38,6 @@ def visualize():
                 Visualize_efizz(session).run_stim_resp_plotting()
 
     logger.success("Visualisation pipeline step complete")
+
 
 visualize()

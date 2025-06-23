@@ -126,7 +126,7 @@ def single_unit_level_heatmaps(video_and_spike_data: pl.DataFrame, conditions: l
                 min_spikes, max_spikes = robust_min_max_calculation(pivot_df, min_spikes, max_spikes)
 
             # Create the heatmap
-            add_features_binned(axs[idx], condition, tracking_data, x_bin_nums, y_bin_nums)
+            #add_features_binned(axs[idx], condition, tracking_data, x_bin_nums, y_bin_nums)
             single_unit_heatmap_plotting(
                 axs=axs,
                 idx=idx,

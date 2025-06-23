@@ -173,7 +173,9 @@ class BaseDataPostprocessor(ABC):
         # find the escape periods
         EscapePeriod = np.zeros_like(OutofShelterIdx)
         for onsets in self.session.audio.onset_frames:
-            EscapePeriod[(onsets[0] - self.session.video.fps) : (onsets[0] + (10 * self.session.video.fps))] = 1
+            
+            # NOTE - Had an issue when trying to load JAL1, onserts were an int not a list so I removed the [0] indexing
+            EscapePeriod[(onsets - self.session.video.fps) : (onsets + (10 * self.session.video.fps))] = 1
 
         # make a video dataframe where for each video frame:
         video_df = pl.DataFrame(

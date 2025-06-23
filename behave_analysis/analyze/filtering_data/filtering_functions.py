@@ -39,7 +39,7 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
     optionally times when the mouse is escaping (x seconds after threat) are also removed
     """
 
-    assert type(dataframe) == pl.DataFrame, "dataframe must be a polars dataframe else filtering will not work"
+    #assert type(dataframe) == pl.DataFrame, "dataframe must be a polars dataframe else filtering will not work"
 
     filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == outofshelter))
 

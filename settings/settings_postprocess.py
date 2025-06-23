@@ -12,7 +12,7 @@ The following are options for the cluster type:
 from behave_analysis.utils.settings_objects import Settings_postprocess
 
 defined_settings_postprocess = Settings_postprocess(
-    cluster_type="synthetic",
+    cluster_type="good",
     efizz=True,  # false for behavior only sessions
     homings=True,  # find escape onset
     response_thresh=5,  # in seconds, when did mouse escape after the stim? Cut off time

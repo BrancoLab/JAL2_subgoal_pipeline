@@ -50,11 +50,20 @@ from behave_analysis.database.Experiments.JAL008_ex import (
     JAL8_flip3_7may,
 )
 
+# Try and process JAL1 and JAL2 Experiments
+
+# experiments_objects = [seq3]
+# experiments_objects = [seq1_2]
+
+#JAL2
+# experiments_objects = [seq1_3_002]
+experiments_objects = [seq1_2_002]
+
 # ## -------------JR BEHAVIOR MICE
 
 # from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
-experiments_objects = [JAL6_flip4_21mar]#, JAL6_flip7_1apr,
+# experiments_objects = [JAL6_flip4_21mar]#, JAL6_flip7_1apr,
 # JAL7_sesh8_9apr, JAL7_flip5_22mar, JAL7_flip2_12mar, JAL7_sesh9_16apr, JAL7_23apr,
 # JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_flip3_7may, JAL8_flip4_10may, JAL8_14may,
 # JAL3_7sept, JAL3_4sept, JAL3_1sept, JAL3_25aug, JAL3_22aug,
@@ -76,7 +85,7 @@ experiments_objects = [JAL6_flip4_21mar]#, JAL6_flip7_1apr,
 
 # shelter no barrier sessions ["shelter_present",'pre_shelter']
 # experiments_objects = [JAL005_2ndSept,JAL4_17aug, JAL3_17aug, JAL8_shelt_22apr, JAL7_empty_shelter_5mar, JAL6_shelt_4mar, JAL005_5thSept]
-# note: JAL005_5thSept did have an unflipped barrier in there! 
+# note: JAL005_5thSept did have an unflipped barrier in there!
 
 # mushroom
 # experiments_objects = [JAL4_mush1, JAL5_3oct]
@@ -100,4 +109,3 @@ experiments_objects = [JAL6_flip4_21mar]#, JAL6_flip7_1apr,
 
 # JAL8
 # experiments_objects = [JAL8_flip1_25apr, JAL8_flip2_29apr, JAL8_flip4_10may, JAL8_14may]
-

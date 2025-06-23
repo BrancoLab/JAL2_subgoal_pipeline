@@ -374,7 +374,16 @@ def good_vs_bad_trajectories_plotted_to_arena(
 # ------------------- MAIN -------------------
 
 
-def produce_data(experiments_objects, session_names, name_of_storage, create_design_matrix):
+def produce_data(experiments_objects, session_names, name_of_storage, create_design_matrix, homings=False):
+    """
+    Args:
+        experiments_objects (list): List of experiment objects
+        session_names (list): List of session names
+        name_of_storage (str): Name of the storage file
+        create_design_matrix (function): Function to create the design matrix
+        homings (bool): If True, the homings are used, if False, escapes are used
+    """
+
     storage = defaultdict(defaultdict)
     for experiment, session_name in zip(experiments_objects, session_names):
         print(f"Loading data for session: {session_name}")
@@ -385,7 +394,7 @@ def produce_data(experiments_objects, session_names, name_of_storage, create_des
         processed_path = loaded_session.processed_path
         session_path = os.path.join(base_path, processed_path)
         homing_path = os.path.join(session_path, "homings", "homings_obj.pkl")
-        
+
         if session_name == "JAL6_flip5_25mar":
             continue
 
@@ -407,8 +416,6 @@ def produce_data(experiments_objects, session_names, name_of_storage, create_des
 
         except FileNotFoundError:
             print("One of the files was not found")
-
-        #     tracking_data["barrier_loc"] = [[224, 515], [797, 512], [510, 513]]
 
         # Extract logic data
         barrier_location = tracking_data["barrier_loc"]

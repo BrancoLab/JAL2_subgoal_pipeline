@@ -194,7 +194,16 @@ class get_Homings:
         speed_relative_to_reference_locations = np.zeros((len(self.tracking_data["avg_loc"][:, 0]) - 1, len(self.reference_locations)))
 
         # For each reference location, compute the speed relative per frame
-        for i, reference_location in enumerate(self.reference_locations):
+
+        # NOTE that the reference location is a int when loading JA fL1 so i removed the zero indexing
+        # Actually I think there is a bug where the shelter is not being put into a tuple
+        
+        locations = [[self.reference_locations[0], self.reference_locations[1]],
+                    self.reference_locations[2], self.reference_locations[3]]
+
+        for i, reference_location in enumerate(locations):
+        
+        #for i, reference_location in enumerate(self.reference_locations):
             # Find euclidean distance between reference location and mouse location
             distance_from_reference_location = (
                 (self.tracking_data["avg_loc"][:, 0] - reference_location[0]) ** 2
