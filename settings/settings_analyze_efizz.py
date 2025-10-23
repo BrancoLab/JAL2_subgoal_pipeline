@@ -17,7 +17,7 @@ from behave_analysis.utils.settings_objects import Settings_analyze_efizz
 Settings_ae = Settings_analyze_efizz(
     # ------------- General settings --------------------------
 
-    stim_type="None",  # 'audio', leave as 'None' if no stims were delivered
+    stim_type="audio",  # 'audio', leave as 'None' if no stims were delivered
     linear_shift=True,  # whether to run linear shift!
     parallel_pool_linshit = True, # if True, uses parallel pool to compute linear shift
     # This does not effect Tuned, this model needs linear shift to work
