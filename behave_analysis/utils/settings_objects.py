@@ -128,48 +128,33 @@ class Settings_analyze_local:
     compare: bool = False
     all_sessions: bool = False
 
-
 @dataclass(frozen=True)
-class Settings_analyze_global:
-    analysis: Settings_analyze_local = None
-    max_num_trials: int = 6
-    max_escape_duration: int = 9
-    post_laser_seconds_to_plot: int = 5
-    min_distance_from_shelter: int = 10
-    escape_initiation_speed: float = 20
-    edge_vector_threshold: float = 0.68
-    binarize_statistics: bool = False
-    two_tailed_test: bool = True
-    leftside_only: bool = False
-    rightside_only: bool = False
-    reflect_trajectories: bool = False
-    stim_type: str = None
+class Settings_analyze_behave:
+    stim_type: str = "None"
     show_plots: bool = False
-    save_folder: str = None
-    color_by: str = ""
-    x_jitter: bool = True
-    efiz_file_path: str = ""
-    efizz: bool = True
-
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
+    # gen settings
     stim_type: str = "None"
     redo_compute: bool = False
     cluster_type: str = ""
     show_plots: bool = False
-    run_tunED: bool = False
-    run_LDA: list = None
-    run_sklearn_decoders: bool = False
-    run_LSTM: bool = False
+    condition_types: str = ""
+    compartment_split: str = ""
+    parallel_pool_linshit: bool = True
+    # LDA settings
     epoch_num: int = 6
     number_of_bins: int = 19
     use_firing_rate: bool = True
     discriminant_type: str = ""
-    run_single_trial: bool = False
     PCA_process: int = 15
-    object_present: bool = True  # we should delete this
-    run_rayleigh: bool = False
+    exclude_proximal: bool = False
+    exclude_hdir: bool = False
+    dropout: bool = False
+    subsampling: bool = False
+    exclude_stationary: bool = False
+    # rayleigh settings
     rayleigh_significance: str = ""
     single_cluster_plots: bool = True
     multi_cluster_plots: bool = False
@@ -177,20 +162,8 @@ class Settings_analyze_efizz:
     conditions: str = ""
     user_defined_conditions: bool = False
     analyze_only_the_period_before_shelter: bool = False
-    analyze_only_the_period_before_barrier: bool = False
-    run_pca: bool = False
-    run_umap: bool = False
-    run_dim_reduction: bool = False
+    # PCA settings
     redo_pca_preprocessing: bool = False
-    condition_types: str = ""
-    compartment_split: str = ""
-    exclude_proximal: bool = False
-    exclude_hdir: bool = False
-    dropout: bool = False
-    classify_cells: bool = False
-    subsampling: bool = False
-    exclude_stationary: bool = False
-    parallel_pool_linshit: bool = True
 
 @dataclass(frozen=True)
 class Settings_postprocess:

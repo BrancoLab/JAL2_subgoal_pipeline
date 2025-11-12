@@ -17,7 +17,7 @@ from behave_analysis.analyze.behaviour.plot_homings import (
     trial_speed_hist,
 )
 from behave_analysis.utils.data_loading import load_or_extract_homings, load_or_extract_escapes
-from settings.settings_analyze import settings_analyze as settings
+from settings.settings_analyze_behave import settings_analyze_behave as settings
 
 
 class AnalyzeBehave:

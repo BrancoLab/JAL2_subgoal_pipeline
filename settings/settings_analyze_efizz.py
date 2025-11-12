@@ -45,27 +45,10 @@ Settings_ae = Settings_analyze_efizz(
     
     # NOTE - number of bin edges NOT number of bins - need to refactor this
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
-    classify_cells = False,
-
-    # ------------------- Run single trial analysis -------------------
-    run_single_trial=False,
     
     # ------------- PCA model settings --------------------------
-    run_dim_reduction=False,
-    run_pca=False,
-    run_umap=False,
-    #     run_pca_model=False,
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     
-    # ------------- Tuned model settings -----------------------
-    run_tunED=False,
-    
-    # ------------- Sklearn model settings -----------------------
-    run_sklearn_decoders=False,
-
-    # --------------LSTM model settings ------------------------
-    run_LSTM=False,
-
     # ------------- LDA model settings --------------------------
     run_LDA='all_angles',  # if [] it will not run LDA
     # if 'all_angles', 'all_distance','all_vectors' it will run it for all possible angles, distances, vectors
@@ -82,7 +65,6 @@ Settings_ae = Settings_analyze_efizz(
     exclude_stationary = True, # mouse must be moving > 1cm/s, currently only works for experimental conditions (update filtering functions if you want to use with other settings)
     
     # ------------ Rayleigh model settings ----------------------
-    run_rayleigh=False,
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=True,  # True: Plot every condition in one figure
     # False: Do not plot every condition in one figure for each cluster

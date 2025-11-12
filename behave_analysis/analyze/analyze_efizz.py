@@ -16,7 +16,7 @@ from behave_analysis.analyze.LDA.LDAmodel import LDA
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
 from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh
-from behave_analysis.analyze.single_trial.predict_future import select_neural_activity_chunk, explore_neural_activity_over_time
+# from behave_analysis.analyze.single_trial.predict_future import select_neural_activity_chunk, explore_neural_activity_over_time
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
 from behave_analysis.analyze.classification.head_direction import classify_hdir
 from behave_analysis.analyze.classification.head_shelter import classify_hsa
@@ -86,12 +86,13 @@ class AnalyzeEfizz:
         except FileNotFoundError:
             logger.warning("Homings or escapes object not found")
 
-    def execute_models(self):
+    def execute_models(self, analysis_name=None):
+        """A function to call all of the analysis models set in the settings file."""
         logger.info("Executing models")
 
         # ----------------- Conduct single trial analysis ----------------------------
 
-        if Settings.run_single_trial:
+        if analysis_name == 'single_trial':
             logger.info("Running single trial analysis")
             single_trial_save_path = Path(make_directory(os.path.join(self.dir, "single_trial")))
 
@@ -140,17 +141,16 @@ class AnalyzeEfizz:
 
         #  ----------------- Compute Rayleigh, polar plots and delta hists ------------
 
-        if Settings.run_rayleigh:
+        if analysis_name == 'rayleigh':
             logger.info(f"Compute Rayleigh on {self.cluster_type} data")
             all_angles = identify_angles(self.session)
             compute_all_clusters_rayleigh(self, all_angles)
-
 
             # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
             # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
 
         # ------------------------------ Compute TUNED --------------------------------
-        if Settings.run_tunED:
+        if analysis_name == 'tunED':
             logger.info("Running TunED model")
             if not os.path.isdir(self.dir + "\\" + "tunED"):
                 os.mkdir(self.dir + "\\" + "tunED")
@@ -165,9 +165,59 @@ class AnalyzeEfizz:
             )
             logger.success("TunED analysis complete")
 
+        # ------------------------------ Compute LDA --------------------------------
+        if analysis_name == 'LDA':
+            LDA(self)
+            logger.success("LDA analysis complete")
+
+        # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
+        if analysis_name == 'PCA' or analysis_name == 'UMAP':
+            logger.info("Running Dimentionality Reduction models")
+            path_to_save = os.path.join(self.dir, "dimentionality_reduction")
+            make_directory(path_to_save)
+
+            angles = identify_angles(self.session)
+            Preprocess_DimOBJ = Preprocess_for_DimReduction(
+                session=self.session,
+                cluster_type=self.cluster_type,
+                conditions=self.all_conditions,
+                path_to_save=path_to_save,
+                angles=angles,
+                delta_between_conditions=self.mangituide_deltas,
+            )
+            if analysis_name == 'PCA':
+                logger.info("Running PCA model")
+                run_pca_kmeans_plot(path_to_save, Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels)
+                logger.success("PCA analysis complete")
+
+            if analysis_name == 'UMAP':
+                angles = identify_angles(self.session)
+                # Run UMAP hen HDBSCAN and return the cluster ids to the neuron ids
+                cluster_ids = run_umap_then_hdbscan(Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels, save_path=path_to_save)
+                # TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
+
+        # ----------------------------- Persistent Homology ----------------------------------
+        # if Settings.persistent_homology:
+        #     persistent_homology(self.frame_by_cluster_matrix, self.video_df)
+
+        if analysis_name == 'classify_cells':
+            """Call cell type specific classification functions
+
+            NOTE: Work in progress"""
+            hdir_cell_ids = classify_hdir(session=self.session, cluster_type=self.cluster_type)
+            logger.debug(f"The hdir cell ids are: {hdir_cell_ids}")
+
+            logger.warning(f"hsa classification code for hsa is commented out and needs to be tested")
+            # hsa_cell_ids = classify_hsa(
+            #     session=self.session,
+            #     cluster_type=self.cluster_type,
+            #     hdir_cells=hdir_cell_ids,
+            # )
+            # logger.debug(f"The hsa cell ids are: {hsa_cell_ids}")
+
         # ------------------------------ Compute LSTM --------------------------------
 
-        if Settings.run_LSTM:
+        if analysis_name == 'LSTM':
             logger.info("Running LSTM model")
             X = self.frame_by_cluster_matrix
             Y = self.video_df["hdir"]
@@ -207,56 +257,9 @@ class AnalyzeEfizz:
             # plt.show()
 
         # ------------------------------ Sklearn decoder models --------------------------------
-        if Settings.run_sklearn_decoders:
+        if analysis_name == 'sklearn':
+            logger.info("Running Sklearn decoders")
             sklearn_main(self.session, self.video_df, self.frame_by_cluster_matrix, cluster_labels=self.cluster_Ids)
-
-        # ------------------------------ Compute LDA --------------------------------
-        if len(self.settings.run_LDA) > 0:
-            LDA(self)
-            logger.success("LDA analysis complete")
-
-        # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
-        if Settings.run_dim_reduction:
-            path_to_save = os.path.join(self.dir, "dimentionality_reduction")
-            make_directory(path_to_save)
-
-            angles = identify_angles(self.session)
-            Preprocess_DimOBJ = Preprocess_for_DimReduction(
-                session=self.session,
-                cluster_type=self.cluster_type,
-                conditions=self.all_conditions,
-                path_to_save=path_to_save,
-                angles=angles,
-                delta_between_conditions=self.mangituide_deltas,
-            )
-            if Settings.run_pca:
-                logger.info("Running PCA model")
-                run_pca_kmeans_plot(path_to_save, Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels)
-                logger.success("PCA analysis complete")
-
-            if Settings.run_umap:
-                angles = identify_angles(self.session)
-                # Run UMAP hen HDBSCAN and return the cluster ids to the neuron ids
-                cluster_ids = run_umap_then_hdbscan(Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels, save_path=path_to_save)
-                # TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
-
-            # ----------------------------- Persistent Homology ----------------------------------
-            # if Settings.persistent_homology:
-            #     persistent_homology(self.frame_by_cluster_matrix, self.video_df)
 
         logger.success("All models complete")
 
-    def classify_cells(self):
-        """A function to call cell type specific classification functions
-
-        NOTE: Work in progress"""
-        hdir_cell_ids = classify_hdir(session=self.session, cluster_type=self.cluster_type)
-        logger.debug(f"The hdir cell ids are: {hdir_cell_ids}")
-
-        logger.warning(f"hsa classification code for hsa is commented out and needs to be tested")
-        # hsa_cell_ids = classify_hsa(
-        #     session=self.session,
-        #     cluster_type=self.cluster_type,
-        #     hdir_cells=hdir_cell_ids,
-        # )
-        # logger.debug(f"The hsa cell ids are: {hsa_cell_ids}")
