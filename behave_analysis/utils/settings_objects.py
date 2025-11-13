@@ -66,7 +66,6 @@ class Settings_homings:
 
 @dataclass(frozen=True)
 class Settings_visualize:
-    # laser_trials: bool=True
     escape_trials: bool = True
     homing_trials: bool = False
     # t_xing_trials: bool=True
@@ -86,7 +85,6 @@ class Settings_visualize:
     save_folder: str = None
     fisheye_correction_file: str = None
     by_experiment: bool = False
-    # experiments: list=None
     by_session: bool = False
     sessions: list = None
     all_sessions: bool = False
@@ -98,35 +96,6 @@ class Settings_visualize:
     user_defined_conditions: bool = False
     compartment_split: bool = False
     condition_types: str = ""
-
-
-@dataclass(frozen=True)
-class Settings_analyze_local:
-    plot_escape: bool = False
-    plot_exploration: bool = False
-    plot_laser: bool = False
-    plot_targets: bool = False
-    plot_homings: bool = False
-    plot_t_xings: bool = False
-    plot_trial: bool = False
-    plot_homing: bool = False
-    plot_explore: bool = False
-    title: str = None
-    save_folder: str = None
-    experiments: list = None
-    sessions: list = None
-    group_1: list = None
-    group_2: list = None
-    group_3: list = None
-    group_4: list = None
-    group_5: list = None
-    group_6: list = None
-    group_7: list = None
-    group_8: list = None
-    by_experiment: bool = True
-    by_session: bool = False
-    compare: bool = False
-    all_sessions: bool = False
 
 @dataclass(frozen=True)
 class Settings_analyze_behave:
