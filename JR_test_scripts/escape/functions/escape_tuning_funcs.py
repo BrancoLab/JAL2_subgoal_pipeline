@@ -8,7 +8,7 @@ from multiprocessing import shared_memory
 from scipy.stats import mstats
 from scipy.ndimage import gaussian_filter1d
 
-from JR_test_scripts.escape.escape_utils import firing_by_bin, firing_by_bin_median_numba, firing_by_bin_winz_mean
+from JR_test_scripts.escape.functions.escape_utils import firing_by_bin, firing_by_bin_median_numba, firing_by_bin_winz_mean
 from behave_analysis.utils.PersistentPool import PersistentPool
 
 def neuron_tuning_by_var(esc_var, escape_matrix, cond, h_start = [], epoch_method = 'trial', xval_method = 'cosinesim', n_epochs = 3, xval_thresh = .7, averaging = 'median'):

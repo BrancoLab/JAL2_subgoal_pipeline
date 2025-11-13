@@ -4,8 +4,8 @@ from scipy.ndimage import gaussian_filter1d
 import matplotlib.gridspec as gridspec
 import matplotlib.colors as mcolors
 
-from JR_test_scripts.escape.escape_tuning_funcs import fit_gaussian, fit_double_gaussian, gaussian_fitting
-from JR_test_scripts.escape.escape_utils import smooth_firing_by_bin_by_trial
+from JR_test_scripts.escape.functions.escape_tuning_funcs import fit_gaussian, fit_double_gaussian, gaussian_fitting
+from JR_test_scripts.escape.functions.escape_utils import smooth_firing_by_bin_by_trial
 from behave_analysis.utils.creating_directories import make_directory
 
 ###------------------------PLOTTING FUNCTIONS----------------------

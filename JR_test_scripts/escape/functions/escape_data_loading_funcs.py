@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.stats import zscore
 
-from JR_test_scripts.escape.escape_utils import (
+from JR_test_scripts.escape.functions.escape_utils import (
     check_not_list,
     compute_dist_shelt,
     compute_escape_trajectory,
