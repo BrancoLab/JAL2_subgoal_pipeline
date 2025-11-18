@@ -221,7 +221,7 @@ if __name__ == "__main__":
             pickle.dump(results, f)
     else:
         # Load results
-        input_path = os.path.join(dir, "threat_dict_max_rayleigh.pkl")
+        input_path = os.path.join(dir, "threat_dict_max_rayleigh.pkl") #BUG the name here is wrong it is not just threat zone its also compartment
         with open(input_path, "rb") as f:
             results = pickle.load(f)
 
