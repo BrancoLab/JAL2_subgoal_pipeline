@@ -43,6 +43,13 @@ A_pre = "h_preflipbar_a"
 pre_cond, post_cond = "barrier_pre_flip", "barrier_post_flip"
 BALANCE_CLASSES = True  # Toggle to downsample classes to 50/50
 BALANCE_SEED = 0
+OUTPUT_DIR = r"Z:\Laurence\thesis\efizz_chapter"
+
+if OUTPUT_DIR:
+    try:
+        os.makedirs(OUTPUT_DIR, exist_ok=True)
+    except OSError as exc:
+        warnings.warn(f"Could not create output directory {OUTPUT_DIR!r}: {exc}")
 
 # --- LOAD ---
 if not os.path.exists(csv_path):
@@ -493,6 +500,7 @@ def plot_ecdf_pair(
     features: list[str],
     y_col: str,
     legend_title: Optional[str] = None,
+    save_path: Optional[str] = None,
 ) -> None:
     """Plot ECDFs for multiple features in a single figure with per-axis legends."""
     valid_feats = [feat for feat in features if feat in df.columns]
@@ -529,6 +537,12 @@ def plot_ecdf_pair(
                 frameon=False,
             )
     plt.tight_layout()
+    if save_path:
+        try:
+            fig.savefig(save_path, format="eps", bbox_inches="tight")
+            print(f"[INFO] Saved ECDF figure to {save_path}")
+        except OSError as exc:
+            warnings.warn(f"Could not save ECDF figure to {save_path!r}: {exc}")
     plt.show()
 
 # Prepare features and groups
@@ -594,8 +608,22 @@ for y_col, y_label in targets.items():
         auc_score=roc_auc_score(y, preds),
     )
     plt.tight_layout()
+    if OUTPUT_DIR:
+        model_fig_path = os.path.join(OUTPUT_DIR, f"{y_col}_model_summary.eps")
+        try:
+            fig.savefig(model_fig_path, format="eps", bbox_inches="tight")
+            print(f"[INFO] Saved model summary figure to {model_fig_path}")
+        except OSError as exc:
+            warnings.warn(f"Could not save model summary figure to {model_fig_path!r}: {exc}")
     plt.show()
-    plot_ecdf_pair(df_bal, ["fr_mean_pre", "rayleigh_pre"], y_col, y_label)
+    ecdf_path = os.path.join(OUTPUT_DIR, f"{y_col}_ecdf.eps") if OUTPUT_DIR else None
+    plot_ecdf_pair(
+        df_bal,
+        ["fr_mean_pre", "rayleigh_pre"],
+        y_col,
+        y_label,
+        save_path=ecdf_path,
+    )
 
 
 
