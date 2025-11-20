@@ -133,6 +133,9 @@ class Settings_analyze_efizz:
     analyze_only_the_period_before_shelter: bool = False
     # PCA settings
     redo_pca_preprocessing: bool = False
+    # Escape Pattern settings
+    escape_tuning_bins: int = 50
+    escape_tuning_var: str = "escape"  # 'escape' or 'bird_dist_shelter'
 
 @dataclass(frozen=True)
 class Settings_postprocess:
