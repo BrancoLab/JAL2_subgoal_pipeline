@@ -114,7 +114,9 @@ def analyze_efizz(analysis_name=None):
         logger.info("Loaded a session with the following details: {}".format(session_id))
 
         for c_type in Settings_ae.cluster_type:
-            AnalyzeEfizz(session, c_type).execute_models(analysis_name)
+            aefizz = AnalyzeEfizz(session, c_type)
+            aefizz.load_data(analysis_name)
+            aefizz.execute_models(analysis_name)
 
     logger.success("Efizz analysis pipeline complete")
 

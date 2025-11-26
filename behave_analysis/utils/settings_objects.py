@@ -113,6 +113,7 @@ class Settings_analyze_efizz:
     compartment_split: str = ""
     parallel_pool_linshit: bool = True
     # LDA settings
+    run_LDA: str = ""
     epoch_num: int = 6
     number_of_bins: int = 19
     use_firing_rate: bool = True
@@ -136,6 +137,13 @@ class Settings_analyze_efizz:
     # Escape Pattern settings
     escape_tuning_bins: int = 50
     escape_tuning_var: str = "escape"  # 'escape' or 'bird_dist_shelter'
+    escape_pattern_time: str = "homing  + escape"  # 'explore' or 'homing + escape'
+    escape_pattern_no_stationary: bool = False
+    escape_pattern_interpolation_mult: int = 2
+    ep_linshift_min_step = 120 # in seconds
+    ep_linshift_step = 400 # in seconds
+    ep_linshift_step_n = 100 # number of steps to do
+    ep_linshift_min_homings = 5 # minimum number of homings in the central third of each condition for linear shift stats
 
 @dataclass(frozen=True)
 class Settings_postprocess:

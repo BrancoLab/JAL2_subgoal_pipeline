@@ -5,7 +5,7 @@ from behave_analysis.process.process import Process
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from settings.settings_analyze_efizz import Settings_ae
 
-analysis_name = "LDA"
+analysis_name = 'EscapePattern'
 # model_name options:
 # 'LDA' - Linear Discriminant Analysis
 # 'single_trial' - Single Trial Analysis
@@ -14,6 +14,7 @@ analysis_name = "LDA"
 # 'PCA' or 'UMAP' - Dimentionality Reduction
 # 'classify_cells' - Cell Type Classification (currently only works for HD cells)
 # 'sklearn' - Sklearn Decoders
+# 'EscapePattern' - Escape Pattern Tuning Analysis
 
 
 def analyze_efizz(analysis_name=None):
@@ -31,9 +32,12 @@ def analyze_efizz(analysis_name=None):
         logger.info("Loaded a session with the following details: {}".format(session_id))
 
         for c_type in Settings_ae.cluster_type:
-            AnalyzeEfizz(session, c_type).execute_models(analysis_name)
+            aefizz = AnalyzeEfizz(session, c_type)
+            aefizz.load_data(analysis_name)
+            aefizz.execute_models(analysis_name)
 
     logger.success("Efizz analysis pipeline complete")
 
 
-analyze_efizz()
+analyze_efizz('EscapePattern')
+

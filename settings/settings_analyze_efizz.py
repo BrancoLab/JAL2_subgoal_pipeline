@@ -1,15 +1,5 @@
 """
 A settings class for the analyze_efizz.py script which is currently used to turn on or off the different models
-
-Possible conditions to input as user defined conditions:
-
-    'all_time' (don't filter based on shelter or barrier),
-    'pre_shelter' (empty arena),
-    'shelter_present',
-    'barrier_present'
-    'shelter_only',
-    'barrier_pre_flip',
-    'barrier_post_flip
 """
 
 from behave_analysis.utils.settings_objects import Settings_analyze_efizz
@@ -32,16 +22,15 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
     #                                         "barrier_removed"
-    # conditions=["shelter_present",'pre_shelter','barrier_present'],
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
-    # if 'time_conditions' it compares first vs second half
-    # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
-    # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
+        # if 'time_conditions' it compares first vs second half
+        # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
+        # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
     compartment_split=['all'], # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
-    # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
-    # If 'by_position', it will compute LDA decoding by arena position
+        # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
+        # If 'by_position', it will compute LDA decoding by arena position
     
     # NOTE - number of bin edges NOT number of bins - need to refactor this
     number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
@@ -70,4 +59,9 @@ Settings_ae = Settings_analyze_efizz(
     # False: Do not plot every condition in one figure for each cluster
     multi_cluster_plots=False,  # True: Plot every cluster in one figure for one condition
     # False: Do not plot every cluster in one figure
+
+    # ------------ Escape Pattern settings ----------------------
+    escape_tuning_bins = 25,
+    escape_tuning_var = 'escape',  # 'escape' or 'bird_dist_shelter'
+    escape_pattern_time = 'homing + escape', # 'homing + escape' or 'explore'
 )

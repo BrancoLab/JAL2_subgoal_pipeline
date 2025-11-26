@@ -12,6 +12,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
+from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
 
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
@@ -45,46 +46,58 @@ class AnalyzeEfizz:
         self.show_plots = Settings.show_plots
         self.settings = Settings
         self.all_conditions = extract_all_or_custom_conditions(Settings, session)
-        self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
         self.cluster_type = c_type
-        assert os.path.isfile(
-            os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
-        ), "Cluster matrix file not found"
-        self.frame_by_cluster_matrix = np.load(
-            os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + c_type + "_cluster_matrix.npy"
-        )
+        assert c_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"    
 
-        self.tracking_data = open_tracking_data(self.session)
+    def load_data(self, analysis_name):
+        """A function to load data needed for each analysis type."""
 
-        assert c_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"
-
-        try:
-            self.cluster_Ids = np.load(
-                str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
+        if analysis_name == 'tunED':
+            # Load the video spike count data
+            try:
+                video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
+                self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+            except FileNotFoundError:
+                logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
+                video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
+                self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+        
+        # load video_df, frame by cluster matrix and cluster_Ids
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial']:
+            # load behavioral data
+            self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
+            # load firing rate matrix
+            assert os.path.isfile(
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
+            ), "Cluster matrix file not found"
+            self.frame_by_cluster_matrix = np.load(
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
             )
-        except FileNotFoundError:
-            logger.warning("Cluster Ids not found")
+            # load cluster Ids
+            try:
+                self.cluster_Ids = np.load(
+                    str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
+                )
+            except FileNotFoundError:
+                logger.warning("Cluster Ids not found")
 
-        # Load the video spike count data
-        try:
-            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
-            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
-        except FileNotFoundError:
-            logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
-            video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
-            self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+        # load tracking data (DLC output)
+        if analysis_name == 'LDA':
+            self.tracking_data = open_tracking_data(self.session)
 
         # Load the homings object
-        try:
-            homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
-            with open(homing_path, "rb") as f:
-                self.homings_object = pickle.load(f)
+        if analysis_name == 'single_trial' or analysis_name == 'EscapePattern':
+            try:
+                homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
+                with open(homing_path, "rb") as f:
+                    self.homings_object = pickle.load(f)
 
-            escape_path = os.path.join(self.session.base_path, self.session.processed_path, "escapes", "escapes_obj.pkl")
-            with open(escape_path, "rb") as f:
-                self.escape_object = pickle.load(f)
-        except FileNotFoundError:
-            logger.warning("Homings or escapes object not found")
+                escape_path = os.path.join(self.session.base_path, self.session.processed_path, "escapes", "escapes_obj.pkl")
+                with open(escape_path, "rb") as f:
+                    self.escape_object = pickle.load(f)
+            except FileNotFoundError:
+                logger.warning("Homings or escapes object not found")
+            
 
     def execute_models(self, analysis_name=None):
         """A function to call all of the analysis models set in the settings file."""
@@ -146,9 +159,6 @@ class AnalyzeEfizz:
             all_angles = identify_angles(self.session)
             compute_all_clusters_rayleigh(self, all_angles)
 
-            # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
-            # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
-
         # ------------------------------ Compute TUNED --------------------------------
         if analysis_name == 'tunED':
             logger.info("Running TunED model")
@@ -170,31 +180,47 @@ class AnalyzeEfizz:
             LDA(self)
             logger.success("LDA analysis complete")
 
+# ------------------------------ Compute LDA --------------------------------
+        if analysis_name == 'EscapePattern':
+            logger.info("Running Escape Pattern Tuning model")
+
+            ComputeEscapeTuning(aefizz = self).extract_data(aefizz = self)
+            ComputeEscapeTuning(aefizz = self).compute_tuning_curves(aefizz = self)
+            ComputeEscapeTuning(aefizz = self).compute_statistical_significance(aefizz = self)
+
+            logger.success("Escape Pattern Tuning analysis complete")
+
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if analysis_name == 'PCA' or analysis_name == 'UMAP':
-            logger.info("Running Dimentionality Reduction models")
-            path_to_save = os.path.join(self.dir, "dimentionality_reduction")
-            make_directory(path_to_save)
 
-            angles = identify_angles(self.session)
-            Preprocess_DimOBJ = Preprocess_for_DimReduction(
-                session=self.session,
-                cluster_type=self.cluster_type,
-                conditions=self.all_conditions,
-                path_to_save=path_to_save,
-                angles=angles,
-                delta_between_conditions=self.mangituide_deltas,
-            )
-            if analysis_name == 'PCA':
-                logger.info("Running PCA model")
-                run_pca_kmeans_plot(path_to_save, Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels)
-                logger.success("PCA analysis complete")
+            raise NotImplementedError("Dimentionality reduction code is being updated and is not currently available")
+            # TODO: Dim red needs to either run or load rayleigh to compute mangitiude deltas
+            # logger.info("Running Dimentionality Reduction models")
+            # path_to_save = os.path.join(self.dir, "dimentionality_reduction")
+            # make_directory(path_to_save)
 
-            if analysis_name == 'UMAP':
-                angles = identify_angles(self.session)
-                # Run UMAP hen HDBSCAN and return the cluster ids to the neuron ids
-                cluster_ids = run_umap_then_hdbscan(Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels, save_path=path_to_save)
-                # TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
+            # # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
+            # # self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
+
+            # angles = identify_angles(self.session)
+            # Preprocess_DimOBJ = Preprocess_for_DimReduction(
+            #     session=self.session,
+            #     cluster_type=self.cluster_type,
+            #     conditions=self.all_conditions,
+            #     path_to_save=path_to_save,
+            #     angles=angles,
+            #     delta_between_conditions=self.mangituide_deltas,
+            # )
+            # if analysis_name == 'PCA':
+            #     logger.info("Running PCA model")
+            #     run_pca_kmeans_plot(path_to_save, Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels)
+            #     logger.success("PCA analysis complete")
+
+            # if analysis_name == 'UMAP':
+            #     angles = identify_angles(self.session)
+            #     # Run UMAP hen HDBSCAN and return the cluster ids to the neuron ids
+            #     cluster_ids = run_umap_then_hdbscan(Preprocess_DimOBJ.x, Preprocess_DimOBJ.labels, save_path=path_to_save)
+            #     # TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
 
         # ----------------------------- Persistent Homology ----------------------------------
         # if Settings.persistent_homology:
