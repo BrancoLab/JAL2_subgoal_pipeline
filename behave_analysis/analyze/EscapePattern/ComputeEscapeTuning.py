@@ -1,7 +1,9 @@
 import gc
+import os
 import numpy as np
 from loguru import logger
 from scipy.ndimage import gaussian_filter1d
+import dill as pickle
 
 from settings.settings_analyze_efizz import Settings_ae as settings
 from behave_analysis.analyze.EscapePattern.EscapeTuning import init_escape_tuning
@@ -10,6 +12,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (select_o
                                                                         create_discretized_behave_var, 
                                                                         build_shift_vector)
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, tuning_method_no_trials_with_pool
+from behave_analysis.utils.creating_directories import make_directory
 
 class ComputeEscapeTuning:
     """A class for computing the tuning to escape-related variables and storing them in the EscapeTuning dataclass
@@ -25,6 +28,11 @@ class ComputeEscapeTuning:
         # do we want to add escapes too?
         self.ons, self.offs, self.esc_ons = homing_escape_onsets(aefizz)
         self.ET.settings = settings # TODO: maybe we only want to save the EscapeTuning settings, not all the aefizz ones too about other methods
+        # build save path
+        self.ET.savepath = make_directory(os.path.join(aefizz.session.base_path, 
+                                                       aefizz.session.processed_path, 
+                                                       "escape_tuning",
+                                                       settings.escape_pattern_time))
         # check that we're not trying to compute %escape tuning during explore periods
         if settings.escape_pattern_time == "explore" and settings.escape_tuning_var == "escape":
             raise ValueError("Cannot compute escape tuning during explore periods")
@@ -55,24 +63,32 @@ class ComputeEscapeTuning:
 
         # compute tuning curves for each neuron
         if settings.escape_pattern_time == "homing + escape":
-            y_fitted_full, _, fr_full, params_full, mat_num_cond, _ = compute_tuning_curves(var = self.ET.discretized_var, 
-                                                                                            escape_matrix = self.ET.neural_matrix, 
-                                                                                            cond = self.ET.condition, 
-                                                                                            bins = settings.escape_tuning_bins, 
-                                                                                            filtering_vector = filtering_vector,
-                                                                                            n_cond = len(np.unique(self.ET.condition)), 
-                                                                                            n_neur = self.ET.neural_matrix.shape[0], 
-                                                                                            avg = 'winsorized', 
-                                                                                            fitting = False, # whether to fit a gaussian to each response curve
-                                                                                            loo = False) # whether to compute leave one out reliability
+            y_fit, R, fr, params, mat, loo = compute_tuning_curves(var = self.ET.discretized_var, 
+                                                                escape_matrix = self.ET.neural_matrix, 
+                                                                cond = self.ET.condition, 
+                                                                bins = settings.escape_tuning_bins, 
+                                                                filtering_vector = filtering_vector,
+                                                                n_cond = len(np.unique(self.ET.condition)), 
+                                                                n_neur = self.ET.neural_matrix.shape[0], 
+                                                                avg = 'winsorized', 
+                                                                fitting = settings.ep_gaussian_fitting, # whether to fit a gaussian to each response curve
+                                                                loo = settings.ep_compute_loo_reliability) # whether to compute leave one out reliability
+            self.ET.mat_num_cond = mat
+            if settings.ep_compute_loo_reliability:
+                self.ET.loo_reliability_full = loo
+        
         elif settings.escape_pattern_time == "explore":
-            y_fitted_full, _, fr_full, params_full = tuning_method_no_trials_with_pool(var = self.ET.discretized_var, 
-                                                                                       escape_matrix = self.ET.neural_matrix, 
-                                                                                       cond = self.ET.condition, 
-                                                                                       bins = settings.escape_tuning_bins, 
-                                                                                       n_cond = len(np.unique(self.ET.condition)), 
-                                                                                       n_neur = self.ET.neural_matrix.shape[0], 
-                                                                                       fitting = False) # whether to fit a gaussian to each response curve
+            y_fit, R, fr, params = tuning_method_no_trials_with_pool(var = self.ET.discretized_var, 
+                                                                    escape_matrix = self.ET.neural_matrix, 
+                                                                    cond = self.ET.condition, 
+                                                                    bins = settings.escape_tuning_bins, 
+                                                                    n_cond = len(np.unique(self.ET.condition)), 
+                                                                    n_neur = self.ET.neural_matrix.shape[0], 
+                                                                    fitting = settings.ep_gaussian_fitting) # whether to fit a gaussian to each response curve
+        
+        self.ET.fr_full, self.ET.params_full, self.ET.y_fitted_full = fr, params, y_fit
+        if settings.ep_gaussian_fitting:
+            self.ET.R_full = R
 
     def compute_statistical_significance(self, aefizz):
         """This function performs linear shift stats on the tuning curves
@@ -98,14 +114,17 @@ class ComputeEscapeTuning:
 
         # initialize variables for output
         step_n, n_cond, n_neur, Nbins = len(shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], settings.escape_tuning_bins
-        y_fitted_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan) # conditions x neurons x n_bins
-        # R_shift = np.zeros((step_n,n_neur, n_cond)) # neurons x conditions
-        # loo_shift = np.zeros((step_n, n_cond, n_neur)) # conditions x neurons
-        params_shifts = np.zeros((step_n,n_neur, n_cond, 6)) # neurons x conditions
-        fr_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan)
-        # TODO: this could be computed using the filtering_vector?!!?
-        c = [len([x for x in h_start if cond[x] == i]) for i in range(3)] # trial n per condition
-        mat_shift_cond = np.full((step_n, n_cond, n_neur, max(c), Nbins), np.nan)
+        self.ET.y_fitted_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan) # conditions x neurons x n_bins
+        if settings.ep_gaussian_fitting:
+            self.ET.R_shift = np.zeros((step_n,n_neur, n_cond)) # neurons x conditions
+        if settings.ep_compute_loo_reliability:
+            self.ET.loo_shift = np.zeros((step_n, n_cond, n_neur)) # conditions x neurons
+        self.ET.params_shifts = np.zeros((step_n,n_neur, n_cond, 6)) # neurons x conditions
+        self.ET.fr_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan)
+        # trial n per condition
+        trial_start_cond = self.condition[np.where(np.diff(filtering_vector)>0)[0]]
+        trial_n_cond = np.bincount(trial_start_cond.astype(int)) 
+        self.ET.mat_shift_cond = np.full((step_n, n_cond, n_neur, max(trial_n_cond), Nbins), np.nan)
         
         # iterate over shifts, compute the tuning curves
         for s_idx, s in enumerate(shifts):
@@ -117,28 +136,40 @@ class ComputeEscapeTuning:
 
             # compute the tuning curve on the unshifted, subselected data
             if settings.escape_pattern_time == "homing + escape":
-                y_fitted_shift[s_idx,:,:,:], _, fr_shift[s_idx,:,:,:], params_shifts[s_idx,:,:,:], mat_shift_cond[s_idx,:,:,:], _ = compute_tuning_curves(var = discretized_var, 
-                                                                                                                                                        escape_matrix = neural_matrix, 
-                                                                                                                                                        cond = condition, 
-                                                                                                                                                        bins = Nbins, 
-                                                                                                                                                        filtering_vector = filtering_vector,
-                                                                                                                                                        n_cond = n_cond, 
-                                                                                                                                                        n_neur = n_neur, 
-                                                                                                                                                        avg = 'winsorized', 
-                                                                                                                                                        fitting = False, # whether to fit a gaussian to each response curve
-                                                                                                                                                        loo = False) # whether to compute leave one out reliability
+                y, gf, fr, p, mat, reli = compute_tuning_curves(var = discretized_var, 
+                                                                    escape_matrix = neural_matrix, 
+                                                                    cond = condition, 
+                                                                    bins = Nbins, 
+                                                                    filtering_vector = filtering_vector,
+                                                                    n_cond = n_cond, 
+                                                                    n_neur = n_neur, 
+                                                                    avg = 'winsorized', 
+                                                                    fitting = settings.ep_gaussian_fitting, # whether to fit a gaussian to each response curve
+                                                                    loo = settings.ep_compute_loo_reliability) # whether to compute leave one out reliability
+                
+                self.ET.mat_shift_cond[s_idx,:,:,:] = mat 
+                if settings.ep_compute_loo_reliability:
+                    self.ET.loo_shift[s_idx,:,:] = reli
+
             elif settings.escape_pattern_time == "explore":
-                y_fitted_shift[s_idx,:,:,:], _, fr_shift[s_idx,:,:,:], params_shifts[s_idx,:,:,:] = tuning_method_no_trials_with_pool(var = discretized_var, 
-                                                                                                                                    escape_matrix = neural_matrix, 
-                                                                                                                                    cond = condition, 
-                                                                                                                                    bins = Nbins, 
-                                                                                                                                    n_cond = n_cond, 
-                                                                                                                                    n_neur = n_neur, 
-                                                                                                                                    fitting = False) # whether to fit a gaussian to each response curve
-        pass
+                y, gf, fr, p = tuning_method_no_trials_with_pool(var = discretized_var, 
+                                                                escape_matrix = neural_matrix, 
+                                                                cond = condition, 
+                                                                bins = Nbins, 
+                                                                n_cond = n_cond, 
+                                                                n_neur = n_neur, 
+                                                                fitting = settings.ep_gaussian_fitting) # whether to fit a gaussian to each response curve
+
+            self.ET.y_fitted_shift[s_idx,:,:,:], self.ET.fr_shift[s_idx,:,:,:], self.ET.params_shifts[s_idx,:,:,:] = y, fr, p
+            if settings.ep_gaussian_fitting:
+                self.ET.R_shift[s_idx,:,:] = gf
 
     def save_escape_tuning(self):
-        pass
+        """Save EscapeTuning dataclass to file"""
+        # savepath building
+        filename = self.ET.savepath + os.sep + settings.escape_tuning_var + "_" + str(settings.escape_tuning_bins) + "bins.pkl"
+        with open(filename, "wb") as f:
+            pickle.dump(self.ET, f)
 
 # ----------------------------Data loading and processing functions----------------------------
 

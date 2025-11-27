@@ -144,7 +144,8 @@ class Settings_analyze_efizz:
     ep_linshift_step = 400 # in seconds
     ep_linshift_step_n = 100 # number of steps to do
     ep_linshift_min_homings = 5 # minimum number of homings in the central third of each condition for linear shift stats
-
+    ep_gaussian_fitting: bool = False
+    ep_compute_loo_reliability: bool = False
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ""

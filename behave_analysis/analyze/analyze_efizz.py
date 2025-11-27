@@ -185,8 +185,9 @@ class AnalyzeEfizz:
             logger.info("Running Escape Pattern Tuning model")
 
             computeET = ComputeEscapeTuning(aefizz=self)
-            computeET.extract_data_and_tuning(aefizz=self)
-            computeET.compute_statistical_significance(aefizz=self)
+            # computeET.extract_data_and_tuning(aefizz=self)
+            # computeET.compute_statistical_significance(aefizz=self)
+            computeET.save_escape_tuning()
 
             logger.success("Escape Pattern Tuning analysis complete")
 

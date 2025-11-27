@@ -21,6 +21,20 @@ class EscapeTuning:
     neural_matrix: float = 0.0
     condition: float = 0.0
     discretized_var: float = 0.0
+    # full tuning
+    loo_reliability: float = 0.0
+    R_full: float = 0.0
+    y_fitted_full: float = 0.0
+    fr_full: float = 0.0
+    params_full: float = 0.0
+    mat_num_cond: float = 0.0
+    # shift tuning
+    y_fitted_shift: float = 0.0
+    R_shift: float = 0.0
+    fr_shift: float = 0.0
+    params_shift: float = 0.0
+    mat_shift_cond: float = 0.0
+    loo_shift: float = 0.0
 
 def init_escape_tuning(settings):
     return EscapeTuning(
