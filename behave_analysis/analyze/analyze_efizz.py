@@ -184,9 +184,9 @@ class AnalyzeEfizz:
         if analysis_name == 'EscapePattern':
             logger.info("Running Escape Pattern Tuning model")
 
-            ComputeEscapeTuning(aefizz = self).extract_data(aefizz = self)
-            ComputeEscapeTuning(aefizz = self).compute_tuning_curves()
-            ComputeEscapeTuning(aefizz = self).compute_statistical_significance(aefizz = self)
+            computeET = ComputeEscapeTuning(aefizz=self)
+            computeET.extract_data_and_tuning(aefizz=self)
+            computeET.compute_statistical_significance(aefizz=self)
 
             logger.success("Escape Pattern Tuning analysis complete")
 

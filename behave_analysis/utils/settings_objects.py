@@ -135,9 +135,9 @@ class Settings_analyze_efizz:
     # PCA settings
     redo_pca_preprocessing: bool = False
     # Escape Pattern settings
-    escape_tuning_bins: int = 50
+    escape_tuning_bins: int = 25
     escape_tuning_var: str = "escape"  # 'escape' or 'bird_dist_shelter'
-    escape_pattern_time: str = "homing  + escape"  # 'explore' or 'homing + escape'
+    escape_pattern_time: str = "homing + escape"  # 'explore' or 'homing + escape'
     escape_pattern_no_stationary: bool = False
     escape_pattern_interpolation_mult: int = 2
     ep_linshift_min_step = 120 # in seconds

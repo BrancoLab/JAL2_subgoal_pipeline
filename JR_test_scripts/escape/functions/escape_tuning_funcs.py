@@ -354,10 +354,15 @@ def gaussian_fitting(smoothed_firing_rates, distances, verbose = False):
 
 
 def leave_one_out_reliability(var, escape_matrix, cond, h_start, bins, n_cond, n_neur):
-    """Computes for each cell in each condition the average correlation coefficient"""
+    """Computes for each cell in each condition the average correlation coefficient
+    RETURNS:
+        fr_full: smoothed firing rates, conditions x neurons x bins
+        mat_num_cond: raw firing rates per trial, conditions x neurons x trials x bins
+        reliability: reliability score, conditions x neurons
+    """
     
     # initialize variables for output
-    reliability = np.full((n_cond, n_neur), np.nan)
+    reliability = np.full((n_cond, n_neur), np.nan) # conditions x neurons
     fr_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
     c = [len([x for x in h_start if cond[x] == i]) for i in range(n_cond)]
     mat_num_cond = np.full((n_cond, n_neur, max(c),bins), np.nan) # conditions x neurons x trials x bins
@@ -465,7 +470,7 @@ def tuning_method_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg 
     return y_fitted_full, R_full, fr_full, params_full
 
 def tuning_method(var, escape_matrix, cond, h_start, bins, n_cond, n_neur, avg = 'winsorized', fitting = True):
-    """Filter (gauss or savgol) the full trace -> take median per trial -> take median across trials -> fit gaussian
+    """Filter (gauss or savgol) the full trace of neural activity -> take median per trial -> take median across trials -> fit gaussian
     INPUTS:
         avg: is a string that tells us the method to be used for averaging across trials. 
             'median' takes the median, 

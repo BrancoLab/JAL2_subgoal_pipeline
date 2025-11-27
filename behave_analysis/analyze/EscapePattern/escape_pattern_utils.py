@@ -165,15 +165,17 @@ def compute_dist_shelt(x_pos, y_pos, cond, session):
 # ------------------------------------Linear Shift Stats------------------------------------
 
 def build_shift_vector(aefizz, ET):
-    """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics"""
+    """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics
+    If settings.escape_pattern_time is 'homing + escape' it makes sure there are enough homings in each central third"""
 
-    ttime = len(aefizz.video_df) 
+    mult = settings.escape_pattern_interpolation_mult
+    ttime = len(aefizz.video_df) * mult  # total time after interpolation
     # the end of the shelter_only condition
-    shelter = np.where(aefizz.video_df["barrier_present"].to_numpy() == True)[0][0]
+    shelter = np.where(aefizz.video_df["barrier_present"].to_numpy() == True)[0][0] * mult
     # the end of the barrier condition
-    bar_in = np.where(aefizz.video_df["barrier_flipped"].to_numpy() == True)[0][0]  
+    bar_in = np.where(aefizz.video_df["barrier_flipped"].to_numpy() == True)[0][0] * mult
     # the central third of the shelter condition
-    mid_shelter = [int(shelter / 3), int((shelter / 3) * 2)]
+    mid_shelter = [int(shelter / 3), int((shelter / 3) * 2)] 
     # the central third of the barrier condition
     mid_bar = [int(shelter + ((bar_in - shelter) / 3)), int(shelter + (((bar_in - shelter) / 3) * 2))]
     # the central third of the flipped barrier condition
@@ -181,9 +183,11 @@ def build_shift_vector(aefizz, ET):
 
     # define shifts based on settings (in seconds, needs to be doubled to shift into both past and future)
     # NB: have a min step of 3 seconds, and then steps of 10s, not sure why
-    shifts_one_sided = np.arange(settings.ep_linshift_min_step, settings.ep_linshift_step + ((settings.ep_linshift_step_n / 2) * settings.ep_linshift_step), settings.ep_linshift_step)
-        
-    if settings.escape_pattern_time == "homing  + escape":
+    shifts_one_sided = np.arange(settings.ep_linshift_min_step * mult, 
+                                 settings.ep_linshift_step * mult + ((settings.ep_linshift_step_n / 2) * settings.ep_linshift_step * mult), 
+                                 settings.ep_linshift_step * mult)
+
+    if settings.escape_pattern_time == "homing + escape":
         # check that this gives us a minimum number of homings/escapes
         all_ons = np.where(np.diff(ET.homing_vector.astype(int)) == 1)[0] + 1  # homing onsets
         if np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1])) < settings.ep_linshift_min_homings:
@@ -228,6 +232,7 @@ def build_shift_vector(aefizz, ET):
     shifts = np.sort(np.hstack((0, shifts_right, -shifts_left)))
 
     return shifts, shift_vector
+
 
 # ------------------------------------Helper functions------------------------------------
 

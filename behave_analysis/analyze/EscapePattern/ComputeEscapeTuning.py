@@ -1,3 +1,4 @@
+import gc
 import numpy as np
 from loguru import logger
 from scipy.ndimage import gaussian_filter1d
@@ -8,6 +9,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (select_o
                                                                         homing_escape_onsets, 
                                                                         create_discretized_behave_var, 
                                                                         build_shift_vector)
+from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, tuning_method_no_trials_with_pool
 
 class ComputeEscapeTuning:
     """A class for computing the tuning to escape-related variables and storing them in the EscapeTuning dataclass
@@ -27,6 +29,118 @@ class ComputeEscapeTuning:
         if settings.escape_pattern_time == "explore" and settings.escape_tuning_var == "escape":
             raise ValueError("Cannot compute escape tuning during explore periods")
         pass
+
+    def extract_data_and_tuning(self, aefizz):
+        """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
+        and a behavioral variable of interest (var) discretized into bins (determined in settings)
+        """
+        # create filtering vector
+        if settings.escape_pattern_time == "homing + escape":
+            logger.info("Computing Escape Pattern Tuning during homing + escape periods")
+            self.ET.homing_vector, self.ET.escape_vector = self.homing_escape_filtering_vector(aefizz)
+            filtering_vector = self.ET.homing_vector
+        elif settings.escape_pattern_time == "explore":
+            logger.info("Computing Escape Pattern Tuning during exploration periods")
+            self.ET.explore_vector = self.explore_filtering_vector(aefizz)
+            filtering_vector = self.ET.explore_vector
+
+        # filter data during homing+escape or explore periods
+        x = self.x[filtering_vector]
+        y = self.y[filtering_vector]
+        self.ET.neural_matrix = self.fcm[filtering_vector, :].T # neurons x time
+        self.ET.condition = self.condition[filtering_vector]
+
+        # compute behavioral variable
+        self.ET.discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, self.ET.condition, self.ET.homing_vector if settings.escape_pattern_time == "homing + escape" else None)
+
+        # compute tuning curves for each neuron
+        if settings.escape_pattern_time == "homing + escape":
+            y_fitted_full, _, fr_full, params_full, mat_num_cond, _ = compute_tuning_curves(var = self.ET.discretized_var, 
+                                                                                            escape_matrix = self.ET.neural_matrix, 
+                                                                                            cond = self.ET.condition, 
+                                                                                            bins = settings.escape_tuning_bins, 
+                                                                                            filtering_vector = filtering_vector,
+                                                                                            n_cond = len(np.unique(self.ET.condition)), 
+                                                                                            n_neur = self.ET.neural_matrix.shape[0], 
+                                                                                            avg = 'winsorized', 
+                                                                                            fitting = False, # whether to fit a gaussian to each response curve
+                                                                                            loo = False) # whether to compute leave one out reliability
+        elif settings.escape_pattern_time == "explore":
+            y_fitted_full, _, fr_full, params_full = tuning_method_no_trials_with_pool(var = self.ET.discretized_var, 
+                                                                                       escape_matrix = self.ET.neural_matrix, 
+                                                                                       cond = self.ET.condition, 
+                                                                                       bins = settings.escape_tuning_bins, 
+                                                                                       n_cond = len(np.unique(self.ET.condition)), 
+                                                                                       n_neur = self.ET.neural_matrix.shape[0], 
+                                                                                       fitting = False) # whether to fit a gaussian to each response curve
+
+    def compute_statistical_significance(self, aefizz):
+        """This function performs linear shift stats on the tuning curves
+        1. It builds a boolean shift vector of length time which subselect the central 1/3 of each condition
+        2. It applies the shift vector to the neural and behavioral data to compute the null (the homings or explore periods need to be subselected carefully)
+        3. The shift vector is shifted and the shifted vector is applied to the neural data"""
+        
+        # build shift vector to subselect central 1/3 of each condition
+        shifts, shift_vector = build_shift_vector(aefizz, self.ET)
+
+        # select which onsets and offsets to keep based on shift vector
+        if settings.escape_pattern_time == "homing + escape":
+            filtering_vector = select_onset_offsets_in_shift_vector(self.ET, shift_vector)
+        elif settings.escape_pattern_time == "explore":
+            filtering_vector = self.ET.explore_vector[shift_vector]
+
+        x = self.x[filtering_vector]
+        y = self.y[filtering_vector]
+        condition = self.condition[filtering_vector]
+        
+        # compute behavioral variable
+        discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, condition, filtering_vector)
+
+        # initialize variables for output
+        step_n, n_cond, n_neur, Nbins = len(shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], settings.escape_tuning_bins
+        y_fitted_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan) # conditions x neurons x n_bins
+        # R_shift = np.zeros((step_n,n_neur, n_cond)) # neurons x conditions
+        # loo_shift = np.zeros((step_n, n_cond, n_neur)) # conditions x neurons
+        params_shifts = np.zeros((step_n,n_neur, n_cond, 6)) # neurons x conditions
+        fr_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan)
+        # TODO: this could be computed using the filtering_vector?!!?
+        c = [len([x for x in h_start if cond[x] == i]) for i in range(3)] # trial n per condition
+        mat_shift_cond = np.full((step_n, n_cond, n_neur, max(c), Nbins), np.nan)
+        
+        # iterate over shifts, compute the tuning curves
+        for s_idx, s in enumerate(shifts):
+
+            shifted_vec = np.roll(filtering_vector,int(s))
+
+            # filter data during homing+escape or explore periods and central third
+            neural_matrix = self.fcm[shifted_vec, :].T
+
+            # compute the tuning curve on the unshifted, subselected data
+            if settings.escape_pattern_time == "homing + escape":
+                y_fitted_shift[s_idx,:,:,:], _, fr_shift[s_idx,:,:,:], params_shifts[s_idx,:,:,:], mat_shift_cond[s_idx,:,:,:], _ = compute_tuning_curves(var = discretized_var, 
+                                                                                                                                                        escape_matrix = neural_matrix, 
+                                                                                                                                                        cond = condition, 
+                                                                                                                                                        bins = Nbins, 
+                                                                                                                                                        filtering_vector = filtering_vector,
+                                                                                                                                                        n_cond = n_cond, 
+                                                                                                                                                        n_neur = n_neur, 
+                                                                                                                                                        avg = 'winsorized', 
+                                                                                                                                                        fitting = False, # whether to fit a gaussian to each response curve
+                                                                                                                                                        loo = False) # whether to compute leave one out reliability
+            elif settings.escape_pattern_time == "explore":
+                y_fitted_shift[s_idx,:,:,:], _, fr_shift[s_idx,:,:,:], params_shifts[s_idx,:,:,:] = tuning_method_no_trials_with_pool(var = discretized_var, 
+                                                                                                                                    escape_matrix = neural_matrix, 
+                                                                                                                                    cond = condition, 
+                                                                                                                                    bins = Nbins, 
+                                                                                                                                    n_cond = n_cond, 
+                                                                                                                                    n_neur = n_neur, 
+                                                                                                                                    fitting = False) # whether to fit a gaussian to each response curve
+        pass
+
+    def save_escape_tuning(self):
+        pass
+
+# ----------------------------Data loading and processing functions----------------------------
 
     def homing_escape_filtering_vector(self, aefizz):
         """This function builds two boolean vectors of length time which are True when the mouse is in homing or escape periods
@@ -115,6 +229,7 @@ class ComputeEscapeTuning:
                 new_neur[:, i] = np.interp(new_time, current_time, fcm[:, i])
             fcm = new_neur
             del new_neur
+            gc.collect()
         # experimental condition vector
         condition = np.zeros(len(bar))
         condition[bar == True] += 1
@@ -122,68 +237,4 @@ class ComputeEscapeTuning:
 
         return fcm, x, y, condition
 
-    def extract_data(self, aefizz):
-        """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
-        and a behavioral variable of interest (var) discretized into bins (determined in settings)
-        """
-        # create filtering vector
-        if settings.escape_pattern_time == "homing + escape":
-            logger.info("Computing Escape Pattern Tuning during homing + escape periods")
-            self.ET.homing_vector, self.ET.escape_vector = self.homing_escape_filtering_vector(aefizz)
-            filtering_vector = self.ET.homing_vector
-        elif settings.escape_pattern_time == "explore":
-            logger.info("Computing Escape Pattern Tuning during exploration periods")
-            self.ET.explore_vector = self.explore_filtering_vector(aefizz)
-            filtering_vector = self.ET.explore_vector
 
-        # filter data during homing+escape or explore periods
-        x = self.x[filtering_vector]
-        y = self.y[filtering_vector]
-        self.ET.neural_matrix = self.fcm[filtering_vector, :].T
-        self.ET.condition = self.condition[filtering_vector]
-
-        # compute behavioral variable
-        self.ET.discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, self.ET.condition, self.ET.homing_vector if settings.escape_pattern_time == "homing + escape" else None)
-
-    def compute_tuning_curves(self):
-        pass
-
-    def compute_leave_one_out_reliability(self):
-        pass
-
-    def compute_statistical_significance(self, aefizz):
-        """This function performs linear shift stats on the tuning curves
-        1. It builds a boolean shift vector of length time which subselect the central 1/3 of each condition
-        2. It applies the shift vector to the neural and behavioral data to compute the null (the homings or explore periods need to be subselected carefully)
-        3. The shift vector is shifted and the shifted vector is applied to the neural data"""
-
-        # build shift vector to subselect central 1/3 of each condition
-        shifts, shift_vector = build_shift_vector(aefizz, self.ET)
-
-        # select which onsets and offsets to keep based on shift vector
-        if settings.escape_pattern_time == "homing + escape":
-            filtering_vector = select_onset_offsets_in_shift_vector(self.ET, shift_vector)
-        elif settings.escape_pattern_time == "explore":
-            filtering_vector = self.ET.explore_vector[shift_vector]
-
-        x = self.x[filtering_vector]
-        y = self.y[filtering_vector]
-        condition = self.condition[filtering_vector]
-        
-        # compute behavioral variable
-        discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, condition, filtering_vector)
-
-        # iterate over shifts, compute the tuning curves
-        for s_idx, s in enumerate(shifts):
-
-            shifted_vec = np.roll(filtering_vector,int(s))
-
-            # filter data during homing+escape or explore periods and central third
-            neural_matrix = self.fcm[shifted_vec, :].T
-
-            # compute the tuning curve on the unshifted, subselected data
-
-        pass
-
-    def save_escape_tuning(self):
-        pass
