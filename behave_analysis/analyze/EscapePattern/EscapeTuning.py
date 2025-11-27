@@ -1,25 +1,30 @@
 """This script defines the EscapeTuning dataclass"""
 
 from dataclasses import dataclass
-
+from behave_analysis.analyze.EscapePattern.escape_pattern_utils import define_bin_edges
 
 @dataclass(frozen=False)
 class EscapeTuning:
     nbins: int
-    bin_edges: list
-    savepath: str
     tuning_var: str
-    fr_real: float
-    params_real: float
-    fr_shift: float
-    params_shift: float
-    fr_0shift: float
-    params_0shift: float
-
+    bin_edges: float = None
+    savepath: str = ''
+    fr_real: float = 0.0
+    params_real: float = 0.0
+    fr_shift: float = 0.0
+    params_shift: float = 0.0
+    fr_0shift: float = 0.0
+    params_0shift: float = 0.0
+    homing_vector: float = 0.0
+    escape_vector: float = 0.0
+    explore_vector: float = 0.0
+    neural_matrix: float = 0.0
+    condition: float = 0.0
+    discretized_var: float = 0.0
 
 def init_escape_tuning(settings):
     return EscapeTuning(
-        nbins=settings.escape_pattern_nbins,
-        savepath=settings.escape_pattern_savepath,
-        tuning_var=settings.escape_pattern_tuning_var,
+        nbins=settings.escape_tuning_bins,
+        tuning_var=settings.escape_tuning_var,
+        bin_edges = define_bin_edges(settings)
     )

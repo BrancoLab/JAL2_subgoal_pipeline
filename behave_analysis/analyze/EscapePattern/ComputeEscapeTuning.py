@@ -1,11 +1,13 @@
 import numpy as np
 from loguru import logger
+from scipy.ndimage import gaussian_filter1d
 
 from settings.settings_analyze_efizz import Settings_ae as settings
-from behave_analysis.analyze.EscapePattern.escape_pattern_utils import define_bin_edges
-from behave_analysis.analyze.EscapePattern.EscapeTuning import EscapeTuning as ET
-from behave_analysis.analyze.EscapePattern.escape_pattern_utils import homing_escape_onsets
-
+from behave_analysis.analyze.EscapePattern.EscapeTuning import init_escape_tuning
+from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (select_onset_offsets_in_shift_vector, 
+                                                                        homing_escape_onsets, 
+                                                                        create_discretized_behave_var, 
+                                                                        build_shift_vector)
 
 class ComputeEscapeTuning:
     """A class for computing the tuning to escape-related variables and storing them in the EscapeTuning dataclass
@@ -15,25 +17,28 @@ class ComputeEscapeTuning:
     4. Compute the statistical significance of the tuning curves via linear shift
     """
 
-    def __init__(self):
-        ET.nbins = settings.escape_tuning_bins
-        ET.bin_edges = define_bin_edges(settings)
-        ET.tuning_var = settings.escape_tuning_var
-        ET.settings = settings # TODO: maybe we only want to save the EscapeTuning settings, not all the aefizz ones too about other methods
+    def __init__(self, aefizz):
+        self.ET = init_escape_tuning(settings)
+        self.fcm, self.x, self.y, self.condition = self.load_data(aefizz)
+        # do we want to add escapes too?
+        self.ons, self.offs, self.esc_ons = homing_escape_onsets(aefizz)
+        self.ET.settings = settings # TODO: maybe we only want to save the EscapeTuning settings, not all the aefizz ones too about other methods
+        # check that we're not trying to compute %escape tuning during explore periods
+        if settings.escape_pattern_time == "explore" and settings.escape_tuning_var == "escape":
+            raise ValueError("Cannot compute escape tuning during explore periods")
         pass
 
     def homing_escape_filtering_vector(self, aefizz):
         """This function builds two boolean vectors of length time which are True when the mouse is in homing or escape periods
         TODO: currently does not filter based on correct/incorrect homings, first/second leg, or minimum homing length"""
 
-        homing_vector = np.zeros(aefizz.frame_by_cluster_matrix.shape[0], dtype=bool)
-        escape_vector = np.zeros(aefizz.frame_by_cluster_matrix.shape[0], dtype=bool)
-
-        # do we want to add escapes too?
-        ons, offs, esc_ons = homing_escape_onsets(aefizz)
+        homing_vector = np.zeros_like(self.condition, dtype=bool)
+        escape_vector = np.zeros_like(self.condition, dtype=bool)
 
         # iterate over homings
-        for tr, (on, of) in enumerate(zip(ons, offs)):
+        for tr, (on, of) in enumerate(zip(self.ons, self.offs)):
+
+
 
             # extract mouse position in the run
             this_y = aefizz.video_df["mouse_y_position"].to_numpy()[on:of]
@@ -54,49 +59,91 @@ class ComputeEscapeTuning:
 
             # do we want to crop homings into first and second leg?
 
+            if settings.escape_pattern_interpolation_mult > 1:
+                on = on * settings.escape_pattern_interpolation_mult
+                of = of * settings.escape_pattern_interpolation_mult
+
             homing_vector[on:of] = True
-            escape_vector[on:of] = True if on in esc_ons else False
+            escape_vector[on:of] = True if on in self.esc_ons else False
 
         return homing_vector, escape_vector
 
     def explore_filtering_vector(self, aefizz):
         """This function builds a boolean vector of length time which is True when the mouse is exploring
-        i.e. not in homing or escape periods and is outside of the shelter"""
+        i.e. not in homing or escape periods and is outside of the shelter
+        TODO: double check the logic!"""
 
         logger.warning("Quality of homing Period boolean vector not checked yet")
-        explore_vector = np.logical_or(
-            np.logical_or(aefizz.video_df["homingPeriod"] == False, aefizz.video_df["EscapePeriod"] == False),
-            aefizz.video_df["OutofshelterIdx"] == True,
-        )
-        return explore_vector
+        if settings.no_stationary:
+            Explore_vector = np.logical_and(
+                np.logical_or(aefizz.video_df["homingPeriod"] == False, aefizz.video_df["EscapePeriod"] == False),
+                aefizz.video_df["OutofshelterIdx"] == True,
+            ) & (aefizz.video_df["speed"] > 0.5)
+        else:
+            explore_vector = np.logical_or(
+                np.logical_or(aefizz.video_df["homingPeriod"] == False, aefizz.video_df["EscapePeriod"] == False),
+                aefizz.video_df["OutofshelterIdx"] == True,
+            )
+        
+        return explore_vector.to_numpy(dtype=bool)
 
-    def extract_data_matrix(self, aefizz, interpolation=True, no_stationary=False, shifted_vec=[]):
+    def load_data(self, aefizz):
+        """This function loads the data from the aefizz object and does any necessary preprocessing
+        """
+        # gaussian filter
+        fcm = gaussian_filter1d(aefizz.frame_by_cluster_matrix, 2, axis = 0)
+
+        # load behavioral data
+        y = aefizz.video_df["mouse_y_position"].to_numpy()
+        x = aefizz.video_df["mouse_x_position"].to_numpy()
+        bar = aefizz.video_df["barrier_present"].to_numpy()
+        barflip = aefizz.video_df["barrier_flipped"].to_numpy()
+
+        # interpolate time
+        if settings.escape_pattern_interpolation_mult > 1:
+            current_time = np.arange(len(y))
+            new_time = np.arange(0, len(y), 1/settings.escape_pattern_interpolation_mult)
+            # mouse position
+            y = np.interp(new_time, current_time, y)
+            x = np.interp(new_time, current_time, x)
+            # experimental condition
+            bar = np.interp(new_time, current_time, bar)
+            barflip = np.interp(new_time, current_time, barflip)
+            # neural data
+            new_neur = np.zeros((len(y), np.shape(fcm)[1]))
+            for i in np.arange(np.shape(fcm)[1]):
+                new_neur[:, i] = np.interp(new_time, current_time, fcm[:, i])
+            fcm = new_neur
+            del new_neur
+        # experimental condition vector
+        condition = np.zeros(len(bar))
+        condition[bar == True] += 1
+        condition[barflip == True] += 1
+
+        return fcm, x, y, condition
+
+    def extract_data(self, aefizz):
         """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
         and a behavioral variable of interest (var) discretized into bins (determined in settings)
-        INPUTS:
-            AnalyzeEfizz object:
-                session: session object, used to get the escape onsets and offsets
-                frame_by_cluster_matrix: is a matrix of neural data, time x neurons
-                behave, y_pos, x_pos: the vectors of speed, y and x position of the mouse
-                bar, barflip: the vectors of barrier and flipped barrier
-                ons, offs: the vectors of onsets and offsets of homings
-            Settings object:
-                tuning_var: variable to compress the data into bins (full_distance_shelter, y_pos, escape, speed, distance_shelter, distance_first_goal, escape_shelter, escape_first_goal)
-                interpolation: if True, interpolate over time to double the number of samples
-                no_stationary: if True, exclude stationary periods from the analysis (i.e. when speed < 0.5 cm/s) # TODO might not work
-            tuning_bin_edges: bin edges for discretizing the variable of interest
-        RETURNS:
-            EscapeTuning object:
-                var: the behavioral variable of interest, discretized into bins
-                escape_matrix: a matrix of neural data, neurons x time
-                cond: a vector of length time indicating what experimental condition the homing/escape was in
-                h_start: the start time (with respect to escape matrix?) of the homings or escapes, duration of homing/escape is cropped to when the mouse reaches shelter
         """
-        # interpolate time
+        # create filtering vector
+        if settings.escape_pattern_time == "homing + escape":
+            logger.info("Computing Escape Pattern Tuning during homing + escape periods")
+            self.ET.homing_vector, self.ET.escape_vector = self.homing_escape_filtering_vector(aefizz)
+            filtering_vector = self.ET.homing_vector
+        elif settings.escape_pattern_time == "explore":
+            logger.info("Computing Escape Pattern Tuning during exploration periods")
+            self.ET.explore_vector = self.explore_filtering_vector(aefizz)
+            filtering_vector = self.ET.explore_vector
 
-        # stationary?
+        # filter data during homing+escape or explore periods
+        x = self.x[filtering_vector]
+        y = self.y[filtering_vector]
+        self.ET.neural_matrix = self.fcm[filtering_vector, :].T
+        self.ET.condition = self.condition[filtering_vector]
 
-        return
+        # compute behavioral variable
+        self.ET.discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, self.ET.condition, self.ET.homing_vector if settings.escape_pattern_time == "homing + escape" else None)
 
     def compute_tuning_curves(self):
         pass
@@ -104,20 +151,38 @@ class ComputeEscapeTuning:
     def compute_leave_one_out_reliability(self):
         pass
 
-    def compute_statistical_significance(self):
+    def compute_statistical_significance(self, aefizz):
         """This function performs linear shift stats on the tuning curves
         1. It builds a boolean shift vector of length time which subselect the central 1/3 of each condition
         2. It applies the shift vector to the neural and behavioral data to compute the null (the homings or explore periods need to be subselected carefully)
         3. The shift vector is shifted and the shifted vector is applied to the neural data"""
 
         # build shift vector to subselect central 1/3 of each condition
-        shifts, shift_vector = build_shift_vector(bar, barflip, session, ons, offs, shifts_one_sided)
+        shifts, shift_vector = build_shift_vector(aefizz, self.ET)
 
         # select which onsets and offsets to keep based on shift vector
+        if settings.escape_pattern_time == "homing + escape":
+            filtering_vector = select_onset_offsets_in_shift_vector(self.ET, shift_vector)
+        elif settings.escape_pattern_time == "explore":
+            filtering_vector = self.ET.explore_vector[shift_vector]
 
-        # compute the tuning curve on the unshifted, subselected data
+        x = self.x[filtering_vector]
+        y = self.y[filtering_vector]
+        condition = self.condition[filtering_vector]
+        
+        # compute behavioral variable
+        discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, condition, filtering_vector)
 
         # iterate over shifts, compute the tuning curves
+        for s_idx, s in enumerate(shifts):
+
+            shifted_vec = np.roll(filtering_vector,int(s))
+
+            # filter data during homing+escape or explore periods and central third
+            neural_matrix = self.fcm[shifted_vec, :].T
+
+            # compute the tuning curve on the unshifted, subselected data
+
         pass
 
     def save_escape_tuning(self):
