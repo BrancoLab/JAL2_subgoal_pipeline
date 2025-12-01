@@ -40,18 +40,20 @@ def run_umap_then_hdbscan(x: np.array, cell_ids, save_path: str) -> dict:
     ax2.scatter(standard_embedding[~clustered, 0], standard_embedding[~clustered, 1], color=(0.5, 0.5, 0.5))
     ax2.scatter(standard_embedding[clustered, 0], standard_embedding[clustered, 1], c=cluster_labels[clustered])
 
-    # Plot cell id labels onto the standard embedding
-    for i, label in enumerate(cell_ids):
-        ax1.text(standard_embedding[i, 0], standard_embedding[i, 1], label, fontsize=4)
+    # # Plot cell id labels onto the standard embedding
+    # for i, label in enumerate(cell_ids):
+    #     ax1.text(standard_embedding[i, 0], standard_embedding[i, 1], label, fontsize=4)
     
-    # For the second axes plot the cluster label to the correspdonging point
-    for i, label in enumerate(cluster_labels):
-        ax2.text(standard_embedding[i, 0], standard_embedding[i, 1], label, fontsize=4)
+    # # For the second axes plot the cluster label to the correspdonging point
+    # for i, label in enumerate(cluster_labels):
+    #     ax2.text(standard_embedding[i, 0], standard_embedding[i, 1], label, fontsize=4)
     
     cluster_dict = return_clustered_cell_ids(cluster_labels, cell_ids)
     path = os.path.join(save_path, "UMAP_HBDSCAN.png")
     plt.savefig(path)
-    
+
+    plt.savefig(path.replace(".png", ".eps"), format="eps")
+
     # save dictionary with pickle to save path
     with open(os.path.join(save_path, "UMAP_HBDSCAN_cluster_labels_dictionary.pickle"), "wb") as f:
         pickle.dump(cluster_dict, f)

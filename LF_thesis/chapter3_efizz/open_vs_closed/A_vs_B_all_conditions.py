@@ -1,4 +1,7 @@
 import os
+from pathlib import Path
+
+from behave_analysis.database.Experiments.JAL007_ex import JAL7_sesh9_16apr
 
 # --- configuration -----------------------------------------------------------
 PICKLE_PATH = r"Z:\Jasmine_Laurence\rayleigh_analysis\Top2_TunED\A_vs_B_all_conditions_threat_zone.pkl"
@@ -8,7 +11,19 @@ CONDITIONS = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]
 A_KEYS = ["preflip_tuned", "h_preflipbar_a_tuned", "A_tuned"]
 B_KEYS = ["postflip_tuned", "h_postflipbar_a_tuned", "B_tuned"]
 SAVE_PATH_IQR = os.path.splitext(SAVE_PATH)[0] + "_iqr.eps"
-USE_TTEST = True  # Set True to use paired t-test instead of Wilcoxon
+USE_TTEST = False  # Set True to use paired t-test instead of Wilcoxon
+LEARNING_METRICS_PATH = Path(__file__).resolve().parents[1] / "learning_metrics" / "outputs" / "learning_metrics_per_condition.csv"
+LEARNING_METRIC_PLOTS = [
+    ("escapes_mean_speed", "Escape mean speed"),
+    ("homings_mean_speed", "Homing mean speed"),
+    ("escapes_mean_efficiency", "Escape efficiency"),
+    ("homings_mean_efficiency", "Homing efficiency"),
+    ("escapes_count", "Escape count"),
+    ("homings_count", "Homing count"),
+    ("escapes_rate_per_10min", "Escape rate /10 min"),
+    ("homings_rate_per_10min", "Homing rate /10 min"),
+]
+# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 
 import pickle
@@ -239,7 +254,8 @@ def plot_all_conditions(df, save_path=None, title_suffix="", use_iqr=False, test
         base = idx * 2
         top = max(means[base], means[base + 1])
         _, _, p, _ = comparisons_info[idx]
-        add_sig_bar(base, base + 1, top, p, pad_scale=1.1)
+        if np.isfinite(p) and stars(p) != "ns":
+            add_sig_bar(base, base + 1, top, p, pad_scale=1.1)
 
     # Cross-condition comparisons
     cross_tests = [
@@ -264,7 +280,8 @@ def plot_all_conditions(df, save_path=None, title_suffix="", use_iqr=False, test
         tag = " [IQR]" if use_iqr else ""
         print(f"{name}{tag} [{test_name}]: stat={stat:.4f}, p={p_val:.4g}, mean diff={mean_diff:.4f}")
         top = max(means[start_idx], means[end_idx])
-        add_sig_bar(start_idx, end_idx, top + pad * (idx + 1.5), p_val, pad_scale=0.6)
+        if np.isfinite(p_val) and stars(p_val) != "ns":
+            add_sig_bar(start_idx, end_idx, top + pad * (idx + 1.5), p_val, pad_scale=0.6)
 
     # ensure axes cover annotations
     if max_ann:
@@ -290,28 +307,145 @@ def plot_all_conditions(df, save_path=None, title_suffix="", use_iqr=False, test
     return results_summary
 
 
+def plot_learning_metric_significance(df, metric, title, save_path, alpha=0.05):
+    conds = ["barrier_pre_flip", "barrier_post_flip"]
+    subset = df[df["condition"].isin(conds)].copy()
+    if metric not in subset.columns:
+        return False
+    p_col = f"{metric}_pval"
+    if p_col not in subset.columns:
+        return False
+    if subset[metric].dropna().empty:
+        return False
+
+    if f"{metric}_diff_from_mean" not in subset.columns:
+        subset[f"{metric}_diff_from_mean"] = subset[metric] - subset.groupby("condition")[metric].transform("mean")
+
+    fig, axes = plt.subplots(1, len(conds), figsize=(10, 4), sharey=True)
+    if len(conds) == 1:
+        axes = [axes]
+
+    for ax, cond in zip(axes, conds):
+        cond_df = subset[subset["condition"] == cond][["session", metric, p_col, f"{metric}_diff_from_mean"]].dropna(subset=[metric]).reset_index(drop=True)
+        ax.set_title(cond.replace("_", " ").title())
+        if cond_df.empty:
+            ax.text(0.5, 0.5, "No data", ha="center", va="center")
+            ax.set_xticks([])
+            continue
+        xs = np.arange(len(cond_df))
+        colors = []
+        for _, row in cond_df.iterrows():
+            if pd.notna(row[p_col]) and row[p_col] < alpha:
+                colors.append("#2ecc71" if row[f"{metric}_diff_from_mean"] >= 0 else "#e74c3c")
+            else:
+                colors.append("#95a5a6")
+
+        ax.scatter(xs, cond_df[metric], c=colors, s=60, edgecolor="k", linewidth=0.4)
+        ax.axhline(cond_df[metric].mean(), color="black", linewidth=0.6, linestyle="--")
+        ax.set_xticks(xs)
+        ax.set_xticklabels(cond_df["session"], rotation=90, fontsize=7)
+        ax.set_ylabel(metric)
+
+        for idx, row in enumerate(cond_df.itertuples(index=False)):
+            p_val = getattr(row, p_col)
+            if pd.notna(p_val) and p_val < alpha:
+                direction = getattr(row, f"{metric}_diff_from_mean")
+                va = "bottom" if direction >= 0 else "top"
+                offset = 0.05 * np.sign(direction) if direction != 0 else 0.05
+                ax.text(
+                    xs[idx],
+                    getattr(row, metric) + offset,
+                    row.session,
+                    rotation=90,
+                    ha="center",
+                    va=va,
+                    fontsize=7,
+                )
+
+    fig.suptitle(title)
+    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.savefig(save_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    return True
+
+
+def generate_learning_metric_highlight_plots(csv_path, metrics):
+    csv_path = Path(csv_path)
+    if not csv_path.exists():
+        print(f"[INFO] Learning metrics CSV not found: {csv_path}")
+        return
+    df = pd.read_csv(csv_path)
+    output_dir = csv_path.parent
+    for metric, title in metrics:
+        out_path = output_dir / f"{metric}_highlight.png"
+        if plot_learning_metric_significance(df, metric, title, out_path):
+            print(f"[INFO] Saved {title} highlight plot to {out_path}")
+        else:
+            print(f"[INFO] Skipped {metric}; missing data or p-values.")
+
+
 # ---- run everything ---------------------------------------------------------
 final_results = load_final_results(PICKLE_PATH)
 session_df = aggregate_sessions(final_results, CONDITIONS)
+
+# # # Filter by top sessions based on LDA
+# session_filter = [
+#     "JAL7_sesh8_9apr",
+#     "JAL7_flip5_22mar",
+#     "JAL7_flip2_12mar",
+#     "JAL7_sesh9_16apr",
+#     "JAL7_23apr",
+#     "JAL8_flip1_25apr",
+#     "JAL8_flip2_29apr",
+#     "JAL8_flip3_7may",
+#     "JAL8_flip4_10may",
+#     "JAL8_14may",
+#     "JAL4_3rdSept", "JAL4_19thSept", "JAL4_28aug", "JAL4_11thSept", "JAL005_8thSept", "JAL005_21stSept",
+# ]
+
+
+# Sessions where LDA pre > shelter and post < shelter
+session_filter = ["JAL3_22aug", "JAL4_3rdSept", "JAL4_19thSept", "JAL005_8thSept",
+                  "JAL6_28mar", "JAL7_sesh8_9apr", "JAL7_flip5_22mar",
+                  "JAL7_flip2_12mar", "JAL7_sesh9_16apr", "JAL8_flip2_29apr", "JAL8_14may"]
+
+# Session filter usign learning metrics
+# session_filter = ["JAL6_28mar"] # Good session post flip learning
+# session_filter = ["JAL7_sesh9_16apr"] # bad session post flip learning
+# session_filter = ["JAL8_14may"] # bad session pre flip learning
+
+filtered_df = session_df[session_df["session"].isin(session_filter)].reset_index(drop=True)
+
 test_name = "ttest" if USE_TTEST else "wilcoxon"
 stats_summary = plot_all_conditions(
-    session_df,
+    filtered_df,
     save_path=SAVE_PATH,
     title_suffix=TITLE_SUFFIX,
     use_iqr=False,
     test_name=test_name,
 )
 print("\nSession table (first 5 rows):")
-print(session_df.head().to_string(index=False))
+print(filtered_df.head().to_string(index=False))
 print("\nPaired-test summary (full data):")
 print(stats_summary.to_string(index=False))
 
-# stats_summary_iqr = plot_all_conditions(
-#     session_df,
-#     save_path=SAVE_PATH_IQR,
-#     title_suffix=TITLE_SUFFIX,
-#     use_iqr=True,
-#     test_name=test_name,
-# )
-# print("\nPaired-test summary (IQR-filtered):")
-# print(stats_summary_iqr.to_string(index=False))
+# generate_learning_metric_highlight_plots(LEARNING_METRICS_PATH, LEARNING_METRIC_PLOTS)
+
+# Try filtering with the bad sessions
+# session_filter_bad = ["JAL3_25aug", "JAL3_1sept", "JAL7_sesh9_16apr", "JAL8_14may", "JAL4_28aug", "JAL4_11thSept"]
+# session_filter_bad = ["JAL8_flip4_10may", "JAL8_14may", "JAL7_sesh9_16apr", "JAL4_28aug"]
+
+session_filter_bad = ["JAL7_sesh8_9apr", 'JAL4_11thSept'] # top 3 lowest homing efficiencies pre flip
+
+# STORE
+# pre flip story bad
+# session_filter_bad = ["JAL8_14may"]  # homing efficiency pre flip is less than -1.96 flat zero for A and B
+
+filtered_df = session_df[session_df["session"].isin(session_filter_bad)].reset_index(drop=True)
+stats_summary = plot_all_conditions(
+    filtered_df,
+    save_path=SAVE_PATH,
+    title_suffix=TITLE_SUFFIX,
+    use_iqr=False,
+    test_name=test_name,
+)

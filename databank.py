@@ -55,9 +55,12 @@ from behave_analysis.database.Experiments.JAL008_ex import (
 # experiments_objects = [seq3]
 # experiments_objects = [seq1_2]
 
-#JAL2
+# JAL2
 # experiments_objects = [seq1_3_002]
-experiments_objects = [seq1_2_002]
+# experiments_objects = [seq1_2_002]
+
+# 
+experiments_objects = [JAL6_28mar]
 
 # ## -------------JR BEHAVIOR MICE
 

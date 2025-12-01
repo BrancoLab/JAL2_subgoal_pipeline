@@ -7,6 +7,11 @@
 
 import os
 import pickle
+from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
 
 from behave_analysis.process.session import get_experiment
 from loguru import logger
@@ -154,3 +159,281 @@ for i, session in enumerate(experiments_objects):
     dictionary_results[session_name]["spatial_efficiency_escapes"] = spatial_efficiency_escapes # a list of spatial efficiencies for each escape
     dictionary_results[session_name]["conditions_escapes"] = conditions_escapes # a list of conditions for each escape (e.g "shelter_only", "barrier_pre_flip", "barrier_post_flip")
     dictionary_results[session_name]["timings_escapes"] = timings_escapes # a list of timings in seconds when each escape started
+
+
+def _rate_per_ten_minutes(times: np.ndarray) -> float:
+    if len(times) == 0:
+        return 0.0
+    span = float(np.max(times) - np.min(times))
+    span = max(span, 600.0)
+    return float(len(times) / (span / 600.0))
+
+
+def _cv(values: np.ndarray) -> float:
+    if len(values) == 0:
+        return np.nan
+    mean_val = float(np.mean(values))
+    if np.isclose(mean_val, 0):
+        return np.nan
+    return float(np.std(values, ddof=0) / mean_val)
+
+
+def build_condition_rows(results_dict):
+    rows = []
+    for session, metrics in results_dict.items():
+        if not metrics:
+            continue
+        homing_speeds = np.asarray(metrics.get("avg_speed_homings", []), dtype=float)
+        homing_eff = np.asarray(metrics.get("spatial_efficiency_homings", []), dtype=float)
+        homing_conditions = np.asarray(metrics.get("conditions_homings", []), dtype=object)
+        homing_times = np.asarray(metrics.get("timings_homings", []), dtype=float)
+
+        escape_speeds = np.asarray(metrics.get("escape_speeds", []), dtype=float)
+        escape_eff = np.asarray(metrics.get("spatial_efficiency_escapes", []), dtype=float)
+        escape_conditions = np.asarray(metrics.get("conditions_escapes", []), dtype=object)
+        escape_times = np.asarray(metrics.get("timings_escapes", []), dtype=float)
+
+        for cond in conditions:
+            homing_mask = homing_conditions == cond
+            escape_mask = escape_conditions == cond
+
+            homing_count = int(np.sum(homing_mask))
+            escape_count = int(np.sum(escape_mask))
+
+            homing_speed_vals = homing_speeds[homing_mask]
+            homing_eff_vals = homing_eff[homing_mask]
+            homing_time_vals = homing_times[homing_mask]
+
+            escape_speed_vals = escape_speeds[escape_mask]
+            escape_eff_vals = escape_eff[escape_mask]
+            escape_time_vals = escape_times[escape_mask]
+
+            inter_homing = np.diff(np.sort(homing_time_vals)) if homing_count > 1 else np.array([])
+            inter_escape = np.diff(np.sort(escape_time_vals)) if escape_count > 1 else np.array([])
+
+            rows.append(
+                dict(
+                    session=session,
+                    condition=cond,
+                    homings_count=homing_count,
+                    escapes_count=escape_count,
+                    homings_mean_speed=float(np.mean(homing_speed_vals)) if homing_count else np.nan,
+                    escapes_mean_speed=float(np.mean(escape_speed_vals)) if escape_count else np.nan,
+                    homings_mean_efficiency=float(np.mean(homing_eff_vals)) if homing_count else np.nan,
+                    escapes_mean_efficiency=float(np.mean(escape_eff_vals)) if escape_count else np.nan,
+                    homings_speed_cv=_cv(homing_speed_vals),
+                    escapes_speed_cv=_cv(escape_speed_vals),
+                    homings_efficiency_std=float(np.std(homing_eff_vals, ddof=0)) if homing_count else np.nan,
+                    escapes_efficiency_std=float(np.std(escape_eff_vals, ddof=0)) if escape_count else np.nan,
+                    homings_rate_per_10min=_rate_per_ten_minutes(homing_time_vals),
+                    escapes_rate_per_10min=_rate_per_ten_minutes(escape_time_vals),
+                    homings_median_latency=float(np.median(homing_time_vals)) if homing_count else np.nan,
+                    escapes_median_latency=float(np.median(escape_time_vals)) if escape_count else np.nan,
+                    mean_escape_times=float(np.mean(escape_time_vals)) if escape_count else np.nan,
+                    median_escape_times=float(np.median(escape_time_vals)) if escape_count else np.nan,
+                    homings_iei_mean=float(np.mean(inter_homing)) if len(inter_homing) else np.nan,
+                    escapes_iei_mean=float(np.mean(inter_escape)) if len(inter_escape) else np.nan,
+                )
+            )
+    return pd.DataFrame(rows)
+
+
+if not dictionary_results:
+    logger.warning("No learning metrics were collected; skipping aggregation.")
+else:
+    OUTPUT_DIR = Path(r"Z:\Laurence\thesis\efizz_chapter") / "outputs"
+    OUTPUT_DIR.mkdir(exist_ok=True)
+    METRICS_CSV = OUTPUT_DIR / "learning_metrics_per_condition.csv"
+    METRICS_PKL = OUTPUT_DIR / "learning_metrics_per_condition.pkl"
+    PLOT_PATH = OUTPUT_DIR / "learning_metrics_summary.png"
+
+    metrics_df = build_condition_rows(dictionary_results)
+    if metrics_df.empty:
+        logger.warning("Metrics dataframe is empty after processing.")
+    else:
+        metrics_df["homing_to_escape_ratio"] = metrics_df["homings_count"] / metrics_df["escapes_count"].replace(0, np.nan)
+
+        bootstrap_metrics = [
+            "homings_count",
+            "escapes_count",
+            "homings_mean_speed",
+            "escapes_mean_speed",
+            "homings_mean_efficiency",
+            "escapes_mean_efficiency",
+            "homings_rate_per_10min",
+            "escapes_rate_per_10min",
+        ]
+
+        BOOTSTRAP_ITER = 5000
+        rng = np.random.default_rng(2025)
+
+        def bootstrap_pvalue(values, observed):
+            values = values[np.isfinite(values)]
+            if len(values) < 2 or not np.isfinite(observed):
+                return np.nan
+            samples = rng.choice(values, size=BOOTSTRAP_ITER, replace=True)
+            ge = np.mean(samples >= observed)
+            le = np.mean(samples <= observed)
+            p = 2 * min(ge, le)
+            if p == 0:
+                p = 1.0 / BOOTSTRAP_ITER
+            return float(min(p, 1.0))
+
+        for metric in bootstrap_metrics:
+            pvals = []
+            mean_diff = metrics_df[metric] - metrics_df.groupby("condition")[metric].transform("mean")
+            metrics_df[f"{metric}_diff_from_mean"] = mean_diff
+            for _, row in metrics_df.iterrows():
+                cond_vals = metrics_df[metrics_df["condition"] == row["condition"]][metric].to_numpy(dtype=float)
+                pvals.append(bootstrap_pvalue(cond_vals, row[metric]))
+            p_col = f"{metric}_pval"
+            metrics_df[p_col] = pvals
+            metrics_df[f"{metric}_significant"] = metrics_df[p_col] < 0.05
+
+        metrics_df.to_csv(METRICS_CSV, index=False)
+        metrics_df.to_pickle(METRICS_PKL)
+        logger.info(f"Saved per-condition learning metrics to {METRICS_CSV}")
+
+        plot_metrics = [
+            ("homings_count", "Homing count"),
+            ("escapes_count", "Escape count"),
+            ("homings_mean_speed", "Mean homing speed"),
+            ("escapes_mean_speed", "Mean escape speed"),
+            ("homings_mean_efficiency", "Mean homing efficiency"),
+            ("escapes_mean_efficiency", "Mean escape efficiency"),
+            ("homings_rate_per_10min", "Homing rate /10 min"),
+            ("escapes_rate_per_10min", "Escape rate /10 min"),
+            ("homing_to_escape_ratio", "Homing/Escape ratio"),
+        ]
+
+        n_cols = 3
+        n_rows = int(np.ceil(len(plot_metrics) / n_cols))
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 4 * n_rows), sharey=False)
+        axes = axes.flatten()
+        rng = np.random.default_rng(42)
+
+        def plot_metric(ax, metric, title):
+            bar_means = []
+            for cond_idx, cond in enumerate(conditions):
+                cond_values = metrics_df[metrics_df["condition"] == cond][metric].dropna()
+                bar_means.append(cond_values.mean() if not cond_values.empty else 0.0)
+                if not cond_values.empty:
+                    jitter = rng.normal(0, 0.04, size=len(cond_values))
+                    ax.scatter(
+                        np.full(len(cond_values), cond_idx) + jitter,
+                        cond_values,
+                        color="gray",
+                        alpha=0.6,
+                        s=25,
+                    )
+            ax.bar(range(len(conditions)), bar_means, color=["#6c5ce7", "#74b9ff", "#a29bfe"], alpha=0.45)
+            ax.set_xticks(range(len(conditions)))
+            ax.set_xticklabels(conditions, rotation=20, ha="right")
+            ax.set_title(title, fontsize=11)
+            ax.grid(axis="y", alpha=0.3)
+
+        for idx, (metric, title) in enumerate(plot_metrics):
+            plot_metric(axes[idx], metric, title)
+
+        for idx in range(len(plot_metrics), len(axes)):
+            axes[idx].axis("off")
+
+        fig.suptitle("Learning metrics per session and condition", fontsize=16)
+        fig.tight_layout(rect=[0, 0, 1, 0.97])
+        fig.savefig(PLOT_PATH, dpi=300, bbox_inches="tight")
+        logger.info(f"Saved summary plot to {PLOT_PATH}")
+
+        pre_post_conditions = {"barrier_pre_flip", "barrier_post_flip"}
+        significant_rows = []
+        for metric in bootstrap_metrics:
+            sig_col = f"{metric}_significant"
+            p_col = f"{metric}_pval"
+            diff_col = f"{metric}_diff_from_mean"
+            flagged = metrics_df[
+                metrics_df["condition"].isin(pre_post_conditions)
+                & metrics_df[sig_col]
+                & metrics_df[metric].notna()
+            ]
+            for _, row in flagged.iterrows():
+                direction = "higher" if row[diff_col] >= 0 else "lower"
+                significant_rows.append(
+                    dict(
+                        session=row["session"],
+                        condition=row["condition"],
+                        metric=metric,
+                        value=row[metric],
+                        p_value=row[p_col],
+                        direction=direction,
+                    )
+                )
+        if significant_rows:
+            print("\nSessions with bootstrap-significant deviations (p < 0.05) in pre/post conditions:")
+            for entry in significant_rows:
+                print(
+                    f"- {entry['session']} [{entry['condition']}]: "
+                    f"{entry['metric']}={entry['value']:.3f} (p={entry['p_value']:.4f}, {entry['direction']})"
+                )
+
+
+# turn the csv intoa  dataframe
+df = pd.read_csv(METRICS_CSV)
+print("\nFull learning metrics dataframe:")
+
+# filter to only preflip condition
+preflip_df = df[df["condition"] == "barrier_pre_flip"]
+
+print(preflip_df.columns.to_list())
+
+# filter the bottom three homing effiency sessions with the lowest average homing efficiency in pre-flip condition
+bottom_sessions_homing_pre = preflip_df.nsmallest(5, "homings_mean_efficiency")["session"].to_list()
+print(bottom_sessions_homing_pre)
+
+# print the session names of the smallest escape efficiency in pre-flip condition
+bottom_escape_sessions = preflip_df.nsmallest(5, "escapes_mean_efficiency")["session"].to_list()
+print(bottom_escape_sessions)
+
+bottom_homing_counts = preflip_df.nsmallest(5, "homings_count")["session"].to_list()
+print(bottom_homing_counts)
+
+bottom_pre_intersection = set(bottom_sessions_homing_pre).intersection(set(bottom_escape_sessions))
+print("Intersection of lowest homing efficiencies, lowest escape efficiencies, and lowest homing counts pre-flip:")
+print(bottom_pre_intersection)
+
+postflip_df = df[df["condition"] == "barrier_post_flip"]
+
+# filter the top three homing efficiency sessions with the highest average homing efficiency in post-flip condition
+top_escape_sessions = postflip_df.nlargest(5, "escapes_mean_efficiency")["session"].to_list()
+print("Top sessions with highest escape efficiency post-flip:")
+print(top_escape_sessions)
+
+top_counts_homings = postflip_df.nlargest(5, "homings_count")["session"].to_list()
+print("Top sessions with highest homing counts post-flip:")
+print(top_counts_homings)
+
+fastest_homing_speeds = postflip_df.nlargest(5, "homings_mean_speed")["session"].to_list()
+print("Top sessions with fastest homing speeds post-flip:")
+print(fastest_homing_speeds)
+
+top_efficiency_homings = postflip_df.nlargest(5, "homings_mean_efficiency")["session"].to_list()
+print("Top sessions with highest homing efficiencies post-flip:")
+print(top_efficiency_homings)
+
+intersection_sessions = set(top_escape_sessions).intersection(set(top_counts_homings)).intersection(set(top_efficiency_homings))
+print("Intersection of fastest homing speeds, top homing efficiencies, and top homing counts:")
+print(intersection_sessions)
+
+# look for the smallset in post flip condition
+lowest_escape_efficiency = postflip_df.nsmallest(5, "escapes_mean_efficiency")["session"].to_list()
+print("Sessions with lowest escape efficiency post-flip:")
+print(lowest_escape_efficiency)
+lowest_homing_efficiency = postflip_df.nsmallest(5, "homings_mean_efficiency")["session"].to_list()
+print("Sessions with lowest homing efficiency post-flip:")
+print(lowest_homing_efficiency)
+lowest_homing_counts = postflip_df.nsmallest(5, "homings_count")["session"].to_list()
+print("Sessions with lowest homing counts post-flip:")
+print(lowest_homing_counts) 
+
+low_post_flip_intersection = set(lowest_escape_efficiency).intersection(set(lowest_homing_efficiency)).intersection(set(lowest_homing_counts))
+print("Intersection of lowest escape efficiency, lowest homing efficiency, and lowest homing counts post-flip:")
+print(low_post_flip_intersection)
+

@@ -217,6 +217,10 @@ class AnalyzeEfizz:
 
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if Settings.run_dim_reduction:
+
+            # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first
+            self.mangituide_deltas = plot_rayleigh_deltas(self.session, self.cluster_type)  # Analyze rayleigh deltas
+
             path_to_save = os.path.join(self.dir, "dimentionality_reduction")
             make_directory(path_to_save)
 

@@ -3,6 +3,7 @@ from loguru import logger
 import polars as pl
 import os
 import numpy as np
+from pathlib import Path
 
 # Import custom settings
 from settings.settings_visualize import defined_settings_visualize as settings_v
@@ -29,25 +30,67 @@ class Visualize_efizz:
     """
 
     def __init__(self, session):
-        self.session = session
-        base_path = os.path.join(self.session.base_path, self.session.processed_path)
+        # self.session = session
+        # base_path = os.path.join(self.session.base_path, self.session.processed_path)
 
-        try:
-            self.spike_data = pl.read_csv(os.path.join(base_path, settings_v.cluster_type + "_spike_data.csv"))
-            self.video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
-            self.clu_ids = np.load(os.path.join(base_path, settings_v.cluster_type + "_cluster_ids.npy"))
-            if hasattr(self.spike_data, 'groupby'):
-                self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
-            elif hasattr(self.spike_data, 'group_by'):
-                self.clu_label = self.spike_data.group_by(["spike_clusters"]).first()
-            self.video_spike_count_df = pl.read_parquet(
-                os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet"), 
-                low_memory=True,
-                use_pyarrow = True,
-                memory_map=True,
-            )
-        except FileNotFoundError:
-            raise FileNotFoundError("The efizz data has not been processed yet. Please run the process pipeline first for all files.")
+        # try:
+        #     self.spike_data = pl.read_csv(os.path.join(base_path, settings_v.cluster_type + "_spike_data.csv"))
+        #     self.video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
+        #     self.clu_ids = np.load(os.path.join(base_path, settings_v.cluster_type + "_cluster_ids.npy"))
+        #     if hasattr(self.spike_data, 'groupby'):
+        #         self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+        #     elif hasattr(self.spike_data, 'group_by'):
+        #         self.clu_label = self.spike_data.group_by(["spike_clusters"]).first()
+        #     path = os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet")
+        #     self.video_spike_count_df = pl.read_parquet(path, 
+        #         low_memory=True,
+        #         use_pyarrow = True,
+        #         memory_map=True,
+        #     )
+        # except FileNotFoundError:
+        #     path = os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet")
+
+        #     logger.error(f"File not found: {path}")
+        #     raise FileNotFoundError("The efizz data has not been processed yet. Please run the process pipeline first for all files.")
+        
+        self.session = session
+
+        # Resolve base_path safely whether processed_path is absolute or relative
+        proc = Path(self.session.processed_path)
+        base_path = proc if proc.is_absolute() else Path(self.session.base_path) / proc
+        base_path = base_path.resolve()
+        logger.info(f"[VizEfizz] base_path: {base_path}")
+
+        # ---- file paths
+        spike_csv   = base_path / f"{settings_v.cluster_type}_spike_data.csv"
+        video_csv   = base_path / "full_video_dataframe.csv"
+        clu_ids_npy = base_path / f"{settings_v.cluster_type}_cluster_ids.npy"
+        parquet_fp  = base_path / f"{settings_v.cluster_type}_video_spike_count_df.parquet"
+
+        # ---- existence checks with clear errors
+        for p in (spike_csv, video_csv, clu_ids_npy, parquet_fp):
+            if not p.exists():
+                logger.error(f"File not found: {p}")
+                raise FileNotFoundError(
+                    f"Missing required file: {p}\n"
+                    f"Resolved base_path was: {base_path}"
+                )
+
+        # ---- load files (no giant try/except)
+        self.spike_data = pl.read_csv(spike_csv)
+        self.video_df   = pl.read_csv(video_csv)
+        self.clu_ids    = np.load(clu_ids_npy)
+
+        # polars uses .group_by (not .groupby)
+        self.clu_label = self.spike_data.group_by("spike_clusters").first()
+
+        # parquet: use Path directly
+        self.video_spike_count_df = pl.read_parquet(
+            parquet_fp,
+            low_memory=True,
+            use_pyarrow=True,
+            memory_map=True,
+        )
         
         logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
 
@@ -68,12 +111,12 @@ class Visualize_efizz:
         spatial_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "spatial_firing"))
 
         # Make single unit heatmaps per condition
-        single_unit_level_heatmaps(
-            video_and_spike_data=self.video_spike_count_df,
-            conditions=extract_all_or_custom_conditions(settings_v, self.session),
-            save_base=spatial_path,
-            session=self.session,
-        )
+        # single_unit_level_heatmaps(
+        #     video_and_spike_data=self.video_spike_count_df,
+        #     conditions=extract_all_or_custom_conditions(settings_v, self.session),
+        #     save_base=spatial_path,
+        #     session=self.session,
+        # )
 
         # where a neuron fires coloured by hdir
         save_path = make_directory(os.path.join(spatial_path, "spatial_firing_hdir_color", settings_v.cluster_type))
