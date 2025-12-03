@@ -61,6 +61,10 @@ class ComputeEscapeTuning:
         # compute behavioral variable
         self.ET.discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, self.ET.condition, self.ET.homing_vector if settings.escape_pattern_time == "homing + escape" else None)
 
+        # trial n per condition
+        trial_start_cond = self.condition[np.where(np.diff(filtering_vector)>0)[0]]
+        trial_n_cond = np.bincount(trial_start_cond.astype(int)) 
+
         # compute tuning curves for each neuron
         if settings.escape_pattern_time == "homing + escape":
             y_fit, R, fr, params, mat, loo = compute_tuning_curves(var = self.ET.discretized_var, 
@@ -70,6 +74,7 @@ class ComputeEscapeTuning:
                                                                 filtering_vector = filtering_vector,
                                                                 n_cond = len(np.unique(self.ET.condition)), 
                                                                 n_neur = self.ET.neural_matrix.shape[0], 
+                                                                n_trials = max(trial_n_cond),
                                                                 avg = 'winsorized', 
                                                                 fitting = settings.ep_gaussian_fitting, # whether to fit a gaussian to each response curve
                                                                 loo = settings.ep_compute_loo_reliability) # whether to compute leave one out reliability
@@ -143,11 +148,12 @@ class ComputeEscapeTuning:
                                                                     filtering_vector = filtering_vector,
                                                                     n_cond = n_cond, 
                                                                     n_neur = n_neur, 
+                                                                    n_trials = max(trial_n_cond),
                                                                     avg = 'winsorized', 
                                                                     fitting = settings.ep_gaussian_fitting, # whether to fit a gaussian to each response curve
                                                                     loo = settings.ep_compute_loo_reliability) # whether to compute leave one out reliability
                 
-                self.ET.mat_shift_cond[s_idx,:,:,:] = mat 
+                self.ET.mat_shift_cond[s_idx,:,:,:np.shape(mat)[2],:] = mat 
                 if settings.ep_compute_loo_reliability:
                     self.ET.loo_shift[s_idx,:,:] = reli
 

@@ -9,12 +9,6 @@ class EscapeTuning:
     tuning_var: str
     bin_edges: float = None
     savepath: str = ''
-    fr_real: float = 0.0
-    params_real: float = 0.0
-    fr_shift: float = 0.0
-    params_shift: float = 0.0
-    fr_0shift: float = 0.0
-    params_0shift: float = 0.0
     homing_vector: float = 0.0
     escape_vector: float = 0.0
     explore_vector: float = 0.0

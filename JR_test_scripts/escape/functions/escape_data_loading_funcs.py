@@ -210,7 +210,7 @@ def extract_homing_behave_var(
     # extract the time around escapes
     ons, offs, esc_ons = homing_escape_onsets(session, ons, offs)
     if len(shifted_vec) > 0:
-        # which ones to keep
+        # which ones to keep: the start and end of the homing has to inside the chunks defined by shifted_vec
         mask = np.logical_and(shifted_vec[ons], shifted_vec[offs])
         ons = ons[mask]
         offs = offs[mask]
@@ -459,6 +459,7 @@ def homing_escape_onsets(session, ons, offs):
     RETURNS:
         ons: vector of onset times in frames for homing and escape periods
         offs: vector of offset times in frames for homing and escape periods
+        esc_ons: vector of onset times in frames for escape periods
     """
     esc_ons = check_not_list(session.audio.onset_frames)
     st = [x * 40 for x in check_not_list(session.audio.stimulus_durations)]

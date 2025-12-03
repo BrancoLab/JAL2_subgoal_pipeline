@@ -5,10 +5,11 @@ from multiprocessing import shared_memory
 from behave_analysis.utils.PersistentPool import PersistentPool
 from behave_analysis.analyze.EscapePattern.gaussian_fitting import gaussian_fitting
 from behave_analysis.analyze.EscapePattern.median_functions import firing_by_bin_median_numba, trial_median_firing, firing_by_bin_winz_mean
+from behave_analysis.analyze.EscapePattern.escape_pattern_utils import get_homings_onsets_in_filtered_time
 
 # ------------------------------------Tuning for homing and escape periods (requires trials)------------------------------------
 
-def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_cond, n_neur, avg="winsorized", fitting=True, loo=False):
+def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_cond, n_neur, n_trials, avg="winsorized", fitting=True, loo=False):
     """Filter (gauss or savgol) the full trace of neural activity -> take median per trial -> take median across trials -> fit gaussian
     INPUTS:
         avg: is a string that tells us the method to be used for averaging across trials.
@@ -32,17 +33,15 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
     # This is done outside as well
 
     # find the start of each homing period
-    ons = np.where(np.diff(filtering_vector.astype(int)) == 1)[0] + 1  # homing onsets
-    offs = np.where(np.diff(filtering_vector.astype(int)) == -1)[0] + 1  # homing offsets
-    h_start = offs - ons
+    h_start = get_homings_onsets_in_filtered_time(filtering_vector)
 
     # initialize variables for output
     y_fitted_full = np.full((n_cond, n_neur, bins), np.nan)  # conditions x neurons x n_bins
     R_full = np.full((n_neur, n_cond), np.nan)  # neurons x conditions
     fr_full = np.full((n_cond, n_neur, bins), np.nan)  # conditions x neurons x n_bins
     params_full = np.full((n_neur, n_cond, 6), np.nan)
-    c = [len([x for x in h_start if cond[x] == i]) for i in range(n_cond)]  # what is the max number of trials across all conditions
-    mat_num_cond = np.full((n_cond, n_neur, max(c), bins), np.nan)  # conditions x neurons x trials x bins
+    mat_num_cond = np.full((n_cond, n_neur, n_trials, bins), np.nan)  # conditions x neurons x trials x bins
+
     reliability = np.full((n_cond, n_neur), np.nan)  # conditions x neurons
 
     # step 3: compute firing per bin per trial
@@ -51,7 +50,7 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
         i = int(i)
         # start by condition
         cond_start = [x for x in h_start if cond[x] == i]
-        cond_start.append(np.sum(cond == i))
+        cond_start = np.concatenate((cond_start,[np.sum(cond < i+1)])) # this adds the end of the last trial
 
         # iterate through neurons
         for j, n in enumerate(escape_matrix):

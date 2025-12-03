@@ -38,6 +38,16 @@ def homing_escape_onsets(aefizz):
 
     return ons, offs, esc_ons
 
+def get_homings_onsets_in_filtered_time(filtering_vector):
+    """This function returns the homing onsets that are within the filtered time vector
+    while filtered_vector gives you the onsets in recording time, this function returns them in filtered time (e.g. to index into the escape_matrix or escape_tuning discretized var)
+    """
+    ons = np.where(np.diff(filtering_vector.astype(int)) == 1)[0] + 1  # homing onsets
+    offs = np.where(np.diff(filtering_vector.astype(int)) == -1)[0] + 1  # homing offsets
+    h_start = np.cumsum(offs - ons)
+    h_start = np.concatenate(([0], h_start[:-1]))  # add a leading zero for the onset of the first homing
+    return h_start
+
 def select_onset_offsets_in_shift_vector(ET, shift_vector):
     """This function selects homing/escape onsets and offsets that are within the shift vector"""
 
