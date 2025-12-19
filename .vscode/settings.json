@@ -12,5 +12,11 @@
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true
     },
-    "black-formatter.args": ["--line-length", "180"]
+    "black-formatter.args": [
+        "--line-length",
+        "180"
+    ],
+    "python-envs.pythonProjects": [],
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda"
 }
