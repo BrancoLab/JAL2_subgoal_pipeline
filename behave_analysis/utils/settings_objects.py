@@ -1,5 +1,5 @@
-"""The following script contains several dataclasses that outline the fields of several settings data classes 
-used within the pipeline. Each data class outlines the structure or blueprint of the settings object. 
+"""The following script contains several dataclasses that outline the fields of several settings data classes
+used within the pipeline. Each data class outlines the structure or blueprint of the settings object.
 As such each class below is just a shell"""
 
 from dataclasses import dataclass
@@ -97,10 +97,12 @@ class Settings_visualize:
     compartment_split: bool = False
     condition_types: str = ""
 
+
 @dataclass(frozen=True)
 class Settings_analyze_behave:
     stim_type: str = "None"
     show_plots: bool = False
+
 
 @dataclass(frozen=True)
 class Settings_analyze_efizz:
@@ -136,16 +138,16 @@ class Settings_analyze_efizz:
     redo_pca_preprocessing: bool = False
     # Escape Pattern settings
     escape_tuning_bins: int = 25
-    escape_tuning_var: str = "escape"  # 'escape' or 'bird_dist_shelter'
-    escape_pattern_time: str = "homing + escape"  # 'explore' or 'homing + escape'
     escape_pattern_no_stationary: bool = False
     escape_pattern_interpolation_mult: int = 2
-    ep_linshift_min_step = 120 # in seconds
-    ep_linshift_step = 400 # in seconds
-    ep_linshift_step_n = 100 # number of steps to do
-    ep_linshift_min_homings = 5 # minimum number of homings in the central third of each condition for linear shift stats
+    ep_linshift_min_step = 120  # in seconds
+    ep_linshift_step = 400  # in seconds
+    ep_linshift_step_n = 100  # number of steps to do
+    ep_linshift_min_homings = 5  # minimum number of homings in the central third of each condition for linear shift stats
     ep_gaussian_fitting: bool = False
     ep_compute_loo_reliability: bool = False
+
+
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ""
