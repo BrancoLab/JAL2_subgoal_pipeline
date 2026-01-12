@@ -93,6 +93,90 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
 
     return y_fitted_full, R_full, fr_full, params_full, mat_num_cond, reliability
 
+def compute_tuning_curves_no_trials(var, escape_matrix, cond, bins, n_cond, n_neur, avg = 'winsorized', fitting = True):
+    """Filter (gauss or savgol) the full trace -> take median across all time
+    INPUTS:
+        avg: is a string that tells us the method to be used for averaging across trials. 
+            'median' takes the median, 
+            'winsorized' takes the winsorized mean, ignoring the 90th and 10th perc of the data"""
+    # step 1: filter the full trace
+    # Assuming the filtered trace is what is passed as an arg to extract_homing_and_escape_periods
+
+    # step 2: extract relevant neuron x time matrix
+    # assumed to be one of the inputs
+
+    # initialize variables for output
+    y_fitted_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
+    R_full = np.full((n_neur, n_cond), np.nan) # neurons x conditions
+    fr_full = np.full((n_cond, n_neur, bins), np.nan) # conditions x neurons x n_bins
+    params_full = np.full((n_neur, n_cond, 6), np.nan)
+
+    # step 3: compute firing by bin across all time
+    for c in range(n_cond):
+        neur = escape_matrix[:,cond == c]
+        var_cond = var[cond == c]
+        for i, n in enumerate(neur):
+            if avg == 'median':
+                smoothed_firing_rates = firing_by_bin_median_numba(var_cond.astype(int), n, bins, remove_empty = False)
+            elif avg == 'winsorized':
+                smoothed_firing_rates = firing_by_bin_winz_mean(var_cond.astype(int), n, bins, remove_empty = False)
+            
+            # Gaussian fitting
+            valid_idx = ~np.isnan(smoothed_firing_rates)
+            R, y_fitted, params = 0, np.full_like(smoothed_firing_rates, np.nan), np.full(6, np.nan)
+            valid = np.where(valid_idx)[0]
+            if np.any(valid_idx):
+                if fitting:
+                    R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], np.arange(np.sum(valid_idx)), verbose=False)
+                    y_fitted[valid_idx] = y
+                else:
+                    y = gaussian_filter1d(smoothed_firing_rates[valid_idx], 2)
+                    params[0] = np.nanmax(y[1:-1])
+                    y_fitted[valid_idx] = y
+                    params[1] = valid[np.argmax(y[1:-1])+1] # WARNING: I'm not allowing the max to be at the edges
+
+            # dump together for output
+            fr_full[c, i, :] = smoothed_firing_rates
+            R_full[i, c] = R
+            params_full[i, c,:len(params)] = params
+            y_fitted_full[c, i, :len(y_fitted)] = y_fitted
+
+    return y_fitted_full, R_full, fr_full, params_full
+
+# ------------------------------------Leave one out reliability computation------------------------------------
+
+def compute_leave_one_out_reliability(mat, smoothed_firing_rates, avg):
+    """This function computes the leave one out reliability score for a given neuron in each condition
+    computes for each trial the correlation coefficient between that trial and the median of all other trials,
+    then averages those correlation coefficients across trials, weighted by the rms of each trial
+    RETURN:
+        reliability:"""
+
+    tr_corr_coeff = np.full(mat.shape[0], np.nan)  # trials
+    tr_rms = np.full(mat.shape[0], np.nan)  # trials
+    reliability = np.nan
+
+    if np.sum(smoothed_firing_rates) > 0:
+        for tr in range(mat.shape[0]):  # loop over trials and leave one out of the median
+            loo_mat = np.delete(mat, tr, axis=0)  # matrix of trials x bins with one trial left out
+            if loo_mat.shape[0] == 0:  # Prevent empty matrix issues
+                continue
+            loo = trial_median_firing(loo_mat, avg)  # leave one out median firing rates
+
+            # corr coeff for each trial
+            id_nans = np.logical_or(np.isnan(loo), np.isnan(mat[tr, :]))
+            valid_corr_values = np.sum(~id_nans)  # Count non-NaN values
+            if valid_corr_values > 1 and np.std(loo[~id_nans]) > 0 and np.std(mat[tr, ~id_nans]) > 0:
+                tr_corr_coeff[tr] = np.corrcoef(loo[~id_nans], mat[tr, ~id_nans])[0, 1]
+            tr_rms[tr] = np.sqrt(np.mean(mat[tr, :] ** 2))
+
+        # average across trial
+        id_nans = np.logical_or(np.isnan(tr_corr_coeff), np.isnan(tr_rms))
+        if np.sum(id_nans) < len(id_nans):
+            reliability = np.average(tr_corr_coeff[~id_nans], weights=tr_rms[~id_nans])
+
+    return reliability
+
 # ------------------------------------Tuning with shared memory and parallelization for exploration periods------------------------------------
 
 def tuning_method_no_trials_with_pool(var, escape_matrix, cond, bins, n_cond, n_neur, fitting=True):
@@ -172,37 +256,3 @@ def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neur
     existing_shm.close()  # Close shared memory connection in worker
 
     return i, neuron_index, smoothed_firing_rates, R, params, y_fitted
-
-# ------------------------------------Leave one out reliability computation------------------------------------
-
-def compute_leave_one_out_reliability(mat, smoothed_firing_rates, avg):
-    """This function computes the leave one out reliability score for a given neuron in each condition
-    computes for each trial the correlation coefficient between that trial and the median of all other trials,
-    then averages those correlation coefficients across trials, weighted by the rms of each trial
-    RETURN:
-        reliability:"""
-
-    tr_corr_coeff = np.full(mat.shape[0], np.nan)  # trials
-    tr_rms = np.full(mat.shape[0], np.nan)  # trials
-    reliability = np.nan
-
-    if np.sum(smoothed_firing_rates) > 0:
-        for tr in range(mat.shape[0]):  # loop over trials and leave one out of the median
-            loo_mat = np.delete(mat, tr, axis=0)  # matrix of trials x bins with one trial left out
-            if loo_mat.shape[0] == 0:  # Prevent empty matrix issues
-                continue
-            loo = trial_median_firing(loo_mat, avg)  # leave one out median firing rates
-
-            # corr coeff for each trial
-            id_nans = np.logical_or(np.isnan(loo), np.isnan(mat[tr, :]))
-            valid_corr_values = np.sum(~id_nans)  # Count non-NaN values
-            if valid_corr_values > 1 and np.std(loo[~id_nans]) > 0 and np.std(mat[tr, ~id_nans]) > 0:
-                tr_corr_coeff[tr] = np.corrcoef(loo[~id_nans], mat[tr, ~id_nans])[0, 1]
-            tr_rms[tr] = np.sqrt(np.mean(mat[tr, :] ** 2))
-
-        # average across trial
-        id_nans = np.logical_or(np.isnan(tr_corr_coeff), np.isnan(tr_rms))
-        if np.sum(id_nans) < len(id_nans):
-            reliability = np.average(tr_corr_coeff[~id_nans], weights=tr_rms[~id_nans])
-
-    return reliability
