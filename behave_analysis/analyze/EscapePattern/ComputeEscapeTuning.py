@@ -23,8 +23,10 @@ from behave_analysis.utils.creating_directories import make_directory
 class ComputeEscapeTuning:
     """A class for computing the tuning to escape-related variables and storing them in the EscapeTuning dataclass
     1. Extract the data: this either concatenates all homings+escapes or exploration periods
-    2. Compute the firing-by-variable tuning curves: variables can be % escape, distance to shelter
-    3. Compute the leave one out reliability: NB this can only be done on homings+escapes
+    1b. EscapeTuning can also be computed on residual neural activity after removing variance explained by another variable.
+        In this case, we will check that Tuning has been computed for the variables of interest and a matrix of residual neural activity will be created
+    2. Compute the firing-by-variable tuning curves: variables can be % escape, distance to shelter TODO: other variables like speed can be added
+    3. Compute the leave-one-out-reliability of the tuning: NB this can only be done on homings+escapes
     4. Compute the statistical significance of the tuning curves via linear shift
     """
 
@@ -32,45 +34,55 @@ class ComputeEscapeTuning:
 
         # metadata
         self.ET = init_escape_tuning(settings, tuning)
-        logger.info(f"{'Computing Residual of ' if 'residual' in self.ET.name.lower() else 'Computing '}Escape Pattern Tuning on {self.ET.tuning_var} during {self.ET.escape_pattern_time} periods")
-        
-        # load raw data
-        self.load_data(aefizz)
-        if "residual" in self.ET.name:
-            self.load_residual_data(aefizz)
-        
-        # are we using escape, homings or both?
-        self.ons, self.offs, self.esc_ons = homing_escape_onsets(aefizz, self.ET.escape_pattern_time)
-        
-        # build save path
-        self.ET.savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", self.ET.escape_pattern_time))
+    
         # check that we're not trying to compute %escape tuning during explore periods
         # self.ET.escape_pattern_time == "explore": looking at exploration period
         # "escape" in self.ET.tuning_var: trying to compute tuning to % escape which can't be done in exploration
-        if self.ET.escape_pattern_time == "explore" and "escape" in self.ET.tuning_var:
+        if (self.ET.escape_pattern_time == "explore") and ("escape" in self.ET.tuning_var):
             raise ValueError("Cannot compute escape tuning during explore periods")
         pass
+
+        logger.info(f"{'Computing Residual of ' if 'residual' in self.ET.name.lower() else 'Computing '}Escape Pattern Tuning on {self.ET.tuning_var} during {self.ET.escape_pattern_time} periods")
+
+        # get raw neural and behavioral data from aefizz
+        self.preprocess_data(aefizz)
+        if "residual" in self.ET.name:
+            # loads discretized behavioral variables and firing rate tuning curves for residual computation
+            self.load_residual_data(aefizz)
+        
+        # find onsets of runs based on escape pattern time ('homings' or 'homing&escape')
+        self.ons, self.offs, self.esc_ons = homing_escape_onsets(aefizz, self.ET.escape_pattern_time)
+        
+        # build save path to dump data in
+        self.ET.savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", self.ET.escape_pattern_time))
 
     def extract_data_and_tuning(self, aefizz):
         """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
         and a behavioral variable of interest (var) discretized into bins (determined in settings)
         """
-        # filter data based on time period (homing+escape or explore)
+
+        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
+            h_and_e = True
+        else:
+            h_and_e = False
+
+        # create a filtering vector based on time period (homing+escape or explore)
         filtering_vector, x, y = self.filter_data(aefizz)
 
-        # compute behavioral variable
+        # extract behavioral variable that we compute the tuning to
         self.ET.discretized_var = create_discretized_behave_var(
             aefizz, self.ET, x, y, self.ET.condition, 
             self.ET.tuning_var,
-            self.ET.homing_vector if self.ET.escape_pattern_time == "homing&escape" else None
+            self.ET.homing_vector if h_and_e else None
         )
 
-        # how many trials are in each condition?
-        trial_start_cond = self.condition[np.where(np.diff(filtering_vector) > 0)[0]]
-        trial_n_cond = np.bincount(trial_start_cond.astype(int))
-
         # compute tuning curves for each neuron
-        if self.ET.escape_pattern_time == "homing&escape":
+        if h_and_e:
+            
+            # how many trials are in each condition?
+            trial_start_cond = self.condition[np.where(np.diff(filtering_vector) > 0)[0]]
+            trial_n_cond = np.bincount(trial_start_cond.astype(int))
+
             y_fit, R, fr, params, mat, loo = compute_tuning_curves(var=self.ET.discretized_var,
                                                                     escape_matrix=self.ET.neural_matrix,
                                                                     cond=self.ET.condition,
@@ -113,7 +125,7 @@ class ComputeEscapeTuning:
         shifts, shift_vector = build_shift_vector(aefizz, self.ET)
 
         # select which onsets and offsets to keep based on shift vector
-        if self.ET.escape_pattern_time == "homing&escape":
+        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
             filtering_vector = select_onset_offsets_in_shift_vector(self.ET, shift_vector)
         elif self.ET.escape_pattern_time == "explore":
             filtering_vector = np.logical_and(self.ET.explore_vector, shift_vector)
@@ -153,11 +165,14 @@ class ComputeEscapeTuning:
                 neural_matrix = self.fcm[shifted_vec, :].T
             elif "residual" in self.ET.name:
                 neural_matrix = residual_neural_matrix(
-                    neural_matrix_t1=self.fcm[shifted_vec, :].T, cond_t1=condition, var2_t1=self.ET.residual_shift_var2_t1, fr_var_t2=self.ET.residual_fr_shift_var2_t2
+                    neural_matrix_t1=self.fcm[shifted_vec, :].T, 
+                    cond_t1=condition, 
+                    var2_t1=self.ET.residual_shift0_var2_t1, 
+                    fr_var2_t2=self.ET.residual_fr_shift0_var2_t2
                 )
 
             # compute the tuning curve on the unshifted, subselected data
-            if self.ET.escape_pattern_time == "homing&escape":
+            if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
                 y, gf, fr, p, mat, reli = compute_tuning_curves(var=discretized_var,
                                                                 escape_matrix=neural_matrix,
                                                                 cond=condition,
@@ -198,7 +213,9 @@ class ComputeEscapeTuning:
 
     def homing_escape_filtering_vector(self, aefizz):
         """This function builds two boolean vectors of length time which are True when the mouse is in homing or escape periods
-        TODO: currently does not filter based on correct/incorrect homings, first/second leg, or minimum homing length"""
+        It removes any time after shelter entry within each homing
+        It uses the array of onsets and offsets created in homing_escape_onsets function 
+        (this could be only homings, homings+escapes, long homings, etc. depending on context in tuning passed to ComputeEscapeTuning)"""
 
         homing_vector = np.zeros_like(self.condition, dtype=bool)
         escape_vector = np.zeros_like(self.condition, dtype=bool)
@@ -218,10 +235,6 @@ class ComputeEscapeTuning:
             shelter_entry = np.where(np.diff(in_shelt) > 0)[0][0] + 1 if np.any(np.diff(in_shelt) > 0) else len(in_shelt)
             of = on + shelter_entry
 
-            # do we only want long homings?
-
-            # only 'correct' homings?
-
             # do we want to crop homings into first and second leg?
 
             if settings.escape_pattern_interpolation_mult > 1:
@@ -233,7 +246,7 @@ class ComputeEscapeTuning:
 
         return homing_vector, escape_vector
 
-    def explore_filtering_vector(self, aefizz):
+    def filtering_vector_exploration(self, aefizz):
         """This function builds a boolean vector of length time which is True when the mouse is exploring
         i.e. not in homing or escape periods and is outside of the shelter
         TODO: double check the logic!"""
@@ -265,21 +278,22 @@ class ComputeEscapeTuning:
     def filter_data(self, aefizz):
         """This function filters the data based on the selected time periods (homing+escape or explore)"""
 
-        # create filtering vector
-        if self.ET.escape_pattern_time == "homing&escape":
+        # create time filtering vector
+        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
             self.ET.homing_vector, self.ET.escape_vector = self.homing_escape_filtering_vector(
                 aefizz
             )  # TODO: add options for long homings, correct homings, first/second leg, etc.
             filtering_vector = self.ET.homing_vector
         elif self.ET.escape_pattern_time == "explore":
-            self.ET.explore_vector = self.explore_filtering_vector(aefizz)
+            self.ET.explore_vector = self.filtering_vector_exploration(aefizz)
             filtering_vector = self.ET.explore_vector
 
-        # filter data during homing+escape or explore periods
+        # filter behavioral data during selected time periods
         x = self.x[filtering_vector]
         y = self.y[filtering_vector]
         self.ET.condition = self.condition[filtering_vector]
 
+        # filter neural data during selected time periods
         if "residual" not in self.ET.name:
             self.ET.neural_matrix = self.fcm[filtering_vector, :].T  # neurons x time
 
@@ -289,13 +303,13 @@ class ComputeEscapeTuning:
                 neural_matrix_t1=self.fcm[filtering_vector, :].T, 
                 cond_t1=self.ET.condition, 
                 var2_t1=self.ET.residual_var2_t1, 
-                fr_var_t2=self.ET.residual_fr_var2_t2
+                fr_var2_t2=self.ET.residual_fr_var2_t2
             )
 
         return filtering_vector, x, y
 
-    def load_data(self, aefizz):
-        """This function loads the data from the aefizz object and does any necessary preprocessing"""
+    def preprocess_data(self, aefizz):
+        """This function organizes the data (loaded into the analyze efizz object) and does any necessary preprocessing"""
         # gaussian filter
         fcm = gaussian_filter1d(aefizz.frame_by_cluster_matrix, 2, axis=0)
 
@@ -328,7 +342,11 @@ class ComputeEscapeTuning:
         self.condition[barflip == True] += 1
 
     def load_residual_data(self, aefizz):
-        """This function loads the data necessary to compute tuning in residual neural activity"""
+        """This function loads the data necessary to compute tuning in residual neural activity.
+        It checks whether tuning to <var2> in <context1> and <context2> has been computed, and if not, computes it.
+        It extracts:
+            1. the discretized behavioral variable for var2 in time_period1 (both the full time window and the central third used for linear shift stats)
+            2. the firing rate tuning curve to var2 in time_period2 (both the full tuning curve and the one aligned to shift 0 used for linear shift stats)"""
 
         _, time_period1, tuning_var2, time_period2 = parse_residual_string(self.ET.name)
 
@@ -337,32 +355,36 @@ class ComputeEscapeTuning:
         path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period1)
         filename = path + os.sep + tuning_var2 + "_" + str(self.ET.nbins) + "bins.pkl"
         # check file exists
-        if not os.path.exists(filename):
+        if os.path.exists(filename):
+            with open(filename, "rb") as f:
+                CT_var2_t1 = pickle.load(f)
+        else:
             logger.warning(f"Escape tuning to {tuning_var2} in {time_period1} file not found, computing now...")
             computeET = ComputeEscapeTuning(tuning_var2 + " in " + time_period1, aefizz=aefizz)
             computeET.extract_data_and_tuning(aefizz=aefizz)
             computeET.compute_statistical_significance(aefizz=aefizz)
             computeET.save_escape_tuning()
+            CT_var2_t1 = computeET.ET
 
-        with open(filename, "rb") as f:
-            CT_var2 = pickle.load(f)
-        self.ET.residual_var2_t1 = CT_var2.discretized_var
-        self.TT.residual_shift_var2_t1 = CT_var2.discretized_var_shift
+        self.ET.residual_var2_t1 = CT_var2_t1.discretized_var
+        self.ET.residual_shift0_var2_t1 = CT_var2_t1.discretized_var_shift
 
         # load tuning data for var2 in exploration from ComputeTuning object
         # this is the firing rate in the tuning curve to var2 in time_period2
         path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period2)
         filename = path + os.sep + tuning_var2 + "_" + str(self.ET.nbins) + "bins.pkl"
         # check file exists
-        if not os.path.exists(filename):
+        if os.path.exists(filename):
+            with open(filename, "rb") as f:
+                CT_var2_t2 = pickle.load(f)
+        else:
             logger.warning(f"Escape tuning to {tuning_var2} in {time_period2} file not found, computing now...")
             computeET = ComputeEscapeTuning(tuning_var2 + " in " + time_period2, aefizz=aefizz)
             computeET.extract_data_and_tuning(aefizz=aefizz)
             computeET.compute_statistical_significance(aefizz=aefizz)
             computeET.save_escape_tuning()
+            CT_var2_t2 = computeET.ET
 
-        with open(filename, "rb") as f:
-            CT_var2 = pickle.load(f)
-        self.ET.residual_fr_var2_t2 = CT_var2.fr_full
-        mid = int(np.shape(CT_var2.y_fitted_shift)[0]/2)
-        self.ET.residual_fr_shift_var2_t2 = CT_var2.fr_shift[mid, :,:,:]
+        self.ET.residual_fr_var2_t2 = CT_var2_t2.fr_full
+        mid = int(np.shape(CT_var2_t2.y_fitted_shift)[0]/2)
+        self.ET.residual_fr_shift0_var2_t2 = CT_var2_t2.fr_shift[mid, :,:,:]

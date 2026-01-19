@@ -157,7 +157,7 @@ class AnalyzeEfizz:
         if analysis_name == 'rayleigh':
             logger.info(f"Compute Rayleigh on {self.cluster_type} data")
             all_angles = identify_angles(self.session)
-            compute_all_clusters_rayleigh(aefizz = self, all_angles)
+            compute_all_clusters_rayleigh(aefizz = self, all_angles = all_angles)
 
         # ------------------------------ Compute TUNED --------------------------------
         if analysis_name == 'tunED':

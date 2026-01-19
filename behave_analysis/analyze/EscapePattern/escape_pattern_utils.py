@@ -22,23 +22,23 @@ def define_bin_edges(settings, tuning_var):
 
     return bin_edges
 
-
-def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var_t2):
+def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
     """This function computes the residual neural matrix after removing activity predicted by var2 (e.g. distance to shelter)
     INPUTS:
-        neural_matrix_t1: neurons x time matrix of neural activity already restricted to homing = escape
-        cond_t1: a vector of length time of the condition at each time point
-        var2_t1: vector of length time of binned variable2 (e.g. distance to shelter) np.unique(var2) = np.shape(explore_fr)[2]
-        fr_var_t2: firing rates at each binned variable in exploration condition x neuron x bins
+        neural_matrix_t1: matrix of neural activity already restricted to <ctx1> [neurons x time]
+        cond_t1: a vector [of length time] of the condition at each time point in <ctx1>
+        var2_t1: vector of length time of binned <var2> (e.g. distance to shelter) np.unique(<var2>) = np.shape(fr_var2_t2)[2]
+        fr_var2_t2: firing rates at each binned <var2> in <ctx2> [condition x neuron x bins]
     """
+
     v2_predicted_matrix = np.full_like(neural_matrix_t1, np.nan)
     n_neur = neural_matrix_t1.shape[0]
-    n_cond = fr_var_t2.shape[0]
+    n_cond = fr_var2_t2.shape[0]
 
     for n in range(n_neur):
         for c in range(n_cond):
-            u = var2_t1[cond_t1 == c].astype(int)
-            v = fr_var_t2[c, n, :]
+            u = var2_t1[cond_t1 == c].astype(int) # binned <var2> in <ctx1> and condition c
+            v = fr_var2_t2[c, n, :] # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
             v2_predicted_matrix[n, cond_t1 == c] = v[u]
 
     # 7. subtract predicted neural activity from actual neural activity
@@ -47,8 +47,9 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var_t2):
     return v2_residual_matrix
 
 
-def homing_escape_onsets(aefizz, tuning_var):
+def homing_escape_onsets(aefizz, escape_pattern_time):
     """This function creates two vectors of onset and offset times for homing and escape periods
+    TODO: currently does not filter based on correct/incorrect homings, first/second leg, or minimum homing length
     RETURNS:
         ons: vector of onset times in frames for homing and escape periods
         offs: vector of offset times in frames for homing and escape periods
@@ -60,13 +61,13 @@ def homing_escape_onsets(aefizz, tuning_var):
     h_offs = []
 
     # check if we want to include escapes
-    if "escape" in tuning_var:
+    if "escape" in escape_pattern_time:
         # pull out escape onsets and calculate offset estimate based on stimulus duration (assuming 40 fps) - mouse will likely lon gbe in shelter by then
         esc_ons = check_not_list(aefizz.session.audio.onset_frames)
         st = [x * 40 for x in check_not_list(aefizz.session.audio.stimulus_durations)]
         esc_offs = (np.add(esc_ons, st)).astype(int)
 
-    if "homing" in tuning_var:
+    if "homing" in escape_pattern_time:
         # pull out homing onsets and offsets
         h_ons = check_not_list(aefizz.homings_object.onset_frames)
         h_offs = check_not_list(aefizz.homings_object.offset_frames)
@@ -298,15 +299,23 @@ def check_not_list(var):
     return var
 
 def parse_residual_string(s):
+    """Parse a residual string of the form
+    'residual: <var1> in <context1> - <var2> in <context2>'
+    and return var1, context1, var2, context2
+    """
+    # remove 'residual:' prefix
+    s = s.replace("residual:", "").strip()
+    
     # normalize dash-like unicode to ASCII hyphen
     s = re.sub(r"[\u2010-\u2015\u2212]", "-", s)
+
     # split around the first hyphen
-    if "-" in s:
-        left, right = s.split("-", 1)
-        left = left.strip()
-        right = right.strip()
-    else:
-        left, right = s.strip(), ""
+    if "-" not in s:
+        raise ValueError("Residual string must contain a '-'! The format is 'residual: <var1> in <context1> - <var2> in <context2>'")
+    
+    left, right = s.split("-", 1)
+    left = left.strip()
+    right = right.strip()
 
     left_var, left_ctx = parse_side(left)
     right_var, right_ctx = parse_side(right)
@@ -314,12 +323,8 @@ def parse_residual_string(s):
     return left_var, left_ctx, right_var, right_ctx
 
 def parse_side(side):
-    # try regex "<var> in <context>"
-    m = re.search(r"([^\s]+)\s+in\s+([^\s]+)", side)
-    if m:
-        return m.group(1).strip(), m.group(2).strip()
-    # fallback: if ' in ' present, split; else return whole side and None
-    if " in " in side:
-        a, b = side.split(" in ", 1)
-        return a.strip(), b.strip()
-    return side.strip() if side else None, None
+    """Parse a string of the form '<var> in <context>' and return var, context"""
+    if " in " not in side:
+        raise ValueError("The tuning string must be of the form '<var> in <context>'")
+    var, ctx = side.split(" in ", 1)
+    return var.strip(), ctx.strip()
