@@ -32,7 +32,7 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 ## --------------- MAIN LDA FUNCTION
 
 def linear_discriminant_analysis(
-    X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, self=None, title=None, subsampling = False
+    X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, aefizz=None, title=None, subsampling = False
 ):
     """
     A function for doing LDA on data.
@@ -45,10 +45,10 @@ def linear_discriminant_analysis(
     """
 
     n_bins = len(np.unique(pos_ang[0, :]))
-    if self == None:
+    if aefizz == None:
         _, bin_centre = generate_bins(n_bins+1, -np.pi, np.pi)
     else:
-        bin_centre = self.bin_centre
+        bin_centre = aefizz.bin_centre
 
     # confirm that if you have invalid y values, you delete those rows now!
     # (this can happen when doing LDa for distance if the mouse is in invalid distances)
@@ -103,8 +103,8 @@ def linear_discriminant_analysis(
                 y_hat_test = predict_LSTM(model, X2, seq_length).reshape(-1)
 
                 # convert predicted output back to bins
-                y_hat_train = np.digitize(y_hat_train, self.bins)
-                y_hat_test = np.digitize(y_hat_test, self.bins)
+                y_hat_train = np.digitize(y_hat_train, aefizz.bins)
+                y_hat_test = np.digitize(y_hat_test, aefizz.bins)
 
                 # crop y to match predicted output
                 if len(y_hat_train) != len(y1):
@@ -147,7 +147,7 @@ def linear_discriminant_analysis(
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(0, 0), colspan=4)
-                real_predicted_trace(ax, y1, y_hat_train, self.session.video.fps, "train data", titleclass)
+                real_predicted_trace(ax, y1, y_hat_train, aefizz.session.video.fps, "train data", titleclass)
 
             # plot confusion matrix of prediction on test data
 
@@ -168,12 +168,12 @@ def linear_discriminant_analysis(
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(1, 0), colspan=4)
-                real_predicted_trace(ax, y2, y_hat_test, self.session.video.fps, "test data", titleclass)
+                real_predicted_trace(ax, y2, y_hat_test, aefizz.session.video.fps, "test data", titleclass)
 
                 plt.tight_layout()
-                filename = self.savepath + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i) + ".png"
+                filename = aefizz.savepath + "/" + str(aefizz.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i) + ".png"
                 plt.savefig(filename)
-                if self.show_plots:
+                if aefizz.show_plots:
                     plt.show()
                 plt.close()
             
@@ -198,14 +198,14 @@ def linear_discriminant_analysis(
             ax.set_xlabel("predicted")
             ax.set_title("test")
 
-            filename = str(self.savepath) + "/" + str(self.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
+            filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_LDA_" + str(title) + "_avg" + ".png"
             plt.savefig(filename)
-            if self.show_plots:
+            if aefizz.show_plots:
                 plt.show()
             plt.close()
 
-        if np.logical_and(self != None, hasattr(self, "target_key")):  # TODO this will break in linshit
-            prediction_accuracy = compute_prediction_accuracy_vect(np.mean(conf_matrix_all_test, axis=2), self.target_key[:, np.unique(Y) - 1])
+        if np.logical_and(aefizz != None, hasattr(aefizz, "target_key")):  # TODO this will break in linshit
+            prediction_accuracy = compute_prediction_accuracy_vect(np.mean(conf_matrix_all_test, axis=2), aefizz.target_key[:, np.unique(Y) - 1])
         else:
             prediction_accuracy = compute_prediction_accuracy(np.mean(conf_matrix_all_test, axis=2))
     coef = np.mean(coef_matrix, axis=2)

@@ -22,50 +22,50 @@ from behave_analysis.utils.heatplot_utils import add_features, add_features_binn
 ## --------------- PLOTTING FUNCTIONS
 
 
-def plot_LDA_model(self):
+def plot_LDA_model(aefizz):
     """A function to call all plotting functions"""
     # make a plot of prediction accuracy across variables
-    with open(self.LDA_out, "rb") as dill_file:
+    with open(aefizz.LDA_out, "rb") as dill_file:
         prediction_accuracy = pickle.load(dill_file)
     title = [key for key, val in prediction_accuracy.items() if not re.search("time", key)]
 
-    PlotPredictionAccuracy(self, prediction_accuracy, title)
+    PlotPredictionAccuracy(aefizz, prediction_accuracy, title)
 
     # map random points on arena:
     if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
         pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
-        fr = [val / (self.session.video.fps * 60) for key, val in prediction_accuracy.items() if re.search("time_rP", key)]
-        PredictionAccuracyMapped(self, pa, fr=fr)
+        fr = [val / (aefizz.session.video.fps * 60) for key, val in prediction_accuracy.items() if re.search("time_rP", key)]
+        PredictionAccuracyMapped(aefizz, pa, fr=fr)
 
     # make a plot of prediction accuracy across variables with linear shift stats
-    if self.settings.linear_shift:
-        with open(self.LS_out, "rb") as dill_file:
+    if aefizz.settings.linear_shift:
+        with open(aefizz.LS_out, "rb") as dill_file:
             LS_compiled = pickle.load(dill_file)
-        PlotLSPredictionAccuracy(self, LS_compiled, title)
+        PlotLSPredictionAccuracy(aefizz, LS_compiled, title)
 
         # map random points on arena:
         if len(list(filter(lambda x: "randP" in x, LS_compiled.keys()))) > 10:
             LS_mean = [np.mean(val.pseudo_stats) for key, val in LS_compiled.items() if re.search("randP", key)]
-            PredictionAccuracyMapped(self, LS_mean, "LS")
+            PredictionAccuracyMapped(aefizz, LS_mean, "LS")
 
             # now figure out which ones are significant
-            n_randP = np.shape(self.tracking_data["randP_loc"])[0]
+            n_randP = np.shape(aefizz.tracking_data["randP_loc"])[0]
             alpha = 5 / 2  # two-sided .05 significance thresh
             alpha_perc = 100 - (alpha / n_randP)  # bonferroni corrected percentile
             LS_thresh = [np.percentile(val.pseudo_stats, alpha_perc) for key, val in LS_compiled.items() if re.search("randP", key)]
             LS_real = [val.real_stat for key, val in LS_compiled.items() if re.search("randP", key)]
-            PredictionAccuracyMapped(self, LS_real, "LS_sig", LS_thresh)
+            PredictionAccuracyMapped(aefizz, LS_real, "LS_sig", LS_thresh)
 
 
-def plot_LDA_by_position(self, target):
-    with open(self.LDA_out, "rb") as dill_file:
+def plot_LDA_by_position(aefizz, target):
+    with open(aefizz.LDA_out, "rb") as dill_file:
         prediction_accuracy = pickle.load(dill_file)
 
     for var in target:
         pa = [val for key, val in prediction_accuracy.items() if re.search(var + "_pos", key)]
-        fr = [round(val / (self.session.video.fps * 60), 2) for key, val in prediction_accuracy.items() if re.search(var + "_time", key)]
+        fr = [round(val / (aefizz.session.video.fps * 60), 2) for key, val in prediction_accuracy.items() if re.search(var + "_time", key)]
         PredictionAccuracy_byposition_Mapped(
-            self,
+            aefizz,
             pa,
             fr=fr,
             title_add=(var + "_by_pos"),
@@ -75,7 +75,7 @@ def plot_LDA_by_position(self, target):
         )
 
 
-def PlotPredictionAccuracy(self, prediction_accuracy, title):
+def PlotPredictionAccuracy(aefizz, prediction_accuracy, title):
     """
     Function to make a bar plot of the mean prediction accuracy for each angle
     """
@@ -111,11 +111,11 @@ def PlotPredictionAccuracy(self, prediction_accuracy, title):
     fig.update_yaxes(range=[0, 1.1])
     fig.update_yaxes(title_text="prediction accuracy")
     fig.update_xaxes(tickangle=-45)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_pa" + ".png"
+    filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_pa" + ".png"
     fig.write_image(filename)
 
 
-def PlotLSPredictionAccuracy(self, LS_compiled, title):
+def PlotLSPredictionAccuracy(aefizz, LS_compiled, title):
     """
     Function to make a violin plot of the mean prediction accuracy over all linear shifts
     """
@@ -147,16 +147,16 @@ def PlotLSPredictionAccuracy(self, LS_compiled, title):
     fig.update_yaxes(range=[0, 1.1])
     fig.update_yaxes(title_text="prediction accuracy")
     fig.update_xaxes(tickangle=-45)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_pa" + ".png"
+    filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_LS_pa" + ".png"
     fig.write_image(filename)
 
 
-def PredictionAccuracyMapped(self, pa, title_add="LDA", LS_thresh=None, pos=[], fr=[]):
+def PredictionAccuracyMapped(aefizz, pa, title_add="LDA", LS_thresh=None, pos=[], fr=[]):
     """
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
 
     INPUT:
-    pa = is a list of prediction accuracies for head-angle towards the points listed in self.tracking_data["randP_loc"]
+    pa = is a list of prediction accuracies for head-angle towards the points listed in aefizz.tracking_data["randP_loc"]
     it can either be the prediction accuracy for the full datatset, or the mean of the shifted distribution geenrated with linear shift
 
     title_add = this is a string that will be added to the title of the figure when saving, it will help distinguish LDA full models from linear shift maps for example
@@ -176,7 +176,7 @@ def PredictionAccuracyMapped(self, pa, title_add="LDA", LS_thresh=None, pos=[], 
 
     # build heatmap
     if len(pos) == 0:
-        pos = self.tracking_data["randP_loc"]
+        pos = aefizz.tracking_data["randP_loc"]
     ybins, y = np.unique(pos[:, 0], return_inverse=True)
     xbins, x = np.unique(pos[:, 1], return_inverse=True)
     heatmap = np.zeros(shape=(len(xbins), len(ybins)))
@@ -202,35 +202,35 @@ def PredictionAccuracyMapped(self, pa, title_add="LDA", LS_thresh=None, pos=[], 
         significant_points = (pa - LS_thresh) > 0
         ax.scatter(x[significant_points] + 0.5, y[significant_points] + 0.5, s=3, c="w")
 
-    Arena(dim = np.shape(heatmap)[0], ax=ax, shelter_coordinates=self.tracking_data["shelter_loc"], condition=self.condition, barrier_coordinates=self.session.barrier_location, no_offset=True)
-    # add_features_binned(ax, self.condition, self.tracking_data, xbins, ybins)
+    Arena(dim = np.shape(heatmap)[0], ax=ax, shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=aefizz.condition, barrier_coordinates=aefizz.session.barrier_location, no_offset=True)
+    # add_features_binned(ax, aefizz.condition, aefizz.tracking_data, xbins, ybins)
 
     # Remove x and y tick labels and ticks
     ax.set_xticklabels([])
     ax.set_yticklabels([])
     ax.xaxis.set_ticks_position("none")
     ax.yaxis.set_ticks_position("none")
-    ax.set_title(self.condition, fontsize=20)
+    ax.set_title(aefizz.condition, fontsize=20)
     # The legend is the last axis so this is a hack to change the font size of the legend
     ax.figure.axes[-1].yaxis.label.set_size(16)
     ax.set_aspect("equal")
 
     # save plot
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add + "_pa_map" + ".png"
+    filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_" + title_add + "_pa_map" + ".png"
     plt.savefig(filename)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add + "_pa_map" + ".eps"
+    filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_" + title_add + "_pa_map" + ".eps"
     plt.savefig(filename, format="eps")
-    if self.show_plots:
+    if aefizz.show_plots:
         plt.show()
     plt.close()
 
 
-def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_centre, fr=[], title_add="LDA", LS_thresh=None):
+def PredictionAccuracy_byposition_Mapped(aefizz, pa, numrings, num_slices, bin_centre, fr=[], title_add="LDA", LS_thresh=None):
     """
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
 
     INPUT:
-    pa = is a list of prediction accuracies for head-angle towards the points listed in self.tracking_data["randP_loc"]
+    pa = is a list of prediction accuracies for head-angle towards the points listed in aefizz.tracking_data["randP_loc"]
     it can either be the prediction accuracy for the full datatset, or the mean of the shifted distribution geenrated with linear shift
 
     title_add = this is a string that will be added to the title of the figure when saving, it will help distinguish LDA full models from linear shift maps for example
@@ -292,7 +292,7 @@ def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_cen
         # significant_points = (pa - LS_thresh) > 0
         # ax.scatter(x[significant_points]+.5,y[significant_points]+.5,s = 3, c = 'w')
 
-    add_features(ax, self.condition, self.tracking_data, zero_centre=True)
+    add_features(ax, aefizz.condition, aefizz.tracking_data, zero_centre=True)
 
     # Create a scalar mappable for the colorbar
     sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm)
@@ -308,19 +308,19 @@ def PredictionAccuracy_byposition_Mapped(self, pa, numrings, num_slices, bin_cen
     ax.xaxis.set_ticks_position("none")
     ax.yaxis.set_ticks_position("none")
     ax.set_axis_off()
-    ax.set_title(self.condition, fontsize=20)
+    ax.set_title(aefizz.condition, fontsize=20)
 
     # save plot
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add + "_pa_posmap" + ".png"
+    filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_" + title_add + "_pa_posmap" + ".png"
     plt.savefig(filename)
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_" + title_add + "_pa_posmap" + ".eps"
+    filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_" + title_add + "_pa_posmap" + ".eps"
     plt.savefig(filename, format="eps")
-    if self.show_plots:
+    if aefizz.show_plots:
         plt.show()
     plt.close()
 
 
-def across_conditions_LDA_map(self):
+def across_conditions_LDA_map(aefizz):
     """
     Function to make a figure of the maps of the prediction accuracy for the angle of the head to each point in the arena
     all the maps for all the conditions are displayed together and color axes are adjusted to match across maps
@@ -331,10 +331,10 @@ def across_conditions_LDA_map(self):
 
     pa = []
 
-    for comp in self.settings.compartment_split:
-        for c in self.all_conditions:
-            self.savepath = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, c, comp)
-            LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(c) + "_LDA_pa" + ".pkl"
+    for comp in aefizz.settings.compartment_split:
+        for c in aefizz.all_conditions:
+            aefizz.savepath = BuildSavingFolder(aefizz.dir, aefizz.settings, aefizz.variable, aefizz.cluster_type, aefizz.condition_types, c, comp)
+            LDA_out = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(c) + "_LDA_pa" + ".pkl"
             with open(LDA_out, "rb") as dill_file:
                 prediction_accuracy = pickle.load(dill_file)
             pa.append([val for key, val in prediction_accuracy.items() if re.search("randP", key)])
@@ -348,9 +348,9 @@ def across_conditions_LDA_map(self):
 
     # figure set-up
     fig, axs = plt.subplots(
-        nrows=len(self.settings.compartment_split),
-        ncols=len(self.all_conditions) + 1,
-        figsize=(24, 6 * len(self.settings.compartment_split)),
+        nrows=len(aefizz.settings.compartment_split),
+        ncols=len(aefizz.all_conditions) + 1,
+        figsize=(24, 6 * len(aefizz.settings.compartment_split)),
         sharey=True,
         sharex=True,
     )
@@ -360,8 +360,8 @@ def across_conditions_LDA_map(self):
 
     # Add subtitles for each condition in first column
 
-    for c_counter, c in enumerate(self.settings.compartment_split):
-        if len(self.settings.compartment_split) > 1:
+    for c_counter, c in enumerate(aefizz.settings.compartment_split):
+        if len(aefizz.settings.compartment_split) > 1:
             ax_idx = tuple([c_counter, 0])
         else:
             ax_idx = 0
@@ -369,16 +369,16 @@ def across_conditions_LDA_map(self):
         axs[ax_idx].set_axis_off()
 
     data_counter = 0
-    for c_idx, comp in enumerate(self.settings.compartment_split):
-        for idx, condition in enumerate(self.all_conditions):
-            if len(self.settings.compartment_split) > 1:
+    for c_idx, comp in enumerate(aefizz.settings.compartment_split):
+        for idx, condition in enumerate(aefizz.all_conditions):
+            if len(aefizz.settings.compartment_split) > 1:
                 ax_idx = tuple([c_idx, idx + 1])
             else:
                 ax_idx = idx + 1
             # build heatmap
-            ybins, y = np.unique(self.tracking_data["randP_loc"][:, 0], return_inverse=True)
-            xbins, x = np.unique(self.tracking_data["randP_loc"][:, 1], return_inverse=True)
-            heatmap = np.zeros(shape=(len(np.unique(self.tracking_data["randP_loc"][:, 0])), len(np.unique(self.tracking_data["randP_loc"][:, 1]))))
+            ybins, y = np.unique(aefizz.tracking_data["randP_loc"][:, 0], return_inverse=True)
+            xbins, x = np.unique(aefizz.tracking_data["randP_loc"][:, 1], return_inverse=True)
+            heatmap = np.zeros(shape=(len(np.unique(aefizz.tracking_data["randP_loc"][:, 0])), len(np.unique(aefizz.tracking_data["randP_loc"][:, 1]))))
             heatmap[x, y] = pa[data_counter]
             data_counter = data_counter + 1
 
@@ -394,8 +394,8 @@ def across_conditions_LDA_map(self):
                 norm=plt.Normalize(vmin=vmin, vmax=vmax),
             )
 
-            Arena(dim = np.shape(heatmap)[0], ax=axs[ax_idx], shelter_coordinates=self.tracking_data["shelter_loc"], condition=condition, barrier_coordinates=self.session.barrier_location, no_offset=True)
-            # add_features_binned(axs[ax_idx], condition, self.tracking_data, xbins, ybins)
+            Arena(dim = np.shape(heatmap)[0], ax=axs[ax_idx], shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=condition, barrier_coordinates=aefizz.session.barrier_location, no_offset=True)
+            # add_features_binned(axs[ax_idx], condition, aefizz.tracking_data, xbins, ybins)
 
             # Remove x and y tick labels and ticks
             axs[ax_idx].set_xticklabels([])
@@ -409,10 +409,10 @@ def across_conditions_LDA_map(self):
 
     # Save and close the figure
     plt.subplots_adjust(wspace=0.05, hspace=0)
-    savepath = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types)
+    savepath = BuildSavingFolder(aefizz.dir, aefizz.settings, aefizz.variable, aefizz.cluster_type, aefizz.condition_types)
     plt.savefig(str(savepath) + "/" + "pa_map_compare.png")
     plt.savefig(str(savepath) + "/" + "pa_map_compare.eps", format="eps")
-    if self.settings.show_plots:
+    if aefizz.settings.show_plots:
         plt.show()
     plt.close()
 
@@ -453,7 +453,7 @@ def residual_distribution(ax, real, predicted, titleclass):
 ## --------OLD VERSIONS
 
 
-def PredictionAccuracyMapped_old(self, prediction_accuracy):
+def PredictionAccuracyMapped_old(aefizz, prediction_accuracy):
     """
     Function to make a map of the prediction accuracy for the angle of the head to each point in the arena
     """
@@ -461,20 +461,20 @@ def PredictionAccuracyMapped_old(self, prediction_accuracy):
 
     plt.figure(figsize=(15, 15))
     # add points with prediction accuracy
-    s = np.mean(np.diff(np.unique(self.tracking_data["randP_loc"][:, 0]))) * 2
-    sc = plt.scatter(self.tracking_data["randP_loc"][:, 0], self.tracking_data["randP_loc"][:, 1], c=pa, s=s, marker="s", cmap="Blues")
+    s = np.mean(np.diff(np.unique(aefizz.tracking_data["randP_loc"][:, 0]))) * 2
+    sc = plt.scatter(aefizz.tracking_data["randP_loc"][:, 0], aefizz.tracking_data["randP_loc"][:, 1], c=pa, s=s, marker="s", cmap="Blues")
     plt.colorbar(sc)
     plt.axis("off")
     # prettify with arena features
     ax = plt.gca()
-    Arena(ax=ax, shelter_coordinates=self.tracking_data["shelter_loc"], condition=self.condition, barrier_coordinates=self.session.barrier_location)
-    # base_plotting(ax, self.tracking_data, self.condition, session = self.session)
+    Arena(ax=ax, shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=aefizz.condition, barrier_coordinates=aefizz.session.barrier_location)
+    # base_plotting(ax, aefizz.tracking_data, aefizz.condition, session = aefizz.session)
     ax.invert_yaxis()
     ax.set_aspect("equal")
 
     # save plot
-    filename = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_pa_map" + ".png"
+    filename = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_pa_map" + ".png"
     plt.savefig(filename)
-    if self.show_plots:
+    if aefizz.show_plots:
         plt.show()
     plt.close()

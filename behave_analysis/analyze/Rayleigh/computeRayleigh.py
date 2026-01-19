@@ -24,44 +24,44 @@ from behave_analysis.utils.PersistentPool import PersistentPool
 # ----------------------------- Main functions from analyze efizz -----------------------------
 
 
-def compute_all_clusters_rayleigh(self, all_angles: list) -> None:
+def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
     """Compute rayleigh for all angles in all desired conditions AND if Settings_analyze_efizz.multi_cluster_plots = True,
     it also plots all clusters per angle"""
-    if self.settings.linear_shift:
+    if aefizz.settings.linear_shift:
         pool = PersistentPool(workers = 20)
     else:
         pool = None
     # determine condition types
-    self.number_of_homings, condition_types = list_conditions(self.settings)
+    aefizz.number_of_homings, condition_types = list_conditions(aefizz.settings)
     for cond in condition_types:  # e.g. 'experimental_conditions', 'behavioral_conditions'
-        self.condition_types = cond
-        for c in self.all_conditions:
-            self.condition = c
-            filtered_video_df = select_relevant_frames(self)
-            data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, self.condition, compartment = [])
-            compartment = identify_which_compartment(self, filtered_video_df)
-            if np.logical_or(not check_if_rayleigh_exists(self, all_angles), self.settings.redo_compute):
+        aefizz.condition_types = cond
+        for c in aefizz.all_conditions:
+            aefizz.condition = c
+            filtered_video_df = select_relevant_frames(aefizz)
+            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition, compartment = [])
+            compartment = identify_which_compartment(aefizz, filtered_video_df)
+            if np.logical_or(not check_if_rayleigh_exists(aefizz, all_angles), aefizz.settings.redo_compute):
                 for a in all_angles:
                     this_df = filtered_video_df.select(["frames", a])
                     frames = this_df["frames"].unique().to_numpy() - 1  # -1 to match python indexing
-                    X = self.frame_by_cluster_matrix
+                    X = aefizz.frame_by_cluster_matrix
                     X = X[frames, :]
                     logger.info("Calculating Rayleigh vectors for " + str(a) + " in condition: " + str(c))
-                    rayleigh_vector(self, this_df, X, a, data_path, compartment, pool)
+                    rayleigh_vector(aefizz, this_df, X, a, data_path, compartment, pool)
         # plot all conditions in this condition types for each cluster
-        if self.settings.single_cluster_plots:
-            data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, condition = [], compartment = [])
+        if aefizz.settings.single_cluster_plots:
+            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, condition = [], compartment = [])
             plot_save_path = make_directory(os.path.join(data_path, "single_cluster_plots"))
-            single_cluster_plots(self, all_angles, self.all_conditions, data_path, plot_save_path)
-    if self.settings.linear_shift:
+            single_cluster_plots(aefizz, all_angles, aefizz.all_conditions, data_path, plot_save_path)
+    if aefizz.settings.linear_shift:
         pool.close()
 
 
 # -------------------------------------------------------------------------------------------------
 
-def check_if_rayleigh_exists(self, all_angles):
+def check_if_rayleigh_exists(aefizz, all_angles):
     """Check if the Rayleigh vectors have already been computed and saved"""
-    data_path = BuildSavingFolder(self.dir, self.settings, self.cluster_type, self.condition_types, self.condition)
+    data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition)
     for a in all_angles:
         if os.path.isfile(data_path + "/" + str(a) + "_Rayleigh.arrow"):
             continue
@@ -71,7 +71,7 @@ def check_if_rayleigh_exists(self, all_angles):
     return True
 
 
-def single_cluster_plots(self, all_angles, all_conditions, data_path, plot_save_path):
+def single_cluster_plots(aefizz, all_angles, all_conditions, data_path, plot_save_path):
     """Generate a polar plot per condition and angle for a single cluster
 
     Arguments:
@@ -83,7 +83,7 @@ def single_cluster_plots(self, all_angles, all_conditions, data_path, plot_save_
     """
 
     logger.info("Making individual cluster polar plots")
-    clusters = self.cluster_Ids
+    clusters = aefizz.cluster_Ids
 
     # Add one index for the titles
     nrows = len(all_conditions) + 1
@@ -137,7 +137,7 @@ def single_cluster_plots(self, all_angles, all_conditions, data_path, plot_save_
             # Save and close the figure
             # plt.tight_layout()
             plt.savefig(str(plot_save_path) + "/cluster" + str(clu) + "_polar_plots.png")
-            if self.settings.show_plots:
+            if aefizz.settings.show_plots:
                 plt.show()
             plt.close()
 
@@ -164,7 +164,7 @@ def extract_max_hz(clu: int, all_angles: list, all_conditions: list, base_path: 
     return int(max_firing_rate)
 
 def rayleigh_vector(
-    self,
+    aefizz,
     filtered_video_df: pl.DataFrame,
     X: np.array, # (n_frames, n_clusters)
     angle_filt,
@@ -203,7 +203,7 @@ def rayleigh_vector(
     """
 
     # edges for binning firing rate at different angles
-    bin_angles, bin_angle_center = generate_bins(number_of_bins=self.settings.number_of_bins, start=-np.pi, stop=np.pi)
+    bin_angles, bin_angle_center = generate_bins(number_of_bins=aefizz.settings.number_of_bins, start=-np.pi, stop=np.pi)
 
     # Catch empty video dataframes
     assert len(filtered_video_df) > 0, "Video dataframe is empty, bug."
@@ -214,7 +214,7 @@ def rayleigh_vector(
 
     # initialize variables to compute the Rayleigh vector
     # Remove cluster 0 from ks only - synthetic starts at cluster id 1
-    cluster_Ids = self.cluster_Ids[self.cluster_Ids > 0]
+    cluster_Ids = aefizz.cluster_Ids[aefizz.cluster_Ids > 0]
     Rayleigh_theta, Rayleigh, Rayleigh_sig, Rayleigh_cluster, angle_firing_hist, arena_rayleigh_theta, arena_rayleigh, arena_sig = init_rayleigh(
         cluster_Ids, len(np.unique(compartment)), bin_angle_center
     )
@@ -235,17 +235,17 @@ def rayleigh_vector(
         arena_rayleigh[count], arena_rayleigh_theta[count], _ = compute_rayleigh_cluster(X=X[:, count], y=binned_angles, return_all_stats=True)
 
         # Significance test for whole arena
-        if self.settings.rayleigh_significance == "bootstrap":
+        if aefizz.settings.rayleigh_significance == "bootstrap":
             arena_sig[count] = bootstrap_rayleigh_significance(
                 binned_angles=binned_angles,
                 count=count,
                 rayleigh=arena_rayleigh,
                 X=X[:, count],
-                fps=self.session.video.fps,
+                fps=aefizz.session.video.fps,
                 flag="whole_arena",
             )
 
-        elif self.settings.linear_shift:
+        elif aefizz.settings.linear_shift:
             arena_sig[count] = linearshift_rayleigh_significance(X=X[:, count], binned_angles=binned_angles, pool=pool)
 
         # ---------------------- Specific compartment computations ------------------------------------------------------
@@ -258,11 +258,11 @@ def rayleigh_vector(
                 continue
 
             Rayleigh[count, c_count], Rayleigh_theta[count, c_count], angle_firing_hist[count, :, c_count] = compute_rayleigh_cluster(
-                X[compartment == comp, count], binned_angles[compartment == comp], nbins=self.settings.number_of_bins, return_all_stats=True
+                X[compartment == comp, count], binned_angles[compartment == comp], nbins=aefizz.settings.number_of_bins, return_all_stats=True
             )
 
             # Linear shifts performed at a random offset between 0 and 100 seconds to generate a null distribution to detect non-sense correlations
-            if self.settings.linear_shift:
+            if aefizz.settings.linear_shift:
                 Rayleigh_sig[count, c_count] = linearshift_rayleigh_significance(
                     X=X[compartment == comp, count],
                     binned_angles=binned_angles[compartment == comp],
@@ -270,15 +270,15 @@ def rayleigh_vector(
                 )
 
             # alternative method with bootstrap
-            elif self.settings.rayleigh_significance == "bootstrap":
+            elif aefizz.settings.rayleigh_significance == "bootstrap":
                 Rayleigh_sig[count, c_count] = bootstrap_rayleigh_significance(
                     binned_angles=binned_angles,
                     comp=comp,
                     count=count,
-                    nbins=self.settings.number_of_bins,
+                    nbins=aefizz.settings.number_of_bins,
                     rayleigh=Rayleigh,
                     X=X[compartment == comp, count],
-                    fps=self.session.video.fps,
+                    fps=aefizz.session.video.fps,
                     compartment=compartment,
                     flag="compartments",
                 )
@@ -292,7 +292,7 @@ def rayleigh_vector(
     plt.xlabel("Rayleigh R")
     plt.ylabel("number of clusters")
     plt.savefig(plot_save_path + "/" + str(angle_filt) + "_Rayleigh_vector_hist.png")
-    if self.settings.show_plots:
+    if aefizz.settings.show_plots:
         plt.show()
     plt.close()
 
@@ -320,11 +320,11 @@ def rayleigh_vector(
     rayleigh_results.write_ipc(plot_save_path + "/" + str(angle_filt) + "_Rayleigh.arrow")
 
     logger.info("Finished calculating Rayleigh vectors, moving on to polar plots")
-    if self.settings.multi_cluster_plots:
+    if aefizz.settings.multi_cluster_plots:
         folder_name = os.path.join(plot_save_path, str(angle_filt) + "_cluster_tuning_plots")
         if not (os.path.exists(folder_name)):
             os.makedirs(folder_name)
-        all_clusters_polar_plots(rayleigh_results, folder_name, self.settings.show_plots)
+        all_clusters_polar_plots(rayleigh_results, folder_name, aefizz.settings.show_plots)
 
 
 def bootstrap_rayleigh_significance(
@@ -385,7 +385,7 @@ def linearshift_rayleigh_significance(X: np.array, binned_angles: np.array, pool
 def all_clusters_polar_plots(rayleigh_results, save_path, show_plots):
     """
     It makes a polar plot of firing at each angle (e.g. HD or HSA) for each cluster.
-    self.tuning_dict['angles'] is a binned set of angles and self.tuning_dict[title][0] will give you the firing rates for cluster 0.
+    aefizz.tuning_dict['angles'] is a binned set of angles and aefizz.tuning_dict[title][0] will give you the firing rates for cluster 0.
     Where the title is what the tunning was calculated for (e.g. 'HD' or 'HSA').
     """
     # ---------------------------------------------------
@@ -488,7 +488,7 @@ def compute_95th_percentile_rayleigh(rayleigh_results):
     return np.percentile(flat_list, 95)
 
 
-def identify_which_compartment(self, filtered_video_df: pl.DataFrame) -> np.ndarray:
+def identify_which_compartment(aefizz, filtered_video_df: pl.DataFrame) -> np.ndarray:
     """Identify which compartment the mouse is in based on y position
 
     Compartments:
@@ -498,7 +498,7 @@ def identify_which_compartment(self, filtered_video_df: pl.DataFrame) -> np.ndar
     Returns:
     -- compartment: a numpy array of ones and twos of the same length as the filtered_video_df"""
     compartment = np.ones([len(filtered_video_df)])
-    if len(self.session.barrier_time) > 0:
+    if len(aefizz.session.barrier_time) > 0:
         compartment[filtered_video_df["mouse_y_position"].to_numpy() < 512] = 2  # threat zone
     return compartment
 

@@ -40,7 +40,7 @@ def list_conditions(settings):
         condition_types = ["before_" + str(number_of_homings) + "good_homings", "after_" + str(number_of_homings) + "good_homings"]
     return number_of_homings, condition_types
 
-def BuildSavingFolder(basepath, settings, cluster_type, condition_types, condition=[], compartment=[]):
+def BuildSavingFolder(basepath, settings, variable, cluster_type, condition_types, condition=[], compartment=[]):
     """
     This function builds a folder structure for where the decoder results and plots will be saved
     under processed_data > models
@@ -111,7 +111,7 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
 
     return pathh
 
-def check_if_we_do_LDA(self):
+def check_if_we_do_LDA(aefizz):
     """
     This function checks whether the decoder and the linear shift has already be run for this set of conditions, clusters, etc.
     It also checks if the user asked to redo compute
@@ -119,19 +119,19 @@ def check_if_we_do_LDA(self):
     returns: two booleans for whether to run decoder and linear shift
     """
     # if LDA has already been run and saved, don't redo
-    self.LDA_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_pa" + ".pkl"
-    self.dropout_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_dropout_pa" + ".pkl"
-    self.LS_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_LS_pa" + ".pkl"
-    self.do_LDA = True
-    self.do_dropout = self.settings.dropout
-    self.do_LS = self.settings.linear_shift
-    if not self.settings.redo_compute:
-        if os.path.exists(self.LDA_out):
-            self.do_LDA = False
-        if os.path.exists(self.LS_out):
-            self.do_LS = False
-        if os.path.exists(self.dropout_out):
-            self.do_dropout = False
+    aefizz.LDA_out = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_pa" + ".pkl"
+    aefizz.dropout_out = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_dropout_pa" + ".pkl"
+    aefizz.LS_out = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_LS_pa" + ".pkl"
+    aefizz.do_LDA = True
+    aefizz.do_dropout = aefizz.settings.dropout
+    aefizz.do_LS = aefizz.settings.linear_shift
+    if not aefizz.settings.redo_compute:
+        if os.path.exists(aefizz.LDA_out):
+            aefizz.do_LDA = False
+        if os.path.exists(aefizz.LS_out):
+            aefizz.do_LS = False
+        if os.path.exists(aefizz.dropout_out):
+            aefizz.do_dropout = False
 
 def plotConfusionMatrix(y, x, title, axy):
     """
@@ -254,18 +254,18 @@ def compute_prediction_accuracy_vect(matrixx, key):
         pred_acc[i] = np.sum(x[idx])
     return np.mean(pred_acc)
 
-def fill_dict_with_zeros(self,prediction_coef,prediction_accuracy,LDA_y_output,dropout_pa,LS_compiled,variable):
+def fill_dict_with_zeros(aefizz,prediction_coef,prediction_accuracy,LDA_y_output,dropout_pa,LS_compiled,variable):
     '''If no frames meet the criteria (the video_df is blank for this condition), make this condition blank'''
     pa = 0
     LS_out = 0
 
-    if self.do_LDA:
+    if aefizz.do_LDA:
         prediction_accuracy.update({variable: pa})
         prediction_coef.update({variable: None})
         LDA_y_output.update({variable: None})
-    if self.do_dropout:
+    if aefizz.do_dropout:
         dropout_pa.update({variable:pa})
-    if self.do_LS:
+    if aefizz.do_LS:
         LS_compiled.update({variable: LS_out})
 
     return prediction_coef,prediction_accuracy,LDA_y_output,LS_compiled,dropout_pa

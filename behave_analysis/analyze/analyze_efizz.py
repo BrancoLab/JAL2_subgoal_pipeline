@@ -157,7 +157,7 @@ class AnalyzeEfizz:
         if analysis_name == 'rayleigh':
             logger.info(f"Compute Rayleigh on {self.cluster_type} data")
             all_angles = identify_angles(self.session)
-            compute_all_clusters_rayleigh(self, all_angles)
+            compute_all_clusters_rayleigh(aefizz = self, all_angles)
 
         # ------------------------------ Compute TUNED --------------------------------
         if analysis_name == 'tunED':
@@ -178,11 +178,12 @@ class AnalyzeEfizz:
         # ------------------------------ Compute LDA --------------------------------
         if analysis_name == 'LDA':
             logger.info("Running LDA model")
-            
+
             if (variable is None) or (variable == []):
                 raise ValueError("No variable specified for LDA analysis. Specify angle or list of angles to decode.")
             
-            LDA(self, variable)
+            self.variable = variable  # Pass variable to
+            LDA(aefizz = self)
             logger.success("LDA analysis complete")
 
 # ------------------------------ Compute LDA --------------------------------
