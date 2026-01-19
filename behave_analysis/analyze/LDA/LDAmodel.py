@@ -35,7 +35,7 @@ from behave_analysis.analyze.LDA.LDA_by_position.LDA_by_position import run_LDA_
 from behave_analysis.analyze.LDA.LDA_fitting import linear_discriminant_analysis, parallel_function
 
 
-def LDA(self):
+def LDA(self, variable = []):
     """
     A wrapper function that figures out all the conditions across which to run decoding analysis.
     It will iterate over all conditions and compartments.
@@ -57,15 +57,15 @@ def LDA(self):
             self.compartment = comp
             if comp == 'by_position':
                 # figure out which angles we want to decode
-                if np.logical_or(self.settings.run_LDA == 'all_vectors', self.settings.run_LDA == 'all_distance'):
+                if np.logical_or(variable == 'all_vectors', variable == 'all_distance'):
                     logger.warning("You are running LDA by position to decode vectors or distances, but this dramatically reduces the amount of available data. Run it on 'all_angles' instead")
                 self.number_of_bins = 9
                 self.num_slices = 6
                 self.num_circles = 3
-                target = choose_predictors(self.settings, self.session, include_rand_points = False)
+                target = choose_predictors(variable, self.session, include_rand_points = False)
             else:
                 self.number_of_bins = self.settings.number_of_bins
-                target = choose_predictors(self.settings, self.session)
+                target = choose_predictors(variable, self.session)
             for c in self.all_conditions:
                 # e.g. 'all_time', 'pre_shelter', 'shelter_present', 'barrier_present', 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip'
                 self.condition = c
@@ -88,7 +88,7 @@ def LDA(self):
                     plot_LDA_by_position(self, target)
                 else:
                     plot_LDA_model(self)
-        if np.logical_and(comp != 'by_position', not isinstance(self.settings.run_LDA, list)):
+        if np.logical_and(comp != 'by_position', not isinstance(variable, list)):
             across_conditions_LDA_map(self)
     
     if np.logical_or(self.settings.dropout, self.settings.linear_shift):

@@ -99,7 +99,7 @@ class AnalyzeEfizz:
                 logger.warning("Homings or escapes object not found")
             
 
-    def execute_models(self, analysis_name=None):
+    def execute_models(self, analysis_name=None, variable=None):
         """A function to call all of the analysis models set in the settings file."""
         logger.info("Executing models")
 
@@ -177,17 +177,26 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute LDA --------------------------------
         if analysis_name == 'LDA':
-            LDA(self)
+            logger.info("Running LDA model")
+            
+            if (variable is None) or (variable == []):
+                raise ValueError("No variable specified for LDA analysis. Specify angle or list of angles to decode.")
+            
+            LDA(self, variable)
             logger.success("LDA analysis complete")
 
 # ------------------------------ Compute LDA --------------------------------
-        if analysis_name == 'EscapePattern':
+        if  analysis_name == 'EscapePattern':
             logger.info("Running Escape Pattern Tuning model")
 
-            computeET = ComputeEscapeTuning(aefizz=self)
+            if variable is None:
+                raise ValueError("No tuning variable specified for Escape Pattern Tuning analysis")
+            computeET = ComputeEscapeTuning(variable, aefizz=self)
+            # compute tuning
             computeET.extract_data_and_tuning(aefizz=self)
             computeET.compute_statistical_significance(aefizz=self)
             computeET.save_escape_tuning()
+            # identify driver variable
 
             logger.success("Escape Pattern Tuning analysis complete")
 

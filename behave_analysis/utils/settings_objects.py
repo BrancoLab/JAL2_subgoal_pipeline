@@ -115,7 +115,6 @@ class Settings_analyze_efizz:
     compartment_split: str = ""
     parallel_pool_linshit: bool = True
     # LDA settings
-    run_LDA: str = ""
     epoch_num: int = 6
     number_of_bins: int = 19
     use_firing_rate: bool = True

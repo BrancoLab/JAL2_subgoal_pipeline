@@ -7,18 +7,18 @@ from behave_analysis.analyze.filtering_data.filtering_functions import identify_
 
 ## --------------- UTILITY FUNCTIONS
 
-def choose_predictors(settings, session, include_rand_points = True):
+def choose_predictors(variable, session, include_rand_points = True):
     '''This function looks at the settings for LDA and creates a list of the variables we want to predict.
     The names in this list are either fields in video_df or will be calculated ad hoc'''
-    if np.logical_or(settings.run_LDA == "all_angles", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all_angles")):
+    if np.logical_or(variable == "all_angles", np.logical_and(type(variable) is list, variable[0] == "all_angles")):
         target = identify_angles(session, include_rand_points = include_rand_points)
-    elif np.logical_or(settings.run_LDA == "all_distance", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all_distance")):
+    elif np.logical_or(variable == "all_distance", np.logical_and(type(variable) is list, variable[0] == "all_distance")):
         target = identify_dist(session,'dist')
-    elif np.logical_or(settings.run_LDA == "all_vectors", np.logical_and(type(settings.run_LDA) is list, settings.run_LDA[0] == "all_vectors")):
+    elif np.logical_or(variable == "all_vectors", np.logical_and(type(variable) is list, variable[0] == "all_vectors")):
         target = identify_dist(session,'vect')
     else:
         # this ould be a list of angles
-        target = settings.run_LDA
+        target = variable
     return target
 
 def list_conditions(settings):
@@ -51,7 +51,7 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
     - a folder for each condition (e.g. 'shelter_only','barrier_pre_flip')
     """
     # folder name
-    if len(settings.run_LDA) > 0:
+    if len(variable) > 0:
         if settings.discriminant_type == "linear":
             pathh = str(basepath) + "/" + "LDA" + "/"
         elif settings.discriminant_type == "quadratic":
@@ -59,10 +59,10 @@ def BuildSavingFolder(basepath, settings, cluster_type, condition_types, conditi
         elif settings.discriminant_type == "LSTM":
             pathh = str(basepath) + "/" + "LSTM" + "/"
 
-        if isinstance(settings.run_LDA, list):
+        if isinstance(variable, list):
             pathh = str(pathh) + 'angle_list'
         else:
-            pathh = str(pathh) + settings.run_LDA
+            pathh = str(pathh) + variable
         
         # if subsampling to equalize the bins
         if settings.subsampling:
