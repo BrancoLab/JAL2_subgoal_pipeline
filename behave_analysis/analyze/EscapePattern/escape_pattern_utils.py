@@ -303,8 +303,8 @@ def parse_residual_string(s):
     'residual: <var1> in <context1> - <var2> in <context2>'
     and return var1, context1, var2, context2
     """
-    # remove 'residual:' prefix
-    s = s.replace("residual:", "").strip()
+    # remove prefix ("residual:" or "TunED:")
+    s = s.split(":", 1)[1].strip()
     
     # normalize dash-like unicode to ASCII hyphen
     s = re.sub(r"[\u2010-\u2015\u2212]", "-", s)

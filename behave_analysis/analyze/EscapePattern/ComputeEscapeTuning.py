@@ -14,7 +14,6 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     build_shift_vector,
     residual_neural_matrix,
     parse_residual_string,
-    parse_side,
 )
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
 from behave_analysis.utils.creating_directories import make_directory
@@ -115,7 +114,6 @@ class ComputeEscapeTuning:
             self.ET.R_full = R
 
     def compute_statistical_significance(self, aefizz):
-        # TODO: refactor for residuals
         """This function performs linear shift stats on the tuning curves
         1. It builds a boolean shift vector of length time which subselect the central 1/3 of each condition
         2. It applies the shift vector to the neural and behavioral data to compute the null (the homings or explore periods need to be subselected carefully)

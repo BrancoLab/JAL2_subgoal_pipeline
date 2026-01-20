@@ -30,7 +30,7 @@ from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_del
 from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
 from behave_analysis.analyze.single_trial.single_trial_regression import SingleTrialRegression
 from behave_analysis.analyze.single_trial.preprocess_regression import PreprocessSingleTrialRegression
-
+from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pattern_TunED
 
 class AnalyzeEfizz:
     """
@@ -192,12 +192,16 @@ class AnalyzeEfizz:
 
             if variable is None:
                 raise ValueError("No tuning variable specified for Escape Pattern Tuning analysis")
-            computeET = ComputeEscapeTuning(variable, aefizz=self)
-            # compute tuning
-            computeET.extract_data_and_tuning(aefizz=self)
-            computeET.compute_statistical_significance(aefizz=self)
-            computeET.save_escape_tuning()
-            # identify driver variable
+            
+            if "TunED".casefold() in variable.casefold():
+                escape_pattern_TunED(aefizz = self, variable = variable)
+    
+            else:
+                computeET = ComputeEscapeTuning(variable, aefizz=self)
+                computeET.extract_data_and_tuning(aefizz=self)
+                computeET.compute_statistical_significance(aefizz=self)
+                computeET.save_escape_tuning()
+            
 
             logger.success("Escape Pattern Tuning analysis complete")
 
