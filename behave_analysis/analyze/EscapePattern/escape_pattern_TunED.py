@@ -4,13 +4,14 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (parse_re
                                                                         get_homings_onsets_in_filtered_time)
 from behave_analysis.analyze.EscapePattern.median_functions import firing_by_bin_median_numba, trial_median_firing, firing_by_bin_winz_mean
 from behave_analysis.utils.creating_directories import make_directory
+from tqdm.auto import tqdm
 
 import numpy as np
 import os
 import dill as pickle
 from loguru import logger
 
-def escape_pattern_TunED(aefizz, variable, settings):
+def escape_pattern_TunED(aefizz, variable):
     """Identify driver variable using TunEd method"""
 
     """1. Load EscapePattern data for driver and passenger variables"""
@@ -20,8 +21,8 @@ def escape_pattern_TunED(aefizz, variable, settings):
         raise ValueError("TunED analysis requires both variables to be from the same time period")
 
     # load data from EscapeTuning objects
-    v1_full, mu_v1_full, v1_cond, neural_matrix, tr_start = load_vars_escape_tuning(aefizz, var1, time_period1, settings)
-    v2_full, mu_v2_full, v2_cond, _ = load_vars_escape_tuning(aefizz, var2, time_period2, settings)
+    v1_full, mu_v1_full, v1_cond, neural_matrix, tr_start = load_vars_escape_tuning(aefizz, var1, time_period1)
+    v2_full, mu_v2_full, v2_cond, _, _ = load_vars_escape_tuning(aefizz, var2, time_period2)
 
     # check conditions are the same
     if not np.array_equal(v1_cond, v2_cond):
@@ -31,11 +32,12 @@ def escape_pattern_TunED(aefizz, variable, settings):
     n_cond = np.shape(mu_v1_full)[0]
 
     """2. Compute TunED"""
-    tuned_settings = {'bin_edges': np.arange(settings.escape_tuning_bins + 1),
-                      'compare_method': 'euclidean', # or 'cosine'
-                      'stats': 'bootstrap',  # or 'linear_shift' (not yet implemented)
-                      'stats_samples': 100}
-    
+    tuned_settings = {'bin_edges': np.arange(aefizz.settings.escape_tuning_bins + 1),
+                      'compare_method': aefizz.settings.ep_tuned_compare_method,  # default: 'euclidean'
+                      'stats': aefizz.settings.ep_tuned_stats,  # default: 'bootstrap'
+                      'stats_samples': aefizz.settings.ep_tuned_stats_samples}
+    tuned_instance = TunED(tuned_settings)
+
     # Pre-allocate result matrices
     distance = np.full((n_cond, n_neur), np.nan)
     distance_bs = np.full((n_cond, n_neur, tuned_settings['stats_samples']), np.nan)
@@ -62,10 +64,10 @@ def escape_pattern_TunED(aefizz, variable, settings):
             mu_v1 = mu_v1_full[c, idx,:]
             mu_v2 = mu_v2_full[c, idx,:]
 
-            TunED_instance = TunED(v1, v2, mu_v1, mu_v2, tuned_settings).independence_test()
-
-            # Store results
-            distance[c, idx] = TunED_instance.distance
+            Pv1_v2, Pv2_v1 = tuned_instance.estimate_p_conditional(v1, v2)
+            mu_NH_v2 = tuned_instance.compute_expected_tuning(mu_v1, Pv1_v2)  # tuning to v2 given that driver is v1 (NH)
+            mu_NH_v1 = tuned_instance.compute_expected_tuning(mu_v2, Pv2_v1)  # tuning to v1 given that driver is v2 (NH)
+            distance[c, idx] = tuned_instance.compare_curves(mu_v1, mu_v2, mu_NH_v1, mu_NH_v2)
 
         # 2. Significance testing of TunED results
         if tuned_settings['stats'] == 'bootstrap':
@@ -75,33 +77,35 @@ def escape_pattern_TunED(aefizz, variable, settings):
             resampled_vector = np.random.choice(frames_vec, (tuned_settings['stats_samples'], len(frames_vec)), replace=True)
             
             # select neural activity for this condition
-            escape_matrix = neural_matrix[:, v1_cond == c]
+            neural_matrix_c = neural_matrix[:, v1_cond == c]
 
-            for i, v in enumerate(resampled_vector):
+            for i, v in enumerate(tqdm(resampled_vector, 
+                                       total=tuned_settings['stats_samples'], 
+                                       desc=f'TunED bootstrap resamples for condition {c}', leave=False)):
                 # resample behavioral variables and neural activity
-                escape_matrix_bs = escape_matrix[:,v]
+                escape_matrix_bs = neural_matrix_c[:,v]
                 v1_bs = v1[v]
                 v2_bs = v2[v]
+                Pv1_v2_bs, Pv2_v1_bs = tuned_instance.estimate_p_conditional(v1_bs, v2_bs)
 
                 # compute tuning curves for resampled data
-                mu_v1_bs = compute_avg_firing_tuning_curve(escape_matrix_bs, v1_bs, tuned_settings['bin_edges'], trial_start=cond_start)
-                mu_v2_bs = compute_avg_firing_tuning_curve(escape_matrix_bs, v2_bs, tuned_settings['bin_edges'], trial_start=cond_start)
+                mu_v1_bs = compute_avg_firing_tuning_curve(escape_matrix_bs, v1_bs, aefizz.settings.escape_tuning_bins, trial_start=cond_start)
+                mu_v2_bs = compute_avg_firing_tuning_curve(escape_matrix_bs, v2_bs, aefizz.settings.escape_tuning_bins, trial_start=cond_start)
                 
                 for idx in range(n_neur):
                     # compute TunED on resampled data
-                    TunED_instance = TunED(v1_bs, v2_bs, mu_v1_bs[idx,:], mu_v2_bs[idx,:], tuned_settings).independence_test()
+                    mu_NH_v2 = tuned_instance.compute_expected_tuning(mu_v1_bs[idx,:], Pv1_v2_bs)  # tuning to v2 given that driver is v1 (NH)
+                    mu_NH_v1 = tuned_instance.compute_expected_tuning(mu_v2_bs[idx,:], Pv2_v1_bs)  # tuning to v1 given that driver is v2 (NH)
+                    distance_bs[c, idx, i] = tuned_instance.compare_curves(mu_v1_bs[idx,:], mu_v2_bs[idx,:], mu_NH_v1, mu_NH_v2)
 
-                    # Store results
-                    distance_bs[c, idx, i] = TunED_instance.distance
-                    
             # Determine significance
-            lower_percentile, upper_percentile = np.percentile(distance_bs[c,:,:], [2.5, 97.5], axis = 0)
+            lower_percentile, upper_percentile = np.percentile(distance_bs[c,:,:], [2.5, 97.5], axis = 1)
             v1_significant[c, :] = (lower_percentile > 0) & (upper_percentile > 0)
             v2_significant[c, :] = (lower_percentile < 0) & (upper_percentile < 0)
 
     """3. Save results"""
     savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period1))
-    filename = savepath + os.sep + "TunED_" + var1 + "_vs_" + var2 + "_" + str(settings.escape_tuning_bins) + "bins.pkl"
+    filename = savepath + os.sep + "TunED_" + var1 + "_vs_" + var2 + "_" + str(aefizz.settings.escape_tuning_bins) + "bins.pkl"
     np.savez(filename,
              variable=variable,
              distance=distance,
@@ -110,12 +114,12 @@ def escape_pattern_TunED(aefizz, variable, settings):
              v2_significant=v2_significant,
              settings=tuned_settings)
 
-def load_vars_escape_tuning(aefizz, var, time_period, settings):
+def load_vars_escape_tuning(aefizz, var, time_period):
     """Load EscapeTuning objects for both variables in the TunED analysis. If not found, compute them.
     Return behavioral variable and tuning curves."""
 
     path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period)
-    filename = path + os.sep + var + "_" + str(settings.escape_tuning_bins) + "bins.pkl"
+    filename = path + os.sep + var + "_" + str(aefizz.settings.escape_tuning_bins) + "bins.pkl"
 
     # check file exists
     if os.path.exists(filename):

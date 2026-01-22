@@ -60,10 +60,9 @@ class ComputeEscapeTuning:
         and a behavioral variable of interest (var) discretized into bins (determined in settings)
         """
 
+        h_and_e = False
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
             h_and_e = True
-        else:
-            h_and_e = False
 
         # create a filtering vector based on time period (homing+escape or explore)
         filtering_vector, x, y = self.filter_data(aefizz)

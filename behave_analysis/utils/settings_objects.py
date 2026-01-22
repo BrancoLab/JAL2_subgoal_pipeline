@@ -145,6 +145,9 @@ class Settings_analyze_efizz:
     ep_linshift_min_homings = 5  # minimum number of homings in the central third of each condition for linear shift stats
     ep_gaussian_fitting: bool = False
     ep_compute_loo_reliability: bool = False
+    ep_tuned_compare_method: str = "euclidean" # or 'cosine'
+    ep_tuned_stats: str = "bootstrap"  # or 'linear_shift' (not yet implemented)
+    ep_tuned_stats_samples: int = 100
 
 
 @dataclass(frozen=True)

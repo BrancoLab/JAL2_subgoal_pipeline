@@ -11,7 +11,7 @@ Settings_ae = Settings_analyze_efizz(
     parallel_pool_linshit=True,  # if True, uses parallel pool to compute linear shift
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
-    cluster_type=["good"],  # ['synthetic','synthetichdir','all','good'], # Can list multiple!
+    cluster_type="good",  # 'synthetic','synthetichdir','all','good',
     show_plots=False,
     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),

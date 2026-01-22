@@ -12,7 +12,7 @@ def define_bin_edges(settings, tuning_var):
     # if tuning_bins is an integer, create that many bins between min and max of the variable
     if isinstance(settings.escape_tuning_bins, int):
         if tuning_var == "bird_dist_shelter":
-            bin_edges = np.linspace(0, 925, settings.escape_tuning_bins + 1)
+            bin_edges = np.linspace(0, 900, settings.escape_tuning_bins + 1)
         elif tuning_var == "escape":
             bin_edges = np.append(np.arange(0, 1, 1 / settings.escape_tuning_bins), 1 + 1e-10)
         else:

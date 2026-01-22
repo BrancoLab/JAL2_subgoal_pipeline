@@ -8,7 +8,6 @@ import polars as pl
 import pickle
 import matplotlib.pyplot as plt
 
-from settings.settings_analyze_efizz import Settings_ae as Settings
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
@@ -39,15 +38,15 @@ class AnalyzeEfizz:
     the preprocessing each time. Any processing of the data should be done outside of this module.
     """
 
-    def __init__(self, session, c_type):
+    def __init__(self, session, settings):
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
         self.dir = make_directory(os.path.join(session.base_path, session.processed_path, "models"))
-        self.show_plots = Settings.show_plots
-        self.settings = Settings
-        self.all_conditions = extract_all_or_custom_conditions(Settings, session)
-        self.cluster_type = c_type
-        assert c_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"    
+        self.show_plots = settings.show_plots
+        self.settings = settings
+        self.all_conditions = extract_all_or_custom_conditions(settings, session)
+        self.cluster_type = settings.cluster_type
+        assert self.cluster_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"
 
     def load_data(self, analysis_name):
         """A function to load data needed for each analysis type."""
@@ -99,7 +98,7 @@ class AnalyzeEfizz:
                 logger.warning("Homings or escapes object not found")
             
 
-    def execute_models(self, analysis_name=None, variable=None):
+    def execute(self, analysis_name=None, variable=None):
         """A function to call all of the analysis models set in the settings file."""
         logger.info("Executing models")
 
@@ -161,13 +160,13 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute TUNED --------------------------------
         if analysis_name == 'tunED':
-            logger.info("Running TunED model")
+            logger.info("Running TunED analysis")
             if not os.path.isdir(self.dir + "\\" + "tunED"):
                 os.mkdir(self.dir + "\\" + "tunED")
             model_path = os.path.join(self.dir, "tunED")
             TunEdModel(
                 video_spike_count_df=self.video_and_spike_data,
-                analyze_efizz_settings=Settings,
+                analyze_efizz_settings=self.settings,
                 save_dir=model_path,
                 session=self.session,
                 cluster_type=self.cluster_type,
@@ -177,7 +176,7 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute LDA --------------------------------
         if analysis_name == 'LDA':
-            logger.info("Running LDA model")
+            logger.info("Running LDA analysis")
 
             if (variable is None) or (variable == []):
                 raise ValueError("No variable specified for LDA analysis. Specify angle or list of angles to decode.")
@@ -188,7 +187,7 @@ class AnalyzeEfizz:
 
 # ------------------------------ Compute LDA --------------------------------
         if  analysis_name == 'EscapePattern':
-            logger.info("Running Escape Pattern Tuning model")
+            logger.info("Running Escape Pattern Tuning analysis")
 
             if variable is None:
                 raise ValueError("No tuning variable specified for Escape Pattern Tuning analysis")
@@ -210,7 +209,7 @@ class AnalyzeEfizz:
 
             raise NotImplementedError("Dimentionality reduction code is being updated and is not currently available")
             # TODO: Dim red needs to either run or load rayleigh to compute mangitiude deltas
-            # logger.info("Running Dimentionality Reduction models")
+            # logger.info("Running Dimentionality Reduction analysis")
             # path_to_save = os.path.join(self.dir, "dimentionality_reduction")
             # make_directory(path_to_save)
 
@@ -259,7 +258,7 @@ class AnalyzeEfizz:
         # ------------------------------ Compute LSTM --------------------------------
 
         if analysis_name == 'LSTM':
-            logger.info("Running LSTM model")
+            logger.info("Running LSTM analysis")
             X = self.frame_by_cluster_matrix
             Y = self.video_df["hdir"]
             run_LSTM(X, Y)
@@ -302,5 +301,5 @@ class AnalyzeEfizz:
             logger.info("Running Sklearn decoders")
             sklearn_main(self.session, self.video_df, self.frame_by_cluster_matrix, cluster_labels=self.cluster_Ids)
 
-        logger.success("All models complete")
+        logger.success("All analyses complete")
 
