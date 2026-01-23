@@ -62,7 +62,7 @@ class AnalyzeEfizz:
                 self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
         
         # load video_df, frame by cluster matrix and cluster_Ids
-        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial']:
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay']:
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
             # load firing rate matrix
@@ -85,7 +85,7 @@ class AnalyzeEfizz:
             self.tracking_data = open_tracking_data(self.session)
 
         # Load the homings object
-        if analysis_name == 'single_trial' or analysis_name == 'EscapePattern':
+        if analysis_name in ['single_trial', 'EscapePattern', 'Replay']:
             try:
                 homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
                 with open(homing_path, "rb") as f:

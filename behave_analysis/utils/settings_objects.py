@@ -148,7 +148,11 @@ class Settings_analyze_efizz:
     ep_tuned_compare_method: str = "euclidean" # or 'cosine'
     ep_tuned_stats: str = "bootstrap"  # or 'linear_shift' (not yet implemented)
     ep_tuned_stats_samples: int = 100
-
+    # Replay settings
+    replay_cells: str = "escape_tuned"  # 'all','hdir','escape_tuned'
+    replay_search_window: int = 500  # in ms
+    replay_time_period: str = "outside_shelter"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
+    replay_rank_order_corr_method: str = "first_activity" # 'first_activity', 'weighted_avg'
 
 @dataclass(frozen=True)
 class Settings_postprocess:
