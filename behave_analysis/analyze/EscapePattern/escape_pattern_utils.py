@@ -3,9 +3,11 @@
 import numpy as np
 import re
 from loguru import logger
+import os
+import dill as pickle
 
 from settings.settings_analyze_efizz import Settings_ae as settings
-
+from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
 
 def define_bin_edges(settings, tuning_var):
     """Define bin edges based on settings.tuning_var and settings.tuning_bins."""
@@ -328,3 +330,26 @@ def parse_side(side):
         raise ValueError("The tuning string must be of the form '<var> in <context>'")
     var, ctx = side.split(" in ", 1)
     return var.strip(), ctx.strip()
+
+def load_or_compute_escape_tuning(aefizz, nbins, tuning_var, time_period):
+    """
+    This function loads in or computes the escape tuning curves for a given variable
+    INPUTS:
+        aefizz: AnalyzeEfizz object
+        tuning_var: string of the variable to compute the tuning curve for
+        """
+    path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period)
+    filename = path + os.sep + tuning_var + "_" + str(nbins) + "bins.pkl"
+    # check file exists
+    if os.path.exists(filename):
+        with open(filename, "rb") as f:
+            EscapeTuningObject = pickle.load(f)
+    else:
+        logger.warning(f"Escape tuning to {tuning_var} in {time_period} file not found, computing now...")
+        computeET = ComputeEscapeTuning(tuning_var + " in " + time_period, aefizz=aefizz)
+        computeET.extract_data_and_tuning(aefizz=aefizz)
+        computeET.compute_statistical_significance(aefizz=aefizz)
+        computeET.save_escape_tuning()
+        EscapeTuningObject = computeET.ET
+
+    return EscapeTuningObject

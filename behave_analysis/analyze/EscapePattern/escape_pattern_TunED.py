@@ -1,14 +1,13 @@
-from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
 from behave_analysis.analyze.EscapePattern.TunED import TunED
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (parse_residual_string, 
-                                                                        get_homings_onsets_in_filtered_time)
+                                                                        get_homings_onsets_in_filtered_time,
+                                                                        load_or_compute_escape_tuning)
 from behave_analysis.analyze.EscapePattern.median_functions import firing_by_bin_median_numba, trial_median_firing, firing_by_bin_winz_mean
 from behave_analysis.utils.creating_directories import make_directory
 from tqdm.auto import tqdm
 
 import numpy as np
 import os
-import dill as pickle
 from loguru import logger
 
 def escape_pattern_TunED(aefizz, variable):
@@ -118,20 +117,7 @@ def load_vars_escape_tuning(aefizz, var, time_period):
     """Load EscapeTuning objects for both variables in the TunED analysis. If not found, compute them.
     Return behavioral variable and tuning curves."""
 
-    path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period)
-    filename = path + os.sep + var + "_" + str(aefizz.settings.escape_tuning_bins) + "bins.pkl"
-
-    # check file exists
-    if os.path.exists(filename):
-        with open(filename, "rb") as f:
-            CT = pickle.load(f)
-    else:
-        logger.warning(f"Escape tuning to {var} in {time_period} file not found, computing now...")
-        computeET = ComputeEscapeTuning(var + " in " + time_period, aefizz=aefizz)
-        computeET.extract_data_and_tuning(aefizz=aefizz)
-        computeET.compute_statistical_significance(aefizz=aefizz)
-        computeET.save_escape_tuning()
-        CT = computeET.ET
+    CT = load_or_compute_escape_tuning(aefizz, aefizz.settings.escape_tuning_bins, var, time_period)
 
     if "homing" in time_period or "escape" in time_period:
         trial_start = get_homings_onsets_in_filtered_time(CT.homing_vector)

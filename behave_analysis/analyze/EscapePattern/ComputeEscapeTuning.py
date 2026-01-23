@@ -14,6 +14,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     build_shift_vector,
     residual_neural_matrix,
     parse_residual_string,
+    load_or_compute_escape_tuning,
 )
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
 from behave_analysis.utils.creating_directories import make_directory
@@ -349,38 +350,14 @@ class ComputeEscapeTuning:
 
         # load behavioral data for var2 from ComputeTuning object
         # this is the discretized behavioral variable for tuning_var2 in time_period1
-        path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period1)
-        filename = path + os.sep + tuning_var2 + "_" + str(self.ET.nbins) + "bins.pkl"
-        # check file exists
-        if os.path.exists(filename):
-            with open(filename, "rb") as f:
-                CT_var2_t1 = pickle.load(f)
-        else:
-            logger.warning(f"Escape tuning to {tuning_var2} in {time_period1} file not found, computing now...")
-            computeET = ComputeEscapeTuning(tuning_var2 + " in " + time_period1, aefizz=aefizz)
-            computeET.extract_data_and_tuning(aefizz=aefizz)
-            computeET.compute_statistical_significance(aefizz=aefizz)
-            computeET.save_escape_tuning()
-            CT_var2_t1 = computeET.ET
+        CT_var2_t1 = load_or_compute_escape_tuning(aefizz, self.ET.nbins, tuning_var2, time_period1)
 
         self.ET.residual_var2_t1 = CT_var2_t1.discretized_var
         self.ET.residual_shift0_var2_t1 = CT_var2_t1.discretized_var_shift
 
         # load tuning data for var2 in exploration from ComputeTuning object
         # this is the firing rate in the tuning curve to var2 in time_period2
-        path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period2)
-        filename = path + os.sep + tuning_var2 + "_" + str(self.ET.nbins) + "bins.pkl"
-        # check file exists
-        if os.path.exists(filename):
-            with open(filename, "rb") as f:
-                CT_var2_t2 = pickle.load(f)
-        else:
-            logger.warning(f"Escape tuning to {tuning_var2} in {time_period2} file not found, computing now...")
-            computeET = ComputeEscapeTuning(tuning_var2 + " in " + time_period2, aefizz=aefizz)
-            computeET.extract_data_and_tuning(aefizz=aefizz)
-            computeET.compute_statistical_significance(aefizz=aefizz)
-            computeET.save_escape_tuning()
-            CT_var2_t2 = computeET.ET
+        CT_var2_t2 = load_or_compute_escape_tuning(aefizz, self.ET.nbins, tuning_var2, time_period2)
 
         self.ET.residual_fr_var2_t2 = CT_var2_t2.fr_full
         mid = int(np.shape(CT_var2_t2.y_fitted_shift)[0]/2)
