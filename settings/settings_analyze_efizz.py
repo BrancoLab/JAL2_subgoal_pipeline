@@ -30,14 +30,11 @@ Settings_ae = Settings_analyze_efizz(
     compartment_split=["all"],  # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     # If 'by_position', it will compute LDA decoding by arena position
-    # NOTE - number of bin edges NOT number of bins - need to refactor this
-    number_of_bins=13,  # number of bins for angles, e.g. 13 or 19 are good numbers
+    number_of_bins=13,  # number of bin edges for angles, e.g. 13 or 19 are good numbers
     # ------------- PCA model settings --------------------------
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     # ------------- LDA model settings --------------------------
-    epoch_num=6,  # number of epochs for cross validation
     use_firing_rate=True,
-    discriminant_type="linear",  # 'linear' or 'quadratic' or 'LSTM'
     exclude_proximal=5,  # this determines how far the mouse has to be from each point for head angle point decoding, if 0 LDA uses all head angles regardless of distance to the target
     exclude_hdir=False,
     dropout=False,  # this will iteratively dropout each cluster and recompute the LDA prediction accuracy to see how much that cluster matters

@@ -6,7 +6,7 @@ import numpy as np
 from loguru import logger
 import polars as pl
 import pickle
-import matplotlib.pyplot as plt
+import pandas as pd
 
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
@@ -30,6 +30,7 @@ from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_
 from behave_analysis.analyze.single_trial.single_trial_regression import SingleTrialRegression
 from behave_analysis.analyze.single_trial.preprocess_regression import PreprocessSingleTrialRegression
 from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pattern_TunED
+from behave_analysis.analyze.Replay.ReplayAnalysis import ReplayAnalysis
 
 class AnalyzeEfizz:
     """
@@ -61,6 +62,10 @@ class AnalyzeEfizz:
                 video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
                 self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
         
+        if analysis_name == 'Replay' & self.settings.replay_template_match_method == 'state_space_decoder':
+            # Load the spike dataframe
+            self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "good_spike_data.csv"))
+
         # load video_df, frame by cluster matrix and cluster_Ids
         if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay']:
             # load behavioral data
@@ -81,7 +86,7 @@ class AnalyzeEfizz:
                 logger.warning("Cluster Ids not found")
 
         # load tracking data (DLC output)
-        if analysis_name == 'LDA':
+        if analysis_name in ['LDA']:
             self.tracking_data = open_tracking_data(self.session)
 
         # Load the homings object
@@ -102,7 +107,7 @@ class AnalyzeEfizz:
         """A function to call all of the analysis models set in the settings file."""
         logger.info("Executing models")
 
-        # ----------------- Conduct single trial analysis ----------------------------
+        # ----------------- Conduct single trial (homing) analysis ----------------------------
 
         if analysis_name == 'single_trial':
             logger.info("Running single trial analysis")
@@ -185,7 +190,7 @@ class AnalyzeEfizz:
             LDA(aefizz = self)
             logger.success("LDA analysis complete")
 
-# ------------------------------ Compute LDA --------------------------------
+        # ------------------------------ Compute EscapePatternTuning --------------------------------
         if  analysis_name == 'EscapePattern':
             logger.info("Running Escape Pattern Tuning analysis")
 
@@ -193,16 +198,26 @@ class AnalyzeEfizz:
                 raise ValueError("No tuning variable specified for Escape Pattern Tuning analysis")
             
             if "TunED".casefold() in variable.casefold():
+                # this method uses TunED to disentangle tuning to two behavioral variables recorded simultaneously
                 escape_pattern_TunED(aefizz = self, variable = variable)
     
             else:
+                # this method computes tuning to behavioral variables (e.g. %escape, distance to shelter, speed)
+                # in different behavioral contexts (e.g. explore, homing, escape)
+                # it can also compute the residual tuning to these variables when subtracting the activity predicted by the tuning in different contexts
                 computeET = ComputeEscapeTuning(variable, aefizz=self)
                 computeET.extract_data_and_tuning(aefizz=self)
                 computeET.compute_statistical_significance(aefizz=self)
                 computeET.save_escape_tuning()
             
-
             logger.success("Escape Pattern Tuning analysis complete")
+
+        # ------------------------------ Find Replay --------------------------------
+        if analysis_name == 'Replay':
+            
+            logger.info("Running Replay analysis")
+
+            RA = ReplayAnalysis(aefizz = self)
 
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if analysis_name == 'PCA' or analysis_name == 'UMAP':
@@ -239,6 +254,8 @@ class AnalyzeEfizz:
         # ----------------------------- Persistent Homology ----------------------------------
         # if Settings.persistent_homology:
         #     persistent_homology(self.frame_by_cluster_matrix, self.video_df)
+
+        # ------------------------------ Classify cells (hdir, hsa) --------------------------------
 
         if analysis_name == 'classify_cells':
             """Call cell type specific classification functions

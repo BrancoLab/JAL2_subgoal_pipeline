@@ -3,7 +3,7 @@ used within the pipeline. Each data class outlines the structure or blueprint of
 As such each class below is just a shell"""
 
 from dataclasses import dataclass
-
+import numpy as np
 
 @dataclass(frozen=True)
 class Settings_process:
@@ -38,31 +38,6 @@ class Settings_track:
     tracking_file_location: str = None
     save_labeled_video: bool = False
     random_points: str = None
-
-
-@dataclass(frozen=True)
-class Settings_homings:
-    fast_speed: float
-    min_frames_between_trials: int
-    edge_proximity: int
-    fast_angular_speed: float
-    padding_duration: float
-    min_change_in_dist_to_shelter: float
-    max_time_within_session: float
-    threat_area_width: int
-    cum_threshold: int
-    speed_threshold: int
-    threat_area_height: int
-    # subgoal_locations: list
-    # duration_after_crossing: float
-    # by_experiment: bool = False
-    # experiments: list = None
-    by_session: bool = False
-    sessions: list = None
-    all_sessions: bool = False
-    redo_homings: bool = False
-    use_boris: bool = True
-
 
 @dataclass(frozen=True)
 class Settings_visualize:
@@ -102,6 +77,26 @@ class Settings_visualize:
 class Settings_analyze_behave:
     stim_type: str = "None"
     show_plots: bool = False
+    # homing settings
+    fast_speed: float = 10  # 15 cm/s seems quite slow no? In the paper philip used 10 cm/s
+    min_frames_between_trials: int = 40  # 1 second between trials to stop double counting split homings
+    edge_proximity: int = 100  # 10 pixels is 1 cm, so 100 pixels is 10 cm. Defining subgoal start homings
+    fast_angular_speed: float = np.pi / 2  # Turning towards some reference location speed in rad/s with a threshold of 60 degrees
+    padding_duration: float = 0.5  # How long should the box car filter be in seconds and how long should a homing event be
+    min_change_in_dist_to_shelter: float = 0.3  # (maybe %) How far does the mouse have to move towards the shelter to be considered a homing event
+    max_time_within_session: float = 2000  # How long is session in minutes - Ignore I think # TODO remove?
+    threat_area_width: int = 820
+    cum_threshold: int = 25  # How many cm does the mouse have to move when considering homing angle
+    speed_threshold: int = 15 # this determined when the mouse has actually srated running (after the initial head turn) 
+    threat_area_height: int = 275
+    by_session: bool = True
+    sessions: list = [0]
+    all_sessions: bool = False
+    redo_homings: bool = False # TODO remove!
+    use_boris: bool = True
+    # escape_settings
+    stim_type: str = "audio"
+    response_thresh: int = 5
 
 
 @dataclass(frozen=True)
@@ -115,10 +110,10 @@ class Settings_analyze_efizz:
     compartment_split: str = ""
     parallel_pool_linshit: bool = True
     # LDA settings
-    epoch_num: int = 6
+    epoch_num: int = 6 # number of epochs for cross validation
     number_of_bins: int = 19
     use_firing_rate: bool = True
-    discriminant_type: str = ""
+    discriminant_type: str = "linear" # 'linear' or 'quadratic' (or 'LSTM', not implemented yet)
     PCA_process: int = 15
     exclude_proximal: bool = False
     exclude_hdir: bool = False
@@ -153,11 +148,13 @@ class Settings_analyze_efizz:
     replay_search_window: int = 500  # in ms
     replay_time_period: str = "outside_shelter"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
     replay_rank_order_corr_method: str = "first_activity" # 'first_activity', 'weighted_avg'
+    occupancy_prior: str = "uniform"  # 'uniform' or 'empirical'
+    replay_template_match_method: str = "bayesian_decoder"  # 'rank_order_corr' or 'bayesian_decoder' or 'state_space_decoder'
+    replay_state_space_decoder_bin_size: float = .001  # in seconds, default 1ms
 
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ""
     efizz: bool = False
     homings: bool = False
-    response_thresh: int = 5
     regenerate_synthetic_data: bool = False
