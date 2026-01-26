@@ -11,13 +11,11 @@ import polars as pl
 from loguru import logger
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.homings.homings import (
+from behave_analysis.analyze.homings_escapes.homings import (
     get_avg_homing_angle_for_first15cm_of_run,
     get_start_and_end_locs,
     get_avg_speed,
 )
-from settings.settings_analyze_behave import settings_analyze_behave as settings_a
-from settings.settings_homings import settings_homings as settings_h
 from behave_analysis.analyze.behaviour.utils import identify_condition_of_trial
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 
@@ -61,8 +59,8 @@ class get_Escapes:
         if len(video_df) == 0:
             video_df = pl.read_csv(os.path.join(session.base_path, session.processed_path) + "\\" "full_video_dataframe.csv")
 
-        onset_frames = session.__dict__[settings_a.stim_type].onset_frames
-        stimulus_durations = session.__dict__[settings_a.stim_type].stimulus_durations
+        onset_frames = session.__dict__[settings.stim_type].onset_frames
+        stimulus_durations = session.__dict__[settings.stim_type].stimulus_durations
         if len(onset_frames) == 0:
             logger.warning("No escapes in this session!")
             self.escapes = Escapes(
@@ -138,7 +136,7 @@ class get_Escapes:
                     tracking_data,
                     on_fr,
                     session,
-                    settings_h,
+                    settings,
                     session.video.fps,
                     angles=head_theta.keys(),
                 )
@@ -249,7 +247,7 @@ def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
         return (0, [0,0], [0,0], 0, head_theta, 0, 0, homings)  # no escape found
 
 
-def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
+def escape_or_freeze(tracking_data, on_fr, session, settings, fps, angles):
     """A function that looks at the behaviour of mousie after stim"""
     # init vars
     head_theta = {}
@@ -260,7 +258,7 @@ def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
     mousie_speed = tracking_data["avg_Velocity"][int(on_fr) : int(on_fr) + (20 * session.video.fps)]
 
     # find escape
-    fast_mousie = np.hstack((np.zeros(fps), mousie_speed > settings_h.fast_speed))
+    fast_mousie = np.hstack((np.zeros(fps), mousie_speed > settings.fast_speed))
     run_onset = np.diff(
         np.convolve(
             fast_mousie,
@@ -280,7 +278,7 @@ def escape_or_freeze(tracking_data, on_fr, session, settings_h, fps, angles):
                 [on_fr],
                 [esc_offset + on_fr],
                 tracking_data,
-                settings_h.cum_threshold,
+                settings.cum_threshold,
             )
             esc_onset = esc_onset + on_fr
             esc_offset = esc_offset + on_fr

@@ -5,9 +5,9 @@ import os
 from loguru import logger
 import numpy as np
 
-from behave_analysis.homings.homings import get_Homings
-from settings.settings_homings import settings_homings as settings_h
-from behave_analysis.postprocess.trials.escapes import get_Escapes
+from behave_analysis.analyze.homings_escapes.homings import get_Homings
+from settings.settings_analyze_behave import settings_homings as settings_h
+from behave_analysis.analyze.homings_escapes.escapes import get_Escapes
 from settings.settings_postprocess import defined_settings_postprocess as settings
 
 

@@ -18,12 +18,12 @@ setuptools.setup(
     package_dir={'behave_analysis': 'behave_analysis'},
     entry_points={
         "console_scripts": [
-            "process = behave_analysis.run.run_process:process",
-            "postprocess = behave_analysis.run.run_postprocess:postprocess",
-            "analyze_efizz = behave_analysis.run.run_analyze_efizz:analyze_efizz",
-            "analyze_behave = behave_analysis.run.run_analyze_behave:analyze_behave",
-            "track = behave_analysis.run.run_track:track",
-            "visualize = behave_analysis.run.run_visualize:visualize",
+            "process = behave_analysis.run:process",
+            "postprocess = behave_analysis.run:postprocess",
+            "analyze = behave_analysis.run:analyze",
+            "track = behave_analysis.run:track",
+            "visualize = behave_analysis.run:visualize",    
+            "homings = behave_analysis.run:homings"       
         ]
     }
 )

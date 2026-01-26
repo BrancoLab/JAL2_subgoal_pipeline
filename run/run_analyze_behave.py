@@ -3,7 +3,7 @@ from loguru import logger
 from databank import experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
-from settings.Settings_analyze_behave import Settings
+from settings.settings_analyze_behave import Settings
 
 
 def analyze_behave():

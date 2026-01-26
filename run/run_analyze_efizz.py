@@ -19,7 +19,7 @@ analysis_name = 'EscapePattern'
 # 'classify_cells' - Cell Type Classification (currently only works for HD cells)
 # 'sklearn' - Sklearn Decoders
 # 'EscapePattern' - Escape Pattern Tuning Analysis
-    # also include variable: '<var> in <context>' or 'residual: <var1> in <context1> - <var2> in <context2>'
+    # variable: e.g. '<var> in <context>' or 'residual: <var1> in <context1> - <var2> in <context2>'
 
 
 def analyze_efizz(analysis_name=None, variable=None, overrides=None):
@@ -60,8 +60,6 @@ def settings_overrides(overrides=None):
 
     return settings
 
-# analyze_efizz(analysis_name='EscapePattern', 
-#               variable='bird_dist_shelter in explore')
 analyze_efizz(analysis_name='EscapePattern', 
               variable='tuned: escape in homing&escape - bird_dist_shelter in homing&escape')
 
