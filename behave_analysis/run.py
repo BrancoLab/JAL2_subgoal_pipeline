@@ -3,13 +3,12 @@ from loguru import logger
 from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t
 from settings.settings_visualize import Settings_visualize as settings_v
-from settings.settings_homings import settings_homings as settings_h
 from settings.settings_analyze_efizz import Settings_ae
 from settings.settings_analyze_behave import settings_analyze_behave as settings_a
 from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
-from behave_analysis.homings.homings import get_Homings
-from behave_analysis.homings.threshold_crossings import get_Threshold_crossings
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.threshold_crossings import get_Threshold_crossings
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
@@ -45,13 +44,12 @@ def track():
         Track(settings_t, session)
     logger.success("Tracking complete")
 
-def homings():
-    # TODO: Update to new databank
-    for session_ID in experiments_objects:
-        session = Process(session_ID).load_session()
-        get_Homings(settings_h, session)
-        get_Threshold_crossings(settings_h, session)
-        
+# def homings():
+#     for session_ID in experiments_objects:
+#         session = Process(session_ID).load_session()
+#         get_Homings(settings_a, session)
+#         get_Threshold_crossings(settings_a, session)
+
 def postprocess():
     """ 
     A function that outputs and saves a postprocessed object as a pickle file in the processed data folder.

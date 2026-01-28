@@ -9,9 +9,9 @@ import polars as pl
 
 from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
-from behave_analysis.analyze.homings_escapes.escapes import get_Escapes
+from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
 from behave_analysis.utils.data_loading import load_or_extract_homings
-from behave_analysis.homings.homings import Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings import Homings
 
 
 class BaseDataPostprocessor(ABC):
