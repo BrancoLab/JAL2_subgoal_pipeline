@@ -1,5 +1,5 @@
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
-from behave_analysis.homings.homings import cum_distance
+from behave_analysis.analyze.behaviour.homings_escapes.homings import cum_distance
 
 import os
 import numpy as np

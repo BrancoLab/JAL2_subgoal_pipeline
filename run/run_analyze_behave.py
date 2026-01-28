@@ -6,7 +6,7 @@ from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
 from settings.settings_analyze_behave import Settings
 
 
-def analyze_behave():
+def analyze_behave(analysis_name = None):
     """A function that calls all the analysis modules and is designed to be run last and for the whole dataset."""
     
     logger.info("The behaviour analysis pipeline has started")
@@ -19,8 +19,10 @@ def analyze_behave():
         session = Process(session_id).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_id))
 
-        AnalyzeBehave(session).behaviour_analyses()
+        abehave = AnalyzeBehave(session, Settings)
+        abehave.load_data(analysis_name)
+        abehave.behaviour_analyses(analysis_name)
 
     logger.success("Behaviour analysis pipeline complete")
 
-analyze_behave()
+analyze_behave('homings&escape')

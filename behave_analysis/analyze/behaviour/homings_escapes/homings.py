@@ -38,11 +38,11 @@ class Homings:
     start_locs: np.array  # x,y pixel locations of the start of each homing run
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
-    homing_angles_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
+    head_orientation_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
     hdir_at_start: np.array # head ori when homing is initiated
     spatial_efficiency: list  # the spatial efficiency of the homing
     trajectory_length: list # how long the trajectory of each homing was
-    homing_condition: list  # what condition the homing was in
+    condition: list  # what condition the homing was in
 
 class get_Homings:
     """Extract homings metrics from a session
@@ -58,7 +58,6 @@ class get_Homings:
     def __init__(self, settings, session, video_df = []):
         self.settings = settings
         self.session = session
-
         self.use_boris = False
         if settings.use_boris:
             boris_path = os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv"
@@ -79,6 +78,8 @@ class get_Homings:
         else:
             self.video_df = video_df
 
+    def get_homings(self):
+
         if self.use_boris:
             logger.info("Using manually labelled homings")
             self.onset_frames, self.stimulus_durations, self.offset_frames = self.load_manual_labels()
@@ -97,14 +98,16 @@ class get_Homings:
             start_locs=self.start_locs,
             end_locs=self.end_locs,
             avg_speed=self.avg_speed,
-            homing_angles_dic=self.homing_angles_dic,
+            head_orientation_dic=self.homing_angles_dic,
             hdir_at_start=self.hdir_at_start,
             spatial_efficiency=self.spatial_efficiency_values,
             trajectory_length=self.trajectory_length,
-            homing_condition=self.condition,
+            condition=self.condition,
         )
 
         self.save_session()
+
+        return self.homing
 
     # ------------------- SELECT FEATURES OF HOMINGS ----------------------
 
@@ -510,7 +513,7 @@ class get_Homings:
         folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings"))
         file_name = os.path.join(folder, "homings_obj.pkl")
         with open(file_name, "wb") as dill_file:
-            pickle.dump(self.session.homing, dill_file)
+            pickle.dump(self.homing, dill_file)
         logger.success("Homings object pickle saved")
 
 ##-------- HOMING FEATURE FUNCTIONS--------------

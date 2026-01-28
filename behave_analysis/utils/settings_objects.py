@@ -90,7 +90,7 @@ class Settings_analyze_behave:
     speed_threshold: int = 15 # this determined when the mouse has actually srated running (after the initial head turn) 
     threat_area_height: int = 275
     by_session: bool = True
-    sessions: list = [0]
+    # sessions: list
     all_sessions: bool = False
     redo_homings: bool = False # TODO remove!
     use_boris: bool = True

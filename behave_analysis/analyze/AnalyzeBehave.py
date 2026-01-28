@@ -17,16 +17,15 @@ from behave_analysis.analyze.behaviour.plot_homings import (
     trial_speed_hist,
 )
 from behave_analysis.utils.data_loading import load_or_extract_homings, load_or_extract_escapes
-from settings.settings_analyze_behave import settings_analyze_behave as settings
-from behave_analysis.analyze.homings_escapes.homings import get_Homings
-from behave_analysis.analyze.homings_escapes.escapes import get_Escapes
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
 
 class AnalyzeBehave:
     """
     A class that analyzes mouse behavior in a session
     """
 
-    def __init__(self, session):
+    def __init__(self, session, settings):
         logger.info("Initializing AnalyzeBehave")
         self.dir = make_directory(os.path.join(session.base_path, session.processed_path) + "\\" + "analyze_behave")
         self.session = session
@@ -42,11 +41,6 @@ class AnalyzeBehave:
                 self.esc_obj, "stimulus_durations"
             ), "Escape object must have 'onset_frames' and 'stimulus_durations'."
             assert len(self.esc_obj.escape_onset_frames) > 0, "No escape trials found for this session."
-            self.onsets = self.esc_obj.escape_onset_frames
-            self.conditions = self.esc_obj.escape_condition
-            self.offsets = self.esc_obj.escape_end_frames
-            self.starting_hdir = self.esc_obj.start_head_ori
-            self.head_angles_dic = self.esc_obj.head_orientation
 
         if analysis_name == "homings_plots":
             self.homings_obj = load_or_extract_homings(self.session)
@@ -54,11 +48,6 @@ class AnalyzeBehave:
             assert hasattr(self.homings_obj, "onset_frames") and hasattr(
                 self.homings_obj, "stimulus_durations"
             ), "Homings object must have 'onset_frames' and 'stimulus_durations'."
-            self.onsets = self.homings_obj.onset_frames
-            self.conditions = self.homings_obj.homing_condition
-            self.offsets = self.homings_obj.offset_frames
-            self.starting_hdir = self.homings_obj.hdir_at_start
-            self.head_angles_dic = self.homings_obj.homing_angles_dic
 
         if analysis_name == 'homings&escape':
             # load behavioral data
@@ -73,8 +62,8 @@ class AnalyzeBehave:
         if analysis_name == 'homings&escape':
             """Let's check out some homings and threshold crossings."""
             logger.info("The homings pipeline has started")
-            homings_obj = get_Homings(settings=self.settings, session=self.session)
-            get_Escapes(settings=self.settings, session=self.session, tracking_data = self.tracking_data, video_df = self.video_df, homings = homings_obj.session.homing)
+            homings_obj = get_Homings(settings=self.settings, session=self.session).get_homings()
+            get_Escapes(settings=self.settings, session=self.session, tracking_data = self.tracking_data, video_df = self.video_df, homings = homings_obj).get_escape()
             logger.success("Homing & escapes pipeline complete")
 
 
@@ -92,7 +81,7 @@ class AnalyzeBehave:
                                 trial_obj.stimulus_durations,
                                 self.session,
                                 self.settings,
-                                self.conditions,
+                                trial_obj.condition,
                                 self.tracking_data,
                                 trial_type=trials,
                                 plotting=True,
@@ -100,15 +89,15 @@ class AnalyzeBehave:
                             )
 
             plot_the_start_of_each_run(session=self.session,
-                                        onsets=self.onsets,
+                                        onsets=trial_obj.onset_frames,
                                         hdir_at_start=self.starting_hdir,
-                                        all_conditions=self.conditions,
+                                        all_conditions=trial_obj.condition,
                                         tracking_data=self.tracking_data,
                                         title=trials)
 
             plot_the_probability_of_start_locations(session=self.session,
-                                                    onset_frames=self.onsets,
-                                                    all_conditions=self.conditions,
+                                                    onset_frames=trial_obj.onset_frames,
+                                                    all_conditions=trial_obj.condition,
                                                     tracking_data=self.tracking_data,
                                                     title=trials,
                                                 )
@@ -118,29 +107,29 @@ class AnalyzeBehave:
                             title=trials)
 
             trial_initial_heading_angle(session=self.session,
-                                        onsets=self.onsets,
-                                        offsets=self.offsets,
+                                        onsets=trial_obj.onset_frames,
+                                        offsets=trial_obj.offset_frames,
                                         head_angle=self.head_angles_dic["avg_hdir"],
-                                        hdir_at_start=self.starting_hdir,
-                                        all_conditions=self.conditions,
+                                        hdir_at_start=trial_obj.hdir_at_start,
+                                        all_conditions=trial_obj.condition,
                                         tracking_data=self.tracking_data,
                                         title=trials,
                                     )
 
             trajectory_by_target(session=self.session,
-                                onsets=self.onsets,
-                                offsets=self.offsets,
-                                head_angle=self.head_angles_dic["avg_hdir"],
-                                all_conditions=self.conditions,
+                                onsets=trial_obj.onset_frames,
+                                offsets=trial_obj.offset_frames,
+                                head_angle=trial_obj.head_orientation_dic["avg_hdir"],
+                                all_conditions=trial_obj.condition,
                                 tracking_data=self.tracking_data,
                                 title=trials,
                             )
 
             hist_initial_heading_angle(session=self.session,
-                                        onsets=self.onsets,
-                                        offsets=self.offsets,
-                                        head_angle=self.head_angles_dic["avg_hdir"],
-                                        all_conditions=self.conditions,
+                                        onsets=trial_obj.onset_frames,
+                                        offsets=trial_obj.offset_frames,
+                                        head_angle=trial_obj.head_orientation_dic["avg_hdir"],
+                                        all_conditions=trial_obj.condition,
                                         tracking_data=self.tracking_data,
                                         title=trials,
                                     )

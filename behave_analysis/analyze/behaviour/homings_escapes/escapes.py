@@ -11,7 +11,7 @@ import polars as pl
 from loguru import logger
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.analyze.homings_escapes.homings import (
+from behave_analysis.analyze.behaviour.homings_escapes.homings import (
     get_avg_homing_angle_for_first15cm_of_run,
     get_start_and_end_locs,
     get_avg_speed,
@@ -26,16 +26,16 @@ class Escapes:
 
     stim_onset_frames: list  # when was the stim presented
     stimulus_durations: list
-    escape_onset_frames: list  # when did the actual escape start
-    escape_end_frames: list
+    onset_frames: list  # when did the actual escape start
+    offset_frames: list
     escape_latency_sec: list  # how many seconds after stim onset did the mouse escape
     freeze_bool: list  # did the mouse freeze?
     start_locs: np.array  # x,y pixel locations of the start of each homing run
     end_locs: np.array  # x,y pixel locations of the end of each homing run
     avg_speed: np.array  # Average speed in cm/s across homing
-    head_orientation: dict  # In the first 15cm of the homing run, avg angle to reference locations
-    start_head_ori: np.array
-    escape_condition: list  # the condition the escape happened in e.g. 'shelter_only', 'barrier_pre_flip'
+    head_orientation_dic: dict  # In the first 15cm of the homing run, avg angle to reference locations
+    hdir_at_start: np.array
+    condition: list  # the condition the escape happened in e.g. 'shelter_only', 'barrier_pre_flip'
     trajectory_length: list  # how long the path of each escape was
     # optimal_trajectory_length: list
     spatial_efficiency: list
@@ -52,34 +52,39 @@ class get_Escapes:
     If an 'escape' is found in the homings object, it will be removed from the homings object
     """
 
-    def __init__(self, settings, session, tracking_data, video_df, homings):
-
+    def __init__(self, settings, session, tracking_data=[], video_df=[], homings=None):
+        self.settings = settings
+        self.session = session
+        self.homings = homings
+        self.tracking_data = tracking_data
+        self.video_df = video_df
         if len(tracking_data) == 0:
-            tracking_data = open_tracking_data(session)
+            self.tracking_data = open_tracking_data(session)
         if len(video_df) == 0:
-            video_df = pl.read_csv(os.path.join(session.base_path, session.processed_path) + "\\" "full_video_dataframe.csv")
+            self.video_df = pl.read_csv(os.path.join(session.base_path, session.processed_path) + "\\" "full_video_dataframe.csv")
 
-        onset_frames = session.__dict__[settings.stim_type].onset_frames
-        stimulus_durations = session.__dict__[settings.stim_type].stimulus_durations
+    def get_escape(self):
+        onset_frames = self.session.__dict__[self.settings.stim_type].onset_frames
+        stimulus_durations = self.session.__dict__[self.settings.stim_type].stimulus_durations
         if len(onset_frames) == 0:
             logger.warning("No escapes in this session!")
             self.escapes = Escapes(
                 stim_onset_frames=[],
                 stimulus_durations=[],
-                escape_onset_frames=[],
-                escape_end_frames=[],
+                onset_frames=[],
+                offset_frames=[],
                 escape_latency_sec=[],
                 freeze_bool=[],
-                escape_condition=[],  # what condition did the escape happen in e.g. 'shelter_only'
+                condition=[],  # what condition did the escape happen in e.g. 'shelter_only'
                 trajectory_length=[],
                 spatial_efficiency=[],
-                head_orientation=[],
+                head_orientation_dic=[],
                 start_locs=[],
                 end_locs=[],
                 avg_speed=[],
-                start_head_ori=[],
+                hdir_at_start=[],
             )
-            self.save_session(session)  # save escapes to pickle
+            self.save_session(self.session)  # save escapes to pickle
             return
 
         if isinstance(onset_frames[0], np.ndarray):
@@ -97,14 +102,14 @@ class get_Escapes:
         head_ori_at_start = np.zeros_like(onset_frames, dtype=float)
         head_theta = {}
         condition = []
-        for key in homings.homing_angles_dic.keys():
+        for key in self.homings.head_orientation_dic.keys():
             if key not in head_theta:
                 head_theta[key] = []
 
         # find escape onset
         for c_fr, on_fr in enumerate(onset_frames):
             # this is always the head ori when the stim was first played
-            head_ori_at_start[c_fr] = tracking_data["hdir"][on_fr]
+            head_ori_at_start[c_fr] = self.tracking_data["hdir"][on_fr]
 
             (
                 esc_offset[c_fr],
@@ -114,14 +119,14 @@ class get_Escapes:
                 head_theta,
                 esc_onset[c_fr],
                 esc_latency[c_fr],
-                homings,
-            ) = check_if_in_homing_obj(homings, on_fr, settings, session, head_theta)
+                self.homings,
+            ) = check_if_in_homing_obj(self.homings, on_fr, self.settings, self.session, head_theta)
 
             # if no homing after escape, did the mouse freeze?
             if esc_onset[c_fr] == 0:  # that means that it wasn't a homing
                 # where was mousie when stim turned on?
                 start_locs[c_fr, :], end_locs[c_fr, :] = get_start_and_end_locs(
-                    tracking=tracking_data,
+                    tracking=self.tracking_data,
                     onset_frames=[on_fr],
                     offset_frames=[on_fr],
                 )
@@ -133,30 +138,30 @@ class get_Escapes:
                     ht,
                     avg_speed[c_fr],
                 ) = escape_or_freeze(
-                    tracking_data,
-                    on_fr,
-                    session,
-                    settings,
-                    session.video.fps,
+                    tracking_data=self.tracking_data,
+                    on_fr=on_fr,
+                    session=self.session,
+                    settings=self.settings,
+                    fps=self.session.video.fps,
                     angles=head_theta.keys(),
                 )
-                for key in homings.homing_angles_dic.keys():
+                for key in self.homings.head_orientation_dic.keys():
                     head_theta[key].append(ht[key])
                 if np.isnan(esc_onset[c_fr]):
                     esc_latency[c_fr] = np.nan
                     freeze[c_fr] = 1
                 else:
-                    esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / session.video.fps
+                    esc_latency[c_fr] = (esc_onset[c_fr] - on_fr) / self.session.video.fps
 
-            condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(on_fr)), session))
+            condition.append(identify_condition_of_trial(self.video_df.filter(self.video_df["frames"] == int(on_fr)), self.session))
 
         spatial_efficiency_values, trajectory_length = spatial_efficiency(
             onset_frames,
             stimulus_durations,
-            session,
-            settings,
+            self.session,
+            self.settings,
             condition,
-            tracking_data,
+            self.tracking_data,
             trial_type="Escapes",
             plotting=False,
         )
@@ -164,21 +169,23 @@ class get_Escapes:
         self.escapes = Escapes(
             stim_onset_frames=onset_frames,
             stimulus_durations=stimulus_durations,
-            escape_onset_frames=esc_onset,
-            escape_end_frames=esc_offset,
+            onset_frames=esc_onset,
+            offset_frames=esc_offset,
             escape_latency_sec=esc_latency,
             freeze_bool=freeze,
-            escape_condition=condition,  # what condition did the escape happen in e.g. 'shelter_only'
+            condition=condition,  # what condition did the escape happen in e.g. 'shelter_only'
             trajectory_length=trajectory_length,
             spatial_efficiency=spatial_efficiency_values,
-            head_orientation=head_theta,
+            head_orientation_dic=head_theta,
             start_locs=start_locs,
             end_locs=end_locs,
             avg_speed=avg_speed,
-            start_head_ori=head_ori_at_start,
+            hdir_at_start=head_ori_at_start,
         )
 
-        self.save_session(session)  # save escapes to pickle
+        self.save_session(self.session)  # save escapes to pickle
+
+        return self.escapes
 
     def save_session(self, session) -> None:
         """Save ecape object as a pickle file within the session folder"""
@@ -206,8 +213,8 @@ def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
         start_locs = homings.start_locs[h_idx]
         end_locs = homings.end_locs[h_idx]
         avg_speed = homings.avg_speed[h_idx]
-        for key in homings.homing_angles_dic.keys():
-            head_theta[key].append(homings.homing_angles_dic[key][h_idx])
+        for key in homings.head_orientation_dic.keys():
+            head_theta[key].append(homings.head_orientation_dic[key][h_idx])
 
         if np.logical_and(
             (h_nearest_to_stim - on_fr) > 0,
@@ -224,9 +231,9 @@ def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
 
         # remove this homing from the homing object because it's an escape!
         for key in homings.__dict__:
-            if key == "homing_angles_dic":
-                for key in homings.homing_angles_dic.keys():
-                    homings.homing_angles_dic[key] = np.delete(homings.homing_angles_dic[key], h_idx)
+            if key == "head_orientation_dic":
+                for key in homings.head_orientation_dic.keys():
+                    homings.head_orientation_dic[key] = np.delete(homings.head_orientation_dic[key], h_idx)
             else:
                 if isinstance(homings.__dict__[key], list):
                     del homings.__dict__[key][h_idx]
