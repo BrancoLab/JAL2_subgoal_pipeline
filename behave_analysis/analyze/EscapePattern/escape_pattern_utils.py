@@ -4,10 +4,8 @@ import numpy as np
 import re
 from loguru import logger
 import os
-import dill as pickle
 
-from settings.settings_analyze_efizz import Settings_ae as settings
-from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
+from behave_analysis.utils.creating_directories import make_directory
 
 def define_bin_edges(settings, tuning_var):
     """Define bin edges based on settings.tuning_var and settings.tuning_bins."""
@@ -66,7 +64,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time):
     if "escape" in escape_pattern_time:
         # pull out escape onsets and calculate offset estimate based on stimulus duration (assuming 40 fps) - mouse will likely lon gbe in shelter by then
         esc_ons = check_not_list(aefizz.session.audio.onset_frames)
-        st = [x * 40 for x in check_not_list(aefizz.session.audio.stimulus_durations)]
+        st = [x * aefizz.session.video.fps for x in check_not_list(aefizz.session.audio.stimulus_durations)]
         esc_offs = (np.add(esc_ons, st)).astype(int)
 
     if "homing" in escape_pattern_time:
@@ -112,15 +110,29 @@ def select_onset_offsets_in_shift_vector(ET, shift_vector):
 
     return filtering_vector.astype(bool)
 
+def homing_escape_boolean_vectors(aefizz):
+    """This function creates two boolean vectors for homing and escape periods"""
+    homing_period =  np.zeros(len(aefizz.video_df), dtype=bool)
+    for onset, offset in zip(aefizz.homings_object.onset_frames, aefizz.homings_object.offset_frames):
+        homing_period[int(onset): int(offset) + 1] = True
+    escape_period =  np.zeros(len(aefizz.video_df), dtype=bool)
+    for onset, duration in zip(aefizz.session.audio.onset_frames, aefizz.session.audio.stimulus_durations):
+        escape_period[int(onset): int(onset + int(duration * aefizz.session.video.fps))] = True
+
+    return homing_period, escape_period
+
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 
-def create_discretized_behave_var(aefizz, ET, x, y, condition, tuning_var, homing_vector):
+def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, homing_vector = [], bin_edges = [], settings = None):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
         aefizz: AnalyzeEfizz object
-        ET: EscapeTuning object
         x: mouse x position vector
         y: mouse y position vector
+        condition: vector of condition at each time point
+        tuning_var: string defining which behavioral variable to compute
+        homing_vector: boolean vector defining homing periods (if tuning_var requires it)
+        bin_edges: edges of bins to discretize variable into (if empty, will be defined based on settings)
     """
     # compute distance to shelter along the shortest path (i.e. around barrier if present)
     if tuning_var in ["distance_shelter"]:
@@ -146,6 +158,8 @@ def create_discretized_behave_var(aefizz, ET, x, y, condition, tuning_var, homin
             dd = compute_escape_trajectory(x[first : first + hs], y[first : first + hs])
             var[first : first + hs] = dd / np.amax(dd)
             first += hs
+        if (len(bin_edges) == 0) & isinstance(settings.escape_tuning_bins, int):
+            bin_edges = define_bin_edges(settings, tuning_var)
 
     # use speed or y position directly
     elif tuning_var == "speed" or tuning_var == "y_pos":
@@ -154,16 +168,16 @@ def create_discretized_behave_var(aefizz, ET, x, y, condition, tuning_var, homin
             bin_range = [0, np.amax(var), 1]
         elif tuning_var == "y_pos":
             var = y
-            bin_range = [np.amin(var), np.amax(var), np.amax(var) / settings.tuning_bins]
+            bin_range = [np.amin(var), np.amax(var), np.amax(var) / settings.escape_tuning_bins]
         # interpolate!
         current_time = np.arange(len(aefizz.video_df["speed"].to_numpy()))
         new_time = np.arange(0, len(aefizz.video_df["speed"].to_numpy()), 1 / settings.escape_pattern_interpolation_mult)
         var = np.interp(new_time, current_time, var)
-        if (not ET.bin_edges) & isinstance(settings.tuning_bins, int):
-            ET.bin_edges = np.arange(bin_range[0], bin_range[1], bin_range[2])
+        if (len(bin_edges) == 0) & isinstance(settings.escape_tuning_bins, int):
+            bin_edges = np.arange(bin_range[0], bin_range[1], bin_range[2])
 
     # discretize variable into bins
-    discretized_var = discretize(var, ET.bin_edges)
+    discretized_var = discretize(var, bin_edges)
 
     return discretized_var
 
@@ -232,15 +246,15 @@ def build_shift_vector(aefizz, ET):
     # define shifts based on settings (in seconds, needs to be doubled to shift into both past and future)
     # NB: have a min step of 3 seconds, and then steps of 10s, not sure why
     shifts_one_sided = np.arange(
-        settings.ep_linshift_min_step * mult,
-        settings.ep_linshift_step * mult + ((settings.ep_linshift_step_n / 2) * settings.ep_linshift_step * mult),
-        settings.ep_linshift_step * mult,
+        aefizz.settings.ep_linshift_min_step * mult,
+        aefizz.settings.ep_linshift_step * mult + ((aefizz.settings.ep_linshift_step_n / 2) * aefizz.settings.ep_linshift_step * mult),
+        aefizz.settings.ep_linshift_step * mult,
     )
 
     if ET.escape_pattern_time == "homing&escape":
         # check that this gives us a minimum number of homings/escapes
         all_ons = np.where(np.diff(ET.homing_vector.astype(int)) == 1)[0] + 1  # homing onsets
-        if np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1])) < settings.ep_linshift_min_homings:
+        if np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1])) < aefizz.settings.ep_linshift_min_homings:
             mid_shelter = [
                 all_ons[int(np.round(len(all_ons[all_ons < shelter]) / 3))] - 1,  # starting a third of the way into the homings
                 (all_ons[int(np.round(len(all_ons[all_ons < shelter]) / 3))] - 1) + int(shelter / 3),
@@ -250,7 +264,7 @@ def build_shift_vector(aefizz, ET):
             if mid_shelter[1] > (shelter - np.amax(shifts_one_sided)):
                 mid_shelter = [x - (mid_shelter[1] - (shelter - np.amax(shifts_one_sided))) for x in mid_shelter]
             print("Number of homings in shelter_only centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1]))))
-        if np.sum(np.logical_and(all_ons > mid_bar[0], all_ons < mid_bar[1])) < settings.ep_linshift_min_homings:
+        if np.sum(np.logical_and(all_ons > mid_bar[0], all_ons < mid_bar[1])) < aefizz.settings.ep_linshift_min_homings:
             h_bar = all_ons[np.logical_and(all_ons > shelter, all_ons < bar_in)]
             mid_bar = [h_bar[int(np.round(len(h_bar) / 3))] - 1, int(shelter + h_bar[int(np.round(len(h_bar) / 3))] - 1)]
             if mid_bar[0] < (shelter + np.amax(shifts_one_sided)):
@@ -258,7 +272,7 @@ def build_shift_vector(aefizz, ET):
             if mid_bar[1] > (bar_in - np.amax(shifts_one_sided)):
                 mid_bar = [bar_in - np.amax(shifts_one_sided) - ((bar_in - shelter) / 3), bar_in - np.amax(shifts_one_sided)]
             print("Number of homings in barrier centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_bar[0], all_ons < mid_bar[1]))))
-        if np.sum(np.logical_and(all_ons > mid_flip[0], all_ons < mid_flip[1])) < settings.ep_linshift_min_homings:
+        if np.sum(np.logical_and(all_ons > mid_flip[0], all_ons < mid_flip[1])) < aefizz.settings.ep_linshift_min_homings:
             h_flip = all_ons[np.logical_and(all_ons > bar_in, all_ons < ttime)]
             mid_flip = [h_flip[int(np.round(len(h_flip) / 3))] - 1, int(bar_in + h_flip[int(np.round(len(h_flip) / 3))] - 1)]
             if mid_flip[0] < (bar_in + np.amax(shifts_one_sided)):
@@ -331,25 +345,20 @@ def parse_side(side):
     var, ctx = side.split(" in ", 1)
     return var.strip(), ctx.strip()
 
-def load_or_compute_escape_tuning(aefizz, nbins, tuning_var, time_period):
-    """
-    This function loads in or computes the escape tuning curves for a given variable
-    INPUTS:
-        aefizz: AnalyzeEfizz object
-        tuning_var: string of the variable to compute the tuning curve for
-        """
-    path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period)
-    filename = path + os.sep + tuning_var + "_" + str(nbins) + "bins.pkl"
-    # check file exists
-    if os.path.exists(filename):
-        with open(filename, "rb") as f:
-            EscapeTuningObject = pickle.load(f)
+def saving_path_and_file(aefizz, variable):
+    """This function creates the saving path and file name for escape tuning based on variable"""
+    
+    if "residual" in variable:
+        tuning_var, escape_pattern_time, _, _ = parse_residual_string(variable)
     else:
-        logger.warning(f"Escape tuning to {tuning_var} in {time_period} file not found, computing now...")
-        computeET = ComputeEscapeTuning(tuning_var + " in " + time_period, aefizz=aefizz)
-        computeET.extract_data_and_tuning(aefizz=aefizz)
-        computeET.compute_statistical_significance(aefizz=aefizz)
-        computeET.save_escape_tuning()
-        EscapeTuningObject = computeET.ET
+        tuning_var, escape_pattern_time = parse_side(variable)
 
-    return EscapeTuningObject
+    savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", escape_pattern_time))
+    
+    # filename building
+    res = ''
+    if "residual" in variable:
+        res = 'residual_'
+    filename = savepath + os.sep + res + tuning_var + "_" + str(aefizz.settings.escape_tuning_bins) + "bins.pkl"
+        
+    return savepath, filename
