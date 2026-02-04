@@ -170,10 +170,10 @@ class BaseDataPostprocessor(ABC):
             barrier_flipped = np.zeros(len(OutofShelterIdx)) == 1
             print("barrier was not flipped in this session")
 
-        # find the escape periods
+        # find the escape periods: from stim onset to offset
         EscapePeriod = np.zeros_like(OutofShelterIdx)
-        for onsets in self.session.audio.onset_frames:
-            EscapePeriod[(onsets[0] - self.session.video.fps) : (onsets[0] + (10 * self.session.video.fps))] = 1
+        for (onsets, duration) in zip(self.session.audio.onset_frames, self.session.audio.stimulus_durations):
+            EscapePeriod[onsets[0] : (onsets[0] + int(duration * self.session.video.fps))] = 1
 
         # make a video dataframe where for each video frame:
         video_df = pl.DataFrame(
@@ -220,7 +220,7 @@ class BaseDataPostprocessor(ABC):
         onset_frames = homing_obj.onset_frames
         offset_frames = homing_obj.offset_frames
         for onset, offset in zip(onset_frames, offset_frames):
-            homing_bool[onset - 1 : offset - 1] = True
+            homing_bool[onset: offset + 1] = True
 
         video_df = video_df.hstack([pl.Series("homingPeriod", homing_bool)])
 

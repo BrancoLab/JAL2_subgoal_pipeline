@@ -62,7 +62,7 @@ class AnalyzeEfizz:
                 video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
                 self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
         
-        if analysis_name == 'Replay' & self.settings.replay_template_match_method == 'state_space_decoder':
+        if (analysis_name == 'Replay') & (self.settings.replay_template_match_method == 'state_space_decoder'):
             # Load the spike dataframe
             self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "good_spike_data.csv"))
 
@@ -218,6 +218,12 @@ class AnalyzeEfizz:
             logger.info("Running Replay analysis")
 
             RA = ReplayAnalysis(aefizz = self)
+            if self.settings.replay_template_match_method == 'rank_order_correlation':
+                RA.find_replay_rank_order_correlation()
+            elif self.settings.replay_template_match_method == 'bayesian_decoder':
+                RA.find_replay_bayesian_decoder()
+            elif self.settings.replay_template_match_method == 'state_space_decoder':
+                RA.find_replay_state_space_decoder()
 
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if analysis_name == 'PCA' or analysis_name == 'UMAP':

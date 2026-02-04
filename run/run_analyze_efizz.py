@@ -6,8 +6,7 @@ from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from settings.settings_analyze_efizz import Settings_ae
 import copy
 
-analysis_name = 'EscapePattern'
-# model_name options:
+# analysis_name options:
 # 'LDA' - Linear Discriminant Analysis
     # variable: 'all_angles', 'all_distance','all_vectors' it will run it for all possible angles, distances, vectors
     # else:  list of angles ['hsa','hdir','h_postflipbar_a','h_preflipbar_a','h_bar_centre_a', 'randP']
@@ -60,6 +59,8 @@ def settings_overrides(overrides=None):
 
     return settings
 
-analyze_efizz(analysis_name='EscapePattern', 
-              variable='tuned: escape in homing&escape - bird_dist_shelter in homing&escape')
+analyze_efizz(analysis_name='Replay')
+# analyze_efizz(analysis_name='classify_cells')
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='tuned: escape in homing&escape - bird_dist_shelter in homing&escape')
 

@@ -54,7 +54,7 @@ def load_homing(session, n_frames):
     onset_frames = homings.onset_frames
     offset_frames = homings.offset_frames
     for onset, offset in zip(onset_frames, offset_frames):
-        homing_bool[onset - 1 : offset - 1] = True
+        homing_bool[onset: offset + 1] = True
 
     return homings.onset_frames, homings.offset_frames, homing_bool
 
