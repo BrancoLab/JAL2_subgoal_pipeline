@@ -1,26 +1,29 @@
 import numpy as np
 import pandas as pd
+from loguru import logger
 
+sampling_rate = 30000  # Hz
 
-def prepare_state_space_decoder_data(spike_df, time_mask, bin_width):
+def prepare_state_space_decoder_data(spike_df, time_mask, session, bin_width):
     """Prepare data for state space decoder analysis.
 
     Args:
         spike_df (pd.DataFrame): DataFrame containing spike data with columns 'spike_aligned_to_frame', 'spike_clusters', and 'aligned_spike_times'.
         session (object): Session object containing camera trigger information.
         time_mask (np.ndarray): Boolean array indicating valid time points.
-        sig_cells (np.ndarray): Boolean array indicating significant cells for each condition.
-        preferred_tuning (np.ndarray): Array of preferred tuning values for cells.
-        cond (int): Condition index to filter data.
         bin_width (float, optional): Width of time bins in seconds. Defaults to 0.1.
 
     Returns:
-        tuple: count_array, spikes, time, time_bin_to_frame
+        spikes: np.ndarray: binary spike matrix of shape (n_neurons, n_time_bins)
+        time: np.ndarray: time vector corresponding to the time bins
+        time_bin_to_frame: dict: mapping from time bin indices to frame indices
 
     # TODO: the alignment is not perfect,
     # there is a difference of 1 frame between time_bin_to_frame and frame_for_bin at bin transition times
     # this is likely due to rounding errors in the binning process?!
     """
+    logger.warning("This function has not been fully debugged! Check the alignment between time bins and frames.")
+    # 1. create a spike matrix (neurons x time bins) at the new bin_width resolution
     spike_frames = spike_df["spike_aligned_to_frame"].to_numpy().astype(int) - 1
     mask = time_mask[spike_frames]
     spike_df_filt = spike_df[mask].copy()
@@ -34,10 +37,20 @@ def prepare_state_space_decoder_data(spike_df, time_mask, bin_width):
     count_array = (count_array > 0).astype(int)  # still have more than one spike in some cases...
     spikes = count_array
 
-    # create a time vector in seconds
+    # 2. create a time vector in seconds
     time = np.arange(0, spikes.shape[1] / (1 / bin_width), bin_width)
 
-    return spikes, time
+    # 3. create a mapping from time bin to frame index for realigning to behavior
+
+    # Calculate the start time (in samples) for each time_bin
+    time_bin_starts_sec = np.array(count_matrix.columns) * bin_width
+    time_bin_starts_samples = (time_bin_starts_sec * sampling_rate).astype(int)
+
+    # For each bin, find the corresponding frame (the last frame whose trigger is <= bin start)
+    frame_for_bin = np.searchsorted(session.camera_trigger.frame_trigger_onsets_idx, 
+                                    time_bin_starts_samples, side='right')
+
+    return spikes, time, frame_for_bin
 
 
 def df_to_count_array(df, all_clusters, columns, fill_time=[]):

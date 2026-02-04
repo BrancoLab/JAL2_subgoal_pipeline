@@ -1,34 +1,29 @@
 import numpy as np
-from pathlib import Path
+from loguru import logger
 import dill as pickle
 import os
 
-from behave_analysis.process.process import Process
-from behave_analysis.analyze.EscapePattern.escape_pattern_utils import load_or_compute_escape_tuning
+from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import load_or_compute_escape_tuning
 
-
-def load_hdir_cells(experiments_objects, session_names):
+def load_hdir_cells(session):
     """Loads in the pickle with all the hdir cells and the good cluster Ids from the sessions in the experiments_objects list.
     INPUTS:
-        experiments_objects: list of session objects
-        session_names: list of session names (must match the experiments_objects list)
+        session: session for which to load hdir cells
     RETURNS:
-        hdir_sesh: list of which good clusters are hdir cells for each session
+        hdir: list of which good clusters are hdir cells 
     """
-    dir = Path("Z:\Jasmine_Laurence\single_trial_overview\decoding_spatial_efficiency\head_direction_cells.pkl")
-    with open(dir, "rb") as dill_file:
-        hdir = pickle.load(dill_file)
+    file_name = os.path.join(session.base_path, session.processed_path, "cells", "hdir_cells.pkl")
+    
+    # assert os.path.exists(file_name), "No hdir_cells.pkl file found. Please run the head direction classification first."
+    try:
+        with open(file_name, "rb") as dill_file:
+            hdir = pickle.load(dill_file)
 
-    hdir_sesh = []
+    except FileNotFoundError:
+        logger.warning("Hdir file not found, returning empty list.")
+        hdir = []
 
-    for idx, exp in enumerate(experiments_objects):
-        session = Process(exp).load_session()
-        clu_Ids = np.load(os.path.join(session.base_path, session.processed_path) + "\\" + "good_cluster_Ids.npy")
-
-        hdir_n = hdir[session_names[idx]]
-        hdir_sesh.append([int(np.where(clu_Ids == int(h))[0][0]) for h in hdir_n])
-        
-    return hdir_sesh
+    return hdir
 
 
 def load_escape_tuned_cells(aefizz):
@@ -42,14 +37,14 @@ def load_escape_tuned_cells(aefizz):
     time_period = "homing&escape"
 
     # 1. load in escape homing/escape tuning curve
-    CT = load_or_compute_escape_tuning(aefizz, aefizz.settings.escape_tuning_bins, var, time_period)
+    CT = load_or_compute_escape_tuning(aefizz, var + ' in ' + time_period)
     # identify cells that are sig tuned to %escape in homing/escape
     shift0 = int(np.shape(CT.y_fitted_shift)[0] / 2)
     sig_escape = CT.params_shifts[shift0, :, :, 0] > np.nanpercentile(CT.params_shifts[:, :, :, 0], 95, axis=0)
 
     # 2. load in residuals data
-    var = "residual_escape"
-    CT = load_or_compute_escape_tuning(aefizz, aefizz.settings.escape_tuning_bins, var, time_period)
+    var = "residual: escape in homing&escape - bird_dist_shelter in exploration"
+    CT = load_or_compute_escape_tuning(aefizz, var)
     # find cells whose residual tuning to %escape - distance to shelter in exploration is significant
     shift0 = int(np.shape(CT.y_fitted_shift)[0] / 2)
     sig_res = CT.params_shifts[shift0, :, :, 0] > np.nanpercentile(CT.params_shifts[:, :, :, 0], 95, axis=0)

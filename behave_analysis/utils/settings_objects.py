@@ -146,10 +146,13 @@ class Settings_analyze_efizz:
     # Replay settings
     replay_cells: str = "escape_tuned"  # 'all','hdir','escape_tuned'
     replay_search_window: int = 500  # in ms
-    replay_time_period: str = "outside_shelter"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
+    replay_decoder_variable: str = "escape"  # 'shelter_dist' or 'escape'
+    replay_condition: str = "shelter_only" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_decoder_train_time_period: str = "homing&escape" # 'homing&escape'
+    replay_decoder_test_time_period: str = "before_homing"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
     replay_rank_order_corr_method: str = "first_activity" # 'first_activity', 'weighted_avg'
     occupancy_prior: str = "uniform"  # 'uniform' or 'empirical'
-    replay_template_match_method: str = "bayesian_decoder"  # 'rank_order_corr' or 'bayesian_decoder' or 'state_space_decoder'
+    replay_template_match_method: str = "state_space_decoder"  # 'rank_order_corr' or 'bayesian_decoder' or 'state_space_decoder'
     replay_state_space_decoder_bin_size: float = .001  # in seconds, default 1ms
 
 @dataclass(frozen=True)

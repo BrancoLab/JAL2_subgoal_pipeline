@@ -6,18 +6,18 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import define_bi
 
 @dataclass(frozen=False)
 class Replay:
-    selected_cells: bool
-    template_seq: float
-    settings: object
-    time_mask: bool
+    selected_cells: bool = False
+    template_seq: float = 0.0
+    settings: object = None
+    time_mask: bool = False
     # rank order correlation results
-    rank_order_corr: float
+    rank_order_corr: float = 0.0
     # bayesian decoder results
-    bayesian_posterior: float
-    radon_score: float
-    radon_angle: float
-    linear_corr: float
-    R_max: float
-    V_max: float
-    rho_max: float
-    R_map: float
+    bayesian_posterior: float = 0.0
+    radon_score: float = 0.0
+    radon_angle: float = 0.0
+    linear_corr: float = 0.0
+    R_max: float = 0.0
+    V_max: float = 0.0
+    rho_max: float = 0.0
+    R_map: float = 0.0
