@@ -14,10 +14,10 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     build_shift_vector,
     residual_neural_matrix,
     parse_residual_string,
-    load_or_compute_escape_tuning,
+    saving_path_and_file,
+    homing_escape_boolean_vectors,
 )
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
-from behave_analysis.utils.creating_directories import make_directory
 
 
 class ComputeEscapeTuning:
@@ -54,7 +54,7 @@ class ComputeEscapeTuning:
         self.ons, self.offs, self.esc_ons = homing_escape_onsets(aefizz, self.ET.escape_pattern_time)
         
         # build save path to dump data in
-        self.ET.savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", self.ET.escape_pattern_time))
+        self.ET.savepath, self.filename = saving_path_and_file(aefizz, tuning)
 
     def extract_data_and_tuning(self, aefizz):
         """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
@@ -70,9 +70,10 @@ class ComputeEscapeTuning:
 
         # extract behavioral variable that we compute the tuning to
         self.ET.discretized_var = create_discretized_behave_var(
-            aefizz, self.ET, x, y, self.ET.condition, 
+            aefizz, x, y, self.ET.condition, 
             self.ET.tuning_var,
-            self.ET.homing_vector if h_and_e else None
+            self.ET.homing_vector if h_and_e else None,
+            self.ET.bin_edges
         )
 
         # compute tuning curves for each neuron
@@ -137,9 +138,10 @@ class ComputeEscapeTuning:
         trial_n_cond = np.bincount(trial_start_cond.astype(int))
 
         # compute behavioral variable
-        discretized_var = create_discretized_behave_var(aefizz, self.ET, x, y, condition, 
+        discretized_var = create_discretized_behave_var(aefizz, x, y, condition, 
                                       self.ET.tuning_var, 
-                                      homing_vector = filtering_vector)
+                                      homing_vector = filtering_vector,
+                                      bin_edges = self.ET.bin_edges)
         self.ET.discretized_var_shift = discretized_var
         
         # initialize variables for output
@@ -199,12 +201,7 @@ class ComputeEscapeTuning:
 
     def save_escape_tuning(self):
         """Save EscapeTuning dataclass to file"""
-        # savepath building
-        res = ''
-        if "residual" in self.ET.name:
-            res = 'residual_'
-        filename = self.ET.savepath + os.sep + res + self.ET.tuning_var + "_" + str(settings.escape_tuning_bins) + "bins.pkl"
-        with open(filename, "wb") as f:
+        with open(self.filename, "wb") as f:
             pickle.dump(self.ET, f)
 
     # ----------------------------Data loading and processing functions----------------------------
@@ -220,6 +217,11 @@ class ComputeEscapeTuning:
 
         # iterate over homings
         for tr, (on, of) in enumerate(zip(self.ons, self.offs)):
+
+            if on in self.esc_ons:
+                esc = True
+            else:
+                esc = False
 
             # extract mouse position in the run
             this_y = aefizz.video_df["mouse_y_position"].to_numpy()[on:of]
@@ -240,7 +242,7 @@ class ComputeEscapeTuning:
                 of = of * settings.escape_pattern_interpolation_mult
 
             homing_vector[on:of] = True
-            escape_vector[on:of] = True if on in self.esc_ons else False
+            escape_vector[on:of] = True if esc else False
 
         return homing_vector, escape_vector
 
@@ -251,15 +253,15 @@ class ComputeEscapeTuning:
 
         # check that homingPeriod column exists
         if "homingPeriod" not in aefizz.video_df.columns:
-            homing_period =  np.zeros(len(aefizz.video_df), dtype=bool)
-            for onset, offset in zip(aefizz.homings_object.onset_frames, aefizz.homings_object.offset_frames):
-                homing_period[onset - 1 : offset - 1] = True
+            # NB: as soon as postprocess is rerun, this logic should be fixed and applied there as well
+            homing_period, escape_period = homing_escape_boolean_vectors(aefizz)
         else:
             homing_period = aefizz.video_df["homingPeriod"].to_numpy()
+            escape_period = aefizz.video_df["EscapePeriod"].to_numpy()
 
         # extract explore periods: out of shelter, not in homing, not in escape
         explore_vector = np.logical_and(
-            np.logical_and(homing_period == False, aefizz.video_df["EscapePeriod"].to_numpy() == False),
+            np.logical_and(homing_period == False, escape_period == False),
             aefizz.video_df["OutofshelterIdx"].to_numpy() == True,
         )
 
@@ -350,15 +352,37 @@ class ComputeEscapeTuning:
 
         # load behavioral data for var2 from ComputeTuning object
         # this is the discretized behavioral variable for tuning_var2 in time_period1
-        CT_var2_t1 = load_or_compute_escape_tuning(aefizz, self.ET.nbins, tuning_var2, time_period1)
+        CT_var2_t1 = load_or_compute_escape_tuning(aefizz, tuning_var2 + ' in ' + time_period1)
 
         self.ET.residual_var2_t1 = CT_var2_t1.discretized_var
         self.ET.residual_shift0_var2_t1 = CT_var2_t1.discretized_var_shift
 
         # load tuning data for var2 in exploration from ComputeTuning object
         # this is the firing rate in the tuning curve to var2 in time_period2
-        CT_var2_t2 = load_or_compute_escape_tuning(aefizz, self.ET.nbins, tuning_var2, time_period2)
+        CT_var2_t2 = load_or_compute_escape_tuning(aefizz, tuning_var2 + ' in ' + time_period2)
 
         self.ET.residual_fr_var2_t2 = CT_var2_t2.fr_full
         mid = int(np.shape(CT_var2_t2.y_fitted_shift)[0]/2)
         self.ET.residual_fr_shift0_var2_t2 = CT_var2_t2.fr_shift[mid, :,:,:]
+
+def load_or_compute_escape_tuning(aefizz, variable):
+    """
+    This function loads in or computes the escape tuning curves for a given variable
+    INPUTS:
+        aefizz: AnalyzeEfizz object
+        tuning_var: string of the variable to compute the tuning curve for
+        """
+    _, filename = saving_path_and_file(aefizz, variable)
+    # check file exists
+    if os.path.exists(filename):
+        with open(filename, "rb") as f:
+            EscapeTuningObject = pickle.load(f)
+    else:
+        logger.warning(f"Escape tuning to {variable} file not found, computing now...")
+        computeET = ComputeEscapeTuning(variable, aefizz=aefizz)
+        computeET.extract_data_and_tuning(aefizz=aefizz)
+        computeET.compute_statistical_significance(aefizz=aefizz)
+        computeET.save_escape_tuning()
+        EscapeTuningObject = computeET.ET
+
+    return EscapeTuningObject
