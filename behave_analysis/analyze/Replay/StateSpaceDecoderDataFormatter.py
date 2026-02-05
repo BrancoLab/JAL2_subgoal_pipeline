@@ -4,12 +4,13 @@ from loguru import logger
 
 sampling_rate = 30000  # Hz
 
-def prepare_state_space_decoder_data(spike_df, time_mask, session, bin_width):
+def prepare_state_space_decoder_data(spike_df, clusters, time_mask, session, bin_width):
     """Prepare data for state space decoder analysis.
 
     Args:
         spike_df (pd.DataFrame): DataFrame containing spike data with columns 'spike_aligned_to_frame', 'spike_clusters', and 'aligned_spike_times'.
         session (object): Session object containing camera trigger information.
+        clusters (np.ndarray): Array of unique cluster IDs. that we want to include
         time_mask (np.ndarray): Boolean array indicating valid time points.
         bin_width (float, optional): Width of time bins in seconds. Defaults to 0.1.
 
@@ -28,10 +29,16 @@ def prepare_state_space_decoder_data(spike_df, time_mask, session, bin_width):
     mask = time_mask[spike_frames]
     spike_df_filt = spike_df[mask].copy()
 
-    # Create a new column for the time bin index
+    # filter only clusters of interest
     all_clusters = np.sort(spike_df["spike_clusters"].unique())
+    selected_clusters = all_clusters[clusters]
+    spike_df_filt = spike_df_filt[spike_df_filt['spike_clusters'].isin(selected_clusters)]
+    
+    # Create a new column for the time bin index
     spike_df_filt["time_bin"] = (spike_df_filt["aligned_spike_times"] // bin_width).astype(int)
-    count_matrix = df_to_count_array(spike_df_filt, all_clusters, "time_bin", fill_time=10)
+    
+    # Convert the filtered DataFrame to a count matrix of shape (num_clusters, num_time_bins)
+    count_matrix = df_to_count_array(spike_df_filt, selected_clusters, "time_bin", fill_time=10)
 
     count_array = count_matrix.to_numpy()
     count_array = (count_array > 0).astype(int)  # still have more than one spike in some cases...

@@ -71,12 +71,14 @@ class AnalyzeEfizz:
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
             # load firing rate matrix
-            assert os.path.isfile(
-                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
-            ), "Cluster matrix file not found"
-            self.frame_by_cluster_matrix = np.load(
-                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
-            )
+            if not (analysis_name == 'Replay' and self.settings.replay_template_match_method == 'state_space_decoder'):
+                # don't load the frame by cluster matrix, we're using the spike_df for the state space decoder method
+                assert os.path.isfile(
+                    os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
+                ), "Cluster matrix file not found"
+                self.frame_by_cluster_matrix = np.load(
+                    os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
+                )
             # load cluster Ids
             try:
                 self.cluster_Ids = np.load(
