@@ -51,7 +51,8 @@ class ComputeEscapeTuning:
             self.load_residual_data(aefizz)
         
         # find onsets of runs based on escape pattern time ('homings' or 'homing&escape')
-        self.ons, self.offs, self.esc_ons = homing_escape_onsets(aefizz, self.ET.escape_pattern_time)
+        onset_dict = homing_escape_onsets(aefizz, self.ET.escape_pattern_time)
+        self.ons, self.offs, self.esc_ons = onset_dict["ons"], onset_dict["offs"], onset_dict["esc_ons"]
         
         # build save path to dump data in
         self.ET.savepath, self.filename = saving_path_and_file(aefizz, tuning)
