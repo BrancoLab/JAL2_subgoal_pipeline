@@ -72,7 +72,7 @@ class ReplayAnalysis:
         self.replay.test_time_mask = self.filter_time(self.aefizz.settings.replay_decoder_test_time_period)
         self.replay.train_time_mask = self.filter_time(self.aefizz.settings.replay_decoder_train_time_period)
         train_behave, train_condition = self.prepare_behavioral_variable(self.replay.train_time_mask, tuning_var="escape")  # we assume train_time_period is always homing&escape
-        if self.aefizz.settings.replay_decoder_test_time_period in ["homing", "escape", "homing&escape"]:
+        if "homing&escape" in self.aefizz.settings.replay_decoder_test_time_period:
             # because we can only compute %escape on homing&escape periods
             test_behave, test_condition = self.prepare_behavioral_variable(self.replay.test_time_mask, tuning_var="escape")
         else:
@@ -103,7 +103,7 @@ class ReplayAnalysis:
         elif self.aefizz.settings.replay_cells == "all":
             self.replay.selected_cells = np.full(self.aefizz.frame_by_cluster_matrix.shape[1], True)
 
-        if self.aefizz.settings.replay_template_match_method != "state_space_decoder":
+        if self.aefizz.settings.replay_template_match_method != "SS_decoder":
             self.fcm = self.aefizz.frame_by_cluster_matrix[:, self.replay.selected_cells]
 
     def check_settings_compatibility(self):
@@ -112,9 +112,9 @@ class ReplayAnalysis:
         assert self.aefizz.settings.replay_decoder_variable in ["escape", "shelter_dist"], "replay_decoder_variable must be 'escape' or 'shelter_dist'"
         assert self.aefizz.settings.replay_decoder_variable == "escape", "Currently only 'escape' variable is implemented for replay analysis"
         # now, only homing&escape, but should work for just homing, just escape without edits
-        assert self.aefizz.settings.replay_decoder_train_time_period == "homing&escape", "Currently only 'homing&escape' training period is implemented for replay analysis"
+        assert "homing&escape" in self.aefizz.settings.replay_decoder_train_time_period, "Currently only 'homing&escape' training period is implemented for replay analysis"
         assert (
-            self.aefizz.settings.replay_decoder_variable == "escape" and self.aefizz.settings.replay_decoder_train_time_period == "homing&escape"
+            self.aefizz.settings.replay_decoder_variable == "escape" and ("homing&escape" in self.aefizz.settings.replay_decoder_train_time_period) 
         ), "If replay_decoder_variable is 'escape', replay_decoder_train_time_period must be 'homing&escape'"
 
     def define_replay_template(self):
@@ -153,7 +153,8 @@ class ReplayAnalysis:
         speed_threshold = 0.5  # cm/s
 
         if "homing" in time_period or "escape" in time_period:
-            ons, offs, _ = homing_escape_onsets(self.aefizz, time_period)
+            onset_dict = homing_escape_onsets(self.aefizz, time_period)
+            ons, offs = onset_dict["ons"], onset_dict["offs"]
             durations = offs - ons  # durations in frames
 
         if time_period == "before_homing":
@@ -202,7 +203,7 @@ class ReplayAnalysis:
             # any time the mouse is inside the shelter
             time_mask = self.aefizz.video_df["OutofshelterIdx"].to_numpy() == False
 
-        elif time_period == "homing&escape":
+        elif "homing&escape" in time_period:
             # find shelter entries after escape onset
             shelter_entries = np.where(np.diff(self.aefizz.video_df["OutofshelterIdx"].to_numpy().astype(int)) == -1)[0] + 1  # +1 to get the entry frame
             # if mouse enters shelter before offset of homing/escape, set offset to shelter entry
@@ -400,9 +401,10 @@ class ReplayAnalysis:
             + str(int(self.aefizz.settings.replay_state_space_decoder_bin_size*1000)) + "ms"
             + "_train_"
             + self.aefizz.settings.replay_decoder_train_time_period
-            + "_test_"
-            + self.aefizz.settings.replay_decoder_test_time_period
         )
+        if len(filename) > 255:
+            logger.warning("filename is too long, saving with a dummy name instead")
+            filename = self.replay.savepath + os.sep + "SSdata"
 
         if (not os.path.exists(filename + ".npz")) or self.aefizz.settings.redo_compute:
 
@@ -437,6 +439,11 @@ class ReplayAnalysis:
                 test_position=test_position,
             )
 
-            np.savez(filename + "_settings.npz", settings=asdict(self.aefizz.settings))
+            settings_dict=asdict(self.aefizz.settings)
+            if settings_dict['replay_condition'] == "barrier_pre_flip":
+                settings_dict["barrier_location"] = self.aefizz.session.barrier_location[0]
+            elif settings_dict['replay_condition'] == "barrier_post_flip":
+                settings_dict["barrier_location"] = self.aefizz.session.barrier_location[1]
+            np.savez(filename + "_s.npz", settings=settings_dict, allow_pickle=True)
 
         logger.warning("State space decoder data saved to " + filename + ".npz" + " . Now run the state space decoder in behave_analysis > analyze > replay > SSdecoder.ipynb.")

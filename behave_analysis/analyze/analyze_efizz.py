@@ -62,7 +62,7 @@ class AnalyzeEfizz:
                 video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
                 self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
         
-        if (analysis_name == 'Replay') & (self.settings.replay_template_match_method == 'state_space_decoder'):
+        if (analysis_name == 'Replay') & (self.settings.replay_template_match_method == 'SS_decoder'):
             # Load the spike dataframe
             self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "good_spike_data.csv"))
 
@@ -71,7 +71,7 @@ class AnalyzeEfizz:
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
             # load firing rate matrix
-            if not (analysis_name == 'Replay' and self.settings.replay_template_match_method == 'state_space_decoder'):
+            if not (analysis_name == 'Replay' and self.settings.replay_template_match_method == 'SS_decoder'):
                 # don't load the frame by cluster matrix, we're using the spike_df for the state space decoder method
                 assert os.path.isfile(
                     os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
@@ -224,7 +224,7 @@ class AnalyzeEfizz:
                 RA.find_replay_rank_order_correlation()
             elif self.settings.replay_template_match_method == 'bayesian_decoder':
                 RA.find_replay_bayesian_decoder()
-            elif self.settings.replay_template_match_method == 'state_space_decoder':
+            elif self.settings.replay_template_match_method == 'SS_decoder':
                 RA.find_replay_state_space_decoder()
 
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
