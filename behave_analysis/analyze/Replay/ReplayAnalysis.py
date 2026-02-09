@@ -43,11 +43,12 @@ class ReplayAnalysis:
                 self.aefizz.session.processed_path,
                 "models",
                 "replay",
-                "replay_" + self.aefizz.settings.replay_template_match_method,
-                self.aefizz.settings.replay_decoder_test_time_period + "_" + self.aefizz.settings.replay_condition,
+                "replay_" + self.aefizz.settings.replay_template_match_method + "_" + self.aefizz.settings.replay_cells,
+                self.aefizz.settings.replay_decoder_test_time_period + "_" + self.aefizz.settings.replay_test_condition,
             )
         )
-        self.c = [x for x, c in enumerate(["shelter_only", "barrier_pre_flip", "barrier_post_flip"]) if c == self.aefizz.settings.replay_condition][0]
+        self.c = [x for x, c in enumerate(["shelter_only", "barrier_pre_flip", "barrier_post_flip"]) if c == self.aefizz.settings.replay_train_condition][0]
+        self.test_c = [x for x, c in enumerate(["shelter_only", "barrier_pre_flip", "barrier_post_flip"]) if c == self.aefizz.settings.replay_test_condition][0]
 
     def find_replay_rank_order_correlation(self):
         """Main function to find replay events using rank-order correlation method."""
@@ -76,11 +77,20 @@ class ReplayAnalysis:
             # because we can only compute %escape on homing&escape periods
             test_behave, test_condition = self.prepare_behavioral_variable(self.replay.test_time_mask, tuning_var="escape")
         else:
-            test_behave, test_condition = self.prepare_behavioral_variable(self.replay.test_time_mask)
-        # filter by condition
+            test_behave, test_condition = self.prepare_behavioral_variable(self.replay.test_time_mask)  #returns empty behave vector
+        
+        # filter training data by condition
         self.replay.train_time_mask[np.where(self.replay.train_time_mask)[0][train_condition != self.c]] = False
-        self.replay.test_time_mask[np.where(self.replay.test_time_mask)[0][test_condition != self.c]] = False
-        self.state_space_decoder(self.replay.train_time_mask, train_behave[train_condition == self.c], self.replay.test_time_mask, test_behave[test_condition == self.c])
+        n_events = np.where(np.diff(self.replay.train_time_mask.astype(int))>0)[0]
+        assert len(n_events) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {self.aefizz.settings.replay_decoder_train_time_period}, change criteria!"
+        
+        # filter test data by condition
+        self.replay.test_time_mask[np.where(self.replay.test_time_mask)[0][test_condition != self.test_c]] = False
+        n_events = np.where(np.diff(self.replay.test_time_mask.astype(int))>0)[0]
+        assert len(n_events) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {self.aefizz.settings.replay_decoder_test_time_period}, change criteria!"
+        
+        # prep and save nueral data in the format needed for state space decoder
+        self.state_space_decoder(self.replay.train_time_mask, train_behave[train_condition == self.c], self.replay.test_time_mask, test_behave[test_condition == self.test_c])
 
     # ------------ Replay functions ------------
 
@@ -98,10 +108,11 @@ class ReplayAnalysis:
 
         elif self.aefizz.settings.replay_cells == "escape_untuned":
             xval = load_escape_tuned_cells(self.aefizz)
-            self.replay.selected_cells = np.where(~np.any(xval, axis=1))[0]
+            self.replay.selected_cells = np.where(xval[:, self.c] == False)[0]
+            # self.replay.selected_cells = np.where(~np.any(xval, axis=1))[0]
 
         elif self.aefizz.settings.replay_cells == "all":
-            self.replay.selected_cells = np.full(self.aefizz.frame_by_cluster_matrix.shape[1], True)
+            self.replay.selected_cells = np.full(len(self.aefizz.cluster_Ids), True)
 
         if self.aefizz.settings.replay_template_match_method != "SS_decoder":
             self.fcm = self.aefizz.frame_by_cluster_matrix[:, self.replay.selected_cells]
@@ -401,6 +412,7 @@ class ReplayAnalysis:
             + str(int(self.aefizz.settings.replay_state_space_decoder_bin_size*1000)) + "ms"
             + "_train_"
             + self.aefizz.settings.replay_decoder_train_time_period
+             + "_" + self.aefizz.settings.replay_train_condition
         )
         if len(filename) > 255:
             logger.warning("filename is too long, saving with a dummy name instead")
@@ -440,10 +452,14 @@ class ReplayAnalysis:
             )
 
             settings_dict=asdict(self.aefizz.settings)
-            if settings_dict['replay_condition'] == "barrier_pre_flip":
-                settings_dict["barrier_location"] = self.aefizz.session.barrier_location[0]
-            elif settings_dict['replay_condition'] == "barrier_post_flip":
-                settings_dict["barrier_location"] = self.aefizz.session.barrier_location[1]
+            if settings_dict['replay_train_condition'] == "barrier_pre_flip":
+                settings_dict["barrier_train_location"] = self.aefizz.session.barrier_location[0]
+            elif settings_dict['replay_train_condition'] == "barrier_post_flip":
+                settings_dict["barrier_train_location"] = self.aefizz.session.barrier_location[1]
+            if settings_dict['replay_test_condition'] == "barrier_pre_flip":
+                settings_dict["barrier_test_location"] = self.aefizz.session.barrier_location[0]
+            elif settings_dict['replay_test_condition'] == "barrier_post_flip":
+                settings_dict["barrier_test_location"] = self.aefizz.session.barrier_location[1]
             np.savez(filename + "_s.npz", settings=settings_dict, allow_pickle=True)
 
         logger.warning("State space decoder data saved to " + filename + ".npz" + " . Now run the state space decoder in behave_analysis > analyze > replay > SSdecoder.ipynb.")

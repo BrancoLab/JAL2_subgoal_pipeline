@@ -102,10 +102,16 @@ def homing_escape_onsets(aefizz, escape_pattern_time):
     
     keepers = np.ones_like(ons, dtype=bool)
 
-    if "correct" in escape_pattern_time:
-        keepers = (spatial_efficiency > spatial_efficiency_threshold[0]) & (spatial_efficiency < spatial_efficiency_threshold[1])
+    if "correct" in escape_pattern_time: # homings with spatial efficiency of 0.95-1.05 are considered correct
+        keepers = keepers & ((spatial_efficiency > spatial_efficiency_threshold[0]) & (spatial_efficiency < spatial_efficiency_threshold[1]))
     if "error" in escape_pattern_time:
-        keepers = (spatial_efficiency < spatial_efficiency_threshold[0]) | (spatial_efficiency > spatial_efficiency_threshold[1])
+        keepers = keepers & ((spatial_efficiency < spatial_efficiency_threshold[0]) | (spatial_efficiency > spatial_efficiency_threshold[1]))
+    if "full" in escape_pattern_time: # homings that go from the threat zone-ish to the shelter-ish
+        starts = np.array([aefizz.video_df['mouse_y_position'].to_numpy()[int(on)] for on in ons])
+        ends = np.array([aefizz.video_df['mouse_y_position'].to_numpy()[int(off)] for off in offs])
+        keepers = keepers & (starts < 300) & (ends > 800)
+
+    assert np.sum(keepers) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {escape_pattern_time}, change criteria!"
 
     return  {"ons": ons[keepers], 
             "offs": offs[keepers], 

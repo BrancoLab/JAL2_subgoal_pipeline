@@ -144,10 +144,11 @@ class Settings_analyze_efizz:
     ep_tuned_stats: str = "bootstrap"  # or 'linear_shift' (not yet implemented)
     ep_tuned_stats_samples: int = 100
     # Replay settings
-    replay_cells: str = "all"  # 'all','hdir','escape_tuned'
+    replay_cells: str = "escape_untuned"  # 'all','hdir','escape_tuned'
     replay_search_window: int = 500  # in ms
     replay_decoder_variable: str = "escape"  # 'shelter_dist' or 'escape'
-    replay_condition: str = "barrier_pre_flip" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_train_condition: str = "barrier_pre_flip" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_test_condition: str = "barrier_pre_flip" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
     replay_decoder_train_time_period: str = "correct_homing&escape" # 'homing&escape'
     replay_decoder_test_time_period: str = "error_homing&escape"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
     replay_rank_order_corr_method: str = "first_activity" # 'first_activity', 'weighted_avg'
