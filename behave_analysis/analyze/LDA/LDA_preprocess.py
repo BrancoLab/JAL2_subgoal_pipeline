@@ -34,11 +34,11 @@ def select_relevant_frames(aefizz):
     if any([aefizz.condition_types == "experimental_conditions",
                      aefizz.condition_types == "first_half",
                      aefizz.condition_types == "second_half"]):
-        filtered_video_df = filter_video_dataframe(aefizz.video_df, aefizz.condition, excl_stationary = aefizz.settings.exclude_stationary)
+        filtered_video_df = filter_video_dataframe(aefizz.video_df, aefizz.condition, speed_threshold=aefizz.settings.min_speed_threshold)
         if np.logical_or(aefizz.condition_types == "first_half", aefizz.condition_types == "second_half"):
             filtered_video_df = filter_video_df_time(filtered_video_df, aefizz.condition_types, aefizz.session.video.fps, max_time = 20)
     else:
-        filtered_video_df = filter_video_dataframe(aefizz.video_df, aefizz.condition, exclude_escape=False, excl_stationary = aefizz.settings.exclude_stationary)
+        filtered_video_df = filter_video_dataframe(aefizz.video_df, aefizz.condition, exclude_escape=False, speed_threshold=aefizz.settings.min_speed_threshold)
         if aefizz.condition_types == "good_behavioral_conditions":
             filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, aefizz.condition, aefizz.session, good_homie=True)
         elif aefizz.condition_types == "bad_behavioral_conditions":

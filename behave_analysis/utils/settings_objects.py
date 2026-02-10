@@ -119,7 +119,7 @@ class Settings_analyze_efizz:
     exclude_hdir: bool = False
     dropout: bool = False
     subsampling: bool = False
-    exclude_stationary: bool = False
+    min_speed_threshold: float = 0
     # rayleigh settings
     rayleigh_significance: str = ""
     single_cluster_plots: bool = True
@@ -144,13 +144,13 @@ class Settings_analyze_efizz:
     ep_tuned_stats: str = "bootstrap"  # or 'linear_shift' (not yet implemented)
     ep_tuned_stats_samples: int = 100
     # Replay settings
-    replay_cells: str = "escape_untuned"  # 'all','hdir','escape_tuned'
+    replay_cells: str = "all"  # 'all','hdir','escape_tuned'
     replay_search_window: int = 500  # in ms
     replay_decoder_variable: str = "escape"  # 'shelter_dist' or 'escape'
     replay_train_condition: str = "barrier_pre_flip" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
     replay_test_condition: str = "barrier_pre_flip" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
     replay_decoder_train_time_period: str = "correct_homing&escape" # 'homing&escape'
-    replay_decoder_test_time_period: str = "error_homing&escape"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
+    replay_decoder_test_time_period: str = "before_homing&escape"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
     replay_rank_order_corr_method: str = "first_activity" # 'first_activity', 'weighted_avg'
     occupancy_prior: str = "uniform"  # 'uniform' or 'empirical'
     replay_template_match_method: str = "SS_decoder"  # 'rank_order_corr' or 'bayesian_decoder' or 'state_space_decoder'
