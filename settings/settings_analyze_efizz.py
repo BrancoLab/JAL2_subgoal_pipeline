@@ -10,7 +10,7 @@ Settings_ae = Settings_analyze_efizz(
     linear_shift=True,  # whether to run linear shift!
     parallel_pool_linshit=True,  # if True, uses parallel pool to compute linear shift
     # This does not effect Tuned, this model needs linear shift to work
-    redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
+    redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type="good",  # 'synthetic','synthetichdir','all','good',
     show_plots=False,
     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
@@ -40,7 +40,7 @@ Settings_ae = Settings_analyze_efizz(
     dropout=False,  # this will iteratively dropout each cluster and recompute the LDA prediction accuracy to see how much that cluster matters
     PCA_process=[],  # number of PCs to use, if left empty it will run without PCA
     subsampling=False,  # whether to subsample to equalize data by angles and space
-    exclude_stationary=True,  # mouse must be moving > 1cm/s, currently only works for experimental conditions (update filtering functions if you want to use with other settings)
+    min_speed_threshold=1,  # mouse must be moving > 1cm/s, currently only works for experimental conditions (update filtering functions if you want to use with other settings)
     # ------------ Rayleigh model settings ----------------------
     rayleigh_significance="linshit",  # "linshit" or "bootstrap"
     single_cluster_plots=True,  # True: Plot every condition in one figure

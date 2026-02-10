@@ -8,6 +8,7 @@ import polars as pl
 import pickle
 import pandas as pd
 
+from behave_analysis.analyze.PlaceCells import PlaceCells
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
@@ -52,15 +53,29 @@ class AnalyzeEfizz:
     def load_data(self, analysis_name):
         """A function to load data needed for each analysis type."""
 
-        if analysis_name == 'tunED':
+        if analysis_name in ['tunED', 'PlaceCells']:
             # Load the video spike count data
+            COLUMNS_TO_KEEP = [
+                            "mouse_x_position",
+                            "mouse_y_position",
+                            "spike_clusters",
+                            "spike_count",
+                            "OutofshelterIdx",
+                            "EscapePeriod",
+                            "shelter",
+                            "barrier_present",
+                            "barrier_flipped",
+                            # "homingPeriod", # 'homingPeriod'
+                        ]
             try:
+                # it doesn't always work with .parquet
                 video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
                 self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+                
             except FileNotFoundError:
-                logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (I did remove .parquet)")
-                video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df")
-                self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+                logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (try removing .parquet?)")
+            
+            self.video_and_spike_data = self.video_and_spike_data.select(COLUMNS_TO_KEEP)
         
         if (analysis_name == 'Replay') & (self.settings.replay_template_match_method == 'SS_decoder'):
             # Load the spike dataframe
@@ -79,7 +94,8 @@ class AnalyzeEfizz:
                 self.frame_by_cluster_matrix = np.load(
                     os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
                 )
-            # load cluster Ids
+        # load cluster Ids
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells']:
             try:
                 self.cluster_Ids = np.load(
                     str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
@@ -226,6 +242,14 @@ class AnalyzeEfizz:
                 RA.find_replay_bayesian_decoder()
             elif self.settings.replay_template_match_method == 'SS_decoder':
                 RA.find_replay_state_space_decoder()
+
+        # ------------------------------ Compute Place Cells --------------------------------
+        if analysis_name == 'PlaceCells':
+            logger.info("Running Place Cell analysis")
+
+            PlaceCells(aefizz = self).compute_place_cells()
+            
+            logger.success("Place Cell analysis complete")
 
         # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
         if analysis_name == 'PCA' or analysis_name == 'UMAP':
