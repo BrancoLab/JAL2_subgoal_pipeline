@@ -312,6 +312,10 @@ class ComputeEscapeTuning:
     def preprocess_data(self, aefizz):
         """This function organizes the data (loaded into the analyze efizz object) and does any necessary preprocessing"""
         # gaussian filter
+        if not hasattr(aefizz, "frame_by_cluster_matrix"):
+            aefizz.frame_by_cluster_matrix = np.load(
+                    os.path.join(aefizz.session.base_path, aefizz.session.processed_path) + "\\" + "frame_by_" + aefizz.cluster_type + "_cluster_matrix.npy"
+                )
         fcm = gaussian_filter1d(aefizz.frame_by_cluster_matrix, 2, axis=0)
 
         # load behavioral data
@@ -380,6 +384,7 @@ def load_or_compute_escape_tuning(aefizz, variable):
             EscapeTuningObject = pickle.load(f)
     else:
         logger.warning(f"Escape tuning to {variable} file not found, computing now...")
+        check_aefizz_completeness(aefizz)
         computeET = ComputeEscapeTuning(variable, aefizz=aefizz)
         computeET.extract_data_and_tuning(aefizz=aefizz)
         computeET.compute_statistical_significance(aefizz=aefizz)
@@ -387,3 +392,30 @@ def load_or_compute_escape_tuning(aefizz, variable):
         EscapeTuningObject = computeET.ET
 
     return EscapeTuningObject
+
+def check_aefizz_completeness(aefizz):
+    """This function checks that the aefizz object has all the necessary data and preprocessing to compute escape tuning curves.
+    If not, it raises an error and specifies what is missing."""
+
+    if not hasattr(aefizz, "frame_by_cluster_matrix"):
+        aefizz.frame_by_cluster_matrix = np.load(
+                    os.path.join(aefizz.session.base_path, aefizz.session.processed_path) + "\\" + "frame_by_" + aefizz.cluster_type + "_cluster_matrix.npy"
+                )
+    if not hasattr(aefizz, "video_df"):
+        import polars as pl
+        aefizz.video_df = pl.read_csv(os.path.join(aefizz.session.base_path, aefizz.session.processed_path) + "\\" + "full_video_dataframe.csv")
+
+    if not hasattr(aefizz, "cluster_Ids"):
+        aefizz.cluster_Ids = np.load(
+                    str(os.path.join(aefizz.session.base_path, aefizz.session.processed_path) + "/" + aefizz.cluster_type + "_cluster_Ids.npy")
+                )
+    
+    if not hasattr(aefizz, "homings_object"):
+        homing_path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "homings", "homings_obj.pkl")
+        with open(homing_path, "rb") as f:
+            aefizz.homings_object = pickle.load(f)
+
+    if not hasattr(aefizz, "escape_object"):
+        escape_path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escapes", "escapes_obj.pkl")
+        with open(escape_path, "rb") as f:
+            aefizz.escape_object = pickle.load(f)
