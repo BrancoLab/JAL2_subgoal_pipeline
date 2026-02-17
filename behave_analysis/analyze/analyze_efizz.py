@@ -32,6 +32,7 @@ from behave_analysis.analyze.single_trial.single_trial_regression import SingleT
 from behave_analysis.analyze.single_trial.preprocess_regression import PreprocessSingleTrialRegression
 from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pattern_TunED
 from behave_analysis.analyze.Replay.ReplayAnalysis import ReplayAnalysis
+from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 
 class AnalyzeEfizz:
     """
@@ -236,12 +237,19 @@ class AnalyzeEfizz:
             logger.info("Running Replay analysis")
 
             RA = ReplayAnalysis(aefizz = self)
-            if self.settings.replay_template_match_method == 'rank_order_correlation':
-                RA.find_replay_rank_order_correlation()
-            elif self.settings.replay_template_match_method == 'bayesian_decoder':
-                RA.find_replay_bayesian_decoder()
-            elif self.settings.replay_template_match_method == 'SS_decoder':
-                RA.find_replay_state_space_decoder()
+            if RA.do_replay_analysis:
+                if self.settings.replay_template_match_method == 'rank_order_correlation':
+                    RA.find_replay_rank_order_correlation()
+                elif self.settings.replay_template_match_method == 'bayesian_decoder':
+                    RA.find_replay_bayesian_decoder()
+                elif self.settings.replay_template_match_method == 'SS_decoder':
+                    RA.find_replay_state_space_decoder()
+            # only once analysis is complete do we save the results to the database!!
+            add_run_to_database(RA.database, 
+                                settings_to_check(self.settings, 'replay'), 
+                                RA.replay.savepath + os.sep + "replay_results.csv", 
+                                RA.hexaname,
+                                RA.saved_vars)
 
         # ------------------------------ Compute Place Cells --------------------------------
         if analysis_name == 'PlaceCells':

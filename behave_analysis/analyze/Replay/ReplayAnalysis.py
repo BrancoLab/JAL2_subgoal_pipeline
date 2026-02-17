@@ -16,11 +16,12 @@ TODO: how to handle separate conditions?!
 """
 
 import os
+from tabnanny import check
 import numpy as np
 from scipy.stats import zscore, spearmanr
 from loguru import logger
 from dataclasses import asdict
-
+import pandas as pd
 
 from behave_analysis.analyze.Replay.load_cells import load_hdir_cells, load_escape_tuned_cells
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import homing_escape_onsets, create_discretized_behave_var
@@ -29,7 +30,7 @@ from behave_analysis.analyze.Replay.BayesianDecoderFunctions import bayesian_dec
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.Replay.Replay import Replay
 from behave_analysis.analyze.Replay.StateSpaceDecoderDataFormatter import prepare_state_space_decoder_data
-
+from behave_analysis.analyze.results_database_utils import settings_to_check, check_database_for_matched_results, generate_run_id
 
 class ReplayAnalysis:
 
@@ -43,10 +44,10 @@ class ReplayAnalysis:
                 self.aefizz.session.processed_path,
                 "models",
                 "replay",
-                "replay_" + self.aefizz.settings.replay_template_match_method + "_" + self.aefizz.settings.replay_cells,
-                self.aefizz.settings.replay_decoder_test_time_period + "_" + self.aefizz.settings.replay_test_condition,
+                "replay_" + self.aefizz.settings.replay_template_match_method,
             )
         )
+        self.check_database_for_same_run()               
         self.c = [x for x, c in enumerate(["shelter_only", "barrier_pre_flip", "barrier_post_flip"]) if c == self.aefizz.settings.replay_train_condition][0]
         self.test_c = [x for x, c in enumerate(["shelter_only", "barrier_pre_flip", "barrier_post_flip"]) if c == self.aefizz.settings.replay_test_condition][0]
 
@@ -64,7 +65,7 @@ class ReplayAnalysis:
         logger.warning("This has not been debugged! Train and test periods need to be split! Results need to saved.")
         self.select_cells_of_interest()
         self.replay.test_time_mask = self.filter_time(self.aefizz.settings.replay_decoder_test_time_period)
-        test_behave, _ = self.prepare_behavioral_variable(self.replay.test_time_mask, tuning_var="escape")
+        test_behave = self.prepare_behavioral_variable(self.replay.test_time_mask, np.ones(np.sum(self.replay.test_time_mask)), tuning_var="escape")
         self.bayesian_decoder(self.replay.test_time_mask, test_behave)
 
     def find_replay_state_space_decoder(self):
@@ -75,14 +76,8 @@ class ReplayAnalysis:
         # select time periods to train and test decoder on, and compute the variable to decode
         self.replay.test_time_mask = self.filter_time(self.aefizz.settings.replay_decoder_test_time_period)
         self.replay.train_time_mask = self.filter_time(self.aefizz.settings.replay_decoder_train_time_period)
-        tuning_var = self.aefizz.settings.replay_decoder_variable
-        train_behave, train_condition = self.prepare_behavioral_variable(self.replay.train_time_mask, tuning_var=tuning_var)  # we assume train_time_period is always homing&escape
-        
-        # Check if test period includes actual homing/escape periods (not before/after or outside shelter)
-        if tuning_var == "escape" and not ((any(x in self.aefizz.settings.replay_decoder_test_time_period for x in ["homing", "escape"]) and 
-            not any(x in self.aefizz.settings.replay_decoder_test_time_period for x in ["before_", "after_", "outside", "shelter"]))):
-            tuning_var = ""
-        test_behave, test_condition = self.prepare_behavioral_variable(self.replay.test_time_mask, tuning_var = tuning_var)  #returns empty behave vector
+        train_condition = self.prepare_condition_vector(self.replay.train_time_mask)
+        test_condition = self.prepare_condition_vector(self.replay.test_time_mask)
         
         # filter training data by condition
         self.replay.train_time_mask[np.where(self.replay.train_time_mask)[0][train_condition != self.c]] = False
@@ -94,6 +89,7 @@ class ReplayAnalysis:
         n_events = np.where(np.diff(self.replay.test_time_mask.astype(int))>0)[0]
         assert len(n_events) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {self.aefizz.settings.replay_decoder_test_time_period}, change criteria!"
         
+        # if train and test periods are the same, split time in train test by thirds
         if self.aefizz.settings.replay_decoder_test_time_period == self.aefizz.settings.replay_decoder_train_time_period:
             logger.warning("Train and test periods are the same, the time will be split into 1/3 for training, 2/3 for test")
             event_ends = np.where(np.diff(self.replay.train_time_mask.astype(int))<0)[0]
@@ -104,12 +100,22 @@ class ReplayAnalysis:
                 else:
                     self.replay.train_time_mask[e:event_ends[idx]+1] = False
             assert np.sum(np.logical_and(self.replay.train_time_mask, self.replay.test_time_mask) == 0), "Train and test time masks overlap, check splitting method!"
-            
+        
+        # compute variable to decode for train and test data
+        tuning_var = self.aefizz.settings.replay_decoder_variable
+        # Check if test period includes actual homing/escape periods (not before/after or outside shelter)
+        if tuning_var == "escape" and not ((any(x in self.aefizz.settings.replay_decoder_test_time_period for x in ["homing", "escape"]) and 
+            not any(x in self.aefizz.settings.replay_decoder_test_time_period for x in ["before_", "after_", "outside", "shelter"]))):
+            tuning_var = ""
+
+        train_behave = self.prepare_behavioral_variable(self.replay.train_time_mask, train_condition, tuning_var=tuning_var)  # we assume train_time_period is always homing&escape
+        test_behave = self.prepare_behavioral_variable(self.replay.test_time_mask, test_condition, tuning_var = tuning_var)  #returns empty behave vector
+        
         # prep and save nueral data in the format needed for state space decoder
-        self.state_space_decoder(self.replay.train_time_mask, train_behave[train_condition == self.c], self.replay.test_time_mask, test_behave[test_condition == self.test_c])
+        self.state_space_decoder(self.replay.train_time_mask, train_behave, self.replay.test_time_mask, test_behave)
 
     # ------------ Replay functions ------------
-
+            
     def select_cells_of_interest(self):
         """Select cells to include in replay analysis based on settings.
         These are the cells for which we will look at reactivation events."""
@@ -136,35 +142,40 @@ class ReplayAnalysis:
     def check_settings_compatibility(self):
         """Check that the settings for replay analysis are compatible.
         E.g., if searching for escape pattern replay, don't train on exploration periods."""
-        assert self.aefizz.settings.replay_decoder_variable in ["escape", "shelter_dist"], "replay_decoder_variable must be 'escape' or 'shelter_dist'"
-        assert self.aefizz.settings.replay_decoder_variable == "escape", "Currently only 'escape' variable is implemented for replay analysis"
+        assert self.aefizz.settings.replay_decoder_variable in ["escape", "shelter_dist","speed", "2D_position"], "replay_decoder_variable must be 'escape' or 'shelter_dist'"
         # now, only homing&escape, but should work for just homing, just escape without edits
         assert "homing&escape" in self.aefizz.settings.replay_decoder_train_time_period, "Currently only 'homing&escape' training period is implemented for replay analysis"
-        assert (
-            self.aefizz.settings.replay_decoder_variable == "escape" and ("homing&escape" in self.aefizz.settings.replay_decoder_train_time_period) 
-        ), "If replay_decoder_variable is 'escape', replay_decoder_train_time_period must be 'homing&escape'"
+        if self.aefizz.settings.replay_decoder_variable == "escape":
+            assert "homing&escape" in self.aefizz.settings.replay_decoder_train_time_period, "If replay_decoder_variable is 'escape', replay_decoder_train_time_period must be 'homing&escape'"
+        condition_match = self.aefizz.settings.replay_train_condition == self.aefizz.settings.replay_test_condition
+        time_period_match = self.aefizz.settings.replay_decoder_train_time_period == self.aefizz.settings.replay_decoder_test_time_period
+        assert not (condition_match and time_period_match), "Replay train and test conditions and time periods should not match"
 
     def define_replay_template(self):
         """The template is the order of neurons during a sequence that we want to test for replay"""
         # load in escape homing/escape tuning curve
-        CT = load_or_compute_escape_tuning(self.aefizz, self.aefizz.settings.replay_decoder_variable + " in " + self.aefizz.settings.replay_decoder_train_time_period)
+        CT = load_or_compute_escape_tuning(self.aefizz, self.aefizz.settings.replay_template_variable + " in " + self.aefizz.settings.replay_decoder_train_time_period)
         self.escape_tuning_curve = CT.fr_full[self.c, self.replay.selected_cells, :]  # tuning curves of selected cells
         # define the template of the order of neurons in the sequence
         preferred_tuning = CT.params_full[:, :, 1]  # preferred (max) bin for each cell and condition
         preferred_tuning = preferred_tuning[self.replay.selected_cells, :]  # only selected cells
         self.replay.template_seq = np.argsort(preferred_tuning[:, self.c])  # only the condition of interest
 
-    def prepare_behavioral_variable(self, time_mask, tuning_var=""):
+    def prepare_condition_vector(self, time_mask):
+        """Prepare vector indicating experimental condition for each timepoint, to be used as input to decoder."""
+        condition = np.zeros(len(self.aefizz.video_df))
+        condition[self.aefizz.video_df["barrier_present"].to_numpy() == True] += 1
+        condition[self.aefizz.video_df["barrier_flipped"].to_numpy() == True] += 1
+        return condition[time_mask]
+
+    def prepare_behavioral_variable(self, time_mask, condition, tuning_var=""):
         """Compute behavioral variable for:
         1. occupancy prior of bayesian decoder
         2. discretized variable for state space decoder"""
         x = self.aefizz.video_df["mouse_x_position"].to_numpy()[time_mask]
         y = self.aefizz.video_df["mouse_y_position"].to_numpy()[time_mask]
-        condition = np.zeros(len(self.aefizz.video_df))
-        condition[self.aefizz.video_df["barrier_present"].to_numpy() == True] += 1
-        condition[self.aefizz.video_df["barrier_flipped"].to_numpy() == True] += 1
-        condition = condition[time_mask]
-        if tuning_var == "":
+        if tuning_var == "": 
+            # if not decoding a behavioral variable, just want to split by homing/escape periods, so label each homing/escape period with a different integer
             homie_starts =  (np.where(np.diff(time_mask.astype(int)) == -1)[0] + 1) - (np.where(np.diff(time_mask.astype(int)) == 1)[0] + 1)
             first = 0
             discretized_var = np.zeros(len(x))
@@ -173,8 +184,8 @@ class ReplayAnalysis:
                 first += hs
             discretized_var = np.zeros(len(x))
         else:
-            discretized_var = create_discretized_behave_var(self.aefizz, x, y, condition, tuning_var=tuning_var, homing_vector=time_mask, settings=self.aefizz.settings)
-        return discretized_var, condition
+            discretized_var = create_discretized_behave_var(self.aefizz, x, y, condition, tuning_var=tuning_var, time_mask_vector=time_mask, interpolation = False)
+        return discretized_var
 
     def filter_time(self, time_period):
         """Filter time periods to include in replay analysis.
@@ -397,9 +408,9 @@ class ReplayAnalysis:
         position_bin_edges = np.linspace(0, max_fract, n_position_bins + 1)
 
         # create the prior
-        if self.aefizz.settings.occupancy_prior == "uniform":
+        if self.aefizz.settings.replay_occupancy_prior == "uniform":
             occupancy_map = np.ones(n_position_bins) / n_position_bins  # Uniform prior
-        elif self.aefizz.settings.occupancy_prior == "empirical":
+        elif self.aefizz.settings.replay_occupancy_prior == "empirical":
             occupancy_counts = np.bincount(behave_var.astype(int), minlength=n_position_bins)
             occupancy_map = occupancy_counts / np.sum(occupancy_counts)
 
@@ -427,64 +438,92 @@ class ReplayAnalysis:
             **_mask: boolean array of shape (num_frames,) indicating which frames are used in the analysis (e.g. before homing)
             **_position: 1D array of shape (num_masked_time_bins,) with the behavioral variable we're trying to decode (e.g. %escape) for each time bin"""
 
-        logger.warning("This will preprocess and save the data for state space decoder.")
+        logger.info("Preprocessing and saving the data for state space decoder.")
         # prepare data
-        filename = (
-            self.replay.savepath
-            + os.sep
-            + "SSdata_bin"
-            + str(int(self.aefizz.settings.replay_state_space_decoder_bin_size*1000)) + "ms"
-            + "_train_"
-            + self.aefizz.settings.replay_decoder_train_time_period
-             + "_" + self.aefizz.settings.replay_train_condition
+
+        # prepare training data
+        train_spikes, train_time, frame_for_bin, train_segments = prepare_state_space_decoder_data(
+            self.aefizz.spike_df, self.replay.selected_cells, train_mask, self.aefizz.session, self.aefizz.settings.replay_state_space_decoder_bin_size
         )
-        if len(filename) > 255:
-            logger.warning("filename is too long, saving with a dummy name instead")
-            filename = self.replay.savepath + os.sep + "SSdata"
+        # resample behaviour data to match spikes
+        if train_behave.ndim == 1: train_behave = train_behave[:,np.newaxis]
+        dummy = np.full((len(self.aefizz.video_df), train_behave.shape[1]), np.nan)
+        dummy[train_mask] = train_behave  #  but actually need to populate with behavioral variable that we're trying to decode (e.g. %escape)
+        train_position = dummy[frame_for_bin]
+        
+        # do a quick check that the frame_for_bin matches the train_mask (i.e. that the frames that are included in the analysis match the frames that we have behavioral data for)
+        check = np.zeros(len(train_mask))
+        check[np.unique(frame_for_bin)] = 1
+        assert np.array_equal(check, train_mask), "Train mask and frame_for_bin don't match, check prepare_state_space_decoder_data function!"
 
-        if (not os.path.exists(filename + ".npz")) or self.aefizz.settings.redo_compute:
+        # prepare test data
+        test_spikes, test_time, frame_for_bin, test_segments = prepare_state_space_decoder_data(
+            self.aefizz.spike_df, self.replay.selected_cells, test_mask, self.aefizz.session, self.aefizz.settings.replay_state_space_decoder_bin_size
+        )
+        # resample behaviour data to match spikes
+        if test_behave.ndim == 1: test_behave = test_behave[:,np.newaxis]
+        dummy = np.full((len(self.aefizz.video_df), test_behave.shape[1]), np.nan)
+        dummy[test_mask] = test_behave  #  but actually need to populate with behavioral variable that we're trying to decode (e.g. %escape)
+        test_position = dummy[frame_for_bin]
+        
+        # do a quick check that the frame_for_bin matches the test_mask (i.e. that the frames that are included in the analysis match the frames that we have behavioral data for)
+        check = np.zeros(len(test_mask))
+        check[np.unique(frame_for_bin)] = 1
+        assert np.array_equal(check, test_mask), "Test mask and frame_for_bin don't match, check prepare_state_space_decoder_data function!"
+        
+        # save data
+        filename = os.path.join(self.replay.savepath, "SSdecoder_" + self.hexaname)
+        save_dict = {
+            "train_spikes": train_spikes.T,
+            "train_time": train_time,
+            "train_mask": train_mask,
+            "train_segments": train_segments,
+            "train_position": train_position,
+            "test_spikes": test_spikes.T,
+            "test_time": test_time,
+            "test_mask": test_mask,
+            "test_segments": test_segments,
+            "test_position": test_position,
+            "template_seq": self.replay.template_seq,
+        }
+        self.saved_vars = list(save_dict.keys())
+        np.savez(filename + "_data.npz", **save_dict, allow_pickle=True)
 
-            # prepare training data
-            train_spikes, train_time, frame_for_bin = prepare_state_space_decoder_data(
-                self.aefizz.spike_df, self.replay.selected_cells, train_mask, self.aefizz.session, self.aefizz.settings.replay_state_space_decoder_bin_size
-            )
-            # resample behaviour data to match spikes
-            dummy = np.zeros(len(self.aefizz.video_df))
-            dummy[train_mask] = train_behave  #  but actually need to populate with behavioral variable that we're trying to decode (e.g. %escape)
-            train_position = dummy[frame_for_bin]
+        settings=asdict(self.aefizz.settings)
+        if settings['replay_train_condition'] == "barrier_pre_flip":
+            settings["barrier_train_location"] = self.aefizz.session.barrier_location[0]
+        elif settings['replay_train_condition'] == "barrier_post_flip":
+            settings["barrier_train_location"] = self.aefizz.session.barrier_location[1]
+        if settings['replay_test_condition'] == "barrier_pre_flip":
+            settings["barrier_test_location"] = self.aefizz.session.barrier_location[0]
+        elif settings['replay_test_condition'] == "barrier_post_flip":
+            settings["barrier_test_location"] = self.aefizz.session.barrier_location[1]
+        np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
 
-            # prepare test data
-            test_spikes, test_time, frame_for_bin = prepare_state_space_decoder_data(
-                self.aefizz.spike_df, self.replay.selected_cells, test_mask, self.aefizz.session, self.aefizz.settings.replay_state_space_decoder_bin_size
-            )
-            # resample behaviour data to match spikes
-            dummy = np.zeros(len(self.aefizz.video_df))
-            dummy[test_mask] = test_behave  #  but actually need to populate with behavioral variable that we're trying to decode (e.g. %escape)
-            test_position = dummy[frame_for_bin]
+        logger.warning("State space decoder data saved to " + filename + "_data.npz" + " . Now run the state space decoder in behave_analysis > analyze > replay > SSdecoder.ipynb.")
 
-            # save data
-            np.savez(
-                filename + ".npz",
-                train_spikes=train_spikes.T,
-                train_time=train_time,
-                train_mask=train_mask,
-                train_position=train_position,
-                test_spikes=test_spikes.T,
-                test_time=test_time,
-                test_mask=test_mask,
-                test_position=test_position,
-                template_seq = self.replay.template_seq,
-            )
+# --------------Helper Functions--------------
+    def check_database_for_same_run(self):
 
-            settings_dict=asdict(self.aefizz.settings)
-            if settings_dict['replay_train_condition'] == "barrier_pre_flip":
-                settings_dict["barrier_train_location"] = self.aefizz.session.barrier_location[0]
-            elif settings_dict['replay_train_condition'] == "barrier_post_flip":
-                settings_dict["barrier_train_location"] = self.aefizz.session.barrier_location[1]
-            if settings_dict['replay_test_condition'] == "barrier_pre_flip":
-                settings_dict["barrier_test_location"] = self.aefizz.session.barrier_location[0]
-            elif settings_dict['replay_test_condition'] == "barrier_post_flip":
-                settings_dict["barrier_test_location"] = self.aefizz.session.barrier_location[1]
-            np.savez(filename + "_s.npz", settings=settings_dict, allow_pickle=True)
-
-        logger.warning("State space decoder data saved to " + filename + ".npz" + " . Now run the state space decoder in behave_analysis > analyze > replay > SSdecoder.ipynb.")
+        self.do_replay_analysis = True
+        # check if database file exists
+        if os.path.exists(self.replay.savepath + os.sep + "replay_results.csv"):
+            self.database = pd.read_csv(self.replay.savepath + os.sep + "replay_results.csv")
+            # check if there is a run with the same settings as the current ones
+            matched_results = check_database_for_matched_results(self.database, settings_to_check(self.aefizz.settings, 'replay'))
+            if len(matched_results) > 0:
+                # if there is a match, print the name of the matched run and skip the analysis....
+                logger.info(f"Found {len(matched_results)} matched results in database for current settings: {matched_results} in the folder {self.replay.savepath}")
+                self.do_replay_analysis = False
+                if self.aefizz.settings.redo_compute:
+                    #... unless you have chosen to redo the analysis anyway!
+                    logger.info("You have chosen to redo the analysis anyway!")
+                    self.do_replay_analysis = True
+        else:
+            # if database doesn't exist, create it and add the current run to the database
+            logger.info(f"No existing database found for replay results at {self.replay.savepath}, will compute replay results and save to new database.")
+            self.database = pd.DataFrame([])
+        
+        # if we are doing the replay analysis, add the current run to the database with a new hexadecimal name
+        if self.do_replay_analysis:
+            self.hexaname = generate_run_id()
