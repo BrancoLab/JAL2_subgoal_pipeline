@@ -50,7 +50,7 @@ def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, d
     """
     
     frame_trigger_onsets = np.diff(camera_trigger_data)
-    frame_trigger_onsets_idx = np.where(frame_trigger_onsets > 1)[0] + 1 # np is 0 indexes but frames are not so add 1 
+    frame_trigger_onsets_idx = np.where(frame_trigger_onsets > 1)[0] + 1 # compensate for the fact that diff shifts the index by 1
     
     if drop_frames == True: 
         frame_trigger_onsets_idx = find_drop_frames(session, frame_trigger_onsets_idx)
