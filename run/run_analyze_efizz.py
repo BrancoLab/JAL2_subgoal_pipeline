@@ -19,6 +19,8 @@ import copy
 # 'sklearn' - Sklearn Decoders
 # 'EscapePattern' - Escape Pattern Tuning Analysis
     # variable: e.g. '<var> in <context>' or 'residual: <var1> in <context1> - <var2> in <context2>'
+# 'Replay' - Replay Analysis
+# 'PlaceCells' - Place Cell Analysis
 
 
 def analyze_efizz(analysis_name=None, variable=None, overrides=None):

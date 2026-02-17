@@ -49,4 +49,13 @@ Settings_ae = Settings_analyze_efizz(
     # False: Do not plot every cluster in one figure
     # ------------ Escape Pattern settings ----------------------
     escape_tuning_bins=25,  # number of bins for escape pattern tuning
+    # ------------ Replay model settings ----------------------
+    replay_cells="all",  # 'all','hdir','escape_tuned'
+    replay_template_variable="escape", # to make the order template of the replay sequence
+    replay_decoder_variable="2D_position",  # 'shelter_dist' or 'escape' or 'speed'
+    replay_train_condition="barrier_pre_flip", # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_test_condition="barrier_pre_flip", # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_decoder_train_time_period="correct_long_homing&escape", # 'homing&escape', "correct_<>", "error_<>", "full_<>"
+    replay_decoder_test_time_period="error_homing&escape", #  'error_homing&escape', 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
+    replay_template_match_method="SS_decoder",  # 'rank_order_corr' or 'bayesian_decoder' or 'SS_decoder'
 ) 

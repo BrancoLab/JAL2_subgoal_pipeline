@@ -32,6 +32,13 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
     # step 2: extract homie periods
     # This is done outside as well
 
+    # check var shape
+    if var.ndim > 1:
+        if var.shape[1] == 1:
+            var = var.flatten()
+        else:
+            raise ValueError("Variable array has more than one column. Numba function expects a 1D array.")
+
     # find the start of each homing period
     h_start = get_homings_onsets_in_filtered_time(filtering_vector)
 

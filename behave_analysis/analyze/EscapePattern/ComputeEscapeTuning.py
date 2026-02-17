@@ -72,9 +72,9 @@ class ComputeEscapeTuning:
         # extract behavioral variable that we compute the tuning to
         self.ET.discretized_var = create_discretized_behave_var(
             aefizz, x, y, self.ET.condition, 
-            self.ET.tuning_var,
-            self.ET.homing_vector if h_and_e else None,
-            self.ET.bin_edges
+            tuning_var=self.ET.tuning_var,
+            time_mask_vector=self.ET.homing_vector if h_and_e else None,
+            bin_edges=self.ET.bin_edges
         )
 
         # compute tuning curves for each neuron
@@ -141,7 +141,7 @@ class ComputeEscapeTuning:
         # compute behavioral variable
         discretized_var = create_discretized_behave_var(aefizz, x, y, condition, 
                                       self.ET.tuning_var, 
-                                      homing_vector = filtering_vector,
+                                      time_mask_vector = filtering_vector,
                                       bin_edges = self.ET.bin_edges)
         self.ET.discretized_var_shift = discretized_var
         
@@ -217,7 +217,9 @@ class ComputeEscapeTuning:
         escape_vector = np.zeros_like(self.condition, dtype=bool)
 
         # iterate over homings
-        for tr, (on, of) in enumerate(zip(self.ons, self.offs)):
+        for on, of in zip(self.ons, self.offs):
+            on = int(on)
+            of = int(of)
 
             if on in self.esc_ons:
                 esc = True

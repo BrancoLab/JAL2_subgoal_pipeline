@@ -5,6 +5,7 @@ import re
 from loguru import logger
 import os
 
+from behave_analysis.analyze.PlaceCells.place_cell_utils import create_centered_bins
 from behave_analysis.utils.creating_directories import make_directory
 
 def define_bin_edges(settings, tuning_var):
@@ -47,14 +48,17 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
     return v2_residual_matrix
 
 
-def homing_escape_onsets(aefizz, escape_pattern_time):
+def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_threshold = [0.925, 1.05]):
     """This function creates two vectors of onset and offset times for homing and escape periods
-    TODO: currently does not filter based on correct/incorrect homings, first/second leg, or minimum homing length
+    TODO: currently does not filter based on first/second leg, or minimum homing length
     RETURNS:
         ons: vector of onset times in frames for homing and escape periods
         offs: vector of offset times in frames for homing and escape periods
         esc_ons: vector of onset times in frames for escape periods
     """
+    cond_list = ['shelter_only', 'barrier_pre_flip','barrier_post_flip']
+    spatial_efficiency_threshold = [0.95, 1.05] 
+    
     ons = []
     offs = []
     esc_ons = []
@@ -85,8 +89,6 @@ def homing_escape_onsets(aefizz, escape_pattern_time):
     condition = condition[idx]
 
     # compute spatial efficiency for each run
-    cond_list = ['shelter_only', 'barrier_pre_flip','barrier_post_flip']
-    spatial_efficiency_threshold = [0.95, 1.05]  
     optimal_distances = np.zeros(len(ons))
     for idx in range(len(ons)):
         dist_to_shelter = compute_dist_shelt(x_pos = np.array([aefizz.video_df['mouse_x_position'].to_numpy()[int(ons[idx])]]),
@@ -165,15 +167,15 @@ def homing_escape_boolean_vectors(aefizz):
 
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 
-def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, homing_vector = [], bin_edges = [], settings = None):
+def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector = [], bin_edges = [], interpolation = True):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
         aefizz: AnalyzeEfizz object
-        x: mouse x position vector
-        y: mouse y position vector
+        x: mouse x position vector - the variable of interest will be computed based on this and the y position vector
+        y: mouse y position vector - the variable of interest will be computed based on this and the x position vector
         condition: vector of condition at each time point
         tuning_var: string defining which behavioral variable to compute
-        homing_vector: boolean vector defining homing periods (if tuning_var requires it)
+        time_mask_vector: boolean vector defining time periods of interest (e.g. homings)
         bin_edges: edges of bins to discretize variable into (if empty, will be defined based on settings)
     """
     # compute distance to shelter along the shortest path (i.e. around barrier if present)
@@ -200,8 +202,8 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, homing_ve
     # compute fraction of escape trajectory
     elif "escape" in tuning_var:
         # iterate over escape trials to compute distance travelled during each escape
-        ons = np.where(np.diff(homing_vector.astype(int)) == 1)[0] + 1  # homing onsets
-        offs = np.where(np.diff(homing_vector.astype(int)) == -1)[0] + 1  # homing offsets
+        ons = np.where(np.diff(time_mask_vector.astype(int)) == 1)[0] + 1  # homing onsets
+        offs = np.where(np.diff(time_mask_vector.astype(int)) == -1)[0] + 1  # homing offsets
         homie_starts = offs - ons
         first = 0
         var = np.zeros_like(x)
@@ -209,26 +211,46 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, homing_ve
             dd = compute_escape_trajectory(x[first : first + hs], y[first : first + hs])
             var[first : first + hs] = dd / np.amax(dd)
             first += hs
-        if (len(bin_edges) == 0) & isinstance(settings.escape_tuning_bins, int):
-            bin_edges = define_bin_edges(settings, tuning_var)
+        if len(bin_edges) == 0:
+            if isinstance(aefizz.settings.escape_tuning_bins, int):
+                bin_edges = define_bin_edges(aefizz.settings, tuning_var)
 
     # use speed or y position directly
-    elif tuning_var == "speed" or tuning_var == "y_pos":
+    elif tuning_var == "speed" or tuning_var == "y_pos":            
         if tuning_var == "speed":
             var = aefizz.video_df["speed"].to_numpy()
-            bin_range = [0, np.amax(var), 1]
+            logger.warning("Speed is binned at a max of 50 cm/s")
+            eps = 1e-10
+            var[var > 50] = 50 - eps # cap speed at 50 cm/s 
+            bin_range = [0, 51, 2]
         elif tuning_var == "y_pos":
             var = y
-            bin_range = [np.amin(var), np.amax(var), np.amax(var) / settings.escape_tuning_bins]
+            logger.warning("TODO: unhardcode y position bin range to arena size!")
+            bin_range = [np.amin(var), np.amax(var), np.amax(var) / aefizz.settings.escape_tuning_bins]
         # interpolate!
-        current_time = np.arange(len(aefizz.video_df["speed"].to_numpy()))
-        new_time = np.arange(0, len(aefizz.video_df["speed"].to_numpy()), 1 / settings.escape_pattern_interpolation_mult)
-        var = np.interp(new_time, current_time, var)
-        if (len(bin_edges) == 0) & isinstance(settings.escape_tuning_bins, int):
+        if interpolation == True:
+            # if interpolation is true, time_mask_vector also needs to be interpolated!!
+            current_time = np.arange(len(aefizz.video_df["speed"].to_numpy()))
+            new_time = np.arange(0, len(aefizz.video_df["speed"].to_numpy()), 1 / aefizz.settings.escape_pattern_interpolation_mult)
+            var = np.interp(new_time, current_time, var)
+        var = var[time_mask_vector.astype(bool)] # restrict to homing periods for tuning curve calculation
+        if (len(bin_edges) == 0):
             bin_edges = np.arange(bin_range[0], bin_range[1], bin_range[2])
 
+    elif tuning_var == '2D_position':
+        logger.warning(f"Bin number: {aefizz.settings.escape_tuning_bins} will be doubled, to have equal number of bins on each side of the arena center!")
+        var = np.column_stack([x, y])
+        if hasattr(aefizz.session.video, 'radius'):
+            radius = aefizz.session.video.radius
+        else:
+            radius = 460
+        bin_edges = create_centered_bins(nbins=aefizz.settings.escape_tuning_bins, bin_size=0.0, arena_radius=radius, center_offset = aefizz.session.video.width/2)
+    
+    elif tuning_var == 'Delta_HDIR':
+        raise NotImplementedError("Delta HDIR not yet implemented") 
+
     # discretize variable into bins
-    discretized_var = discretize(var, bin_edges)
+    discretized_var = discretize_nd(var, bin_edges)
 
     return discretized_var
 
@@ -287,7 +309,7 @@ def build_shift_vector(aefizz, ET):
     """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics
     If settings.escape_pattern_time is 'homing&escape' it makes sure there are enough homings in each central third"""
 
-    mult = settings.escape_pattern_interpolation_mult
+    mult = aefizz.settings.escape_pattern_interpolation_mult
     ttime = len(aefizz.video_df) * mult  # total time after interpolation
     # the end of the shelter_only condition
     shelter = np.where(aefizz.video_df["barrier_present"].to_numpy() == True)[0][0] * mult
@@ -365,6 +387,20 @@ def discretize(var, bins):
     shifted_disc_var = (disc_var - 1).astype(float)
     shifted_disc_var[disc_var >= len(bins)] = np.nan  # Handle values above the last bin
     return shifted_disc_var
+
+def discretize_nd(var, bins):
+    """Bin the var using bins for each dimension,
+    INPUTS:
+        var: array of shape (time, dimensions) of continuous variables to be binned
+        bins: vector of bin edges"""
+    if var.ndim == 1:
+        var = var[:, np.newaxis]  # add a dimension if var is 1D
+    disc_var = np.zeros_like(var, dtype=float)
+    for dim in range(var.shape[1]):
+        disc_var[:, dim] = discretize(var[:, dim], bins)
+    # extend nan to whole row if any dimension is out of bounds
+    disc_var[np.any(np.isnan(disc_var), axis=1)] = np.nan
+    return disc_var
 
 def check_not_list(var):
     if np.logical_or(isinstance(var[0], list), isinstance(var[0], np.ndarray)):
