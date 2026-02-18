@@ -4,7 +4,7 @@ from typing import List, Optional
 
 class Arena:
     def __init__(
-        self, dim=1024, ax=None, shelter_coordinates=None, condition=None, barrier_coordinates: Optional[List[List[float]]] = None, no_offset=False
+        self, dim=1024, ax=None, shelter_coordinates=[[437, 886],[587, 976]], condition=None, barrier_coordinates: Optional[List[List[float]]] = None, no_offset=False
     ):
         """Draws the arena with the shelter and barrier if present.
 
