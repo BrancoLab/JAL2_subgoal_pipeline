@@ -202,7 +202,7 @@ def PredictionAccuracyMapped(aefizz, pa, title_add="LDA", LS_thresh=None, pos=[]
         significant_points = (pa - LS_thresh) > 0
         ax.scatter(x[significant_points] + 0.5, y[significant_points] + 0.5, s=3, c="w")
 
-    Arena(dim = np.shape(heatmap)[0], ax=ax, shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=aefizz.condition, barrier_coordinates=aefizz.session.barrier_location, no_offset=True)
+    Arena(dim = np.shape(heatmap)[0], ax=ax, shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=aefizz.condition, barrier_coordinates=aefizz.session.barrier_location, arena_only=False)
     # add_features_binned(ax, aefizz.condition, aefizz.tracking_data, xbins, ybins)
 
     # Remove x and y tick labels and ticks
@@ -394,7 +394,7 @@ def across_conditions_LDA_map(aefizz):
                 norm=plt.Normalize(vmin=vmin, vmax=vmax),
             )
 
-            Arena(dim = np.shape(heatmap)[0], ax=axs[ax_idx], shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=condition, barrier_coordinates=aefizz.session.barrier_location, no_offset=True)
+            Arena(dim = np.shape(heatmap)[0], ax=axs[ax_idx], shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=condition, barrier_coordinates=aefizz.session.barrier_location, arena_only=False)
             # add_features_binned(axs[ax_idx], condition, aefizz.tracking_data, xbins, ybins)
 
             # Remove x and y tick labels and ticks
