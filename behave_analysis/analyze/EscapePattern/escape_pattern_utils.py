@@ -238,7 +238,6 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             bin_edges = np.arange(bin_range[0], bin_range[1], bin_range[2])
 
     elif tuning_var == '2D_position':
-        logger.warning(f"Bin number: {aefizz.settings.escape_tuning_bins} will be doubled, to have equal number of bins on each side of the arena center!")
         var = np.column_stack([x, y])
         if hasattr(aefizz.session.video, 'radius'):
             radius = aefizz.session.video.radius
@@ -446,7 +445,7 @@ def saving_path_and_file(aefizz, variable):
     else:
         tuning_var, escape_pattern_time = parse_side(variable)
 
-    savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", escape_pattern_time))
+    savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "models", "escape_tuning", escape_pattern_time))
     
     # filename building
     res = ''

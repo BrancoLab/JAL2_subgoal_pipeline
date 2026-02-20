@@ -144,7 +144,6 @@ class ReplayAnalysis:
         E.g., if searching for escape pattern replay, don't train on exploration periods."""
         assert self.aefizz.settings.replay_decoder_variable in ["escape", "shelter_dist","speed", "2D_position"], "replay_decoder_variable must be 'escape' or 'shelter_dist'"
         # now, only homing&escape, but should work for just homing, just escape without edits
-        assert "homing&escape" in self.aefizz.settings.replay_decoder_train_time_period, "Currently only 'homing&escape' training period is implemented for replay analysis"
         if self.aefizz.settings.replay_decoder_variable == "escape":
             assert "homing&escape" in self.aefizz.settings.replay_decoder_train_time_period, "If replay_decoder_variable is 'escape', replay_decoder_train_time_period must be 'homing&escape'"
         condition_match = self.aefizz.settings.replay_train_condition == self.aefizz.settings.replay_test_condition
@@ -154,7 +153,11 @@ class ReplayAnalysis:
     def define_replay_template(self):
         """The template is the order of neurons during a sequence that we want to test for replay"""
         # load in escape homing/escape tuning curve
-        CT = load_or_compute_escape_tuning(self.aefizz, self.aefizz.settings.replay_template_variable + " in " + self.aefizz.settings.replay_decoder_train_time_period)
+        if "homing" not in self.aefizz.settings.replay_decoder_train_time_period or "escape" not in self.aefizz.settings.replay_decoder_train_time_period:
+            time_period = "homing&escape"
+        else:            
+            time_period = self.aefizz.settings.replay_decoder_train_time_period
+        CT = load_or_compute_escape_tuning(self.aefizz, self.aefizz.settings.replay_template_variable + " in " + time_period)
         self.escape_tuning_curve = CT.fr_full[self.c, self.replay.selected_cells, :]  # tuning curves of selected cells
         # define the template of the order of neurons in the sequence
         preferred_tuning = CT.params_full[:, :, 1]  # preferred (max) bin for each cell and condition
@@ -233,16 +236,14 @@ class ReplayAnalysis:
                 self.aefizz.video_df["OutofshelterIdx"].to_numpy() == False
             )  # if mouse leaves again before the 2s are up, don't include that time
 
-        elif time_period == "outside_shelter":
+        elif ("outside_shelter" in time_period) or ("explore" in time_period):
             # any time the mouse is outside the shelter
-            logger.warning("Outside shelter doesn't currently filter out homings or escapes")
+            logger.warning(f"{time_period} doesn't currently filter out homings or escapes")
             time_mask = self.aefizz.video_df["OutofshelterIdx"].to_numpy() == True
-
-        elif time_period == "stationary_outside_shelter":
-            # any time the mouse is outside the shelter and stationary
-            logger.warning("This gives us any single frame the mouse is stationary, not just prolonged periods of being stationary.")
-            logger.warning("Outside shelter doesn't currently filter out homings or escapes")
-            time_mask = (self.aefizz.video_df["OutofshelterIdx"].to_numpy() == True) & (self.aefizz.video_df["speed"].to_numpy() < speed_threshold)
+            if "stationary" in time_period:
+                # any time the mouse is outside the shelter and stationary
+                logger.warning("This gives us any single frame the mouse is stationary, not just prolonged periods of being stationary.")
+                time_mask = (time_mask) & (self.aefizz.video_df["speed"].to_numpy() < speed_threshold)
 
         elif time_period == "in_shelter":
             # any time the mouse is inside the shelter
