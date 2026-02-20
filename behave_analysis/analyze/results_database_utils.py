@@ -3,6 +3,7 @@ from dataclasses import asdict
 import numpy as np
 import uuid
 from loguru import logger
+import ast
 
 SETTINGS_AE = ["stim_type", "redo_compute", "cluster_type", "show_plots", "condition_types", "compartment_split", "parallel_pool_linshit"]
 
@@ -39,9 +40,12 @@ def settings_to_check(settings_obj, analysis_type):
 
     return settings_to_check_dict
 
-def find_matching_run(database, settings_dict):
-    logger.warning("Currently not checking the saved vars list for matches - this means that if you have run the same settings but saved different variables it will not save a new run")
+def find_matching_run(database, settings_dict, saved_vars = []):
+    """A function that chcks a database for rows with settings that match settings_dict.
+    Optionally you can also ask to check the list of saved_vars for this row by passing a list of var names"""
     matched_rows = np.ones(len(database), dtype=bool)
+    saved_vars_rows = np.ones(len(database), dtype=bool)
+
     # iterate over rows
     for row in range(len(database)):
         row_dict = database.iloc[row].to_dict()
@@ -53,7 +57,15 @@ def find_matching_run(database, settings_dict):
                 if row_dict[setting_name] != setting_value:
                     matched_rows[row] = False
                     break
-    return matched_rows
+        if len(saved_vars) > 0:
+            data_vars = ast.literal_eval(row_dict["data_vars"]) if isinstance(row_dict["data_vars"], str) else row_dict["data_vars"]
+            if data_vars != saved_vars:
+                saved_vars_rows[row] = False
+
+    if len(saved_vars) > 0:
+        return matched_rows, saved_vars_rows 
+    else:   
+        return matched_rows
 
 def add_run_to_database(dataframe, settings_dict, savepath, hexadecimal_name, saved_vars=None):
     """INPUTS:
