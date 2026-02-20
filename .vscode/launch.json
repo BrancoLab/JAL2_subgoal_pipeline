@@ -1,7 +1,6 @@
 {
     "version": "0.2.0",
     "configurations": [
-        
         {
             "name": "Python: Current File",
             "type": "python",
@@ -9,7 +8,13 @@
             "program": "${file}",
             "console": "integratedTerminal",
             "redirectOutput": true,
-            "justMyCode": false,
+            "justMyCode": false
+        },
+        {
+            "name": "Python Debugger: Python File",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${file}"
         }
     ]
 }
