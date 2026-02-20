@@ -35,7 +35,7 @@ class Arena:
                 shelter_coordinates = [[s + (512 - 460) for s in sh] for sh in shelter_coordinates]
             self.draw_shelter(shelter_coordinates)
 
-        if len(barrier_coordinates) > 0:
+        if barrier_coordinates is not None:
             if not np.logical_or(condition == "shelter_only", condition == "pre_shelter"):
                 if not full_image:
                     barrier_coordinates = [[b + (512 - 460) for b in bc] for bc in barrier_coordinates]
@@ -80,11 +80,11 @@ class Arena:
 
         if len(bar_loc) == 0:
             # draw from the barrier point to the edge of the arena in cases where we only got one point
-            if barrier_coordinates[0] < self.arena_center:  # if 224 < 512
+            if (barrier_coordinates[0] * self.scaling) < self.arena_center:  # if 224 < 512
                 bar_loc = [barrier_coordinates[0] * self.scaling, self.arena_center + self.arena_radius]  # [224 * 1, 512 + 460]
             else:
                 bar_loc = [self.arena_center - self.arena_radius, barrier_coordinates[0] * self.scaling]  # [512 - 460, 797 * 1]
 
         self.ax.plot(
-                [bar_loc[0], bar_loc[1]], [self.arena_center * self.scaling, self.arena_center * self.scaling], color=[0, 0, 0]
+                [bar_loc[0], bar_loc[1]], [self.arena_center, self.arena_center], color=[0, 0, 0]
             )
