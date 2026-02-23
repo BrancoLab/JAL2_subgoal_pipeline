@@ -47,6 +47,27 @@ def plot_predicted_vs_actual(axs, posterior_dist, predicted_position, actual_pos
         axs.set_title(f"rmse: {rmse:.2f}")
     axs.legend(loc='lower right')
 
+def plot_predicted_vs_actual_2dpos(axs, predicted_position, actual_position, dim, condition, barrier_coordinates = None, title = ''):
+    """INPUTS:
+            axs: the axis to plot on
+            predicted_position: the predicted position at each time point (time,2) - this will be either the max or weighted average of posterior_dist
+            actual_position: the actual position at each time point (time,)
+            time: the time vector corresponding to the predicted and actual positions (in seconds)
+            time_markers: a list of time points to mark with vertical lines (in seconds)"""
+
+    Arena(ax=axs,
+        dim = dim,
+        condition=condition,
+        barrier_coordinates=barrier_coordinates)
+    axs.scatter((predicted_position[:, 1]+1), 
+                (predicted_position[:, 0]+1), s=10, color='blue', alpha = 0.5, label = 'predicted position')
+    axs.plot((predicted_position[:, 1]+1),
+            (predicted_position[:, 0]+1), color='blue', alpha = 0.5, linewidth = .5) # to show the trajectory of
+    axs.scatter((actual_position[:, 0]+1),
+                (actual_position[:, 1]+1), c='orange', label='Train Actual', alpha=0.5)
+    axs.legend(loc='upper right')
+    axs.set_title(title)
+
 def plot_mouse_behaviour(axs, x, y, onset, offset, condition, barrier_coordinates = None, time_markers = [], look_back = 0, look_forward = 0, title = ''):
     """ INPUTS:
             axs: the axis to plot on
