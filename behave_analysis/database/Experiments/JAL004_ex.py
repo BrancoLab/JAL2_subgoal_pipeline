@@ -3,7 +3,7 @@ from pathlib import Path
 from behave_analysis.database.Experiments.experiment_class import Experiment
 from behave_analysis.database.Mice.AllMouses import JAL004
 
-JAL4_mush1 = Experiment(  # Mouse specific
+JAL4_22Aug = Experiment(  # Mouse specific
     nick_name=JAL004.nick_name,
     total_sessions=JAL004.total_sessions,
     mouse_number_pyrat=JAL004.mouse_number_pyrat,
