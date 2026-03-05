@@ -5,6 +5,7 @@ As such each class below is just a shell"""
 from dataclasses import dataclass
 import numpy as np
 
+
 @dataclass(frozen=True)
 class Settings_process:
     create_new_registration: bool = False
@@ -38,6 +39,7 @@ class Settings_track:
     tracking_file_location: str = None
     save_labeled_video: bool = False
     random_points: str = None
+
 
 @dataclass(frozen=True)
 class Settings_visualize:
@@ -87,12 +89,12 @@ class Settings_analyze_behave:
     max_time_within_session: float = 2000  # How long is session in minutes - Ignore I think # TODO remove?
     threat_area_width: int = 820
     cum_threshold: int = 25  # How many cm does the mouse have to move when considering homing angle
-    speed_threshold: int = 15 # this determined when the mouse has actually srated running (after the initial head turn) 
+    speed_threshold: int = 15  # this determined when the mouse has actually srated running (after the initial head turn)
     threat_area_height: int = 275
     by_session: bool = True
     # sessions: list
     all_sessions: bool = False
-    redo_homings: bool = False # TODO remove!
+    redo_homings: bool = False  # TODO remove!
     use_boris: bool = True
     # escape_settings
     stim_type: str = "audio"
@@ -110,10 +112,10 @@ class Settings_analyze_efizz:
     compartment_split: str = ""
     parallel_pool_linshit: bool = True
     # LDA settings
-    epoch_num: int = 6 # number of epochs for cross validation
+    epoch_num: int = 6  # number of epochs for cross validation
     number_of_bins: int = 19
     use_firing_rate: bool = True
-    discriminant_type: str = "linear" # 'linear' or 'quadratic' (or 'LSTM', not implemented yet)
+    discriminant_type: str = "linear"  # 'linear' or 'quadratic' (or 'LSTM', not implemented yet)
     PCA_process: int = 15
     exclude_proximal: bool = False
     exclude_hdir: bool = False
@@ -135,34 +137,35 @@ class Settings_analyze_efizz:
     linshift_step: int = 400  # in frames
     linshift_step_n: int = 100  # number of steps to do
     # Escape Pattern settings
-    escape_tuning_bins: int = 25
-    escape_pattern_no_stationary: bool = False
-    escape_pattern_interpolation_mult: int = 2
+    ep_bins: int = 25
+    ep_no_stationary: bool = False
+    ep_interpolation_mult: int = 2
     ep_linshift_min_homings = 5  # minimum number of homings in the central third of each condition for linear shift stats
     ep_gaussian_fitting: bool = False
     ep_compute_loo_reliability: bool = False
-    ep_tuned_compare_method: str = "euclidean" # or 'cosine'
+    ep_tuned_compare_method: str = "euclidean"  # or 'cosine'
     ep_tuned_stats: str = "bootstrap"  # or 'linear_shift' (not yet implemented)
     ep_tuned_stats_samples: int = 100
     # Replay settings
     replay_cells: str = "all"  # 'all','hdir','escape_tuned'
     replay_search_window: int = 500  # in ms
-    replay_template_variable: str = "escape" # to make the order template of the replay sequence
+    replay_template_variable: str = "escape"  # to make the order template of the replay sequence
     replay_decoder_variable: str = "speed"  # 'shelter_dist' or 'escape'
-    replay_train_condition: str = "barrier_pre_flip" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
-    replay_test_condition: str = "barrier_pre_flip" # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
-    replay_decoder_train_time_period: str = "correct_long_homing&escape" # 'homing&escape'
+    replay_train_condition: str = "barrier_pre_flip"  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_test_condition: str = "barrier_pre_flip"  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_decoder_train_time_period: str = "correct_long_homing&escape"  # 'homing&escape'
     replay_decoder_test_time_period: str = "error_homing&escape"  # 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
-    replay_rank_order_corr_method: str = "first_activity" # 'first_activity', 'weighted_avg'
+    replay_rank_order_corr_method: str = "first_activity"  # 'first_activity', 'weighted_avg'
     replay_occupancy_prior: str = "uniform"  # 'uniform' or 'empirical'
     replay_template_match_method: str = "SS_decoder"  # 'rank_order_corr' or 'bayesian_decoder' or 'state_space_decoder'
-    replay_state_space_decoder_bin_size: float = .001  # in seconds, default 1ms
+    replay_state_space_decoder_bin_size: float = 0.001  # in seconds, default 1ms
     # Place Cells settings
     place_cell_bin_size_pix: float = 25  # in pix, adjust as needed
     place_cell_speed_threshold: float = 2.5  # in cm/s, threshold for excluding time points when the mouse is stationary or moving very slowly
     place_cell_smoothing_sigma: float = 2.0  # in bins, for smoothing the spike count and occupancy maps before computing rate maps
     place_cell_min_occupancy: float = 0.5  # in seconds, minimum occupancy time for a bin to be included in the analysis
-    
+
+
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ""

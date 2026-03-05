@@ -21,7 +21,7 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
     #                                         "barrier_removed"
-    conditions=["shelter_only","barrier_pre_flip", "barrier_post_flip", "all_time"],
+    conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip", "all_time"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
     # if 'time_conditions' it compares first vs second half
@@ -52,19 +52,19 @@ Settings_ae = Settings_analyze_efizz(
     multi_cluster_plots=False,  # True: Plot every cluster in one figure for one condition
     # False: Do not plot every cluster in one figure
     # ------------ Escape Pattern settings ----------------------
-    escape_tuning_bins=25,  # number of bins for escape pattern tuning
+    ep_bins=25,  # number of bins for escape pattern tuning
     # ------------ Replay model settings ----------------------
     replay_cells="all",  # 'all','hdir','escape_tuned'
-    replay_template_variable="escape", # to make the order template of the replay sequence
+    replay_template_variable="escape",  # to make the order template of the replay sequence
     replay_decoder_variable="speed",  # 'shelter_dist' or 'escape' or 'speed' or '2D_position
-    replay_train_condition="barrier_pre_flip", # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
-    replay_test_condition="barrier_pre_flip", # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
-    replay_decoder_train_time_period="homing&escape", # 'homing&escape', "correct_<>", "error_<>", "full_<>"
-    replay_decoder_test_time_period="explore", #  'error_homing&escape', 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
+    replay_train_condition="barrier_pre_flip",  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_test_condition="barrier_pre_flip",  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
+    replay_decoder_train_time_period="homing&escape",  # 'homing&escape', "correct_<>", "error_<>", "full_<>"
+    replay_decoder_test_time_period="explore",  #  'error_homing&escape', 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
     replay_template_match_method="SS_decoder",  # 'rank_order_corr' or 'bayesian_decoder' or 'SS_decoder'
     # ------------ Place Cells settings ----------------------
     place_cell_bin_size_pix=50,  # in pix (10cm/pix) at least 50
     place_cell_speed_threshold=2.5,  # in cm/s, threshold for excluding time points when the mouse is stationary or moving very slowly
     place_cell_smoothing_sigma=2.0,  # in bins, for smoothing the spike count and occupancy maps before computing rate maps
-    place_cell_min_occupancy=0.5  # in seconds, minimum occupancy time for a bin to be included in the analysis
-    ) 
+    place_cell_min_occupancy=0.5,  # in seconds, minimum occupancy time for a bin to be included in the analysis
+)
