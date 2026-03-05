@@ -4,9 +4,37 @@ import numpy as np
 import uuid
 from loguru import logger
 import ast
+import os
 
 SETTINGS_AE = ["stim_type", "redo_compute", "cluster_type", "show_plots", "condition_types", "compartment_split", "parallel_pool_linshit"]
 
+def check_database_for_same_run(db_settings, results_csv_name, settings):
+
+    do_analysis = True
+    # check if database file exists
+    results_csv = results_csv_name
+    if os.path.exists(results_csv):
+        database = pd.read_csv(results_csv)
+        # check if there is a run with the same settings as the current ones
+        matched_results = check_database_for_matched_results(database, db_settings)
+        if len(matched_results) > 0:
+            # if there is a match, print the name of the matched run and skip the analysis....
+            logger.info(f"Found {len(matched_results)} matched results in database for current settings: {matched_results} in the folder {results_csv_name}")
+            do_analysis = False
+            if settings.redo_compute:
+                # ... unless you have chosen to redo the analysis anyway!
+                logger.info("You have chosen to redo the analysis anyway!")
+                do_analysis = True
+    else:
+        # if database doesn't exist, create it and add the current run to the database
+        logger.info(f"No existing database found for escape tuning results at {results_csv_name}, will compute escape tuning and save to new database.")
+        database = pd.DataFrame([])
+
+    # if we are doing the replay analysis, add the current run to the database with a new hexadecimal name
+    if do_analysis:
+        hexaname = generate_run_id()
+    
+    return database, do_analysis, hexaname
 
 def check_database_for_matched_results(database: pd.DataFrame, settings_to_check: dict):
     """Check if we have already run the analysis with these settings!

@@ -8,20 +8,22 @@ import os
 from behave_analysis.analyze.PlaceCells.place_cell_utils import create_centered_bins
 from behave_analysis.utils.creating_directories import make_directory
 
+
 def define_bin_edges(settings, tuning_var):
     """Define bin edges based on settings.tuning_var and settings.tuning_bins."""
     # if tuning_bins is an integer, create that many bins between min and max of the variable
-    if isinstance(settings.escape_tuning_bins, int):
+    if isinstance(settings.ep_bins, int):
         if tuning_var == "bird_dist_shelter":
-            bin_edges = np.linspace(0, 900, settings.escape_tuning_bins + 1)
+            bin_edges = np.linspace(0, 900, settings.ep_bins + 1)
         elif tuning_var == "escape":
-            bin_edges = np.append(np.arange(0, 1, 1 / settings.escape_tuning_bins), 1 + 1e-10)
+            bin_edges = np.append(np.arange(0, 1, 1 / settings.ep_bins), 1 + 1e-10)
         else:
             bin_edges = []
-    elif isinstance(settings.escape_tuning_bins, list):
-        bin_edges = settings.escape_tuning_bins
+    elif isinstance(settings.ep_bins, list):
+        bin_edges = settings.ep_bins
 
     return bin_edges
+
 
 def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
     """This function computes the residual neural matrix after removing activity predicted by var2 (e.g. distance to shelter)
@@ -38,8 +40,8 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
 
     for n in range(n_neur):
         for c in range(n_cond):
-            u = var2_t1[cond_t1 == c].astype(int) # binned <var2> in <ctx1> and condition c
-            v = fr_var2_t2[c, n, :] # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
+            u = var2_t1[cond_t1 == c].astype(int)  # binned <var2> in <ctx1> and condition c
+            v = fr_var2_t2[c, n, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
             v2_predicted_matrix[n, cond_t1 == c] = v[u]
 
     # 7. subtract predicted neural activity from actual neural activity
@@ -48,7 +50,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
     return v2_residual_matrix
 
 
-def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_threshold = [0.925, 1.05]):
+def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_threshold=[0.925, 1.05]):
     """This function creates two vectors of onset and offset times for homing and escape periods
     TODO: currently does not filter based on first/second leg, or minimum homing length
     RETURNS:
@@ -56,9 +58,9 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         offs: vector of offset times in frames for homing and escape periods
         esc_ons: vector of onset times in frames for escape periods
     """
-    cond_list = ['shelter_only', 'barrier_pre_flip','barrier_post_flip']
-    spatial_efficiency_threshold = [0.95, 1.05] 
-    
+    cond_list = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]
+    spatial_efficiency_threshold = [0.95, 1.05]
+
     ons = []
     offs = []
     esc_ons = []
@@ -70,7 +72,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         # pull out escape onsets and calculate offset estimate based on stimulus duration (assuming 40 fps) - mouse will likely lon gbe in shelter by then
         ons = np.append(ons, check_not_list(aefizz.escape_object.onset_frames))
         esc_ons = np.array(check_not_list(aefizz.escape_object.onset_frames))
-        offs = np.append(offs,check_not_list(aefizz.escape_object.offset_frames))
+        offs = np.append(offs, check_not_list(aefizz.escape_object.offset_frames))
         trajectory_length = np.append(trajectory_length, aefizz.escape_object.trajectory_length)
         condition = np.append(condition, aefizz.escape_object.condition)
 
@@ -91,36 +93,39 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
     # compute spatial efficiency for each run
     optimal_distances = np.zeros(len(ons))
     for idx in range(len(ons)):
-        dist_to_shelter = compute_dist_shelt(x_pos = np.array([aefizz.video_df['mouse_x_position'].to_numpy()[int(ons[idx])]]),
-                                            y_pos = np.array([aefizz.video_df['mouse_y_position'].to_numpy()[int(ons[idx])]]), 
-                                            cond =  np.array([x for x,c in enumerate(cond_list) if c == condition[idx]]), 
-                                            shelter_location = [np.mean([aefizz.session.shelter_location[0][0],aefizz.session.shelter_location[1][0]]),
-                                                        aefizz.session.shelter_location[0][1]], 
-                                            barrier_location1 = aefizz.session.barrier_location[0], 
-                                            barrier_location2 = aefizz.session.barrier_location[1])
+        dist_to_shelter = compute_dist_shelt(
+            x_pos=np.array([aefizz.video_df["mouse_x_position"].to_numpy()[int(ons[idx])]]),
+            y_pos=np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(ons[idx])]]),
+            cond=np.array([x for x, c in enumerate(cond_list) if c == condition[idx]]),
+            shelter_location=[np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]],
+            barrier_location1=aefizz.session.barrier_location[0],
+            barrier_location2=aefizz.session.barrier_location[1],
+        )
         optimal_distances[idx] = dist_to_shelter[0]
 
     spatial_efficiency = optimal_distances / trajectory_length
-    
+
     keepers = np.ones_like(ons, dtype=bool)
 
-    if "correct" in escape_pattern_time: # homings with spatial efficiency of 0.95-1.05 are considered correct
+    if "correct" in escape_pattern_time:  # homings with spatial efficiency of 0.95-1.05 are considered correct
         keepers = keepers & ((spatial_efficiency > spatial_efficiency_threshold[0]) & (spatial_efficiency < spatial_efficiency_threshold[1]))
     if "error" in escape_pattern_time:
         keepers = keepers & ((spatial_efficiency < spatial_efficiency_threshold[0]) | (spatial_efficiency > spatial_efficiency_threshold[1]))
-    if "full" in escape_pattern_time: # homings that go from the threat zone-ish to the shelter-ish
-        starts = np.array([aefizz.video_df['mouse_y_position'].to_numpy()[int(on)] for on in ons])
-        ends = np.array([aefizz.video_df['mouse_y_position'].to_numpy()[int(off)] for off in offs])
+    if "full" in escape_pattern_time:  # homings that go from the threat zone-ish to the shelter-ish
+        starts = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(on)] for on in ons])
+        ends = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(off)] for off in offs])
         keepers = keepers & (starts < 300) & (ends > 800)
 
     assert np.sum(keepers) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {escape_pattern_time}, change criteria!"
 
-    return  {"ons": ons[keepers], 
-            "offs": offs[keepers], 
-            "esc_ons": np.array([e for e in esc_ons if e in ons[keepers]]), 
-            "condition": condition[keepers], 
-            "trajectory_length": trajectory_length[keepers], 
-            "spatial_efficiency": spatial_efficiency[keepers]}
+    return {
+        "ons": ons[keepers],
+        "offs": offs[keepers],
+        "esc_ons": np.array([e for e in esc_ons if e in ons[keepers]]),
+        "condition": condition[keepers],
+        "trajectory_length": trajectory_length[keepers],
+        "spatial_efficiency": spatial_efficiency[keepers],
+    }
 
 
 def get_homings_onsets_in_filtered_time(filtering_vector):
@@ -154,20 +159,23 @@ def select_onset_offsets_in_shift_vector(ET, shift_vector):
 
     return filtering_vector.astype(bool)
 
+
 def homing_escape_boolean_vectors(aefizz):
     """This function creates two boolean vectors for homing and escape periods"""
-    homing_period =  np.zeros(len(aefizz.video_df), dtype=bool)
+    homing_period = np.zeros(len(aefizz.video_df), dtype=bool)
     for onset, offset in zip(aefizz.homings_object.onset_frames, aefizz.homings_object.offset_frames):
-        homing_period[int(onset): int(offset) + 1] = True
-    escape_period =  np.zeros(len(aefizz.video_df), dtype=bool)
+        homing_period[int(onset) : int(offset) + 1] = True
+    escape_period = np.zeros(len(aefizz.video_df), dtype=bool)
     for onset, duration in zip(aefizz.session.audio.onset_frames, aefizz.session.audio.stimulus_durations):
-        escape_period[int(onset): int(onset + int(duration * aefizz.session.video.fps))] = True
+        escape_period[int(onset) : int(onset + int(duration * aefizz.session.video.fps))] = True
 
     return homing_period, escape_period
 
+
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 
-def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector = [], bin_edges = [], interpolation = True):
+
+def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector=[], bin_edges=[], interpolation=True):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
         aefizz: AnalyzeEfizz object
@@ -180,11 +188,10 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
     """
     # compute distance to shelter along the shortest path (i.e. around barrier if present)
     if tuning_var in ["distance_shelter"]:
-        shelter = [np.mean([aefizz.session.shelter_location[0][0],aefizz.session.shelter_location[1][0]]),
-                   aefizz.session.shelter_location[0][1]]
-        var = compute_dist_shelt(x, y, condition,
-                                 shelter_location=shelter, 
-                                 barrier_location1=aefizz.session.barrier_location[0], barrier_location2=aefizz.session.barrier_location[1]) 
+        shelter = [np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]]
+        var = compute_dist_shelt(
+            x, y, condition, shelter_location=shelter, barrier_location1=aefizz.session.barrier_location[0], barrier_location2=aefizz.session.barrier_location[1]
+        )
 
     # compute distance to first goal (either shelter or subgoal)
     elif tuning_var == "distance_first_goal":
@@ -192,11 +199,10 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
 
     # compute bird's eye distance to shelter or first goal (i.e. through barrier if present)
     elif tuning_var in ["bird_dist_shelter"]:
-        shelter = [np.mean([aefizz.session.shelter_location[0][0],aefizz.session.shelter_location[1][0]]),
-                   aefizz.session.shelter_location[0][1]]
-        var = compute_dist_shelt(x, y, cond=np.zeros_like(x), 
-                                 shelter_location=shelter, 
-                                 barrier_location1=aefizz.session.barrier_location[0], barrier_location2=aefizz.session.barrier_location[1])  
+        shelter = [np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]]
+        var = compute_dist_shelt(
+            x, y, cond=np.zeros_like(x), shelter_location=shelter, barrier_location1=aefizz.session.barrier_location[0], barrier_location2=aefizz.session.barrier_location[1]
+        )
         # cond=np.zeros_like(x) is a hack which forces bird's eye distance, ignoring barrier
 
     # compute fraction of escape trajectory
@@ -212,46 +218,47 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             var[first : first + hs] = dd / np.amax(dd)
             first += hs
         if len(bin_edges) == 0:
-            if isinstance(aefizz.settings.escape_tuning_bins, int):
+            if isinstance(aefizz.settings.ep_bins, int):
                 bin_edges = define_bin_edges(aefizz.settings, tuning_var)
 
     # use speed or y position directly
-    elif tuning_var == "speed" or tuning_var == "y_pos":            
+    elif tuning_var == "speed" or tuning_var == "y_pos":
         if tuning_var == "speed":
             var = aefizz.video_df["speed"].to_numpy()
             logger.warning("Speed is binned at a max of 50 cm/s")
             eps = 1e-10
-            var[var > 50] = 50 - eps # cap speed at 50 cm/s 
+            var[var > 50] = 50 - eps  # cap speed at 50 cm/s
             bin_range = [0, 51, 2]
         elif tuning_var == "y_pos":
             var = y
             logger.warning("TODO: unhardcode y position bin range to arena size!")
-            bin_range = [np.amin(var), np.amax(var), np.amax(var) / aefizz.settings.escape_tuning_bins]
+            bin_range = [np.amin(var), np.amax(var), np.amax(var) / aefizz.settings.ep_bins]
         # interpolate!
         if interpolation == True:
             # if interpolation is true, time_mask_vector also needs to be interpolated!!
             current_time = np.arange(len(aefizz.video_df["speed"].to_numpy()))
-            new_time = np.arange(0, len(aefizz.video_df["speed"].to_numpy()), 1 / aefizz.settings.escape_pattern_interpolation_mult)
+            new_time = np.arange(0, len(aefizz.video_df["speed"].to_numpy()), 1 / aefizz.settings.ep_interpolation_mult)
             var = np.interp(new_time, current_time, var)
-        var = var[time_mask_vector.astype(bool)] # restrict to homing periods for tuning curve calculation
-        if (len(bin_edges) == 0):
+        var = var[time_mask_vector.astype(bool)]  # restrict to homing periods for tuning curve calculation
+        if len(bin_edges) == 0:
             bin_edges = np.arange(bin_range[0], bin_range[1], bin_range[2])
 
-    elif tuning_var == '2D_position':
+    elif tuning_var == "2D_position":
         var = np.column_stack([x, y])
-        if hasattr(aefizz.session.video, 'radius'):
+        if hasattr(aefizz.session.video, "radius"):
             radius = aefizz.session.video.radius
         else:
             radius = 460
-        bin_edges = create_centered_bins(nbins=aefizz.settings.escape_tuning_bins, bin_size=0.0, arena_radius=radius, center_offset = aefizz.session.video.width/2)
-    
-    elif tuning_var == 'Delta_HDIR':
-        raise NotImplementedError("Delta HDIR not yet implemented") 
+        bin_edges = create_centered_bins(nbins=aefizz.settings.ep_bins, bin_size=0.0, arena_radius=radius, center_offset=aefizz.session.video.width / 2)
+
+    elif tuning_var == "Delta_HDIR":
+        raise NotImplementedError("Delta HDIR not yet implemented")
 
     # discretize variable into bins
     discretized_var = discretize_nd(var, bin_edges)
 
     return discretized_var
+
 
 def compute_escape_trajectory(xpos, ypos, start=0, stop=-1):
     # compute cumulative distance travelled at every time point
@@ -263,6 +270,7 @@ def compute_escape_trajectory(xpos, ypos, start=0, stop=-1):
             dist = np.sqrt((xpos[i] - xpos[i - 1]) ** 2 + (ypos[i] - ypos[i - 1]) ** 2)
             distance_travelled[i] = dist + distance_travelled[i - 1]
     return distance_travelled
+
 
 def compute_dist_shelt(x_pos, y_pos, cond, shelter_location, barrier_location1, barrier_location2):
     """This function creates a vector of the distance of the mouse to the shelter at any position.
@@ -280,35 +288,33 @@ def compute_dist_shelt(x_pos, y_pos, cond, shelter_location, barrier_location1, 
     # initialize distance vector
     dist = np.zeros((len(x_pos)))
 
-    # for times when the mouse is in the top half of the arena and the barrier is inserted, 
+    # for times when the mouse is in the top half of the arena and the barrier is inserted,
     # compute path around barrier: mouse → barrier_edge → shelter
     top_barrier = np.logical_and(cond == 1, y_pos < 512)
-    dist[top_barrier] = (
-        np.sqrt(((x_pos[top_barrier] - barrier_location1[0]) ** 2) + ((y_pos[top_barrier] - barrier_location1[1]) ** 2)) +
-        np.sqrt(((barrier_location1[0] - shelter_location[0]) ** 2) + ((barrier_location1[1] - shelter_location[1]) ** 2))
+    dist[top_barrier] = np.sqrt(((x_pos[top_barrier] - barrier_location1[0]) ** 2) + ((y_pos[top_barrier] - barrier_location1[1]) ** 2)) + np.sqrt(
+        ((barrier_location1[0] - shelter_location[0]) ** 2) + ((barrier_location1[1] - shelter_location[1]) ** 2)
     )
-    
+
     top_barrierflip = np.logical_and(cond == 2, y_pos < 512)
-    dist[top_barrierflip] = (
-        np.sqrt(((x_pos[top_barrierflip] - barrier_location2[0]) ** 2) + ((y_pos[top_barrierflip] - barrier_location2[1]) ** 2)) +
-        np.sqrt(((barrier_location2[0] - shelter_location[0]) ** 2) + ((barrier_location2[1] - shelter_location[1]) ** 2))
+    dist[top_barrierflip] = np.sqrt(((x_pos[top_barrierflip] - barrier_location2[0]) ** 2) + ((y_pos[top_barrierflip] - barrier_location2[1]) ** 2)) + np.sqrt(
+        ((barrier_location2[0] - shelter_location[0]) ** 2) + ((barrier_location2[1] - shelter_location[1]) ** 2)
     )
 
     # for all other positions (bottom half or no barrier), use direct distance to shelter
     no_barrier_path = ~(top_barrier | top_barrierflip)
-    dist[no_barrier_path] = np.sqrt(
-        ((x_pos[no_barrier_path] - shelter_location[0]) ** 2) + ((y_pos[no_barrier_path] - shelter_location[1]) ** 2)
-    )
-    
+    dist[no_barrier_path] = np.sqrt(((x_pos[no_barrier_path] - shelter_location[0]) ** 2) + ((y_pos[no_barrier_path] - shelter_location[1]) ** 2))
+
     return dist
 
+
 # ------------------------------------Linear Shift Stats------------------------------------
+
 
 def build_shift_vector(aefizz, ET):
     """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics
     If settings.escape_pattern_time is 'homing&escape' it makes sure there are enough homings in each central third"""
 
-    mult = aefizz.settings.escape_pattern_interpolation_mult
+    mult = aefizz.settings.ep_interpolation_mult
     ttime = len(aefizz.video_df) * mult  # total time after interpolation
     # the end of the shelter_only condition
     shelter = np.where(aefizz.video_df["barrier_present"].to_numpy() == True)[0][0] * mult
@@ -324,9 +330,9 @@ def build_shift_vector(aefizz, ET):
     # define shifts based on settings (in seconds, needs to be doubled to shift into both past and future)
     # NB: have a min step of 3 seconds, and then steps of 10s, not sure why
     shifts_one_sided = np.arange(
-        aefizz.settings.ep_linshift_min_step * mult,
-        aefizz.settings.ep_linshift_step * mult + ((aefizz.settings.ep_linshift_step_n / 2) * aefizz.settings.ep_linshift_step * mult),
-        aefizz.settings.ep_linshift_step * mult,
+        aefizz.settings.linshift_min_step * mult,
+        aefizz.settings.linshift_step * mult + ((aefizz.settings.linshift_step_n / 2) * aefizz.settings.linshift_step * mult),
+        aefizz.settings.linshift_step * mult,
     )
 
     if ET.escape_pattern_time == "homing&escape":
@@ -375,7 +381,9 @@ def build_shift_vector(aefizz, ET):
 
     return shifts, shift_vector
 
+
 # ------------------------------------Helper functions------------------------------------
+
 
 def discretize(var, bins):
     """Bin the var using bins,
@@ -386,6 +394,7 @@ def discretize(var, bins):
     shifted_disc_var = (disc_var - 1).astype(float)
     shifted_disc_var[disc_var >= len(bins)] = np.nan  # Handle values above the last bin
     return shifted_disc_var
+
 
 def discretize_nd(var, bins):
     """Bin the var using bins for each dimension,
@@ -401,10 +410,12 @@ def discretize_nd(var, bins):
     disc_var[np.any(np.isnan(disc_var), axis=1)] = np.nan
     return disc_var
 
+
 def check_not_list(var):
     if np.logical_or(isinstance(var[0], list), isinstance(var[0], np.ndarray)):
         var = [x[0] for x in var]
     return var
+
 
 def parse_residual_string(s):
     """Parse a residual string of the form
@@ -413,14 +424,14 @@ def parse_residual_string(s):
     """
     # remove prefix ("residual:" or "TunED:")
     s = s.split(":", 1)[1].strip()
-    
+
     # normalize dash-like unicode to ASCII hyphen
     s = re.sub(r"[\u2010-\u2015\u2212]", "-", s)
 
     # split around the first hyphen
     if "-" not in s:
         raise ValueError("Residual string must contain a '-'! The format is 'residual: <var1> in <context1> - <var2> in <context2>'")
-    
+
     left, right = s.split("-", 1)
     left = left.strip()
     right = right.strip()
@@ -430,6 +441,7 @@ def parse_residual_string(s):
 
     return left_var, left_ctx, right_var, right_ctx
 
+
 def parse_side(side):
     """Parse a string of the form '<var> in <context>' and return var, context"""
     if " in " not in side:
@@ -437,20 +449,21 @@ def parse_side(side):
     var, ctx = side.split(" in ", 1)
     return var.strip(), ctx.strip()
 
+
 def saving_path_and_file(aefizz, variable):
     """This function creates the saving path and file name for escape tuning based on variable"""
-    
+
     if "residual" in variable:
         tuning_var, escape_pattern_time, _, _ = parse_residual_string(variable)
     else:
         tuning_var, escape_pattern_time = parse_side(variable)
 
     savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "models", "escape_tuning", escape_pattern_time))
-    
+
     # filename building
-    res = ''
+    res = ""
     if "residual" in variable:
-        res = 'residual_'
-    filename = savepath + os.sep + res + tuning_var + "_" + str(aefizz.settings.escape_tuning_bins) + "bins.pkl"
-        
+        res = "residual_"
+    filename = savepath + os.sep + res + tuning_var + "_" + str(aefizz.settings.ep_bins) + "bins.pkl"
+
     return savepath, filename
