@@ -85,9 +85,10 @@ class AnalyzeEfizz:
 
         # load video_df, frame by cluster matrix and cluster_Ids
         if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells']:
-            if (analysis_name == 'PlaceCells') & ("speed" in self.video_and_spike_data.columns):
-                # if we're doing place cell analysis, we need the speed column in the video_and_spike_data df to exclude low speed frames
-                pass
+            if analysis_name == 'PlaceCells':
+                if "speed" in self.video_and_spike_data.columns:
+                    # if we're doing place cell analysis, we need the speed column in the video_and_spike_data df to exclude low speed frames
+                    pass
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
         
@@ -235,9 +236,12 @@ class AnalyzeEfizz:
                 # in different behavioral contexts (e.g. explore, homing, escape)
                 # it can also compute the residual tuning to these variables when subtracting the activity predicted by the tuning in different contexts
                 computeET = ComputeEscapeTuning(variable, aefizz=self)
-                computeET.extract_data_and_tuning(aefizz=self)
-                computeET.compute_statistical_significance(aefizz=self)
-                computeET.save_escape_tuning()
+                if computeET.do_analysis:
+                    logger.info(f"{'Computing Residual of ' if 'residual' in computeET.ET.name.lower() else 'Computing '}Escape Pattern Tuning on {computeET.ET.tuning_var} during {computeET.ET.escape_pattern_time} periods")
+                    computeET.prepare_data()
+                    computeET.filter_data_and_compute_tuning()
+                    computeET.compute_statistical_significance()
+                    computeET.save_escape_tuning(variable)
             
             logger.success("Escape Pattern Tuning analysis complete")
 
