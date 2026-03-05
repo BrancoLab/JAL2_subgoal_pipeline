@@ -130,13 +130,14 @@ class Settings_analyze_efizz:
     analyze_only_the_period_before_shelter: bool = False
     # PCA settings
     redo_pca_preprocessing: bool = False
+    # linear shift settings
+    linshift_min_step: int = 120  # in frames
+    linshift_step: int = 400  # in frames
+    linshift_step_n: int = 100  # number of steps to do
     # Escape Pattern settings
     escape_tuning_bins: int = 25
     escape_pattern_no_stationary: bool = False
     escape_pattern_interpolation_mult: int = 2
-    ep_linshift_min_step = 120  # in seconds
-    ep_linshift_step = 400  # in seconds
-    ep_linshift_step_n = 100  # number of steps to do
     ep_linshift_min_homings = 5  # minimum number of homings in the central third of each condition for linear shift stats
     ep_gaussian_fitting: bool = False
     ep_compute_loo_reliability: bool = False
@@ -156,7 +157,12 @@ class Settings_analyze_efizz:
     replay_occupancy_prior: str = "uniform"  # 'uniform' or 'empirical'
     replay_template_match_method: str = "SS_decoder"  # 'rank_order_corr' or 'bayesian_decoder' or 'state_space_decoder'
     replay_state_space_decoder_bin_size: float = .001  # in seconds, default 1ms
-
+    # Place Cells settings
+    place_cell_bin_size_pix: float = 25  # in pix, adjust as needed
+    place_cell_speed_threshold: float = 2.5  # in cm/s, threshold for excluding time points when the mouse is stationary or moving very slowly
+    place_cell_smoothing_sigma: float = 2.0  # in bins, for smoothing the spike count and occupancy maps before computing rate maps
+    place_cell_min_occupancy: float = 0.5  # in seconds, minimum occupancy time for a bin to be included in the analysis
+    
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ""

@@ -23,17 +23,24 @@ def check_database_for_matched_results(database: pd.DataFrame, settings_to_check
     else:
         return []
 
-
 def settings_to_check(settings_obj, analysis_type):
     """Given the settings object and the type of analysis,
-    return a list of the relevant settings to check for that analysis type.
-    It assumes that the names of the settings for each analysis type start with the name of the analysis type (e.g. 'replay')"""
+    return a dict of the relevant settings to check for that analysis type.
+    It assumes that the names of the settings for each analysis type start with the name of the analysis type (e.g. 'replay')
+    INPUTS:
+        settings_obj: the settings object that contains all the settings for the analysis
+        analysis_type: a string or list of strings that the settings we want start with (e.g. 'replay', 'place_cell', 'LDA')"""
 
     settings_dict = asdict(settings_obj)
 
-    settings_list = [s for s in settings_dict.keys() if s.startswith(analysis_type)]
+    settings_list = []
+    if isinstance(analysis_type, str):
+        settings_list = [s for s in settings_dict.keys() if s.startswith(analysis_type)]
+    else:
+        for at in analysis_type:
+            settings_list.extend([s for s in settings_dict.keys() if s.startswith(at)])
+    
     gen_settings_list = [s for s in settings_dict.keys() if s in SETTINGS_AE]
-
     settings_list.extend(gen_settings_list)
 
     settings_to_check_dict = {s: settings_dict[s] for s in settings_list}

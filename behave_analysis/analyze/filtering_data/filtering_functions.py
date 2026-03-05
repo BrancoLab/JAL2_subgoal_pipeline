@@ -32,7 +32,7 @@ def discover_condition_based_on_video_df(dataframe):
     return condition
 
 
-def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_escape=True, exclude_homings=False, select_homings=False, speed_threshold = 0):
+def filter_video_dataframe(dataframe, condition = "", outofshelter=True, exclude_escape=True, exclude_homings=False, select_homings=False, speed_threshold = 0):
     """
     A function that filters the video dataframe (the behavioural data) and finds the periods of time in each condition (defined by object presence (whether the barrier or shelter is present or not))
     Time in shelter is removed
@@ -41,7 +41,10 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
 
     assert type(dataframe) == pl.DataFrame, "dataframe must be a polars dataframe else filtering will not work"
 
-    filtered_video_df = dataframe.filter((dataframe["OutofshelterIdx"] == outofshelter))
+    filtered_video_df = dataframe.filter((dataframe["speed"] >= speed_threshold))
+
+    if not outofshelter is None:
+        filtered_video_df = filtered_video_df.filter((filtered_video_df["OutofshelterIdx"] == outofshelter))
 
     if exclude_homings:
         filtered_video_df = filtered_video_df.filter((filtered_video_df["homingPeriod"] == False))
@@ -52,8 +55,6 @@ def filter_video_dataframe(dataframe, condition, outofshelter=True, exclude_esca
 
     if exclude_escape:
         filtered_video_df = filtered_video_df.filter((filtered_video_df["EscapePeriod"] == False))
-
-    filtered_video_df = filtered_video_df.filter((filtered_video_df["speed"] >= speed_threshold))
 
     if condition == "pre_shelter":  # empty arena
         filtered_video_df = filtered_video_df.filter((filtered_video_df["shelter"] == False))

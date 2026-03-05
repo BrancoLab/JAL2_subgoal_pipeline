@@ -8,7 +8,7 @@ import polars as pl
 import pickle
 import pandas as pd
 
-from behave_analysis.analyze.PlaceCells import PlaceCells
+from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
@@ -34,6 +34,19 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pa
 from behave_analysis.analyze.Replay.ReplayAnalysis import ReplayAnalysis
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 
+COLUMNS_TO_KEEP = ["frames",
+                "mouse_x_position",
+                "mouse_y_position",
+                "spike_clusters",
+                "spike_count",
+                "OutofshelterIdx",
+                "EscapePeriod",
+                "shelter",
+                "barrier_present",
+                "barrier_flipped",
+                "homingPeriod",
+                "speed",
+            ]
 class AnalyzeEfizz:
     """
     A class that loads already processed efizz data and then runs all of the models on it set in the settings file.
@@ -56,18 +69,6 @@ class AnalyzeEfizz:
 
         if analysis_name in ['tunED', 'PlaceCells']:
             # Load the video spike count data
-            COLUMNS_TO_KEEP = [
-                            "mouse_x_position",
-                            "mouse_y_position",
-                            "spike_clusters",
-                            "spike_count",
-                            "OutofshelterIdx",
-                            "EscapePeriod",
-                            "shelter",
-                            "barrier_present",
-                            "barrier_flipped",
-                            # "homingPeriod", # 'homingPeriod'
-                        ]
             try:
                 # it doesn't always work with .parquet
                 video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
@@ -76,25 +77,34 @@ class AnalyzeEfizz:
             except FileNotFoundError:
                 logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (try removing .parquet?)")
             
-            self.video_and_spike_data = self.video_and_spike_data.select(COLUMNS_TO_KEEP)
+            self.video_and_spike_data = self.video_and_spike_data.select([x for x in COLUMNS_TO_KEEP if x in self.video_and_spike_data.columns])
         
         if (analysis_name == 'Replay') & (self.settings.replay_template_match_method == 'SS_decoder'):
             # Load the spike dataframe
             self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "good_spike_data.csv"))
 
         # load video_df, frame by cluster matrix and cluster_Ids
-        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay']:
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells']:
+            if (analysis_name == 'PlaceCells') & ("speed" in self.video_and_spike_data.columns):
+                # if we're doing place cell analysis, we need the speed column in the video_and_spike_data df to exclude low speed frames
+                pass
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
-            # load firing rate matrix
-            if not (analysis_name == 'Replay' and self.settings.replay_template_match_method == 'SS_decoder'):
+        
+        # load firing rate matrix
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay']:
+
+            if (analysis_name == 'Replay' and self.settings.replay_template_match_method == 'SS_decoder'):
                 # don't load the frame by cluster matrix, we're using the spike_df for the state space decoder method
-                assert os.path.isfile(
-                    os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
-                ), "Cluster matrix file not found"
-                self.frame_by_cluster_matrix = np.load(
-                    os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
-                )
+                pass
+            
+            assert os.path.isfile(
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
+            ), "Cluster matrix file not found"
+            self.frame_by_cluster_matrix = np.load(
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
+            )
+
         # load cluster Ids
         if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells']:
             try:
@@ -244,28 +254,47 @@ class AnalyzeEfizz:
                     RA.find_replay_bayesian_decoder()
                 elif self.settings.replay_template_match_method == 'SS_decoder':
                     RA.find_replay_state_space_decoder()
-            # only once analysis is complete do we save the results to the database!!
-            add_run_to_database(RA.database, 
-                                settings_to_check(self.settings, 'replay'), 
-                                RA.replay.savepath + os.sep + "replay_results.csv", 
-                                RA.hexaname,
-                                RA.saved_vars)
+                # only once analysis is complete do we save the results to the database!!
+                add_run_to_database(RA.database, 
+                                    settings_to_check(self.settings, 'replay'), 
+                                    RA.replay.savepath + os.sep + "replay_results.csv", 
+                                    RA.hexaname,
+                                    RA.saved_vars)
 
         # ------------------------------ Compute Place Cells --------------------------------
         if analysis_name == 'PlaceCells':
             logger.info("Running Place Cell analysis")
 
-            PlaceCells(aefizz = self).compute_place_cells()
+            # keep only relevant columns
+
+            self.video_df = self.video_df.select([x for x in COLUMNS_TO_KEEP if x in self.video_df.columns])
+
+            if "speed" not in self.video_and_spike_data.columns:
+                if hasattr(pl.col("frames"), "apply"):
+                    self.video_df = self.video_df.select(
+                        [pl.col("frames").apply(float), pl.exclude("frames")]
+                    )  # Cast frames to float to permit join and remove old frames column with wrong type
+                else:
+                    self.video_df = self.video_df.select([self.video_df["frames"].cast(pl.Float64), pl.exclude("frames")])
+                # map speed at each frome to the video and spike data df so we can exclude low speed frames in the place cell analysis
+                self.video_and_spike_data = self.video_and_spike_data.join(self.video_df.select(["frames", "speed"]), on='frames', how='left')
+
+            PC = PlaceCells(aefizz = self)
+            if PC.do_analysis:
+                PC.preprocess_data()
+                PC.compute_place_fields_conditions()
+                PC.plot_place_fields_conditions()
+                PC.save()
             
             logger.success("Place Cell analysis complete")
 
-        # ----------------------------- Conduct Dimentionality Reduction and clustering ----------------------------------
+        # ----------------------------- Conduct Dimensionality Reduction and clustering ----------------------------------
         if analysis_name == 'PCA' or analysis_name == 'UMAP':
 
-            raise NotImplementedError("Dimentionality reduction code is being updated and is not currently available")
+            raise NotImplementedError("Dimensionality reduction code is being updated and is not currently available")
             # TODO: Dim red needs to either run or load rayleigh to compute mangitiude deltas
-            # logger.info("Running Dimentionality Reduction analysis")
-            # path_to_save = os.path.join(self.dir, "dimentionality_reduction")
+            # logger.info("Running Dimensionality Reduction analysis")
+            # path_to_save = os.path.join(self.dir, "dimensionality_reduction")
             # make_directory(path_to_save)
 
             # # Plot rayleigh deltas hists also used in dimentionality reduction so need to run rayleigh first

@@ -21,7 +21,7 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
     #                                         "barrier_removed"
-    conditions=['all_time',"shelter_only", "barrier_pre_flip", "barrier_post_flip"],
+    conditions=["shelter_only","barrier_pre_flip", "barrier_post_flip", "all_time"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
     # if 'time_conditions' it compares first vs second half
@@ -31,6 +31,10 @@ Settings_ae = Settings_analyze_efizz(
     # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
     # If 'by_position', it will compute LDA decoding by arena position
     number_of_bins=13,  # number of bin edges for angles, e.g. 13 or 19 are good numbers
+    # ------------- Linear Shift stats settings --------------------------
+    linshift_min_step=120,  # in frames, minimum shift to consider for linear shift stats
+    linshift_step=80,  # in frames, step size for linear shift stats
+    linshift_step_n=100,  # number of steps to do for linear shift stats
     # ------------- PCA model settings --------------------------
     redo_pca_preprocessing=False,  # rerun if you have changed, angles, conditions, or underlying neural data
     # ------------- LDA model settings --------------------------
@@ -58,4 +62,9 @@ Settings_ae = Settings_analyze_efizz(
     replay_decoder_train_time_period="homing&escape", # 'homing&escape', "correct_<>", "error_<>", "full_<>"
     replay_decoder_test_time_period="explore", #  'error_homing&escape', 'before_homing','in_shelter_after_escape','outside_shelter','stationary_outside_shelter','in_shelter'
     replay_template_match_method="SS_decoder",  # 'rank_order_corr' or 'bayesian_decoder' or 'SS_decoder'
-) 
+    # ------------ Place Cells settings ----------------------
+    place_cell_bin_size_pix=50,  # in pix (10cm/pix) at least 50
+    place_cell_speed_threshold=2.5,  # in cm/s, threshold for excluding time points when the mouse is stationary or moving very slowly
+    place_cell_smoothing_sigma=2.0,  # in bins, for smoothing the spike count and occupancy maps before computing rate maps
+    place_cell_min_occupancy=0.5  # in seconds, minimum occupancy time for a bin to be included in the analysis
+    ) 
