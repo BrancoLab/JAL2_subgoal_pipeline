@@ -30,7 +30,7 @@ from behave_analysis.analyze.Replay.BayesianDecoderFunctions import bayesian_dec
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.Replay.Replay import Replay
 from behave_analysis.analyze.Replay.StateSpaceDecoderDataFormatter import prepare_state_space_decoder_data
-from behave_analysis.analyze.results_database_utils import settings_to_check, check_database_for_matched_results, generate_run_id
+from behave_analysis.analyze.results_database_utils import settings_to_check, check_database_for_matched_results, generate_run_id, check_database_for_same_run
 
 class ReplayAnalysis:
 
@@ -47,7 +47,11 @@ class ReplayAnalysis:
                 "replay_" + self.aefizz.settings.replay_template_match_method,
             )
         )
-        self.check_database_for_same_run()               
+        
+        self.database, self.do_replay_analysis, self.hexadecimal_name = check_database_for_same_run(settings_to_check(self.aefizz.settings, "replay"), 
+                                    self.replay.savepath + os.sep + "replay_results.csv", 
+                                    self.aefizz.settings)               
+        
         self.c = [x for x, c in enumerate(["shelter_only", "barrier_pre_flip", "barrier_post_flip"]) if c == self.aefizz.settings.replay_train_condition][0]
         self.test_c = [x for x, c in enumerate(["shelter_only", "barrier_pre_flip", "barrier_post_flip"]) if c == self.aefizz.settings.replay_test_condition][0]
 
@@ -502,29 +506,3 @@ class ReplayAnalysis:
         np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
 
         logger.warning("State space decoder data saved to " + filename + "_data.npz" + " . Now run the state space decoder in behave_analysis > analyze > replay > SSdecoder.ipynb.")
-
-# --------------Helper Functions--------------
-    def check_database_for_same_run(self):
-
-        self.do_replay_analysis = True
-        # check if database file exists
-        if os.path.exists(self.replay.savepath + os.sep + "replay_results.csv"):
-            self.database = pd.read_csv(self.replay.savepath + os.sep + "replay_results.csv")
-            # check if there is a run with the same settings as the current ones
-            matched_results = check_database_for_matched_results(self.database, settings_to_check(self.aefizz.settings, 'replay'))
-            if len(matched_results) > 0:
-                # if there is a match, print the name of the matched run and skip the analysis....
-                logger.info(f"Found {len(matched_results)} matched results in database for current settings: {matched_results} in the folder {self.replay.savepath}")
-                self.do_replay_analysis = False
-                if self.aefizz.settings.redo_compute:
-                    #... unless you have chosen to redo the analysis anyway!
-                    logger.info("You have chosen to redo the analysis anyway!")
-                    self.do_replay_analysis = True
-        else:
-            # if database doesn't exist, create it and add the current run to the database
-            logger.info(f"No existing database found for replay results at {self.replay.savepath}, will compute replay results and save to new database.")
-            self.database = pd.DataFrame([])
-        
-        # if we are doing the replay analysis, add the current run to the database with a new hexadecimal name
-        if self.do_replay_analysis:
-            self.hexaname = generate_run_id()
