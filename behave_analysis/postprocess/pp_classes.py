@@ -321,11 +321,26 @@ class BaseDataPostprocessor(ABC):
             )  # Cast frames to float to permit join and remove old frames column with wrong type
         else:
             video_df = video_df.select([video_df["frames"].cast(pl.Float64), pl.exclude("frames")])
-        large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
+
+        potato
+        # NB: this is new code for joining behaviour and spikes, 
+        # by not filling null in the cluster ID column we can keep track of which frames have spikes and which don't, 
+        # and we only fill null in the spike count column to 0
+        large_dataFrame = (video_df
+                            .join(spikeCountByFrameAndCluster, 
+                                    left_on="frames", 
+                                    right_on="spike_aligned_to_frame", 
+                                    how="left")
+                            .with_columns(pl.col("spike_count").fill_null(0)  # Only fill spike_count, keep cluster ID as null
+                            ))
+        
+        # old code! This will assign frames with 0 spike count to cluster_ID 0 
+        # large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        # large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
         large_dataFrame.write_parquet(
             os.path.join(self.session.base_path, self.session.processed_path + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet")
         )
+        
         return large_dataFrame
 
     def export_large_df_to_frame_by_cluster_matrix(self, spikeCountByFrameAndCluster, video_df) -> None:
