@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 
 from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
 from behave_analysis.analyze.PlaceCells.place_cell_utils import assign_positional_bins_to_frames, compute_spatial_information, create_centered_bins, smooth_maps
-from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check, check_database_for_matched_results, generate_run_id
+from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check, check_database_for_matched_results, generate_run_id
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.utils.arena_plotting import Arena
 
@@ -21,7 +21,9 @@ class PlaceCells:
         self.bins = create_centered_bins(bin_size = self.aefizz.settings.place_cell_bin_size_pix)
         self.grid = (pl.DataFrame({"xbins": pl.Series("xbins", range(len(self.bins)-1))})
                 .join(pl.DataFrame({"ybins": pl.Series("ybins", range(len(self.bins)-1))}), how="cross"))
-        self.check_database_for_same_run()
+        self.database, self.do_replay_analysis, self.hexadecimal_name = check_database_for_same_run(settings_to_check(self.aefizz.settings, ["linshift", "place_cell"]), 
+                                    self.savepath + os.sep + "place_cell_results.csv", 
+                                    self.aefizz.settings)   
 
     def preprocess_data(self):
         """This function preprocesses the video and spike data for place cell analysis. 
@@ -290,29 +292,3 @@ class PlaceCells:
                             settings_to_check(self.aefizz.settings,["linshift", "place_cell"]), 
                             self.savepath + os.sep + "place_cell_results.csv", 
                             self.hexaname)
-
-    # --------------Helper Functions--------------
-    def check_database_for_same_run(self):
-
-        self.do_analysis = True
-        # check if database file exists
-        if os.path.exists(self.savepath + os.sep + "place_cell_results.csv"):
-            self.database = pd.read_csv(self.savepath + os.sep + "place_cell_results.csv")
-            # check if there is a run with the same settings as the current ones
-            matched_results = check_database_for_matched_results(self.database, settings_to_check(self.aefizz.settings,["linshift", "place_cell"]))
-            if len(matched_results) > 0:
-                # if there is a match, print the name of the matched run and skip the analysis....
-                logger.info(f"Found {len(matched_results)} matched results in database for current settings: {matched_results} in the folder {self.savepath}")
-                self.do_analysis = False
-                if self.aefizz.settings.redo_compute:
-                    #... unless you have chosen to redo the analysis anyway!
-                    logger.info("You have chosen to redo the analysis anyway!")
-                    self.do_analysis = True
-        else:
-            # if database doesn't exist, create it and add the current run to the database
-            logger.info(f"No existing database found for place cell results at {self.savepath}, will compute place cell results and save to new database.")
-            self.database = pd.DataFrame([])
-        
-        # if we are doing the place cell analysis, add the current run to the database with a new hexadecimal name
-        if self.do_analysis:
-            self.hexaname = generate_run_id()
