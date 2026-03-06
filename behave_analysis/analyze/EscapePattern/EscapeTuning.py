@@ -30,7 +30,7 @@ class EscapeTuning:
     y_fitted_shift: float = 0.0
     R_shift: float = 0.0
     fr_shift: float = 0.0
-    params_shift: float = 0.0
+    params_shifts: float = 0.0
     mat_shift_cond: float = 0.0
     loo_shift: float = 0.0
     discretized_var_shift: float = 0.0
