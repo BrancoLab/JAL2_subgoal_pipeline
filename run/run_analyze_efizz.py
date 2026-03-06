@@ -4,7 +4,7 @@ from databank import experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
 from settings.settings_analyze_efizz import Settings_ae
-import copy
+from settings.settings_overrides import settings_overrides
 
 # analysis_name options:
 # 'LDA' - Linear Discriminant Analysis
@@ -37,7 +37,7 @@ def analyze_efizz(analysis_name=None, variable=None, overrides=None):
         return
     logger.info("Initiating {} analysis pipeline".format(analysis_name))
 
-    settings = settings_overrides(overrides)
+    settings = settings_overrides(Settings_ae, overrides)
 
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
@@ -49,20 +49,15 @@ def analyze_efizz(analysis_name=None, variable=None, overrides=None):
 
     logger.success("Efizz analysis pipeline complete")
 
-def settings_overrides(overrides=None):
-    """Function to override default settings for efizz analysis"""
-    settings = copy.deepcopy(Settings_ae)
-    if overrides:
-        for k, v in overrides.items():
-            if hasattr(settings, k):
-                setattr(settings, k, v)
-            else:
-                logger.warning("Unknown setting %s", k)
-
-    return settings
-
-analyze_efizz(analysis_name='Replay')
+# analyze_efizz(analysis_name='PlaceCells')
 # analyze_efizz(analysis_name='classify_cells')
 # analyze_efizz(analysis_name='EscapePattern', 
 #               variable='tuned: escape in homing&escape - bird_dist_shelter in homing&escape')
+analyze_efizz(analysis_name='EscapePattern', 
+              variable='escape in homing&escape')
+analyze_efizz(analysis_name='EscapePattern', 
+              variable='bird_dist_shelter in explore')
+analyze_efizz(analysis_name='EscapePattern', 
+              variable='residual: escape in homing&escape - bird_dist_shelter in explore')
+
 
