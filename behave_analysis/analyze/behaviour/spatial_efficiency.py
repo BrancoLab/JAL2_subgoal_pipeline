@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import matplotlib
 
-matplotlib.use("TkAgg")
+# matplotlib.use("TkAgg")
 from sklearn.metrics.pairwise import cosine_similarity
 
 from behave_analysis.utils.arena_plotting import Arena

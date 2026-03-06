@@ -330,6 +330,8 @@ def main():
     allowed_post = allowed_ids_from_hsa(results_b_hsa, "h_postflipbar_a_tuned")
     filtered_results = build_filtered_results(results_ab, allowed_pre, allowed_post)
     session_df = aggregate_sessions(filtered_results, CONDITIONS)
+
+    print(session_df)
     if session_df.empty:
         raise RuntimeError("No sessions survived exclusivity filtering.")
 
