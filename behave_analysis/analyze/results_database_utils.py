@@ -6,7 +6,8 @@ from loguru import logger
 import ast
 import os
 
-SETTINGS_AE = ["stim_type", "redo_compute", "cluster_type", "show_plots", "condition_types", "compartment_split", "parallel_pool_linshit"]
+SETTINGS_AE = ["stim_type", "cluster_type", "condition_types", "compartment_split"]
+
 
 def check_database_for_same_run(db_settings, results_csv_name, settings):
 
@@ -31,10 +32,14 @@ def check_database_for_same_run(db_settings, results_csv_name, settings):
         database = pd.DataFrame([])
 
     # if we are doing the replay analysis, add the current run to the database with a new hexadecimal name
-    if do_analysis:
+    if do_analysis:  # generate a new unique hexadecimal name
         hexaname = generate_run_id()
-    
+    else:  # if not doing the analysis, use the hexadecimal name of the matched run(s)
+        # if multiple matches, we will use the most recent one
+        hexaname = matched_results[-1]
+
     return database, do_analysis, hexaname
+
 
 def check_database_for_matched_results(database: pd.DataFrame, settings_to_check: dict):
     """Check if we have already run the analysis with these settings!
@@ -44,12 +49,13 @@ def check_database_for_matched_results(database: pd.DataFrame, settings_to_check
 
     # check if we have a row that matches all the settings
     matched_rows = find_matching_run(database, settings_to_check)
-    
+
     # return hexadecimal name of the matched rows
     if np.sum(matched_rows) > 0:
         return database[matched_rows].name.values
     else:
         return []
+
 
 def settings_to_check(settings_obj, analysis_type):
     """Given the settings object and the type of analysis,
@@ -67,7 +73,7 @@ def settings_to_check(settings_obj, analysis_type):
     else:
         for at in analysis_type:
             settings_list.extend([s for s in settings_dict.keys() if s.startswith(at)])
-    
+
     gen_settings_list = [s for s in settings_dict.keys() if s in SETTINGS_AE]
     settings_list.extend(gen_settings_list)
 
@@ -75,8 +81,9 @@ def settings_to_check(settings_obj, analysis_type):
 
     return settings_to_check_dict
 
-def find_matching_run(database, settings_dict, saved_vars = []):
-    """A function that chcks a database for rows with settings that match settings_dict.
+
+def find_matching_run(database, settings_dict, saved_vars=[]):
+    """A function that checks a database for rows with settings that match settings_dict.
     Optionally you can also ask to check the list of saved_vars for this row by passing a list of var names"""
     matched_rows = np.ones(len(database), dtype=bool)
     saved_vars_rows = np.ones(len(database), dtype=bool)
@@ -89,7 +96,14 @@ def find_matching_run(database, settings_dict, saved_vars = []):
                 matched_rows[row] = False
                 break
             else:
-                if row_dict[setting_name] != setting_value:
+                db_value = row_dict[setting_name]
+                # if the db value is a string representation of a list/tuple, parse it
+                if isinstance(db_value, str) and isinstance(setting_value, (list, tuple)):
+                    try:
+                        db_value = ast.literal_eval(db_value)
+                    except (ValueError, SyntaxError):
+                        pass
+                if db_value != setting_value:
                     matched_rows[row] = False
                     break
         if len(saved_vars) > 0:
@@ -98,38 +112,39 @@ def find_matching_run(database, settings_dict, saved_vars = []):
                 saved_vars_rows[row] = False
 
     if len(saved_vars) > 0:
-        return matched_rows, saved_vars_rows 
-    else:   
+        return matched_rows, saved_vars_rows
+    else:
         return matched_rows
+
 
 def add_run_to_database(dataframe, settings_dict, savepath, hexadecimal_name, saved_vars=None):
     """INPUTS:
-        dataframe: the pandas dataframe that is the database of runs
-        settings_dict: a dictionary of the settings for this run (best to filter the settings_obj with a settings_list of interest
-        savepath: where the database csv is saved - it must exist!
-        hexadecimal_name: the unique identifier for this run (e.g. a random 16 character hex string)"""
+    dataframe: the pandas dataframe that is the database of runs
+    settings_dict: a dictionary of the settings for this run (best to filter the settings_obj with a settings_list of interest
+    savepath: where the database csv is saved - it must exist!
+    hexadecimal_name: the unique identifier for this run (e.g. a random 16 character hex string)"""
     # add a row to dataframe with the settings and the hexadecimal name
-    row = {'name': hexadecimal_name}
+    row = {"name": hexadecimal_name}
     # Build row data
     for key, value in settings_dict.items():
         row[key] = value
-    
+
     if not saved_vars is None:
         # add a column for variables saved to data
-        row['data_vars'] = saved_vars
-    
+        row["data_vars"] = saved_vars
+
     # Add to dataframe
     new_df = pd.DataFrame([row])
     if dataframe.empty:
         dataframe = new_df
     else:
         dataframe = pd.concat([dataframe, new_df], ignore_index=True)
-    
+
     # Save to CSV
     dataframe.to_csv(savepath, index=False)
     logger.info(f"Added run {hexadecimal_name} to tracker")
 
 
 def generate_run_id() -> str:
-        """Generate a random 16-character hex identifier."""
-        return uuid.uuid4().hex[:16]
+    """Generate a random 16-character hex identifier."""
+    return uuid.uuid4().hex[:16]
