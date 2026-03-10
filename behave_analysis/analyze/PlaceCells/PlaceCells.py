@@ -21,9 +21,9 @@ class PlaceCells:
         self.bins = create_centered_bins(bin_size = self.aefizz.settings.place_cell_bin_size_pix)
         self.grid = (pl.DataFrame({"xbins": pl.Series("xbins", range(len(self.bins)-1))})
                 .join(pl.DataFrame({"ybins": pl.Series("ybins", range(len(self.bins)-1))}), how="cross"))
-        self.database, self.do_replay_analysis, self.hexadecimal_name = check_database_for_same_run(settings_to_check(self.aefizz.settings, ["linshift", "place_cell"]), 
+        self.database, self.do_analysis, self.hexadecimal_name = check_database_for_same_run(settings_to_check(self.aefizz.settings, ["linshift", "place_cell"]), 
                                     self.savepath + os.sep + "place_cell_results.csv", 
-                                    self.aefizz.settings)   
+                                    self.aefizz.settings)  
 
     def preprocess_data(self):
         """This function preprocesses the video and spike data for place cell analysis. 
@@ -186,7 +186,7 @@ class PlaceCells:
 
         shifts_one_side = np.arange(self.aefizz.settings.linshift_min_step, max_shift_one_side + 1,
                                     self.aefizz.settings.linshift_step)
-        shifts = np.concatenate([-shifts_one_side[::-1], [0], shifts_one_side])
+        results['shifts'] = np.concatenate([-shifts_one_side[::-1], [0], shifts_one_side])
 
         # Get the arrays we need, ORDERED by the filtered video dataframe
         # These are parallel arrays: index i corresponds to the same time point
@@ -195,10 +195,10 @@ class PlaceCells:
         vid_ybins = filt_vid_df_explore["ybins"].to_numpy()
 
         # 3. Compute real score at shift=0 (the null!) AND all shifted scores
-        results["spatial_info_bps_shifted"] = np.full((len(shifts), len(self.aefizz.cluster_Ids)), np.nan)
+        results["spatial_info_bps_shifted"] = np.full((len(results['shifts']), len(self.aefizz.cluster_Ids)), np.nan)
 
         i = 0
-        for shift in shifts:
+        for shift in results['shifts']:
             # POSITION comes from the center window (always the same - preserving behavioral stats)
             center_positions_xbins = vid_xbins[center_slice]
             center_positions_ybins = vid_ybins[center_slice]
