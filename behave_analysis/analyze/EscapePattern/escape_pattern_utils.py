@@ -324,9 +324,14 @@ def build_shift_vector(aefizz, ET):
 
     # --- 2. Define the central third of each condition ---
     # These are the "null" windows: data that won't be shifted past its own condition boundary
-    mid_shelter = [int(shelter / 3), int((shelter / 3) * 2)]
-    mid_bar = [int(shelter + ((bar_in - shelter) / 3)), int(shelter + (((bar_in - shelter) / 3) * 2))]
-    mid_flip = [int(bar_in + ((ttime - bar_in) / 3)), int(bar_in + (((ttime - bar_in) / 3) * 2))]
+    shift_total_size_one_side = (aefizz.settings.linshift_step * mult * (aefizz.settings.linshift_step_n / 2)) + (aefizz.settings.linshift_min_step * mult) + 1  # total size of shifts on one side (e.g. 10s step * 3 steps = 30s)
+    mid_shelter = [int(shift_total_size_one_side), int(shelter - shift_total_size_one_side)]
+    mid_bar = [int(shelter + shift_total_size_one_side), int(bar_in - shift_total_size_one_side)]
+    mid_flip = [int(bar_in + shift_total_size_one_side), int(ttime - shift_total_size_one_side)]
+    # OLD VERSION: simply the middle third of each condition
+    # mid_shelter = [int(shelter / 3), int((shelter / 3) * 2)]
+    # mid_bar = [int(shelter + ((bar_in - shelter) / 3)), int(shelter + (((bar_in - shelter) / 3) * 2))]
+    # mid_flip = [int(bar_in + ((ttime - bar_in) / 3)), int(bar_in + (((ttime - bar_in) / 3) * 2))]
 
     # --- 3. Define the shift amounts (one-sided, in interpolated frames) ---
     # e.g. min_step=3s, step=10s → shifts at 3s, 13s, 23s, ... (multiplied by interpolation factor)
