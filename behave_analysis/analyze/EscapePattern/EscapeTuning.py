@@ -27,6 +27,7 @@ class EscapeTuning:
     params_full: float = 0.0
     mat_num_cond: float = 0.0
     # shift tuning
+    shifts: int = 0
     y_fitted_shift: float = 0.0
     R_shift: float = 0.0
     fr_shift: float = 0.0
