@@ -70,9 +70,10 @@ class ComputeEscapeTuning:
             # loads discretized behavioral variables and firing rate tuning curves for residual computation
             self.load_residual_data()
 
-        # find onsets of runs based on escape pattern time ('homings' or 'homing&escape')
-        onset_dict = homing_escape_onsets(self.aefizz, self.ET.escape_pattern_time)
-        self.ons, self.offs, self.esc_ons = onset_dict["ons"], onset_dict["offs"], onset_dict["esc_ons"]
+        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
+            # find onsets of runs based on escape pattern time ('homings' or 'homing&escape')
+            onset_dict = homing_escape_onsets(self.aefizz, self.ET.escape_pattern_time)
+            self.ons, self.offs, self.esc_ons = onset_dict["ons"], onset_dict["offs"], onset_dict["esc_ons"]
 
     def filter_data_and_compute_tuning(self):
         """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
@@ -138,7 +139,7 @@ class ComputeEscapeTuning:
         3. The shift vector is shifted and the shifted vector is applied to the neural data"""
 
         # build shift vector to subselect central 1/3 of each condition
-        shifts, shift_vector = build_shift_vector(self.aefizz, self.ET)
+        self.ET.shifts, shift_vector = build_shift_vector(self.aefizz, self.ET)
 
         # select which onsets and offsets to keep based on shift vector
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
@@ -159,7 +160,7 @@ class ComputeEscapeTuning:
         self.ET.discretized_var_shift = discretized_var
 
         # initialize variables for output
-        step_n, n_cond, n_neur, Nbins = len(shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], settings.ep_bins
+        step_n, n_cond, n_neur, Nbins = len(self.ET.shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], settings.ep_bins
         self.ET.y_fitted_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan)  # conditions x neurons x n_bins
         if settings.ep_gaussian_fitting:
             self.ET.R_shift = np.zeros((step_n, n_neur, n_cond))  # neurons x conditions
@@ -170,7 +171,7 @@ class ComputeEscapeTuning:
         self.ET.mat_shift_cond = np.full((step_n, n_cond, n_neur, max(trial_n_cond), Nbins), np.nan)
 
         # iterate over shifts, compute the tuning curves
-        for s_idx, s in enumerate(shifts):
+        for s_idx, s in enumerate(self.ET.shifts):
 
             shifted_vec = np.roll(filtering_vector, int(s))
 
@@ -382,17 +383,19 @@ class ComputeEscapeTuning:
         # this is the discretized behavioral variable for tuning_var2 in time_period1
         CT_var2_t1 = load_or_compute_escape_tuning(self.aefizz, tuning_var2 + " in " + time_period1)
 
-        self.ET.residual_var2_t1 = CT_var2_t1.discretized_var
-        self.ET.residual_shift0_var2_t1 = CT_var2_t1.discretized_var_shift
+        self.ET.residual_var2_t1 = CT_var2_t1['discretized_var']
+        self.ET.residual_shift0_var2_t1 = CT_var2_t1['discretized_var_shift']
 
         # load tuning data for var2 in exploration from ComputeTuning object
         # this is the firing rate in the tuning curve to var2 in time_period2
         CT_var2_t2 = load_or_compute_escape_tuning(self.aefizz, tuning_var2 + " in " + time_period2)
 
-        self.ET.residual_fr_var2_t2 = CT_var2_t2.fr_full
-        mid = int(np.shape(CT_var2_t2.y_fitted_shift)[0] / 2)
-        self.ET.residual_fr_shift0_var2_t2 = CT_var2_t2.fr_shift[mid, :, :, :]
-
+        self.ET.residual_fr_var2_t2 = CT_var2_t2['fr_full']
+        if 'shifts' in CT_var2_t2.keys():
+            mid = np.where(CT_var2_t2['shifts'] == 0)[0][0]
+        else:
+            mid = int(np.shape(CT_var2_t2['y_fitted_shift'])[0] / 2)
+        self.ET.residual_fr_shift0_var2_t2 = CT_var2_t2['fr_shift'][mid, :, :, :]
 
 # -----------------------------Helper functions for loading or running compitation ----------------------------
 
@@ -423,7 +426,7 @@ def load_or_compute_escape_tuning(aefizz, variable):
     else:
         logger.warning(f"Escape tuning to {variable} file not found, computing now...")
         check_aefizz_completeness(aefizz)
-        computeET = ComputeEscapeTuning(variable)
+        computeET = ComputeEscapeTuning(variable, aefizz)
         computeET.prepare_data()
         computeET.filter_data_and_compute_tuning()
         computeET.compute_statistical_significance()
