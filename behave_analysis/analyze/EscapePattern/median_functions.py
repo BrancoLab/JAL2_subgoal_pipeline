@@ -78,10 +78,13 @@ def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
     """For each bin of a variable, calculate the median neural activity.
     remove_empty: if True remove bins with no behavioral data.
     """
+    if var.ndim > 1:
+        if var.shape[1] != 1:
+            raise ValueError("Input variable has more than one column. Please provide a 1D array or a 2D array with a single column.")
     # from scipy.stats import mode
     angles_firing = np.full(nbins, np.nan)  # Start with NaN to handle empty bins
     for i in range(nbins):
-        mask = (var == i)  # Find data points in the current bin
+        mask = (var == i).ravel()  # Find data points in the current bin
         if np.any(mask):  # Check if the bin has any data
             arr = neural_activity[mask]
             non_nan_arr = arr[~np.isnan(arr)]  # Remove NaNs
