@@ -9,9 +9,9 @@ import polars as pl
 
 from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
-from behave_analysis.postprocess.trials.escapes import get_Escapes
+from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
 from behave_analysis.utils.data_loading import load_or_extract_homings
-from behave_analysis.homings.homings import Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings import Homings
 
 
 class BaseDataPostprocessor(ABC):
@@ -170,10 +170,10 @@ class BaseDataPostprocessor(ABC):
             barrier_flipped = np.zeros(len(OutofShelterIdx)) == 1
             print("barrier was not flipped in this session")
 
-        # find the escape periods
+        # find the escape periods: from stim onset to offset
         EscapePeriod = np.zeros_like(OutofShelterIdx)
-        for onsets in self.session.audio.onset_frames:
-            EscapePeriod[(onsets[0] - self.session.video.fps) : (onsets[0] + (10 * self.session.video.fps))] = 1
+        for (onsets, duration) in zip(self.session.audio.onset_frames, self.session.audio.stimulus_durations):
+            EscapePeriod[onsets[0] : (onsets[0] + int(duration * self.session.video.fps))] = 1
 
         # make a video dataframe where for each video frame:
         video_df = pl.DataFrame(
@@ -220,7 +220,7 @@ class BaseDataPostprocessor(ABC):
         onset_frames = homing_obj.onset_frames
         offset_frames = homing_obj.offset_frames
         for onset, offset in zip(onset_frames, offset_frames):
-            homing_bool[onset - 1 : offset - 1] = True
+            homing_bool[onset: offset + 1] = True
 
         video_df = video_df.hstack([pl.Series("homingPeriod", homing_bool)])
 
@@ -321,11 +321,26 @@ class BaseDataPostprocessor(ABC):
             )  # Cast frames to float to permit join and remove old frames column with wrong type
         else:
             video_df = video_df.select([video_df["frames"].cast(pl.Float64), pl.exclude("frames")])
-        large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
+
+        potato
+        # NB: this is new code for joining behaviour and spikes, 
+        # by not filling null in the cluster ID column we can keep track of which frames have spikes and which don't, 
+        # and we only fill null in the spike count column to 0
+        large_dataFrame = (video_df
+                            .join(spikeCountByFrameAndCluster, 
+                                    left_on="frames", 
+                                    right_on="spike_aligned_to_frame", 
+                                    how="left")
+                            .with_columns(pl.col("spike_count").fill_null(0)  # Only fill spike_count, keep cluster ID as null
+                            ))
+        
+        # old code! This will assign frames with 0 spike count to cluster_ID 0 
+        # large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
+        # large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
         large_dataFrame.write_parquet(
             os.path.join(self.session.base_path, self.session.processed_path + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet")
         )
+        
         return large_dataFrame
 
     def export_large_df_to_frame_by_cluster_matrix(self, spikeCountByFrameAndCluster, video_df) -> None:

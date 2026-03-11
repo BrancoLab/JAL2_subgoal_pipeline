@@ -34,6 +34,7 @@ class LoadEfizz:
         """
         try:
             assert len(self.files) != 0, "Session list should not be empty"
+            assert len(self.filter_by_ending(self.files, "spike_times.npy")) > 0, "No spike_times.npy file was found! Make sure KS was run and output is in imec folder"
             assert len(self.filter_by_ending(self.files, "spike_times.npy")) == 1, "There should only be one spike_times.npy file"
             assert len(self.filter_by_ending(self.files, "spike_clusters.npy")) == 1, "There should only be one spike_clusters.npy file"
             assert len(self.filter_by_ending(self.files, "cluster_group.tsv")) == 1, "There should only be one cluster_group.tsv file"

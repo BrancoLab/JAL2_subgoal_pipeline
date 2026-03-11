@@ -23,7 +23,7 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
 )
 from behave_analysis.analyze.LDA.LDA_fitting import linear_discriminant_analysis
 
-def run_LDA_model_by_position(self, target_name):
+def run_LDA_model_by_position(aefizz, target_name):
     """
     A function that iterates across all angles and runs decoder analysis and linear shift statistics based on user settings
     It will also make bar plots of prediction accuracy across all angles and a map of prediction accuracy for the random points
@@ -36,11 +36,11 @@ def run_LDA_model_by_position(self, target_name):
     LDA_y_output = {}
 
     # filter video_df for this condition
-    filtered_video_df = select_relevant_frames(self)
-    bp, bc = BinArenaEqualParts(filtered_video_df, numpoints = self.num_slices, numrings = self.num_circles, radius = 460, video = self.session.video)
+    filtered_video_df = select_relevant_frames(aefizz)
+    bp, bc = BinArenaEqualParts(filtered_video_df, numpoints = aefizz.num_slices, numrings = aefizz.num_circles, radius = 460, video = aefizz.session.video)
     filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", bp)])
-    prediction_accuracy.update({'num_slices' : self.num_slices})
-    prediction_accuracy.update({'num_circles' : self.num_circles})
+    prediction_accuracy.update({'num_slices' : aefizz.num_slices})
+    prediction_accuracy.update({'num_circles' : aefizz.num_circles})
     prediction_accuracy.update({'bin_centre' : bc})
 
     for variable in target_name:
@@ -48,43 +48,43 @@ def run_LDA_model_by_position(self, target_name):
         logger.info(f"Running LDA on {variable}")
         
         # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
-        if np.logical_and(self.settings.exclude_proximal > 0, variable != "hdir"):
+        if np.logical_and(aefizz.settings.exclude_proximal > 0, variable != "hdir"):
             logger.warning(
                 "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
             )
-            self.filtered_video_df_full = exclude_proximal_frames(
-                filtered_video_df, variable, self.tracking_data, dist_thresh=self.settings.exclude_proximal * self.session.video.pixels_per_cm
+            aefizz.filtered_video_df_full = exclude_proximal_frames(
+                filtered_video_df, variable, aefizz.tracking_data, dist_thresh=aefizz.settings.exclude_proximal * aefizz.session.video.pixels_per_cm
             )
         else:
-            self.filtered_video_df_full = filtered_video_df
+            aefizz.filtered_video_df_full = filtered_video_df
 
         # now iterate over the positions!
-        for b in tqdm(np.unique(self.filtered_video_df_full['binned_position'].to_numpy()), desc=f"Running LDA on position out of {len(np.unique(self.filtered_video_df_full['binned_position'].to_numpy()))}"):
+        for b in tqdm(np.unique(aefizz.filtered_video_df_full['binned_position'].to_numpy()), desc=f"Running LDA on position out of {len(np.unique(aefizz.filtered_video_df_full['binned_position'].to_numpy()))}"):
             if b == 0:
                 continue
-            self.filtered_video_df = self.filtered_video_df_full.filter(self.filtered_video_df_full['binned_position'] == b)
+            aefizz.filtered_video_df = aefizz.filtered_video_df_full.filter(aefizz.filtered_video_df_full['binned_position'] == b)
             # if no frames meet the criteria, make this condition blank
-            if len(self.filtered_video_df) == 0:
+            if len(aefizz.filtered_video_df) == 0:
                 prediction_coef, prediction_accuracy, LDA_y_output, LS_compiled, dropout_pa = fill_dict_with_zeros(
-                    self, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable + '_pos' + str(b)
+                    aefizz, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable + '_pos' + str(b)
                 )
             else:
-                target, X = prep_target_and_predictors(self, variable)
+                target, X = prep_target_and_predictors(aefizz, variable)
                 savename = variable + '_pos' + str(b)
 
                 # run LDA on different angles
-                if self.do_LDA:
+                if aefizz.do_LDA:
                     pa, coef, frames, y_out = linear_discriminant_analysis(
                         X,
                         pos_ang=target,
-                        epoch_num=self.settings.epoch_num,
-                        fr=self.session.video.fps,
+                        epoch_num=aefizz.settings.epoch_num,
+                        fr=aefizz.session.video.fps,
                         return_coef=True,
-                        discriminant_type=self.settings.discriminant_type,
+                        discriminant_type=aefizz.settings.discriminant_type,
                         plotting=False,
-                        self=self,
+                        aefizz=aefizz,
                         title=savename,
-                        subsampling = self.settings.subsampling,
+                        subsampling = aefizz.settings.subsampling,
                     )
                     prediction_accuracy.update({variable + '_pos' + str(b): pa})
                     prediction_accuracy.update({variable + '_time' + str(b): frames})
@@ -92,22 +92,22 @@ def run_LDA_model_by_position(self, target_name):
                     LDA_y_output.update({variable + '_pos' + str(b): y_out})
 
                 # run LDA with individual cell dropout
-                if self.do_dropout:
+                if aefizz.do_dropout:
                     logger.warning("LDA dropout doesn't work yet for positional LDA")
                 #     logger.info(f"Running LDA predictor dropout on {variable}")
                 #     X_drop = []
                 #     for drop in np.arange(1, np.shape(X)[1]):
                 #         X_drop.append(np.delete(X, drop, axis=1))
                 #     args_list = [(x, target) for x in X_drop]
-                #     dropouts = self.PPool.mp_pool.map(parallel_function, args_list)
+                #     dropouts = aefizz.PPool.mp_pool.map(parallel_function, args_list)
                 #     dropout_pa.update({variable: dropouts})
 
                 # run linear shift on different angles
-                if self.do_LS:
+                if aefizz.do_LS:
                     LS_output = LinearShift(
                         X,
                         y=target,
-                        PPool=self.PPool,
+                        PPool=aefizz.PPool,
                         stat_computation_func=linear_discriminant_analysis,
                         step=40,
                         size_of_central_chunk=np.round(np.shape(X)[0] * 0.9),
@@ -115,21 +115,21 @@ def run_LDA_model_by_position(self, target_name):
                     LS_compiled.update({variable + '_pos' + str(b): LS_output})
                     del LS_output
 
-    logger.info(f"Finally! It's time to save LDA output on {self.condition}")
-    if self.do_LDA:
-        with open(self.LDA_out, "wb") as fp:
+    logger.info(f"Finally! It's time to save LDA output on {aefizz.condition}")
+    if aefizz.do_LDA:
+        with open(aefizz.LDA_out, "wb") as fp:
             pickle.dump(prediction_accuracy, fp)
-        coef_out = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_prediction_coef" + ".pkl"
+        coef_out = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_prediction_coef" + ".pkl"
         with open(coef_out, "wb") as fp:
             pickle.dump(prediction_coef, fp)
-        y_path = str(self.savepath) + "/" + str(self.cluster_type) + "_" + str(self.condition) + "_LDA_y_out" + ".pkl"
+        y_path = str(aefizz.savepath) + "/" + str(aefizz.cluster_type) + "_" + str(aefizz.condition) + "_LDA_y_out" + ".pkl"
         with open(y_path, "wb") as fp:
             pickle.dump(LDA_y_output, fp)
 
-    if self.do_LS:
-        with open(self.LS_out, "wb") as fp:
+    if aefizz.do_LS:
+        with open(aefizz.LS_out, "wb") as fp:
             pickle.dump(LS_compiled, fp)
 
-    if self.do_dropout:
-        with open(self.dropout_out, "wb") as fp:
+    if aefizz.do_dropout:
+        with open(aefizz.dropout_out, "wb") as fp:
             pickle.dump(dropout_pa, fp)

@@ -28,7 +28,7 @@ from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.rm_escapes_from_homings import remove_escapes_from_homings_object
 from behave_analysis.analyze.behaviour.utils import plot_trajectories
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
-from behave_analysis.homings.homings import cum_distance
+from behave_analysis.analyze.behaviour.homings_escapes.homings import cum_distance
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.database.computer_ID import get_computer_specific_paths
 
