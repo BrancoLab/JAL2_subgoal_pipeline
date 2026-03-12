@@ -19,6 +19,7 @@ from behave_analysis.analyze.behaviour.plot_homings import (
 from behave_analysis.utils.data_loading import load_or_extract_homings, load_or_extract_escapes
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
 from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
+from behave_analysis.analyze.behaviour.correlation_matrix import compute_correlation_matrix, plot_correlation_matrix, circular_linear_corr
 
 class AnalyzeBehave:
     """
@@ -34,27 +35,27 @@ class AnalyzeBehave:
     def load_data(self, analysis_name):
         self.tracking_data = open_tracking_data(self.session)
 
-        if analysis_name == "escape_plots":
-            self.esc_obj = load_or_extract_escapes(self.session)
-            assert self.esc_obj is not None, "Failed to load homing data."
-            assert hasattr(self.esc_obj, "escape_onset_frames") and hasattr(
-                self.esc_obj, "stimulus_durations"
+        if analysis_name == "escape_plots" or analysis_name == 'correlations':
+            self.escape_object = load_or_extract_escapes(self.session)
+            assert self.escape_object is not None, "Failed to load escape data."
+            assert hasattr(self.escape_object, "onset_frames") and hasattr(
+                self.escape_object, "stimulus_durations"
             ), "Escape object must have 'onset_frames' and 'stimulus_durations'."
-            assert len(self.esc_obj.escape_onset_frames) > 0, "No escape trials found for this session."
+            assert len(self.escape_object.onset_frames) > 0, "No escape trials found for this session."
 
-        if analysis_name == "homings_plots":
-            self.homings_obj = load_or_extract_homings(self.session)
-            assert self.homings_obj is not None, "Failed to load homing data."
-            assert hasattr(self.homings_obj, "onset_frames") and hasattr(
-                self.homings_obj, "stimulus_durations"
+        if analysis_name == "homings_plots" or analysis_name == "correlations":
+            self.homings_object = load_or_extract_homings(self.session)
+            assert self.homings_object is not None, "Failed to load homing data."
+            assert hasattr(self.homings_object, "onset_frames") and hasattr(
+                self.homings_object, "stimulus_durations"
             ), "Homings object must have 'onset_frames' and 'stimulus_durations'."
 
-        if analysis_name == 'homings&escape':
+        if analysis_name in ['homings&escape', 'correlations']:
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
             
 
-    def behaviour_analyses(self, analysis_name):
+    def behaviour_analyses(self, analysis_name, variables=None):
         
         
         # ----------------------------- Find Homings ----------------------------------
@@ -71,10 +72,10 @@ class AnalyzeBehave:
 
             if analysis_name == "escape_plots":
                 trials = "Escapes"
-                trial_obj = self.esc_obj
+                trial_obj = self.escape_object
             elif analysis_name == "homings_plots":
                 trials = "Homings"
-                trial_obj = self.homings_obj
+                trial_obj = self.homings_object
 
             logger.info(f"Making plots of {trials}")
             spatial_efficiency(self.onsets,
@@ -133,6 +134,13 @@ class AnalyzeBehave:
                                         tracking_data=self.tracking_data,
                                         title=trials,
                                     )
+        
+        if analysis_name == 'correlations':
+            """Let's build correlation matrices between behavioral variables"""
+            assert variables is not None, "Please provide a list of variables to compute correlations between."
+            corr_matrix = compute_correlation_matrix(self, variables)
+            plot_correlation_matrix(corr_matrix, variables)
+            
 
         # this one is kind of redundant with the spatial efficiency plots
         # plot_homings(self.session, self.tracking_data, homings_obj, settings.show_plots)
