@@ -33,6 +33,11 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
         var2_t1: vector of length time of binned <var2> (e.g. distance to shelter) np.unique(<var2>) = np.shape(fr_var2_t2)[2]
         fr_var2_t2: firing rates at each binned <var2> in <ctx2> [condition x neuron x bins]
     """
+    if var2_t1.ndim > 1:
+        if var2_t1.shape[1] != 1:
+            raise ValueError("var2_t1 should be a 1D vector of length time or a 2D array with a single column")
+        else:
+            var2_t1 = var2_t1[:, 0]
 
     v2_predicted_matrix = np.full_like(neural_matrix_t1, np.nan)
     n_neur = neural_matrix_t1.shape[0]
@@ -71,7 +76,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
     if "escape" in escape_pattern_time:
         # pull out escape onsets and calculate offset estimate based on stimulus duration (assuming 40 fps) - mouse will likely lon gbe in shelter by then
         esc_ons = np.array(check_not_list(aefizz.escape_object.onset_frames))
-        not_nan = np.where(~np.isnan(esc_ons))[0] # if the mouse didn't perform an escape after the stim!
+        not_nan = np.where(~np.isnan(esc_ons))[0]  # if the mouse didn't perform an escape after the stim!
         ons = np.append(ons, esc_ons[not_nan])
         offs = np.append(offs, np.array(check_not_list(aefizz.escape_object.offset_frames))[not_nan])
         trajectory_length = np.append(trajectory_length, aefizz.escape_object.trajectory_length[not_nan])
@@ -176,7 +181,7 @@ def homing_escape_boolean_vectors(aefizz):
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 
 
-def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector=[], bin_edges=[], interpolation=True):
+def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector=[], bin_edges=[], interpolation=True, discretize = True):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
         aefizz: AnalyzeEfizz object
@@ -218,7 +223,7 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             dd = compute_escape_trajectory(x[first : first + hs], y[first : first + hs])
             var[first : first + hs] = dd / np.amax(dd)
             first += hs
-        if len(bin_edges) == 0:
+        if (discretize) & (len(bin_edges) == 0):
             if isinstance(aefizz.settings.ep_bins, int):
                 bin_edges = define_bin_edges(aefizz.settings, tuning_var)
 
@@ -240,8 +245,8 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             current_time = np.arange(len(aefizz.video_df["speed"].to_numpy()))
             new_time = np.arange(0, len(aefizz.video_df["speed"].to_numpy()), 1 / aefizz.settings.ep_interpolation_mult)
             var = np.interp(new_time, current_time, var)
-        var = var[time_mask_vector.astype(bool)]  # restrict to homing periods for tuning curve calculation
-        if len(bin_edges) == 0:
+        var = var[time_mask_vector] if len(time_mask_vector) > 0 else var
+        if (discretize) & (len(bin_edges) == 0):
             bin_edges = np.arange(bin_range[0], bin_range[1], bin_range[2])
 
     elif tuning_var == "2D_position":
@@ -256,9 +261,10 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
         raise NotImplementedError("Delta HDIR not yet implemented")
 
     # discretize variable into bins
-    discretized_var = discretize_nd(var, bin_edges)
+    if discretize:
+        var = discretize_nd(var, bin_edges)
 
-    return discretized_var
+    return var
 
 
 def compute_escape_trajectory(xpos, ypos, start=0, stop=-1):
@@ -308,7 +314,49 @@ def compute_dist_shelt(x_pos, y_pos, cond, shelter_location, barrier_location1, 
     return dist
 
 
+def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural_matrix=None, condition=None):
+    """
+    INPUTS:
+        shifted_matrix: a matrix of (shifts,conditions,n_neurons,n_bins) includes the zero shift!
+            most commonly this will be data['y_fitted_shift'], but could also be data['fr_shift']
+        shift0: which of the shifts of shifted_matrix is the zero shift
+        stat: a string defining which statistic we want to compute
+                'zscore_peak' - the peak of the zscored trace
+                'peak' - the peak of the trace (can find a peak even for very flat curves)
+                'peak_to_mean' - the ratio of the peak to the mean firing of the tuning curve (high values for very low firing cells!)
+        if stat == 'zscore_peak' need to pass:
+            neural_matrix: the original neural matrix used to compute shifted_matrix (neurons x time)
+            condition: vector of length time of the condition at each time point used to compute shifted_matrix
+    """
+    if stat == "peak_to_mean":
+        peak = np.nanmax(shifted_matrix, axis=3)
+        mean = np.nanmean(shifted_matrix, axis=3)
+        shift_stat = np.divide(peak, mean, out=np.zeros_like(peak, dtype=np.float64), where=mean != 0)
+    elif stat == "peak":
+        shift_stat = np.nanmax(shifted_matrix, axis=3)
+    elif stat == "zscore_peak":
+        assert (neural_matrix is not None) & (condition is not None), "Need to pass neural_matrix and condition to compute zscore_peak"
+        mean_fr = np.zeros((shifted_matrix.shape[1], shifted_matrix.shape[2]))  # condition x neuron
+        std_fr = np.zeros((shifted_matrix.shape[1], shifted_matrix.shape[2]))  # condition x neuron
+        for c in np.unique(condition):
+            mean_fr[int(c), :] = np.nanmean(neural_matrix[:, condition == int(c)], axis=1)
+            std_fr[int(c), :] = np.nanstd(neural_matrix[:, condition == int(c)], axis=1)
+        # transform shifted_matrix to z-scores using mean and std of original neural matrix, extended to all shifts and bins
+        zscored = np.divide(
+            shifted_matrix - mean_fr[np.newaxis, :, :, np.newaxis],
+            std_fr[np.newaxis, :, :, np.newaxis],
+            out=np.zeros_like(shifted_matrix, dtype=np.float64),
+            where=std_fr[np.newaxis, :, :, np.newaxis] != 0,
+        )
+        shift_stat = np.nanmax(zscored, axis=3)
+    real_stat = shift_stat[shift0, :, :]
+    shift_stat = np.delete(shift_stat, shift0, axis=0)
+
+    return real_stat, shift_stat
+
+
 # ------------------------------------Linear Shift Stats------------------------------------
+
 
 def build_shift_vector(aefizz, ET):
     """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics
@@ -324,7 +372,9 @@ def build_shift_vector(aefizz, ET):
 
     # --- 2. Define the central third of each condition ---
     # These are the "null" windows: data that won't be shifted past its own condition boundary
-    shift_total_size_one_side = (aefizz.settings.linshift_step * mult * (aefizz.settings.linshift_step_n / 2)) + (aefizz.settings.linshift_min_step * mult) + 1  # total size of shifts on one side (e.g. 10s step * 3 steps = 30s)
+    shift_total_size_one_side = (
+        (aefizz.settings.linshift_step * mult * (aefizz.settings.linshift_step_n / 2)) + (aefizz.settings.linshift_min_step * mult) + 1
+    )  # total size of shifts on one side (e.g. 10s step * 3 steps = 30s)
     mid_shelter = [int(shift_total_size_one_side), int(shelter - shift_total_size_one_side)]
     mid_bar = [int(shelter + shift_total_size_one_side), int(bar_in - shift_total_size_one_side)]
     mid_flip = [int(bar_in + shift_total_size_one_side), int(ttime - shift_total_size_one_side)]
@@ -388,12 +438,12 @@ def build_shift_vector(aefizz, ET):
     # --- 5. Build the boolean shift_vector marking the central chunk of each condition ---
     shift_vector = np.zeros(ttime)
     shift_vector[int(mid_shelter[0]) : int(mid_shelter[1])] = 1  # shelter-only central third
-    shift_vector[int(mid_bar[0]) : int(mid_bar[1])] = 1          # barrier central third
-    shift_vector[int(mid_flip[0]) : int(mid_flip[1])] = 1        # flipped barrier central third
+    shift_vector[int(mid_bar[0]) : int(mid_bar[1])] = 1  # barrier central third
+    shift_vector[int(mid_flip[0]) : int(mid_flip[1])] = 1  # flipped barrier central third
     shift_vector = shift_vector.astype(bool)
 
     # --- 6. Trim shifts that would go out of bounds ---
-    shifts_left = shifts_one_sided[shifts_one_sided < mid_shelter[0]]          # left shifts that stay within session start
+    shifts_left = shifts_one_sided[shifts_one_sided < mid_shelter[0]]  # left shifts that stay within session start
     shifts_right = shifts_one_sided[(shifts_one_sided + mid_flip[1]) < ttime]  # right shifts that stay within session end
 
     # --- 7. Combine into symmetric shifts (negative = past, positive = future) plus zero ---
