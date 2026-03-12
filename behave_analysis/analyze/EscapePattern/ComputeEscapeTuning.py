@@ -89,7 +89,7 @@ class ComputeEscapeTuning:
 
         # extract behavioral variable that we compute the tuning to
         self.ET.discretized_var = create_discretized_behave_var(
-            self.aefizz, x, y, self.ET.condition, tuning_var=self.ET.tuning_var, time_mask_vector=self.ET.homing_vector if h_and_e else None, bin_edges=self.ET.bin_edges
+            self.aefizz, x, y, self.ET.condition, tuning_var=self.ET.tuning_var, time_mask_vector=filtering_vector, bin_edges=self.ET.bin_edges
         )
 
         # compute tuning curves for each neuron
@@ -156,8 +156,7 @@ class ComputeEscapeTuning:
         trial_n_cond = np.bincount(trial_start_cond.astype(int))
 
         # compute behavioral variable
-        discretized_var = create_discretized_behave_var(self.aefizz, x, y, condition, self.ET.tuning_var, time_mask_vector=filtering_vector, bin_edges=self.ET.bin_edges)
-        self.ET.discretized_var_shift = discretized_var
+        self.ET.discretized_var_shift = create_discretized_behave_var(self.aefizz, x, y, condition, self.ET.tuning_var, time_mask_vector=filtering_vector, bin_edges=self.ET.bin_edges)
 
         # initialize variables for output
         step_n, n_cond, n_neur, Nbins = len(self.ET.shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], settings.ep_bins
@@ -186,7 +185,7 @@ class ComputeEscapeTuning:
             # compute the tuning curve on the unshifted, subselected data
             if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
                 y, gf, fr, p, mat, reli = compute_tuning_curves(
-                    var=discretized_var,
+                    var=self.ET.discretized_var_shift,
                     escape_matrix=neural_matrix,
                     cond=condition,
                     bins=Nbins,
@@ -205,7 +204,7 @@ class ComputeEscapeTuning:
 
             elif self.ET.escape_pattern_time == "explore":
                 y, gf, fr, p = compute_tuning_curves_no_trials(
-                    var=discretized_var, escape_matrix=neural_matrix, cond=condition, bins=Nbins, n_cond=n_cond, n_neur=n_neur, fitting=settings.ep_gaussian_fitting
+                    var=self.ET.discretized_var_shift, escape_matrix=neural_matrix, cond=condition, bins=Nbins, n_cond=n_cond, n_neur=n_neur, fitting=settings.ep_gaussian_fitting
                 )  # whether to fit a gaussian to each response curve
 
             self.ET.y_fitted_shift[s_idx, :, :, :], self.ET.fr_shift[s_idx, :, :, :], self.ET.params_shifts[s_idx, :, :, :] = y, fr, p
@@ -399,7 +398,6 @@ class ComputeEscapeTuning:
 
 # -----------------------------Helper functions for loading or running compitation ----------------------------
 
-
 def load_or_compute_escape_tuning(aefizz, variable):
     """
     This function loads in or computes the escape tuning curves for a given variable
@@ -415,8 +413,9 @@ def load_or_compute_escape_tuning(aefizz, variable):
             "escape_tuning",
         )
     )
+    logger.info(f"checking for existing results to {variable} in database...")
     _, do_analysis, hexaname = check_database_for_same_run(
-        db_settings={"variable": variable, **settings_to_check(aefizz.settings, ["ep", "linshift"])},
+        db_settings={"variable": variable, **settings_to_check(aefizz.settings, ["ep_", "linshift"])},
         results_csv_name=savepath + os.sep + "EscapePattern_results.csv",
         settings=aefizz.settings,
     )

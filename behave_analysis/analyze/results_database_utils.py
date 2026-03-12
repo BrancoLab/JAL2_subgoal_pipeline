@@ -20,7 +20,7 @@ def check_database_for_same_run(db_settings, results_csv_name, settings):
         matched_results = check_database_for_matched_results(database, db_settings)
         if len(matched_results) > 0:
             # if there is a match, print the name of the matched run and skip the analysis....
-            logger.info(f"Found {len(matched_results)} matched results in database for current settings: {matched_results} in the folder {results_csv_name}")
+            logger.info(f"Found {len(matched_results)} matched results in database: {matched_results} in the folder {results_csv_name}")
             do_analysis = False
             if settings.redo_compute:
                 # ... unless you have chosen to redo the analysis anyway!
@@ -28,7 +28,7 @@ def check_database_for_same_run(db_settings, results_csv_name, settings):
                 do_analysis = True
     else:
         # if database doesn't exist, create it and add the current run to the database
-        logger.info(f"No existing database found for escape tuning results at {results_csv_name}, will compute escape tuning and save to new database.")
+        logger.info(f"No existing database found at {results_csv_name}, will save to new database.")
         database = pd.DataFrame([])
 
     # if we are doing the replay analysis, add the current run to the database with a new hexadecimal name
@@ -142,7 +142,7 @@ def add_run_to_database(dataframe, settings_dict, savepath, hexadecimal_name, sa
 
     # Save to CSV
     dataframe.to_csv(savepath, index=False)
-    logger.info(f"Added run {hexadecimal_name} to tracker")
+    logger.info(f"Added run {hexadecimal_name} to database")
 
 
 def generate_run_id() -> str:

@@ -21,7 +21,7 @@ class PlaceCells:
         self.bins = create_centered_bins(bin_size = self.aefizz.settings.place_cell_bin_size_pix)
         self.grid = (pl.DataFrame({"xbins": pl.Series("xbins", range(len(self.bins)-1))})
                 .join(pl.DataFrame({"ybins": pl.Series("ybins", range(len(self.bins)-1))}), how="cross"))
-        self.database, self.do_analysis, self.hexadecimal_name = check_database_for_same_run(settings_to_check(self.aefizz.settings, ["linshift", "place_cell"]), 
+        self.database, self.do_analysis, self.hexaname = check_database_for_same_run(settings_to_check(self.aefizz.settings, ["linshift", "place_cell"]), 
                                     self.savepath + os.sep + "place_cell_results.csv", 
                                     self.aefizz.settings)  
 
@@ -195,7 +195,7 @@ class PlaceCells:
         vid_ybins = filt_vid_df_explore["ybins"].to_numpy()
 
         # 3. Compute real score at shift=0 (the null!) AND all shifted scores
-        results["spatial_info_bps_shifted"] = np.full((len(results['shifts']), len(self.aefizz.cluster_Ids)), np.nan)
+        results["spatial_info_bps_shifted"] = np.full((len(results['shifts'])-1, len(self.aefizz.cluster_Ids)), np.nan)
 
         i = 0
         for shift in results['shifts']:
