@@ -197,7 +197,7 @@ class PlaceCells:
         # 3. Compute real score at shift=0 (the null!) AND all shifted scores
         results["spatial_info_bps_shifted"] = np.full((len(results['shifts'])-1, len(self.aefizz.cluster_Ids)), np.nan)
 
-        i = 0
+        i, b = 0, 0
         for shift in results['shifts']:
             # POSITION comes from the center window (always the same - preserving behavioral stats)
             center_positions_xbins = vid_xbins[center_slice]
@@ -240,9 +240,14 @@ class PlaceCells:
                     filt_shift_spike_df, occupancy_map_center, valid_occ_pairs_center, return_rate_maps=True
                 )
             else:
-                results["spatial_info_bps_shifted"][i] = self.compute_place_fields_cells(
-                    filt_shift_spike_df, occupancy_map_center, valid_occ_pairs_center, return_rate_maps=False
+                if i == ((np.where(results["shifts"] == 0)[0][0])+2):
+                    results["rate_map_shifted"], results["spatial_info_bps_shifted"][i] = self.compute_place_fields_cells(
+                    filt_shift_spike_df, occupancy_map_center, valid_occ_pairs_center, return_rate_maps=True
                 )
+                else:
+                    results["spatial_info_bps_shifted"][i] = self.compute_place_fields_cells(
+                        filt_shift_spike_df, occupancy_map_center, valid_occ_pairs_center, return_rate_maps=False
+                    )
                 i += 1
 
         return results
