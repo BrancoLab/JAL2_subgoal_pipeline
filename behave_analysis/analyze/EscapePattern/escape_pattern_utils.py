@@ -64,7 +64,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         esc_ons: vector of onset times in frames for escape periods
     """
     cond_list = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]
-    spatial_efficiency_threshold = [0.95, 1.05]
+    spatial_efficiency_threshold = [0.9, 1.05]
 
     ons = []
     offs = []
@@ -121,8 +121,11 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         starts = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(on)] for on in ons])
         ends = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(off)] for off in offs])
         keepers = keepers & (starts < 300) & (ends > 800)
-
-    assert np.sum(keepers) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {escape_pattern_time}, change criteria!"
+    if "not" in escape_pattern_time:
+        keepers = ~keepers
+    
+    if np.sum(keepers) < 5:
+        logger.warning(f"{np.sum(keepers)} homing/escape periods does not meet the criteria for {escape_pattern_time}")
 
     return {
         "ons": ons[keepers],
