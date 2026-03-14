@@ -239,6 +239,10 @@ class AnalyzeEfizz:
                 if computeET.do_analysis:
                     logger.info(f"{'Computing Residual of ' if 'residual' in computeET.ET.name.lower() else 'Computing '}Escape Pattern Tuning on {computeET.ET.tuning_var} during {computeET.ET.escape_pattern_time} periods")
                     computeET.prepare_data()
+                    if computeET.insufficient_data:
+                        logger.warning(f"Insufficient data for {variable}, saving empty results")
+                        computeET.save_escape_tuning(variable)
+                        return {}
                     computeET.filter_data_and_compute_tuning()
                     computeET.compute_statistical_significance()
                     computeET.save_escape_tuning(variable)

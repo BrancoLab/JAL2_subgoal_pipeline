@@ -74,6 +74,10 @@ class ComputeEscapeTuning:
             # find onsets of runs based on escape pattern time ('homings' or 'homing&escape')
             onset_dict = homing_escape_onsets(self.aefizz, self.ET.escape_pattern_time)
             self.ons, self.offs, self.esc_ons = onset_dict["ons"], onset_dict["offs"], onset_dict["esc_ons"]
+            if len(self.ons) == 0:
+                self.insufficient_data = True
+                return
+            self.insufficient_data = False
 
     def filter_data_and_compute_tuning(self):
         """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
@@ -220,7 +224,9 @@ class ComputeEscapeTuning:
         settings = asdict(self.aefizz.settings)
         np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
         # add results to database
-        db_settings = {"variable": variable, **settings_to_check(self.aefizz.settings, ["ep_", "linshift"])}
+        db_settings = {"variable": variable, 
+                       "insufficient_data": self.insufficient_data,
+                       **settings_to_check(self.aefizz.settings, ["ep_", "linshift"])}
         add_run_to_database(self.database, 
                             db_settings, 
                             self.ET.savepath + os.sep + "EscapePattern_results.csv", 
@@ -427,6 +433,10 @@ def load_or_compute_escape_tuning(aefizz, variable):
         check_aefizz_completeness(aefizz)
         computeET = ComputeEscapeTuning(variable, aefizz)
         computeET.prepare_data()
+        if computeET.insufficient_data:
+            logger.warning(f"Insufficient data for {variable}, saving empty results")
+            computeET.save_escape_tuning(variable)
+            return {}
         computeET.filter_data_and_compute_tuning()
         computeET.compute_statistical_significance()
         EP_dict = computeET.save_escape_tuning(variable, return_dict=True)

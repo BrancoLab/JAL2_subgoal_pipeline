@@ -48,7 +48,7 @@ class ReplayAnalysis:
             )
         )
         
-        self.database, self.do_replay_analysis, self.hexadecimal_name = check_database_for_same_run(settings_to_check(self.aefizz.settings, "replay"), 
+        self.database, self.do_replay_analysis, self.hexaname = check_database_for_same_run(settings_to_check(self.aefizz.settings, "replay"), 
                                     self.replay.savepath + os.sep + "replay_results.csv", 
                                     self.aefizz.settings)               
         
@@ -86,12 +86,25 @@ class ReplayAnalysis:
         # filter training data by condition
         self.replay.train_time_mask[np.where(self.replay.train_time_mask)[0][train_condition != self.c]] = False
         n_events = np.where(np.diff(self.replay.train_time_mask.astype(int))>0)[0]
-        assert len(n_events) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {self.aefizz.settings.replay_decoder_train_time_period}, change criteria!"
+        if len(n_events) < 5:
+            logger.warning(f"Not enough (<5) homing/escape periods meet the criteria for train, saving empty results!")
+            self.save_SS_data(save_dict = {"train_spikes": [],
+                                            "train_time": [],
+                                            "train_mask": [],
+                                            "train_segments": [],
+                                            "train_position": [],
+                                            "test_spikes": [],
+                                            "test_time": [],
+                                            "test_mask": [],
+                                            "test_segments": [],
+                                            "test_position": [],
+                                            "template_seq": [],
+                                        })
+            return
         
         # filter test data by condition
         self.replay.test_time_mask[np.where(self.replay.test_time_mask)[0][test_condition != self.test_c]] = False
         n_events = np.where(np.diff(self.replay.test_time_mask.astype(int))>0)[0]
-        assert len(n_events) > 5, f"Not enough (<5) homing/escape periods meet the criteria for {self.aefizz.settings.replay_decoder_test_time_period}, change criteria!"
         
         # if train and test periods are the same, split time in train test by thirds
         if self.aefizz.settings.replay_decoder_test_time_period == self.aefizz.settings.replay_decoder_train_time_period:
@@ -162,9 +175,9 @@ class ReplayAnalysis:
         else:            
             time_period = self.aefizz.settings.replay_decoder_train_time_period
         CT = load_or_compute_escape_tuning(self.aefizz, self.aefizz.settings.replay_template_variable + " in " + time_period)
-        self.escape_tuning_curve = CT.fr_full[self.c, self.replay.selected_cells, :]  # tuning curves of selected cells
+        self.escape_tuning_curve = CT['fr_full'][self.c, self.replay.selected_cells, :]  # tuning curves of selected cells
         # define the template of the order of neurons in the sequence
-        preferred_tuning = CT.params_full[:, :, 1]  # preferred (max) bin for each cell and condition
+        preferred_tuning = CT['params_full'][:, :, 1]  # preferred (max) bin for each cell and condition
         preferred_tuning = preferred_tuning[self.replay.selected_cells, :]  # only selected cells
         self.replay.template_seq = np.argsort(preferred_tuning[:, self.c])  # only the condition of interest
 
@@ -475,9 +488,7 @@ class ReplayAnalysis:
         check = np.zeros(len(test_mask))
         check[np.unique(frame_for_bin)] = 1
         assert np.array_equal(check, test_mask), "Test mask and frame_for_bin don't match, check prepare_state_space_decoder_data function!"
-        
-        # save data
-        filename = os.path.join(self.replay.savepath, "SSdecoder_" + self.hexaname)
+
         save_dict = {
             "train_spikes": train_spikes.T,
             "train_time": train_time,
@@ -491,6 +502,13 @@ class ReplayAnalysis:
             "test_position": test_position,
             "template_seq": self.replay.template_seq,
         }
+
+        self.save_SS_data(save_dict)
+
+    def save_SS_data(self, save_dict):
+        # save data
+        filename = os.path.join(self.replay.savepath, "SSdecoder_" + self.hexaname)
+        
         self.saved_vars = list(save_dict.keys())
         np.savez(filename + "_data.npz", **save_dict, allow_pickle=True)
 
