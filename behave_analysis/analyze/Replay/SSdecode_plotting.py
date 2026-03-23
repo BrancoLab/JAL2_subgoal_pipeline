@@ -31,11 +31,11 @@ def plot_predicted_vs_actual(axs, posterior_dist, predicted_position, actual_pos
         extent=[time[0], time[-1], 0, posterior_dist.shape[0]], interpolation='none')
     axs.plot(time, predicted_position, color="blue", linestyle="-", linewidth=1, clip_on=False,
             label = f"predicted {var_name}")
-    axs.plot(time, actual_position, color="orange", linestyle="--", linewidth=1, clip_on=False,
+    axs.plot(time, actual_position, color="orange", linestyle="-", linewidth=2, clip_on=False,
             label = f"Actual {var_name}")
     if len(time_markers) > 0:
         for time_marker in time_markers:
-            axs.axvline(x=time_marker, color='r', linestyle='--', linewidth=1)
+            axs.axvline(x=time_marker, color='r', linestyle='-', linewidth=2)
     axs.set_ylabel(var_name)
     axs.set_yticks(np.arange(0, posterior_dist.shape[0]+1,posterior_dist.shape[0]//4))
     if 'escape' in var_name:
@@ -45,7 +45,7 @@ def plot_predicted_vs_actual(axs, posterior_dist, predicted_position, actual_pos
     axs.set_xlabel('time (s)')
     if rmse != '':
         axs.set_title(f"rmse: {rmse:.2f}")
-    axs.legend(loc='lower right')
+    axs.legend(bbox_to_anchor=(0.5, -.2), loc='upper center')
 
 def plot_predicted_vs_actual_2dpos(axs, predicted_position, actual_position, dim, condition, barrier_coordinates = None, title = ''):
     """INPUTS:
@@ -83,9 +83,9 @@ def plot_mouse_behaviour(axs, x, y, onset, offset, condition, barrier_coordinate
     Arena(ax=axs,
         condition=condition,
         barrier_coordinates=barrier_coordinates)
-    axs.scatter(x[onset:offset], y[onset:offset], s=1, color='orange', alpha = 0.2) # to show where the mouse went during the homing period
-    axs.scatter(x[onset-look_back:onset], y[onset-look_back:onset], s=1, color='k', alpha = 0.2) # to show where the mouse went before the homing period
-    axs.scatter(x[offset:offset+look_forward], y[offset:offset+look_forward], s=1, color='k', alpha = 0.2) # to show where the mouse went after the homing period
+    axs.scatter(x[onset:offset], y[onset:offset], s=5, color='orange', alpha = 0.5) # to show where the mouse went during the homing period
+    axs.scatter(x[onset-look_back:onset], y[onset-look_back:onset], s=5, color='k', alpha = 0.2) # to show where the mouse went before the homing period
+    axs.scatter(x[offset:offset+look_forward], y[offset:offset+look_forward], s=5, color='k', alpha = 0.2) # to show where the mouse went after the homing period
     if len(time_markers) > 0:
         for time_marker in time_markers:
             axs.scatter(x[onset+time_marker], y[onset+time_marker], s=10, color='r', alpha = 0.5) # to show where the mouse was at each time marker
