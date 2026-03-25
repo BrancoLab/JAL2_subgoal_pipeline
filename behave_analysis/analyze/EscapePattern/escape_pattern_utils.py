@@ -33,23 +33,31 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
         var2_t1: vector of length time of binned <var2> (e.g. distance to shelter) np.unique(<var2>) = np.shape(fr_var2_t2)[2]
         fr_var2_t2: firing rates at each binned <var2> in <ctx2> [condition x neuron x bins]
     """
-    if var2_t1.ndim > 1:
-        if var2_t1.shape[1] != 1:
-            raise ValueError("var2_t1 should be a 1D vector of length time or a 2D array with a single column")
-        else:
-            var2_t1 = var2_t1[:, 0]
-
+    # initialize variables
     v2_predicted_matrix = np.full_like(neural_matrix_t1, np.nan)
     n_neur = neural_matrix_t1.shape[0]
-    n_cond = fr_var2_t2.shape[0]
+    n_cond = len(np.unique(cond_t1))
 
-    for n in range(n_neur):
-        for c in range(n_cond):
-            u = var2_t1[cond_t1 == c].astype(int)  # binned <var2> in <ctx1> and condition c
-            v = fr_var2_t2[c, n, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
-            v2_predicted_matrix[n, cond_t1 == c] = v[u]
+    # 1. make predicted neural matrix
+    if var2_t1.ndim > 1:
+        if var2_t1.shape[1] == 2: # 2D position!
+            # var2_t1 should be zero indexed
+            for n in range(n_neur):
+                for c in range(n_cond):
+                    u = var2_t1[cond_t1 == c, :].astype(int)  # binned <var2> in <ctx1> and condition c
+                    v = fr_var2_t2[c, n, :, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
+                    v2_predicted_matrix[n, cond_t1 == c] = v[u[:, 0], u[:, 1]]
+        elif var2_t1.shape[1] == 1: # 1D variable!
+            var2_t1 = var2_t1[:, 0]
+            for n in range(n_neur):
+                for c in range(n_cond):
+                    u = var2_t1[cond_t1 == c].astype(int)  # binned <var2> in <ctx1> and condition c
+                    v = fr_var2_t2[c, n, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
+                    v2_predicted_matrix[n, cond_t1 == c] = v[u]
+        else:
+            raise ValueError("Your discretized behavioral variable has too many columns")
 
-    # 7. subtract predicted neural activity from actual neural activity
+    # 2. subtract predicted neural activity from actual neural activity
     v2_residual_matrix = neural_matrix_t1 - v2_predicted_matrix
 
     return v2_residual_matrix
@@ -258,7 +266,7 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             radius = aefizz.session.video.radius
         else:
             radius = 460
-        bin_edges = create_centered_bins(nbins=aefizz.settings.ep_bins, bin_size=0.0, arena_radius=radius, center_offset=aefizz.session.video.width / 2)
+        bin_edges = create_centered_bins(nbins=aefizz.settings.place_cell_bin_size_pix, bin_size=0.0, arena_radius=radius, center_offset=aefizz.session.video.width / 2)
 
     elif tuning_var == "Delta_HDIR":
         raise NotImplementedError("Delta HDIR not yet implemented")

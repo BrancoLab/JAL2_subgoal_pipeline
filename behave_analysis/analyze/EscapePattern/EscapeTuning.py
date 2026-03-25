@@ -34,10 +34,8 @@ class EscapeTuning:
     params_shifts: float = 0.0
     mat_shift_cond: float = 0.0
     loo_shift: float = 0.0
-    discretized_var_shift: float = 0.0
     # residual tuning
-    residual_var2_t1: float = 0.0
-    residual_fr_var2_t2: float = 0.0
+    residual_var2_all_time: float = 0.0
 
 
 def init_escape_tuning(settings, tuning):
