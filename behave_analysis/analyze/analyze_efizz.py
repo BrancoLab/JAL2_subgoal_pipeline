@@ -8,7 +8,7 @@ import polars as pl
 import pickle
 import pandas as pd
 
-from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
+from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells, COLUMNS_TO_KEEP
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
@@ -34,19 +34,6 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pa
 from behave_analysis.analyze.Replay.ReplayAnalysis import ReplayAnalysis
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 
-COLUMNS_TO_KEEP = ["frames",
-                "mouse_x_position",
-                "mouse_y_position",
-                "spike_clusters",
-                "spike_count",
-                "OutofshelterIdx",
-                "EscapePeriod",
-                "shelter",
-                "barrier_present",
-                "barrier_flipped",
-                "homingPeriod",
-                "speed",
-            ]
 class AnalyzeEfizz:
     """
     A class that loads already processed efizz data and then runs all of the models on it set in the settings file.
@@ -287,7 +274,8 @@ class AnalyzeEfizz:
                 # map speed at each frome to the video and spike data df so we can exclude low speed frames in the place cell analysis
                 self.video_and_spike_data = self.video_and_spike_data.join(self.video_df.select(["frames", "speed"]), on='frames', how='left')
 
-            PC = PlaceCells(aefizz = self)
+            # YOU-RE IN DEBUGGER BECAUSE YOU WANT TO CHECK THE DATA TYPE OF FRAMES IN VIDEO_DF AND VIDEO_AND_SPIKE_DATA
+            PC = PlaceCells(aefizz = self, time_period = variable)
             if PC.do_analysis:
                 PC.preprocess_data()
                 PC.compute_place_fields_conditions()

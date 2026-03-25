@@ -13,15 +13,30 @@ from behave_analysis.analyze.results_database_utils import check_database_for_sa
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.utils.arena_plotting import Arena
 
+COLUMNS_TO_KEEP = ["frames",
+                "mouse_x_position",
+                "mouse_y_position",
+                "spike_clusters",
+                "spike_count",
+                "OutofshelterIdx",
+                "EscapePeriod",
+                "shelter",
+                "barrier_present",
+                "barrier_flipped",
+                "homingPeriod",
+                "speed",
+            ]
+
 class PlaceCells:
-    def __init__(self, aefizz):
+    def __init__(self, aefizz, time_period):
         self.aefizz = aefizz
+        self.time_period = time_period
         self.savepath = os.path.join(self.aefizz.session.base_path, self.aefizz.session.processed_path, "models", "place_cells")
         # Define spatial bins (e.g. 5cm x 5cm)
         self.bins = create_centered_bins(bin_size = self.aefizz.settings.place_cell_bin_size_pix)
         self.grid = (pl.DataFrame({"xbins": pl.Series("xbins", range(len(self.bins)-1))})
                 .join(pl.DataFrame({"ybins": pl.Series("ybins", range(len(self.bins)-1))}), how="cross"))
-        self.database, self.do_analysis, self.hexaname = check_database_for_same_run(settings_to_check(self.aefizz.settings, ["linshift", "place_cell"]), 
+        self.database, self.do_analysis, self.hexaname = check_database_for_same_run({'time_period': self.time_period, **settings_to_check(aefizz.settings, ["linshift", "place_cell"])}, 
                                     self.savepath + os.sep + "place_cell_results.csv", 
                                     self.aefizz.settings)  
 
@@ -165,10 +180,15 @@ class PlaceCells:
         results = {}
 
         # 1. compute place field and spatial information for the FULL real data
-        # filter data exclude time in shelter, escapes and when the mouse is stationary or slow (speed < 2.5 cm/s)
-        filt_vid_df_explore = filter_video_dataframe(filt_vid_df, outofshelter=True, exclude_escape=True,
-                                                    exclude_homings=True,
-                                                    speed_threshold=self.aefizz.settings.place_cell_speed_threshold)
+        if self.time_period == 'explore':
+            # filter data exclude time in shelter, escapes and when the mouse is stationary or slow (speed < 2.5 cm/s)
+            filt_vid_df_explore = filter_video_dataframe(filt_vid_df, outofshelter=True, exclude_escape=True,
+                                                        exclude_homings=True,
+                                                        speed_threshold=self.aefizz.settings.place_cell_speed_threshold)
+        elif self.time_period == 'homing&escape':
+            filt_vid_df_explore = filter_video_dataframe(filt_vid_df, outofshelter=True, exclude_escape=False,
+                                                        select_homings=True, select_escape = True,
+                                                        speed_threshold=self.aefizz.settings.place_cell_speed_threshold)
         filt_spike_df_explore = filt_spike_df.filter(pl.col("frames").is_in(filt_vid_df_explore["frames"]))
         # build the occupancy map (time spent in each bin) 
         results["occupancy_map"], valid_occ_pairs = self.build_occupancy_map(filt_vid_df_explore, self.valid_pairs)
@@ -178,14 +198,19 @@ class PlaceCells:
         )
 
         # 2. Set up linear shift
+        step1 = self.aefizz.settings.linshift_min_step
+        stepn = self.aefizz.settings.linshift_step_n
+        step = self.aefizz.settings.linshift_step
         # select center of the filtered data and define the shifts in frames
         n_rows = len(filt_vid_df_explore)
-        max_shift_one_side = (self.aefizz.settings.linshift_min_step
-                            + self.aefizz.settings.linshift_step * self.aefizz.settings.linshift_step_n // 2)
+        max_shift_one_side = (step1 + step * stepn // 2)
+        if n_rows < (3*max_shift_one_side): # at least a third in the middle
+            one_third = (n_rows - 1) // 3
+            max_shift_one_side = int(np.floor(one_third/step)*step) # make sure it's a multiple of the step
+            stepn = int(np.floor(one_third/step)*2)
+            logger.warning(f"Not enough data points ({n_rows}) to perform linear shift! Adjusting the number of steps to {stepn}")
         center_slice = slice(max_shift_one_side, n_rows - max_shift_one_side)
-
-        shifts_one_side = np.arange(self.aefizz.settings.linshift_min_step, max_shift_one_side + 1,
-                                    self.aefizz.settings.linshift_step)
+        shifts_one_side = np.arange(step1, max_shift_one_side + 1, step)
         results['shifts'] = np.concatenate([-shifts_one_side[::-1], [0], shifts_one_side])
 
         # Get the arrays we need, ORDERED by the filtered video dataframe
@@ -254,36 +279,64 @@ class PlaceCells:
     
     def plot_place_fields_conditions(self):
         logger.info("Plotting place fields for each condition and cluster")
-        plot_folder = make_directory(os.path.join(self.savepath, "PC_plots_" + self.hexaname))
+        plot_folder = make_directory(os.path.join(self.savepath, self.time_period, "PC_plots_" + self.hexaname))
         for idx, Id in enumerate(self.aefizz.cluster_Ids):
-            # find the min and max across both the rate map and null rate map across all conditions for this cluster to set the same color scale for all plots
-            min_rate = np.min([np.nanmin(self.results_dict[c]["rate_map"][:,:,idx]) for c in self.aefizz.all_conditions] + 
-                              [np.nanmin(self.results_dict[c]["rate_map_null"][:,:,idx]) for c in self.aefizz.all_conditions])
-            max_rate = np.max([np.nanmax(self.results_dict[c]["rate_map"][:,:,idx]) for c in self.aefizz.all_conditions] + 
-                              [np.nanmax(self.results_dict[c]["rate_map_null"][:,:,idx]) for c in self.aefizz.all_conditions])
-            fig, axs = plt.subplots(3, len(self.aefizz.all_conditions), figsize=(5*len(self.aefizz.all_conditions), 3*5))
+            # Gather all rate maps for this cluster, skipping all-NaN arrays
+            real_maps = [self.results_dict[c]["rate_map"][:, :, idx] for c in self.aefizz.all_conditions]
+            null_maps = [self.results_dict[c]["rate_map_null"][:, :, idx] for c in self.aefizz.all_conditions]
+            all_maps = real_maps + null_maps
+
+            # Filter out all-NaN maps for min/max calculation
+            valid_maps = [m for m in all_maps if not np.isnan(m).all()]
+            if valid_maps:
+                min_rate = np.nanmin([np.nanmin(m) for m in valid_maps])
+                max_rate = np.nanmax([np.nanmax(m) for m in valid_maps])
+            else:
+                min_rate, max_rate = 0, 1  # fallback values if all maps are NaN
+
+            fig, axs = plt.subplots(3, len(self.aefizz.all_conditions), figsize=(5 * len(self.aefizz.all_conditions), 3 * 5))
             for j, c in enumerate(self.aefizz.all_conditions):
-                # plot rate map for real data
-                Arena(ax = axs[0,j], dim = self.results_dict[c]["rate_map"][:,:,idx].shape[0]-1, condition = c,
-                      barrier_coordinates = self.aefizz.session.barrier_location[:-1], full_image = False)
-                im = axs[0,j].imshow(self.results_dict[c]["rate_map"][:,:,idx], vmin=min_rate, vmax=max_rate)
-                axs[0,j].set_title(f"Real data - {c}")
-                # plot rate map for null data
-                Arena(ax = axs[1,j], dim = self.results_dict[c]["rate_map_null"][:,:,idx].shape[0]-1, condition = c,
-                      barrier_coordinates = self.aefizz.session.barrier_location[:-1], full_image = False)
-                im = axs[1,j].imshow(self.results_dict[c]["rate_map_null"][:,:,idx], vmin=min_rate, vmax=max_rate)
-                axs[1,j].set_title(f"Null data")
-                # plot spatial information for shifted data
-                axs[2,j].hist(self.results_dict[c]["spatial_info_bps_shifted"][:,idx], bins=20)
-                axs[2,j].axvline(self.results_dict[c]["spatial_info_bps"][idx], color="red", label="Real data SI")
-                axs[2,j].axvline(self.results_dict[c]["spatial_info_bps_null"][idx], color="black", label="Null data SI")
-                axs[2,j].set_title(f"Spatial info (bps): {self.results_dict[c]['spatial_info_bps'][idx]:.2f}")
-                axs[2,j].legend()
-            fig.colorbar(im, ax=axs.ravel().tolist(), shrink=0.6, label="Firing rate")
+                # Plot real data rate map
+                real_map = self.results_dict[c]["rate_map"][:, :, idx]
+                Arena(ax=axs[0, j], dim=real_map.shape[0] - 1, condition=c,
+                    barrier_coordinates=self.aefizz.session.barrier_location[:-1], full_image=False)
+                if np.isnan(real_map).all():
+                    axs[0, j].text(0.5, 0.5, 'No data', ha='center', va='center')
+                    axs[0, j].axis('off')
+                    im = None
+                else:
+                    im = axs[0, j].imshow(real_map, vmin=min_rate, vmax=max_rate)
+                axs[0, j].set_title(f"Real data - {c}")
+
+                # Plot null data rate map
+                null_map = self.results_dict[c]["rate_map_null"][:, :, idx]
+                Arena(ax=axs[1, j], dim=null_map.shape[0] - 1, condition=c,
+                    barrier_coordinates=self.aefizz.session.barrier_location[:-1], full_image=False)
+                if np.isnan(null_map).all():
+                    axs[1, j].text(0.5, 0.5, 'No data', ha='center', va='center')
+                    axs[1, j].axis('off')
+                else:
+                    axs[1, j].imshow(null_map, vmin=min_rate, vmax=max_rate)
+                axs[1, j].set_title("Null data")
+
+                # Plot spatial information histogram
+                si_shifted = self.results_dict[c]["spatial_info_bps_shifted"][:, idx]
+                si_real = self.results_dict[c]["spatial_info_bps"][idx]
+                si_null = self.results_dict[c]["spatial_info_bps_null"][idx]
+                if not np.isnan(si_shifted).all():
+                    axs[2, j].hist(si_shifted[~np.isnan(si_shifted)], bins=20)
+                axs[2, j].axvline(si_real, color="red", label="Real data SI")
+                axs[2, j].axvline(si_null, color="black", label="Null data SI")
+                axs[2, j].set_title(f"Spatial info (bps): {si_real:.2f}")
+                axs[2, j].legend()
+
+            # Only add colorbar if at least one imshow was created
+            if valid_maps and im is not None:
+                fig.colorbar(im, ax=axs.ravel().tolist(), shrink=0.6, label="Firing rate")
             plt.savefig(os.path.join(plot_folder, f"place_fields_cluster{str(Id)}.png"))
             plt.close()
 
-    def save(self):
+    def save(self, return_dict = False):
         """This function saves the results of the place cell analysis to a file."""
         logger.info("Saving place cell results to file and database")
         filename = os.path.join(self.savepath, "PC_" + self.hexaname)
@@ -294,6 +347,8 @@ class PlaceCells:
         np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
         # add results to database
         add_run_to_database(self.database, 
-                            settings_to_check(self.aefizz.settings,["linshift", "place_cell"]), 
+                            {'time_period': self.time_period, **settings_to_check(self.aefizz.settings, ["linshift", "place_cell"])},  
                             self.savepath + os.sep + "place_cell_results.csv", 
                             self.hexaname)
+        if return_dict:
+            return self.results_dict
