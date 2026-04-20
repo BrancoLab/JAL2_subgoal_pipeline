@@ -67,6 +67,7 @@ def settings_to_check(settings_obj, analysis_type):
 
     settings_dict = asdict(settings_obj)
 
+    # add to the list of settings to check the ones that start with the analysis type of interest
     settings_list = []
     if isinstance(analysis_type, str):
         settings_list = [s for s in settings_dict.keys() if s.startswith(analysis_type)]
@@ -74,6 +75,7 @@ def settings_to_check(settings_obj, analysis_type):
         for at in analysis_type:
             settings_list.extend([s for s in settings_dict.keys() if s.startswith(at)])
 
+    # some of the general settings we want to check
     gen_settings_list = [s for s in settings_dict.keys() if s in SETTINGS_AE]
     settings_list.extend(gen_settings_list)
 
@@ -85,12 +87,14 @@ def settings_to_check(settings_obj, analysis_type):
 def find_matching_run(database, settings_dict, saved_vars=[]):
     """A function that checks a database for rows with settings that match settings_dict.
     Optionally you can also ask to check the list of saved_vars for this row by passing a list of var names"""
+    # we set everything to true and then check for mismatches to set to false
     matched_rows = np.ones(len(database), dtype=bool)
     saved_vars_rows = np.ones(len(database), dtype=bool)
 
     # iterate over rows
     for row in range(len(database)):
         row_dict = database.iloc[row].to_dict()
+        # iterate over settings to check, if a mismatch break and set matched_rows to false for this row
         for setting_name, setting_value in settings_dict.items():
             if setting_name not in row_dict:
                 matched_rows[row] = False
@@ -103,9 +107,17 @@ def find_matching_run(database, settings_dict, saved_vars=[]):
                         db_value = ast.literal_eval(db_value)
                     except (ValueError, SyntaxError):
                         pass
-                if db_value != setting_value:
-                    matched_rows[row] = False
-                    break
+                # if it's a list or tuple, we want to check if they have the same items regardless of order
+                if isinstance(setting_value, (list, tuple)) and isinstance(db_value, (list, tuple)):
+                    if not _same_items_ignore_order(db_value, setting_value):
+                        matched_rows[row] = False
+                        break
+                # if not list or tuple, just check for equality
+                else:
+                    if db_value != setting_value:
+                        matched_rows[row] = False
+                        break
+        # is there a list of the variables saved for this iteration of the analysis? if so check if they match
         if len(saved_vars) > 0:
             data_vars = ast.literal_eval(row_dict["data_vars"]) if isinstance(row_dict["data_vars"], str) else row_dict["data_vars"]
             if data_vars != saved_vars:
@@ -116,6 +128,17 @@ def find_matching_run(database, settings_dict, saved_vars=[]):
     else:
         return matched_rows
 
+def _same_items_ignore_order(a, b):
+    # Compare list/tuple values as multisets, so order does not matter.
+    if not isinstance(a, (list, tuple)) or not isinstance(b, (list, tuple)):
+        return a == b
+    if len(a) != len(b):
+        return False
+    try:
+        return sorted(a) == sorted(b)
+    except TypeError:
+        # Fallback for mixed or non-orderable element types.
+        return sorted(map(repr, a)) == sorted(map(repr, b))
 
 def add_run_to_database(dataframe, settings_dict, savepath, hexadecimal_name, saved_vars=None):
     """INPUTS:
