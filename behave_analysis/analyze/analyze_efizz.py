@@ -13,6 +13,7 @@ from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_out
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
 from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
+from behave_analysis.analyze.CCA.CCAmodel import CCAmodel
 
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
@@ -71,7 +72,7 @@ class AnalyzeEfizz:
             self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "good_spike_data.csv"))
 
         # load video_df, frame by cluster matrix and cluster_Ids
-        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells']:
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells', 'CCA']:
             if analysis_name == 'PlaceCells':
                 if "speed" in self.video_and_spike_data.columns:
                     # if we're doing place cell analysis, we need the speed column in the video_and_spike_data df to exclude low speed frames
@@ -80,7 +81,7 @@ class AnalyzeEfizz:
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
         
         # load firing rate matrix
-        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay']:
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'CCA']:
 
             if (analysis_name == 'Replay' and self.settings.replay_template_match_method == 'SS_decoder'):
                 # don't load the frame by cluster matrix, we're using the spike_df for the state space decoder method
@@ -283,6 +284,14 @@ class AnalyzeEfizz:
                 PC.save()
             
             logger.success("Place Cell analysis complete")
+
+        # ------------------------------ Compute CCA --------------------------------
+        if analysis_name == 'CCA':
+            logger.info("Running CCA analysis")
+            cca_model = CCAmodel(aefizz = self)
+            if cca_model.do_analysis:
+                cca_model.cca_across_conditions()
+            logger.success("CCA analysis complete")
 
         # ----------------------------- Conduct Dimensionality Reduction and clustering ----------------------------------
         if analysis_name == 'PCA' or analysis_name == 'UMAP':
