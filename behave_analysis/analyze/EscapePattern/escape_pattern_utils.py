@@ -45,7 +45,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
             for n in range(n_neur):
                 for c in range(n_cond):
                     u = var2_t1[cond_t1 == c, :].astype(int)  # binned <var2> in <ctx1> and condition c
-                    v = fr_var2_t2[c, n, :, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
+                    v = fr_var2_t2[c, :, :, n]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
                     v2_predicted_matrix[n, cond_t1 == c] = v[u[:, 0], u[:, 1]]
         elif var2_t1.shape[1] == 1: # 1D variable!
             var2_t1 = var2_t1[:, 0]
@@ -177,16 +177,13 @@ def select_onset_offsets_in_shift_vector(ET, shift_vector):
     return filtering_vector.astype(bool)
 
 
-def homing_escape_boolean_vectors(aefizz):
+def homing_escape_boolean_vectors(object, n_frames):
     """This function creates two boolean vectors for homing and escape periods"""
-    homing_period = np.zeros(len(aefizz.video_df), dtype=bool)
-    for onset, offset in zip(aefizz.homings_object.onset_frames, aefizz.homings_object.offset_frames):
-        homing_period[int(onset) : int(offset) + 1] = True
-    escape_period = np.zeros(len(aefizz.video_df), dtype=bool)
-    for onset, duration in zip(aefizz.session.audio.onset_frames, aefizz.session.audio.stimulus_durations):
-        escape_period[int(onset) : int(onset + int(duration * aefizz.session.video.fps))] = True
+    runs_period = np.zeros(n_frames, dtype=bool)
+    for onset, offset in zip(object.onset_frames, object.offset_frames):
+        runs_period[int(onset) : int(offset) + 1] = True
 
-    return homing_period, escape_period
+    return runs_period
 
 
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
@@ -266,7 +263,8 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             radius = aefizz.session.video.radius
         else:
             radius = 460
-        bin_edges = create_centered_bins(nbins=aefizz.settings.place_cell_bin_size_pix, bin_size=0.0, arena_radius=radius, center_offset=aefizz.session.video.width / 2)
+        # bin_edges = create_centered_bins(nbins=aefizz.settings.place_cell_bin_size_pix, bin_size=0.0, arena_radius=radius, center_offset=aefizz.session.video.width / 2)
+        bin_edges = create_centered_bins(bin_size=aefizz.settings.place_cell_bin_size_pix)
 
     elif tuning_var == "Delta_HDIR":
         raise NotImplementedError("Delta HDIR not yet implemented")

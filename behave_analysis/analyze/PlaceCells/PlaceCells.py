@@ -51,6 +51,7 @@ class PlaceCells:
         # Bin the arena into spatial bins (e.g. 5cm x 5cm)
         self.binned_spike_df = assign_positional_bins_to_frames(self.aefizz.video_and_spike_data, bins=self.bins) # this gives us spike count per frame and cluster
         self.binned_vid_df = assign_positional_bins_to_frames(self.aefizz.video_df, bins=self.bins) # this is for computing occupancy
+        self.binned_vid_df = self.binned_vid_df.select([self.binned_vid_df["frames"].cast(pl.Float64), pl.exclude("frames")])
         # valid xy bin pairs (mouse was there, but spikes were not necessarily recorded) come from the video dataframe (circular arena mask)
         self.valid_pairs = (self.binned_vid_df.filter(pl.col("xbins").is_not_nan() & pl.col("ybins").is_not_nan())
                                               .with_columns(pl.col("xbins").cast(pl.Int64), pl.col("ybins").cast(pl.Int64))
@@ -189,6 +190,8 @@ class PlaceCells:
             filt_vid_df_explore = filter_video_dataframe(filt_vid_df, outofshelter=True, exclude_escape=False,
                                                         select_homings=True, select_escape = True,
                                                         speed_threshold=self.aefizz.settings.place_cell_speed_threshold)
+        # TODO: create a filter for correct, full homings etc.
+        # TODO: how to handle low occupancy in homings...
         filt_spike_df_explore = filt_spike_df.filter(pl.col("frames").is_in(filt_vid_df_explore["frames"]))
         # build the occupancy map (time spent in each bin) 
         results["occupancy_map"], valid_occ_pairs = self.build_occupancy_map(filt_vid_df_explore, self.valid_pairs)

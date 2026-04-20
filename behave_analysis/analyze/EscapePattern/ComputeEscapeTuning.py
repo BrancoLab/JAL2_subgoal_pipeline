@@ -290,7 +290,8 @@ class ComputeEscapeTuning:
         # check that homingPeriod column exists
         if "homingPeriod" not in self.aefizz.video_df.columns:
             # NB: as soon as postprocess is rerun, this logic should be fixed and applied there as well
-            homing_period, escape_period = homing_escape_boolean_vectors(self.aefizz)
+            homing_period = homing_escape_boolean_vectors(self.aefizz.homings_object, len(self.aefizz.video_df))
+            escape_period = homing_escape_boolean_vectors(self.aefizz.escape_object, len(self.aefizz.video_df))
         else:
             homing_period = self.aefizz.video_df["homingPeriod"].to_numpy()
             escape_period = self.aefizz.video_df["EscapePeriod"].to_numpy()
@@ -391,14 +392,19 @@ class ComputeEscapeTuning:
         self.ET.residual_var2_all_time = create_discretized_behave_var(self.aefizz,
                                                                         self.aefizz.video_df['mouse_x_position'].to_numpy(), 
                                                                         self.aefizz.video_df['mouse_y_position'].to_numpy(), 
-                                                                        self.condition[::self.aefizz.settings.ep_interpolation_mult], tuning_var=tuning_var2, bin_edges=self.ET.bin_edges)
+                                                                        self.condition[::self.aefizz.settings.ep_interpolation_mult], 
+                                                                        tuning_var=tuning_var2, bin_edges=self.ET.bin_edges)
         
         if tuning_var2 == "2D_position":
             # in this case, run and/or load data from PlaceCells pipeline instead of ComputeTuning pipeline
             PC_dict = load_or_compute_2d_position_tuning(self.aefizz, time_period1)
-            self.ET.residual_fr_var2_t2 = PC_dict["rate_map"]
-            self.ET.residual_fr_shift0_var2_t2 = PC_dict["rate_map_null"]
-            assert (self.ET.residual_fr_var2_t2.shape[0] == np.unique(self.ET.residual_var2_all_time[:,0])) & (self.ET.residual_fr_var2_t2.shape[1] == np.unique(self.ET.residual_var2_all_time[:,1])), "Number of bins in tuning variable does not match between residual variable and tuning curve" 
+            if isinstance(PC_dict["shelter_only"], dict):
+                self.ET.residual_fr_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+            elif isinstance(PC_dict["shelter_only"], object):
+                self.ET.residual_fr_var2_t2 = np.array([PC_dict[c].item()["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c].item()["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+            assert self.ET.residual_fr_var2_t2.shape[1] == len(np.unique(self.ET.residual_var2_all_time[:,0])), "Number of bins in tuning variable does not match between residual variable and tuning curve" 
         else:
             # load tuning data for var2 in exploration from ComputeTuning object
             # this is the firing rate in the tuning curve to var2 in time_period2
