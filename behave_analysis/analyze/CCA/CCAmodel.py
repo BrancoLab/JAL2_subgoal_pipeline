@@ -11,6 +11,7 @@ from behave_analysis.analyze.CCA.find_shelter_exit_and_runs import find_shelter_
 from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check, check_database_for_matched_results, generate_run_id
 from behave_analysis.analyze.filtering_data.filtering_functions import filter_video_dataframe
 from behave_analysis.utils.creating_directories import make_directory
+from behave_analysis.analyze.EscapePattern.escape_pattern_utils import homing_escape_onsets, homing_escape_filtering_vector
 
 class CCAmodel:
     def __init__(self, aefizz):
@@ -121,8 +122,17 @@ class CCAmodel:
         for test in self.settings.cca_test_sets:
             if "xval" in test:
                 continue
-            elif test == "homing&escape":
-                test_idx_dict[test] = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=True, exclude_escape=False, select_homings=True, select_escape=True)["frames"].to_numpy() - 1
+            elif "homing&escape" in test:
+                # test_idx_dict[test] = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=True, exclude_escape=False, select_homings=True, select_escape=True)["frames"].to_numpy() - 1
+                onset_dict = homing_escape_onsets(self.aefizz, test)
+                h_e_vec, _ = homing_escape_filtering_vector(
+                    nframes=len(self.aefizz.video_df),
+                    onset_dict=onset_dict,
+                    xpos=self.aefizz.video_df["mouse_x_position"].to_numpy(),
+                    ypos=self.aefizz.video_df["mouse_y_position"].to_numpy(),
+                    shelter_location=self.aefizz.session.shelter_location,
+                )
+                test_idx_dict[test] = self.aefizz.video_df["frames"].to_numpy()[h_e_vec] - 1
                 self.results["test_sets"].append(test)
             elif test == "shelter_outing":
                 condition_df = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=None, exclude_escape=True, exclude_homings=True)
@@ -152,8 +162,16 @@ class CCAmodel:
             # make sure no train indices are in the test datasets
             for test in test_idx_dict.keys():
                 train_idx = np.array([idx for idx in train_idx if idx not in test_idx_dict[test]])
-        elif self.settings.cca_train_set == "homing&escape":
-            train_idx = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=True, exclude_escape=False, select_homings=True, select_escape=True)["frames"].to_numpy() - 1
+        elif "homing&escape" in self.settings.cca_train_set:
+            onset_dict = homing_escape_onsets(self.aefizz, self.settings.cca_train_set)
+            h_e_vec, _ = homing_escape_filtering_vector(
+                nframes=len(self.aefizz.video_df),
+                onset_dict=onset_dict,
+                xpos=self.aefizz.video_df["mouse_x_position"].to_numpy(),
+                ypos=self.aefizz.video_df["mouse_y_position"].to_numpy(),
+                shelter_location=self.aefizz.session.shelter_location,
+            )
+            train_idx = self.aefizz.video_df["frames"].to_numpy()[h_e_vec] - 1
         elif self.settings.cca_train_set == "shelter_outing":
             condition_df = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=None, exclude_escape=True, exclude_homings=True)
             outside_runs = find_shelter_exit_runs(condition_df, min_distance_cm = 20.0)
@@ -181,7 +199,8 @@ class CCAmodel:
         comparison_idx = []
         if "match" in self.settings.cca_xval_method:
             if "homings" in self.settings.cca_xval_method:
-                comparison_idx = test_idx_dict["homing&escape"]
+                test_name = [name for name in test_idx_dict.keys() if "homing&escape" in name][0]
+                comparison_idx = test_idx_dict[test_name]
             elif "shelter_outing" in self.settings.cca_xval_method:
                 comparison_idx = test_idx_dict["shelter_outing"]
         train_idx, xval_idx = select_xval_frames(self.aefizz.video_df, train_idx, self.settings.cca_xval_method, comparison_indices=comparison_idx)
@@ -200,6 +219,7 @@ class CCAmodel:
         self.set_up_results_dict()
 
         # run CCA for each condition
+        logger.info(f"Running CCA with the following settings: n_components={self.n_components}, train set={self.settings.cca_train_set}, xval method={self.settings.cca_xval_method}, test sets={self.settings.cca_test_sets}")
         for c, cond in enumerate(self.aefizz.all_conditions):
             train_idx, test_idx_dict = self.get_train_test_indices(condition=cond)
             if len(train_idx) == 0:

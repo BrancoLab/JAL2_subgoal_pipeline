@@ -62,7 +62,7 @@ def find_bout_runs(
     x_cm = video_df["mouse_x_position"].to_numpy().astype(float) * cm_per_pixel
     y_cm = video_df["mouse_y_position"].to_numpy().astype(float) * cm_per_pixel
     homing = video_df["homingPeriod"].to_numpy().astype(bool)
-    shelter_outings = find_shelter_exit_runs(video_df, min_distance_cm = 20.0)
+    shelter_outings = find_shelter_exit_runs(video_df, min_distance_cm = min_distance_cm)
 
     n = len(speed)
     above = speed >= run_speed_cm_s

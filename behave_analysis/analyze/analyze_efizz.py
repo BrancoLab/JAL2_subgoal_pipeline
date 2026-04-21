@@ -108,7 +108,7 @@ class AnalyzeEfizz:
             self.tracking_data = open_tracking_data(self.session)
 
         # Load the homings object
-        if analysis_name in ['single_trial', 'EscapePattern', 'Replay']:
+        if analysis_name in ['single_trial', 'EscapePattern', 'Replay', 'CCA']:
             try:
                 homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
                 with open(homing_path, "rb") as f:
