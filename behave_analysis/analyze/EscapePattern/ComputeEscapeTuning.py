@@ -8,7 +8,8 @@ import pandas as pd
 import polars as pl
 from dataclasses import asdict
 
-from settings.settings_analyze_efizz import Settings_ae as settings
+from behave_analysis.analyze.CCA.find_shelter_exit_and_runs import find_shelter_exit_runs
+# from settings.settings_analyze_efizz import Settings_ae as settings
 from behave_analysis.analyze.EscapePattern.EscapeTuning import init_escape_tuning
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     select_onset_offsets_in_shift_vector,
@@ -17,8 +18,8 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     build_shift_vector,
     residual_neural_matrix,
     parse_residual_string,
-    saving_path_and_file,
     homing_escape_boolean_vectors,
+    homing_escape_filtering_vector,
 )
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
 from behave_analysis.utils.creating_directories import make_directory
@@ -38,8 +39,10 @@ class ComputeEscapeTuning:
     def __init__(self, tuning, aefizz):
 
         # metadata
-        self.ET = init_escape_tuning(settings, tuning)
+        self.ET = init_escape_tuning(aefizz.settings, tuning)
         self.aefizz = aefizz
+        self.insufficient_data = False
+        self.settings = aefizz.settings
 
         # check that we're not trying to compute %escape tuning during explore periods
         # self.ET.escape_pattern_time == "explore": looking at exploration period
@@ -59,9 +62,9 @@ class ComputeEscapeTuning:
         )
 
         self.database, self.do_analysis, self.hexaname = check_database_for_same_run(
-            db_settings={"variable": tuning, **settings_to_check(self.aefizz.settings, ["ep_", "linshift"])},
+            db_settings={"variable": tuning, **settings_to_check(self.settings, ["ep_", "linshift"])},
             results_csv_name=self.ET.savepath + os.sep + "EscapePattern_results.csv",
-            settings=self.aefizz.settings,
+            settings=self.settings,
         )
 
     def prepare_data(self):
@@ -73,21 +76,25 @@ class ComputeEscapeTuning:
 
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
             # find onsets of runs based on escape pattern time ('homings' or 'homing&escape')
-            onset_dict = homing_escape_onsets(self.aefizz, self.ET.escape_pattern_time)
-            self.ons, self.offs, self.esc_ons = onset_dict["ons"], onset_dict["offs"], onset_dict["esc_ons"]
-            if len(self.ons) == 0:
+            self.onset_dict = homing_escape_onsets(self.aefizz, self.ET.escape_pattern_time)
+            if len(self.onset_dict["ons"]) == 0:
                 self.insufficient_data = True
                 return
             self.insufficient_data = False
+        
+        if self.ET.escape_pattern_time == "shelter_outing":
+            shelter_outing_vector = find_shelter_exit_runs(self.aefizz.video_df, min_speed_cm_s=3.0, min_distance_cm=20.0)
+            self.onset_dict = {"ons": np.where(np.diff(shelter_outing_vector.astype(int)) > 0)[0] + 1,
+                               "offs": np.where(np.diff(shelter_outing_vector.astype(int)) < 0)[0] + 1}
 
     def filter_data_and_compute_tuning(self):
         """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
         and a behavioral variable of interest (var) discretized into bins (determined in settings)
         """
 
-        h_and_e = False
-        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
-            h_and_e = True
+        trial_based = False
+        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time or self.ET.escape_pattern_time == "shelter_outing":
+            trial_based = True
 
         # create a filtering vector based on time period (homing+escape or explore)
         filtering_vector, x, y = self.filter_data()
@@ -98,7 +105,7 @@ class ComputeEscapeTuning:
         )
 
         # compute tuning curves for each neuron
-        if h_and_e:
+        if trial_based:
 
             # how many trials are in each condition?
             trial_start_cond = self.condition[np.where(np.diff(filtering_vector) > 0)[0]]
@@ -108,17 +115,17 @@ class ComputeEscapeTuning:
                 var=self.ET.discretized_var,
                 escape_matrix=self.ET.neural_matrix,
                 cond=self.ET.condition,
-                bins=settings.ep_bins,
+                bins=self.settings.ep_bins,
                 filtering_vector=filtering_vector,
                 n_cond=len(np.unique(self.ET.condition)),
                 n_neur=self.ET.neural_matrix.shape[0],
                 n_trials=max(trial_n_cond),
                 avg="winsorized",
-                fitting=settings.ep_gaussian_fitting,  # whether to fit a gaussian to each response curve
-                loo=settings.ep_compute_loo_reliability,
+                fitting=self.settings.ep_gaussian_fitting,  # whether to fit a gaussian to each response curve
+                loo=self.settings.ep_compute_loo_reliability,
             )  # whether to compute leave one out reliability
             self.ET.mat_num_cond = mat
-            if settings.ep_compute_loo_reliability:
+            if self.settings.ep_compute_loo_reliability:
                 self.ET.loo_reliability_full = loo
 
         elif self.ET.escape_pattern_time == "explore":
@@ -127,14 +134,14 @@ class ComputeEscapeTuning:
                 var=self.ET.discretized_var,
                 escape_matrix=self.ET.neural_matrix,
                 cond=self.ET.condition,
-                bins=settings.ep_bins,
+                bins=self.settings.ep_bins,
                 n_cond=len(np.unique(self.ET.condition)),
                 n_neur=self.ET.neural_matrix.shape[0],
-                fitting=settings.ep_gaussian_fitting,
+                fitting=self.settings.ep_gaussian_fitting,
             )  # whether to fit a gaussian to each response curve
 
         self.ET.fr_full, self.ET.params_full, self.ET.y_fitted_full = fr, params, y_fit
-        if settings.ep_gaussian_fitting:
+        if self.settings.ep_gaussian_fitting:
             self.ET.R_full = R
 
     def compute_statistical_significance(self):
@@ -147,8 +154,10 @@ class ComputeEscapeTuning:
         self.ET.shifts, shift_vector = build_shift_vector(self.aefizz, self.ET)
 
         # select which onsets and offsets to keep based on shift vector
-        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
-            filtering_vector = select_onset_offsets_in_shift_vector(self.ET, shift_vector)
+        if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time or self.ET.escape_pattern_time == "shelter_outing":
+            filtering_vector = select_onset_offsets_in_shift_vector(shift_vector,
+                                                ons = self.onset_dict["ons"] * self.settings.ep_interpolation_mult,  # homing onsets
+                                                offs = self.onset_dict["offs"] * self.settings.ep_interpolation_mult)  # homing offsets)
         elif self.ET.escape_pattern_time == "explore":
             filtering_vector = np.logical_and(self.ET.explore_vector, shift_vector)
 
@@ -164,11 +173,11 @@ class ComputeEscapeTuning:
         self.discretized_var_shift = create_discretized_behave_var(self.aefizz, x, y, condition, self.ET.tuning_var, time_mask_vector=filtering_vector, bin_edges=self.ET.bin_edges)
 
         # initialize variables for output
-        step_n, n_cond, n_neur, Nbins = len(self.ET.shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], settings.ep_bins
+        step_n, n_cond, n_neur, Nbins = len(self.ET.shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], self.settings.ep_bins
         self.ET.y_fitted_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan)  # conditions x neurons x n_bins
-        if settings.ep_gaussian_fitting:
+        if self.settings.ep_gaussian_fitting:
             self.ET.R_shift = np.zeros((step_n, n_neur, n_cond))  # neurons x conditions
-        if settings.ep_compute_loo_reliability:
+        if self.settings.ep_compute_loo_reliability:
             self.ET.loo_shift = np.zeros((step_n, n_cond, n_neur))  # conditions x neurons
         self.ET.params_shifts = np.zeros((step_n, n_neur, n_cond, 6))  # neurons x conditions
         self.ET.fr_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan)
@@ -190,7 +199,7 @@ class ComputeEscapeTuning:
                 
 
             # compute the tuning curve on the unshifted, subselected data
-            if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
+            if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time or self.ET.escape_pattern_time == "shelter_outing":
                 y, gf, fr, p, mat, reli = compute_tuning_curves(
                     var=self.discretized_var_shift,
                     escape_matrix=neural_matrix,
@@ -201,21 +210,21 @@ class ComputeEscapeTuning:
                     n_neur=n_neur,
                     n_trials=max(trial_n_cond),
                     avg="winsorized",
-                    fitting=settings.ep_gaussian_fitting,  # whether to fit a gaussian to each response curve
-                    loo=settings.ep_compute_loo_reliability,
+                    fitting=self.settings.ep_gaussian_fitting,  # whether to fit a gaussian to each response curve
+                    loo=self.settings.ep_compute_loo_reliability,
                 )  # whether to compute leave one out reliability
 
                 self.ET.mat_shift_cond[s_idx, :, :, : np.shape(mat)[2], :] = mat
-                if settings.ep_compute_loo_reliability:
+                if self.settings.ep_compute_loo_reliability:
                     self.ET.loo_shift[s_idx, :, :] = reli
 
             elif self.ET.escape_pattern_time == "explore":
                 y, gf, fr, p = compute_tuning_curves_no_trials(
-                    var=self.discretized_var_shift, escape_matrix=neural_matrix, cond=condition, bins=Nbins, n_cond=n_cond, n_neur=n_neur, fitting=settings.ep_gaussian_fitting
+                    var=self.discretized_var_shift, escape_matrix=neural_matrix, cond=condition, bins=Nbins, n_cond=n_cond, n_neur=n_neur, fitting=self.settings.ep_gaussian_fitting
                 )  # whether to fit a gaussian to each response curve
 
             self.ET.y_fitted_shift[s_idx, :, :, :], self.ET.fr_shift[s_idx, :, :, :], self.ET.params_shifts[s_idx, :, :, :] = y, fr, p
-            if settings.ep_gaussian_fitting:
+            if self.settings.ep_gaussian_fitting:
                 self.ET.R_shift[s_idx, :, :] = gf
 
     def save_escape_tuning(self, variable, return_dict=False):
@@ -224,12 +233,12 @@ class ComputeEscapeTuning:
         # build results dict and save
         results_dict = asdict(self.ET)
         np.savez(os.path.join(filename + "_results.npz"), **results_dict, allow_pickle=True)
-        settings = asdict(self.aefizz.settings)
+        settings = asdict(self.settings)
         np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
         # add results to database
         db_settings = {"variable": variable, 
                        "insufficient_data": self.insufficient_data,
-                       **settings_to_check(self.aefizz.settings, ["ep_", "linshift"])}
+                       **settings_to_check(self.settings, ["ep_", "linshift"])}
         add_run_to_database(self.database, 
                             db_settings, 
                             self.ET.savepath + os.sep + "EscapePattern_results.csv", 
@@ -239,49 +248,6 @@ class ComputeEscapeTuning:
             return results_dict
 
     # ----------------------------Data loading and processing functions----------------------------
-
-    def homing_escape_filtering_vector(self):
-        """This function builds two boolean vectors of length time which are True when the mouse is in homing or escape periods
-        It removes any time after shelter entry within each homing
-        It uses the array of onsets and offsets created in homing_escape_onsets function
-        (this could be only homings, homings+escapes, long homings, etc. depending on context in tuning passed to ComputeEscapeTuning)"""
-
-        homing_vector = np.zeros_like(self.condition, dtype=bool)
-        escape_vector = np.zeros_like(self.condition, dtype=bool)
-
-        # iterate over homings
-        for on, of in zip(self.ons, self.offs):
-            on = int(on)
-            of = int(of)
-
-            if on in self.esc_ons:
-                esc = True
-            else:
-                esc = False
-
-            # extract mouse position in the run
-            this_y = self.aefizz.video_df["mouse_y_position"].to_numpy()[on:of]
-            this_x = self.aefizz.video_df["mouse_x_position"].to_numpy()[on:of]
-
-            # crop homings at shelter entry
-            # find actual length of time until mouse is in shelter
-            in_shelt = np.logical_and(
-                this_y > self.aefizz.session.shelter_location[0][1],
-                np.logical_and(this_x > self.aefizz.session.shelter_location[0][0], this_x < self.aefizz.session.shelter_location[1][0]),
-            )
-            shelter_entry = np.where(np.diff(in_shelt) > 0)[0][0] + 1 if np.any(np.diff(in_shelt) > 0) else len(in_shelt)
-            of = on + shelter_entry
-
-            # do we want to crop homings into first and second leg?
-
-            if self.aefizz.settings.ep_interpolation_mult > 1:
-                on = on * self.aefizz.settings.ep_interpolation_mult
-                of = of * self.aefizz.settings.ep_interpolation_mult
-
-            homing_vector[on:of] = True
-            escape_vector[on:of] = True if esc else False
-
-        return homing_vector, escape_vector
 
     def filtering_vector_exploration(self):
         """This function builds a boolean vector of length time which is True when the mouse is exploring
@@ -303,12 +269,12 @@ class ComputeEscapeTuning:
         )
 
         # do we include stationary periods or not?
-        if self.aefizz.settings.ep_no_stationary:
+        if self.settings.ep_no_stationary:
             explore_vector = np.logical_and(explore_vector, (self.aefizz.video_df["speed"] > 0.5))
 
         # interpolate if needed
-        if self.aefizz.settings.ep_interpolation_mult > 1:
-            explore_vector = np.repeat(explore_vector, self.aefizz.settings.ep_interpolation_mult)
+        if self.settings.ep_interpolation_mult > 1:
+            explore_vector = np.repeat(explore_vector, self.settings.ep_interpolation_mult)
 
         return explore_vector
 
@@ -317,8 +283,16 @@ class ComputeEscapeTuning:
 
         # create time filtering vector
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
-            self.ET.homing_vector, self.ET.escape_vector = self.homing_escape_filtering_vector()
+            self.ET.homing_vector, self.ET.escape_vector = homing_escape_filtering_vector(nframes=len(self.condition), onset_dict=self.onset_dict, xpos=self.x, ypos=self.y, shelter_location=self.aefizz.session.shelter_location, interpolation_mult=self.aefizz.settings.ep_interpolation_mult)
             filtering_vector = self.ET.homing_vector
+        if self.ET.escape_pattern_time == "shelter_outing":
+            filtering_vector = np.zeros_like(self.condition, dtype=bool)
+            for on, of in zip(self.onset_dict["ons"], self.onset_dict["offs"]):
+                if self.settings.ep_interpolation_mult > 1:
+                    on *= self.settings.ep_interpolation_mult
+                    of *= self.settings.ep_interpolation_mult
+                filtering_vector[on:of] = True
+            self.ET.shelter_outing_vector = filtering_vector
         elif self.ET.escape_pattern_time == "explore":
             self.ET.explore_vector = self.filtering_vector_exploration()
             filtering_vector = self.ET.explore_vector
@@ -357,15 +331,15 @@ class ComputeEscapeTuning:
         barflip = self.aefizz.video_df["barrier_flipped"].to_numpy()
 
         # interpolate time
-        if self.aefizz.settings.ep_interpolation_mult > 1:
+        if self.settings.ep_interpolation_mult > 1:
             current_time = np.arange(len(self.y))
-            new_time = np.arange(0, len(self.y), 1 / self.aefizz.settings.ep_interpolation_mult)
+            new_time = np.arange(0, len(self.y), 1 / self.settings.ep_interpolation_mult)
             # mouse position
             self.y = np.interp(new_time, current_time, self.y)
             self.x = np.interp(new_time, current_time, self.x)
             # experimental condition
-            bar = np.repeat(bar, self.aefizz.settings.ep_interpolation_mult)
-            barflip = np.repeat(barflip, self.aefizz.settings.ep_interpolation_mult)
+            bar = np.repeat(bar, self.settings.ep_interpolation_mult)
+            barflip = np.repeat(barflip, self.settings.ep_interpolation_mult)
             # neural data
             new_neur = np.zeros((len(self.y), np.shape(fcm)[1]))
             for i in np.arange(np.shape(fcm)[1]):
@@ -392,7 +366,7 @@ class ComputeEscapeTuning:
         self.ET.residual_var2_all_time = create_discretized_behave_var(self.aefizz,
                                                                         self.aefizz.video_df['mouse_x_position'].to_numpy(), 
                                                                         self.aefizz.video_df['mouse_y_position'].to_numpy(), 
-                                                                        self.condition[::self.aefizz.settings.ep_interpolation_mult], 
+                                                                        self.condition[::self.settings.ep_interpolation_mult], 
                                                                         tuning_var=tuning_var2, bin_edges=self.ET.bin_edges)
         
         if tuning_var2 == "2D_position":

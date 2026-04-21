@@ -63,7 +63,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
     return v2_residual_matrix
 
 
-def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_threshold=[0.925, 1.05]):
+def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_threshold=[0.9, 1.05]):
     """This function creates two vectors of onset and offset times for homing and escape periods
     TODO: currently does not filter based on first/second leg, or minimum homing length
     RETURNS:
@@ -72,7 +72,6 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         esc_ons: vector of onset times in frames for escape periods
     """
     cond_list = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]
-    spatial_efficiency_threshold = [0.9, 1.05]
 
     ons = []
     offs = []
@@ -144,6 +143,48 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         "spatial_efficiency": spatial_efficiency[keepers],
     }
 
+def homing_escape_filtering_vector(nframes, onset_dict, xpos, ypos, shelter_location, interpolation_mult=1):
+    """This function builds two boolean vectors of length time which are True when the mouse is in homing or escape periods
+    It removes any time after shelter entry within each homing
+    It uses the array of onsets and offsets created in homing_escape_onsets function
+    (this could be only homings, homings+escapes, long homings, etc. depending on context in tuning passed to ComputeEscapeTuning)"""
+
+    homing_vector = np.zeros(nframes, dtype=bool)
+    escape_vector = np.zeros(nframes, dtype=bool)
+
+    # iterate over homings
+    for on, of in zip(onset_dict["ons"], onset_dict["offs"]):
+        on = int(on)
+        of = int(of)
+
+        if on in onset_dict["esc_ons"]:
+            esc = True
+        else:
+            esc = False
+
+        # extract mouse position in the run
+        this_y = ypos[on:of]
+        this_x = xpos[on:of]
+
+        # crop homings at shelter entry
+        # find actual length of time until mouse is in shelter
+        in_shelt = np.logical_and(
+            this_y > shelter_location[0][1],
+            np.logical_and(this_x > shelter_location[0][0], this_x < shelter_location[1][0]),
+        )
+        shelter_entry = np.where(np.diff(in_shelt) > 0)[0][0] + 1 if np.any(np.diff(in_shelt) > 0) else len(in_shelt)
+        of = on + shelter_entry
+
+        # do we want to crop homings into first and second leg?
+
+        if interpolation_mult > 1:
+            on = on * interpolation_mult
+            of = of * interpolation_mult
+
+        homing_vector[on:of] = True
+        escape_vector[on:of] = True if esc else False
+
+    return homing_vector, escape_vector
 
 def get_homings_onsets_in_filtered_time(filtering_vector):
     """This function returns the homing onsets that are within the filtered time vector
@@ -156,21 +197,17 @@ def get_homings_onsets_in_filtered_time(filtering_vector):
     return h_start
 
 
-def select_onset_offsets_in_shift_vector(ET, shift_vector):
+def select_onset_offsets_in_shift_vector(shift_vector, ons, offs):
     """This function selects homing/escape onsets and offsets that are within the shift vector"""
 
     logger.warning("Debug this function to make sure it is working correctly!")
 
-    ons = np.where(np.diff(ET.homing_vector.astype(int)) == 1)[0] + 1  # homing onsets
-    offs = np.where(np.diff(ET.homing_vector.astype(int)) == -1)[0] + 1  # homing offsets
-    esc_ons = np.where(np.diff(ET.escape_vector.astype(int)) == 1)[0] + 1  # escape onsets
     # which ones to keep: the start and end of the homing has to inside the chunks defined by shifted_vec
     mask = np.logical_and(shift_vector[ons], shift_vector[offs])
     ons = ons[mask]
     offs = offs[mask]
-    esc_ons = [x for x in esc_ons if x in ons]
     # build new filtering vector
-    filtering_vector = np.zeros_like(ET.homing_vector)
+    filtering_vector = np.zeros_like(shift_vector)
     for on, off in zip(ons, offs):
         filtering_vector[on:off] = 1
 
@@ -463,7 +500,6 @@ def build_shift_vector(aefizz, ET):
 
 # ------------------------------------Helper functions------------------------------------
 
-
 def discretize(var, bins):
     """Bin the var using bins,
     INPUTS:
@@ -528,21 +564,3 @@ def parse_side(side):
     var, ctx = side.split(" in ", 1)
     return var.strip(), ctx.strip()
 
-
-def saving_path_and_file(aefizz, variable):
-    """This function creates the saving path and file name for escape tuning based on variable"""
-
-    if "residual" in variable:
-        tuning_var, escape_pattern_time, _, _ = parse_residual_string(variable)
-    else:
-        tuning_var, escape_pattern_time = parse_side(variable)
-
-    savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "models", "escape_tuning", escape_pattern_time))
-
-    # filename building
-    res = ""
-    if "residual" in variable:
-        res = "residual_"
-    filename = savepath + os.sep + res + tuning_var + "_" + str(aefizz.settings.ep_bins) + "bins.pkl"
-
-    return savepath, filename

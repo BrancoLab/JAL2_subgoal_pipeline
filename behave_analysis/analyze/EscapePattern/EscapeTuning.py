@@ -16,6 +16,7 @@ class EscapeTuning:
     homing_vector: float = 0.0
     escape_vector: float = 0.0
     explore_vector: float = 0.0
+    shelter_outing_vector: float = 0.0
     neural_matrix: float = 0.0
     condition: float = 0.0
     discretized_var: float = 0.0
