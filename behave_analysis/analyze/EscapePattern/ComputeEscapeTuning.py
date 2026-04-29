@@ -101,7 +101,7 @@ class ComputeEscapeTuning:
 
         # extract behavioral variable that we compute the tuning to
         self.ET.discretized_var = create_discretized_behave_var(
-            self.aefizz, x, y, self.ET.condition, tuning_var=self.ET.tuning_var, time_mask_vector=filtering_vector, bin_edges=self.ET.bin_edges
+            self.aefizz, x, y, self.ET.condition, tuning_var=self.ET.tuning_var, time_mask_vector=filtering_vector
         )
 
         # compute tuning curves for each neuron
@@ -156,8 +156,8 @@ class ComputeEscapeTuning:
         # select which onsets and offsets to keep based on shift vector
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time or self.ET.escape_pattern_time == "shelter_outing":
             filtering_vector = select_onset_offsets_in_shift_vector(shift_vector,
-                                                ons = self.onset_dict["ons"] * self.settings.ep_interpolation_mult,  # homing onsets
-                                                offs = self.onset_dict["offs"] * self.settings.ep_interpolation_mult)  # homing offsets)
+                                                ons = (self.onset_dict["ons"] * self.settings.ep_interpolation_mult).astype(int),  # homing onsets
+                                                offs = (self.onset_dict["offs"] * self.settings.ep_interpolation_mult).astype(int))  # homing offsets)
         elif self.ET.escape_pattern_time == "explore":
             filtering_vector = np.logical_and(self.ET.explore_vector, shift_vector)
 
@@ -170,7 +170,7 @@ class ComputeEscapeTuning:
         trial_n_cond = np.bincount(trial_start_cond.astype(int))
 
         # compute behavioral variable
-        self.discretized_var_shift = create_discretized_behave_var(self.aefizz, x, y, condition, self.ET.tuning_var, time_mask_vector=filtering_vector, bin_edges=self.ET.bin_edges)
+        self.discretized_var_shift = create_discretized_behave_var(self.aefizz, x, y, condition, self.ET.tuning_var, time_mask_vector=filtering_vector)
 
         # initialize variables for output
         step_n, n_cond, n_neur, Nbins = len(self.ET.shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], self.settings.ep_bins
@@ -367,11 +367,11 @@ class ComputeEscapeTuning:
                                                                         self.aefizz.video_df['mouse_x_position'].to_numpy(), 
                                                                         self.aefizz.video_df['mouse_y_position'].to_numpy(), 
                                                                         self.condition[::self.settings.ep_interpolation_mult], 
-                                                                        tuning_var=tuning_var2, bin_edges=self.ET.bin_edges)
+                                                                        tuning_var=tuning_var2)
         
         if tuning_var2 == "2D_position":
             # in this case, run and/or load data from PlaceCells pipeline instead of ComputeTuning pipeline
-            PC_dict = load_or_compute_2d_position_tuning(self.aefizz, time_period1)
+            PC_dict = load_or_compute_2d_position_tuning(self.aefizz, time_period2)
             if isinstance(PC_dict["shelter_only"], dict):
                 self.ET.residual_fr_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
                 self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])

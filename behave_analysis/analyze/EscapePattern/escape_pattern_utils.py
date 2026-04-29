@@ -12,13 +12,25 @@ from behave_analysis.utils.creating_directories import make_directory
 def define_bin_edges(settings, tuning_var):
     """Define bin edges based on settings.tuning_var and settings.tuning_bins."""
     # if tuning_bins is an integer, create that many bins between min and max of the variable
+
+    range_dict = {
+        "bird_dist_shelter": (0, 900),
+        "escape": (0, 1),
+        "distance_shelter": (0, 1200),
+        "speed": (0, 50),
+        "y_pos": (0, 1024)
+    }
+
     if isinstance(settings.ep_bins, int):
-        if tuning_var == "bird_dist_shelter":
-            bin_edges = np.linspace(0, 900, settings.ep_bins + 1)
-        elif tuning_var == "escape":
-            bin_edges = np.append(np.arange(0, 1, 1 / settings.ep_bins), 1 + 1e-10)
+        if tuning_var == "2D_position":
+            bin_edges = create_centered_bins(bin_size=settings.place_cell_bin_size_pix)
         else:
-            bin_edges = []
+            if tuning_var in range_dict:
+                var_range = range_dict[tuning_var]
+                bin_edges = np.linspace(var_range[0], var_range[1], settings.ep_bins + 1)
+                bin_edges[-1] = bin_edges[-1] + 1e-10  # add a tiny bit to the last edge to make sure the max value is included in the last bin
+            else:
+                raise NotImplementedError("Define bin edges for your tuning variable in define_bin_edges function in escape_pattern_utils.py")
     elif isinstance(settings.ep_bins, list):
         bin_edges = settings.ep_bins
 
@@ -44,16 +56,24 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
             # var2_t1 should be zero indexed
             for n in range(n_neur):
                 for c in range(n_cond):
-                    u = var2_t1[cond_t1 == c, :].astype(int)  # binned <var2> in <ctx1> and condition c
+                    u_raw = var2_t1[cond_t1 == c, :].astype(int)  # binned <var2> in <ctx1> and condition c
+                    nan_mask = np.any(np.isnan(u_raw), axis=1)
+                    u = np.where(nan_mask[:, None], 0, u_raw).astype(int)  # replace any rows with nans with zeros, and make sure it's int
                     v = fr_var2_t2[c, :, :, n]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
-                    v2_predicted_matrix[n, cond_t1 == c] = v[u[:, 0], u[:, 1]]
+                    pred = v[u[:, 0], u[:, 1]]
+                    pred[nan_mask] = np.nan # put nans back in the predicted vector for any time points where var2 was nan
+                    v2_predicted_matrix[n, cond_t1 == c] = pred
         elif var2_t1.shape[1] == 1: # 1D variable!
             var2_t1 = var2_t1[:, 0]
             for n in range(n_neur):
                 for c in range(n_cond):
-                    u = var2_t1[cond_t1 == c].astype(int)  # binned <var2> in <ctx1> and condition c
+                    u_raw = var2_t1[cond_t1 == c].astype(int)  # binned <var2> in <ctx1> and condition c
+                    nan_mask = np.isnan(u_raw)
+                    u = np.where(nan_mask, 0, u_raw).astype(int)
                     v = fr_var2_t2[c, n, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
-                    v2_predicted_matrix[n, cond_t1 == c] = v[u]
+                    pred = v[u]
+                    pred[nan_mask] = np.nan
+                    v2_predicted_matrix[n, cond_t1 == c] = pred
         else:
             raise ValueError("Your discretized behavioral variable has too many columns")
 
@@ -226,7 +246,7 @@ def homing_escape_boolean_vectors(object, n_frames):
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 
 
-def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector=[], bin_edges=[], interpolation=True, discretize = True):
+def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector=[], interpolation=True, discretize = True):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
         aefizz: AnalyzeEfizz object
@@ -268,22 +288,13 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             dd = compute_escape_trajectory(x[first : first + hs], y[first : first + hs])
             var[first : first + hs] = dd / np.amax(dd)
             first += hs
-        if (discretize) & (len(bin_edges) == 0):
-            if isinstance(aefizz.settings.ep_bins, int):
-                bin_edges = define_bin_edges(aefizz.settings, tuning_var)
 
     # use speed or y position directly
     elif tuning_var == "speed" or tuning_var == "y_pos":
         if tuning_var == "speed":
             var = aefizz.video_df["speed"].to_numpy()
-            logger.warning("Speed is binned at a max of 50 cm/s")
-            eps = 1e-10
-            var[var > 50] = 50 - eps  # cap speed at 50 cm/s
-            bin_range = [0, 51, 2]
         elif tuning_var == "y_pos":
             var = y
-            logger.warning("TODO: unhardcode y position bin range to arena size!")
-            bin_range = [np.amin(var), np.amax(var), np.amax(var) / aefizz.settings.ep_bins]
         # interpolate!
         if interpolation == True:
             # if interpolation is true, time_mask_vector also needs to be interpolated!!
@@ -291,23 +302,16 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
             new_time = np.arange(0, len(aefizz.video_df["speed"].to_numpy()), 1 / aefizz.settings.ep_interpolation_mult)
             var = np.interp(new_time, current_time, var)
         var = var[time_mask_vector] if len(time_mask_vector) > 0 else var
-        if (discretize) & (len(bin_edges) == 0):
-            bin_edges = np.arange(bin_range[0], bin_range[1], bin_range[2])
 
     elif tuning_var == "2D_position":
         var = np.column_stack([x, y])
-        if hasattr(aefizz.session.video, "radius"):
-            radius = aefizz.session.video.radius
-        else:
-            radius = 460
-        # bin_edges = create_centered_bins(nbins=aefizz.settings.place_cell_bin_size_pix, bin_size=0.0, arena_radius=radius, center_offset=aefizz.session.video.width / 2)
-        bin_edges = create_centered_bins(bin_size=aefizz.settings.place_cell_bin_size_pix)
 
     elif tuning_var == "Delta_HDIR":
         raise NotImplementedError("Delta HDIR not yet implemented")
 
     # discretize variable into bins
     if discretize:
+        bin_edges = define_bin_edges(aefizz.settings, tuning_var)
         var = discretize_nd(var, bin_edges)
 
     return var
@@ -507,6 +511,7 @@ def discretize(var, bins):
         bins: vector of bin edges"""
     disc_var = np.digitize(var, bins)
     shifted_disc_var = (disc_var - 1).astype(float)
+    shifted_disc_var[disc_var == 0] = np.nan  # Handle values below the first bin
     shifted_disc_var[disc_var >= len(bins)] = np.nan  # Handle values above the last bin
     return shifted_disc_var
 
