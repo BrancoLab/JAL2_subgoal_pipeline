@@ -17,7 +17,7 @@ def define_bin_edges(settings, tuning_var):
         "bird_dist_shelter": (0, 900),
         "escape": (0, 1),
         "distance_shelter": (0, 1200),
-        "speed": (0, 50),
+        "speed": (0, 100),
         "y_pos": (0, 1024)
     }
 
@@ -45,6 +45,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
         var2_t1: vector of length time of binned <var2> (e.g. distance to shelter) np.unique(<var2>) = np.shape(fr_var2_t2)[2]
         fr_var2_t2: firing rates at each binned <var2> in <ctx2> [condition x neuron x bins]
     """
+
     # initialize variables
     v2_predicted_matrix = np.full_like(neural_matrix_t1, np.nan)
     n_neur = neural_matrix_t1.shape[0]
@@ -54,26 +55,23 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
     if var2_t1.ndim > 1:
         if var2_t1.shape[1] == 2: # 2D position!
             # var2_t1 should be zero indexed
+            valid_idx = ~np.isnan(var2_t1).any(axis=1)  # only consider time points where we have non-nan values for both dimensions of position
             for n in range(n_neur):
                 for c in range(n_cond):
-                    u_raw = var2_t1[cond_t1 == c, :].astype(int)  # binned <var2> in <ctx1> and condition c
-                    nan_mask = np.any(np.isnan(u_raw), axis=1)
-                    u = np.where(nan_mask[:, None], 0, u_raw).astype(int)  # replace any rows with nans with zeros, and make sure it's int
+                    u = var2_t1[(cond_t1 == c) & valid_idx, :].astype(int)  # binned <var2> in <ctx1> and condition c
                     v = fr_var2_t2[c, :, :, n]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
                     pred = v[u[:, 0], u[:, 1]]
-                    pred[nan_mask] = np.nan # put nans back in the predicted vector for any time points where var2 was nan
-                    v2_predicted_matrix[n, cond_t1 == c] = pred
+                    v2_predicted_matrix[n, (cond_t1 == c) & valid_idx] = pred
         elif var2_t1.shape[1] == 1: # 1D variable!
-            var2_t1 = var2_t1[:, 0]
+            var2_t1 = var2_t1.ravel()  # make sure it's a 1D vector
+            # identify non-nan time points in var2_t1
+            valid_idx = ~np.isnan(var2_t1)
             for n in range(n_neur):
                 for c in range(n_cond):
-                    u_raw = var2_t1[cond_t1 == c].astype(int)  # binned <var2> in <ctx1> and condition c
-                    nan_mask = np.isnan(u_raw)
-                    u = np.where(nan_mask, 0, u_raw).astype(int)
+                    u= var2_t1[(cond_t1 == c) & valid_idx].astype(int)  # binned <var2> in <ctx1> and condition c
                     v = fr_var2_t2[c, n, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
                     pred = v[u]
-                    pred[nan_mask] = np.nan
-                    v2_predicted_matrix[n, cond_t1 == c] = pred
+                    v2_predicted_matrix[n, (cond_t1 == c) & valid_idx] = pred
         else:
             raise ValueError("Your discretized behavioral variable has too many columns")
 
