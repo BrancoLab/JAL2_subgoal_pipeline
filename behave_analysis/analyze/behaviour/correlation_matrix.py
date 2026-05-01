@@ -51,7 +51,8 @@ def compute_correlation_matrix(abehave, variables):
                                                             condition = condition_vector,
                                                             tuning_var = var,
                                                             time_mask_vector=time_mask,
-                                                            discretize=False)
+                                                            discretize=False,
+                                                            interpolation=False)
             var_properties.append("linear")
         elif var in ['hdir', 'hsa', 'h_preflipbar_a', 'h_postflipbar_a', 'h_bar_centre_a']:
             var_matrix[i,:] = abehave.video_df.filter((time_mask))[var].to_numpy()

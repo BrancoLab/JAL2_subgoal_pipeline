@@ -60,7 +60,7 @@ class ComputeEscapeTuning:
                 "escape_tuning",
             )
         )
-
+        logger.info(f"checking for existing results to {tuning} in EP tuning database...")
         self.database, self.do_analysis, self.hexaname = check_database_for_same_run(
             db_settings={"variable": tuning, **settings_to_check(self.settings, ["ep_", "linshift"])},
             results_csv_name=self.ET.savepath + os.sep + "EscapePattern_results.csv",
@@ -101,7 +101,7 @@ class ComputeEscapeTuning:
 
         # extract behavioral variable that we compute the tuning to
         self.ET.discretized_var = create_discretized_behave_var(
-            self.aefizz, x, y, self.ET.condition, tuning_var=self.ET.tuning_var, time_mask_vector=filtering_vector
+            self.aefizz, x, y, self.ET.condition, tuning_var=self.ET.tuning_var, time_mask_vector=filtering_vector, interpolation=True if self.ET.tuning_var == "speed" else False
         )
 
         # compute tuning curves for each neuron
@@ -170,7 +170,7 @@ class ComputeEscapeTuning:
         trial_n_cond = np.bincount(trial_start_cond.astype(int))
 
         # compute behavioral variable
-        self.discretized_var_shift = create_discretized_behave_var(self.aefizz, x, y, condition, self.ET.tuning_var, time_mask_vector=filtering_vector)
+        self.discretized_var_shift = create_discretized_behave_var(self.aefizz, x, y, condition, self.ET.tuning_var, time_mask_vector=filtering_vector, interpolation=True if self.ET.tuning_var == "speed" else False)
 
         # initialize variables for output
         step_n, n_cond, n_neur, Nbins = len(self.ET.shifts), len(np.unique(condition)), self.ET.neural_matrix.shape[0], self.settings.ep_bins
@@ -364,10 +364,12 @@ class ComputeEscapeTuning:
                 # this is the discretized behavioral variable for tuning_var2 in time_period1
         assert tuning_var2 != 'escape', "Residual tuning cannot subtract activity explained by escape in periods outside homing/escape"
         self.ET.residual_var2_all_time = create_discretized_behave_var(self.aefizz,
-                                                                        self.aefizz.video_df['mouse_x_position'].to_numpy(), 
-                                                                        self.aefizz.video_df['mouse_y_position'].to_numpy(), 
-                                                                        self.condition[::self.settings.ep_interpolation_mult], 
+                                                                        self.x, 
+                                                                        self.y, 
+                                                                        self.condition, 
+                                                                        interpolation=True if tuning_var2 == "speed" else False,
                                                                         tuning_var=tuning_var2)
+        print("the residual var2 all time vector has length " + str(len(self.ET.residual_var2_all_time)))
         
         if tuning_var2 == "2D_position":
             # in this case, run and/or load data from PlaceCells pipeline instead of ComputeTuning pipeline
@@ -378,7 +380,7 @@ class ComputeEscapeTuning:
             elif isinstance(PC_dict["shelter_only"], object):
                 self.ET.residual_fr_var2_t2 = np.array([PC_dict[c].item()["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
                 self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c].item()["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-            assert self.ET.residual_fr_var2_t2.shape[1] == len(np.unique(self.ET.residual_var2_all_time[:,0])), "Number of bins in tuning variable does not match between residual variable and tuning curve" 
+            check_bin_match(self.ET.residual_var2_all_time, self.ET.residual_fr_var2_t2)
         else:
             # load tuning data for var2 in exploration from ComputeTuning object
             # this is the firing rate in the tuning curve to var2 in time_period2
@@ -392,6 +394,39 @@ class ComputeEscapeTuning:
             self.ET.residual_fr_shift0_var2_t2 = CT_var2_t2['fr_shift'][mid, :, :, :]
 
 # -----------------------------Helper functions for loading or running computation ----------------------------
+
+def check_bin_match(residual_var2_all_time, residual_fr_var2_t2):
+    """Validate that visited 2D bins are within the loaded place-field map bounds.
+    This is robust to partial spatial coverage (mouse may not visit all bins)."""
+    if residual_var2_all_time.ndim != 2 or residual_var2_all_time.shape[1] != 2:
+        raise ValueError(
+            f"Expected residual_var2_all_time to have shape (time, 2), got {residual_var2_all_time.shape}"
+        )
+
+    xy = residual_var2_all_time
+    valid = ~np.isnan(xy).any(axis=1)
+
+    if np.any(valid):
+        xy_int = xy[valid].astype(int)
+        x_idx = xy_int[:, 0]
+        y_idx = xy_int[:, 1]
+
+        n_x_bins = residual_fr_var2_t2.shape[1]
+        n_y_bins = residual_fr_var2_t2.shape[2]
+
+        out_of_bounds = (x_idx < 0) | (x_idx >= n_x_bins) | (y_idx < 0) | (y_idx >= n_y_bins)
+        if np.any(out_of_bounds):
+            bad_pairs = np.unique(xy_int[out_of_bounds], axis=0)
+            preview = bad_pairs[:10].tolist()
+            raise AssertionError(
+                "Visited 2D position bins exceed loaded place-field map bounds. "
+                f"Map shape: ({n_x_bins}, {n_y_bins}); "
+                f"x range visited: [{x_idx.min()}, {x_idx.max()}], "
+                f"y range visited: [{y_idx.min()}, {y_idx.max()}]. "
+                f"Example out-of-bounds bins (up to 10): {preview}"
+            )
+    else:
+        logger.warning("No valid 2D bins found in residual_var2_all_time (all NaN).")
 
 def load_or_compute_escape_tuning(aefizz, variable):
     """
@@ -408,17 +443,19 @@ def load_or_compute_escape_tuning(aefizz, variable):
             "escape_tuning",
         )
     )
-    logger.info(f"checking for existing results to {variable} in database...")
+    logger.info(f"Checking for existing results to {variable} in EP tuning database...")
+    
     _, do_analysis, hexaname = check_database_for_same_run(
         db_settings={"variable": variable, **settings_to_check(aefizz.settings, ["ep_", "linshift"])},
         results_csv_name=savepath + os.sep + "EscapePattern_results.csv",
         settings=aefizz.settings,
     )
+    
     # check file exists
     if do_analysis == False:
         EP_dict = np.load(savepath + os.sep + "EPtuning_" + hexaname + "_results.npz", allow_pickle=True)
     else:
-        logger.warning(f"Escape tuning to {variable} file not found, computing now...")
+        logger.warning(f"Tuning to {variable} file not found, computing now...")
         check_aefizz_completeness(aefizz, attrlist = ["frame_by_cluster_matrix", "video_df", "cluster_Ids", "homings_object", "escape_object"])
         computeET = ComputeEscapeTuning(variable, aefizz)
         computeET.prepare_data()
@@ -441,6 +478,7 @@ def load_or_compute_2d_position_tuning(aefizz, time_period):
             "place_cells",
         )
     )
+    logger.info(f"Checking for existing place cell results in {time_period} in place cell database...")
     _, do_analysis, hexaname = check_database_for_same_run(db_settings = {'time_period': time_period, **settings_to_check(aefizz.settings, ["linshift", "place_cell"])}, 
                                     results_csv_name = savepath + os.sep + "place_cell_results.csv", 
                                     settings = aefizz.settings) 
