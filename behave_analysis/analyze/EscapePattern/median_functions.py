@@ -33,7 +33,6 @@ def firing_by_bin_median_numba(var, neural_activity, nbins, remove_empty=False):
     else:
         return angles_firing
 
-
 def trial_median_firing(mat, avg):
     """This function computes the firing rate across trials
     INPUTS:
@@ -81,7 +80,6 @@ def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
     if var.ndim > 1:
         if var.shape[1] != 1:
             raise ValueError("Input variable has more than one column. Please provide a 1D array or a 2D array with a single column.")
-    # from scipy.stats import mode
     angles_firing = np.full(nbins, np.nan)  # Start with NaN to handle empty bins
     for i in range(nbins):
         mask = (var == i).ravel()  # Find data points in the current bin
@@ -94,3 +92,20 @@ def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
         angles_firing = angles_firing[~np.isnan(angles_firing)]  # Remove empty bins
 
     return angles_firing
+
+def nan_valid_check(var, neural_activity):
+    """Check for NaN values in the input variable and neural activity. 
+    And remove those timepoints from the binned firing.
+    var: vector of length time of binned <var> (e.g. speed) np.unique(<var>) = np.shape(fr_var_t2)[1]
+    neural_activity: vector of length time of firing rates of a single neuron to be binned by var"""    
+    valid_mask = ~np.isnan(var).ravel()
+    if not np.any(valid_mask):
+        raise ValueError("Input variable contains only NaN values.")
+    # if np.any(~valid_mask):
+    #     print(f"Warning: {np.sum(~valid_mask)} NaN values (likely out of bounds of bin edges) found in behavioral variable. These will be ignored.")
+    var = var[valid_mask].astype(int)
+    if neural_activity.ndim > 1: # if neural activity is 2D (e.g. n_neur x time) we need to apply the valid mask to the second dimension
+        neural_activity = neural_activity[:, valid_mask]
+    else: # if neural activity is 1D (e.g. activity of 1 neuron overtime) we apply the valid mask directly
+        neural_activity = neural_activity[valid_mask]
+    return var, neural_activity

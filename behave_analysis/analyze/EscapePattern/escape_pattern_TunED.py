@@ -1,7 +1,7 @@
 from behave_analysis.analyze.EscapePattern.TunED import TunED
 from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import load_or_compute_escape_tuning
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import parse_residual_string, get_homings_onsets_in_filtered_time
-from behave_analysis.analyze.EscapePattern.median_functions import firing_by_bin_median_numba, trial_median_firing, firing_by_bin_winz_mean
+from behave_analysis.analyze.EscapePattern.median_functions import firing_by_bin_median_numba, nan_valid_check, trial_median_firing, firing_by_bin_winz_mean
 from behave_analysis.utils.creating_directories import make_directory
 from tqdm.auto import tqdm
 
@@ -138,16 +138,18 @@ def compute_avg_firing_tuning_curve(neural_activity, variable, Nbins, trial_star
             for tr, _ in enumerate(trial_start[:-1]):
                 neur = n[trial_start[tr] : trial_start[tr + 1]]
                 v = variable[trial_start[tr] : trial_start[tr + 1]]
-                mat[tr, :] = firing_by_bin_median_numba(v.astype(int), neur, Nbins, remove_empty=False)
+                v, neur = nan_valid_check(v, neur)
+                mat[tr, :] = firing_by_bin_median_numba(v, neur, Nbins, remove_empty=False)
 
             smoothed_firing_rates[j, :] = trial_median_firing(mat, avg)
 
     else:
         # iterate through neurons
+        variable, neural_activity = nan_valid_check(variable, neural_activity)
         for j, n in enumerate(neural_activity):
             if avg == "median":
-                smoothed_firing_rates[j, :] = firing_by_bin_median_numba(variable.astype(int), n, Nbins, remove_empty=False)
+                smoothed_firing_rates[j, :] = firing_by_bin_median_numba(variable, n, Nbins, remove_empty=False)
             elif avg == "winsorized":
-                smoothed_firing_rates[j, :] = firing_by_bin_winz_mean(variable.astype(int), n, Nbins, remove_empty=False)
+                smoothed_firing_rates[j, :] = firing_by_bin_winz_mean(variable, n, Nbins, remove_empty=False)
 
     return smoothed_firing_rates

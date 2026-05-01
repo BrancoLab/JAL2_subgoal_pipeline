@@ -4,7 +4,7 @@ from multiprocessing import shared_memory
 
 from behave_analysis.utils.PersistentPool import PersistentPool
 from behave_analysis.analyze.EscapePattern.gaussian_fitting import gaussian_fitting
-from behave_analysis.analyze.EscapePattern.median_functions import firing_by_bin_median_numba, trial_median_firing, firing_by_bin_winz_mean
+from behave_analysis.analyze.EscapePattern.median_functions import firing_by_bin_median_numba, nan_valid_check, trial_median_firing, firing_by_bin_winz_mean
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import get_homings_onsets_in_filtered_time
 
 # ------------------------------------Tuning for homing and escape periods (requires trials)------------------------------------
@@ -65,7 +65,8 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
             for tr, _ in enumerate(cond_start[:-1]):
                 neur = n[cond_start[tr] : cond_start[tr + 1]]
                 v = var[cond_start[tr] : cond_start[tr + 1]]
-                mat_num_cond[i, j, tr, :] = firing_by_bin_median_numba(v.astype(int), neur, bins, remove_empty=False)
+                v, neur = nan_valid_check(v, neur)
+                mat_num_cond[i, j, tr, :] = firing_by_bin_median_numba(v, neur, bins, remove_empty=False)
 
             # step 4: take median across trials
             mat = mat_num_cond[i, j, :, :]
@@ -122,11 +123,12 @@ def compute_tuning_curves_no_trials(var, escape_matrix, cond, bins, n_cond, n_ne
     for c in range(n_cond):
         neur = escape_matrix[:,cond == c]
         var_cond = var[cond == c]
+        var_cond, neur = nan_valid_check(var_cond, neur)
         for i, n in enumerate(neur):
             if avg == 'median':
-                smoothed_firing_rates = firing_by_bin_median_numba(var_cond.astype(int), n, bins, remove_empty = False)
+                smoothed_firing_rates = firing_by_bin_median_numba(var_cond, n, bins, remove_empty = False)
             elif avg == 'winsorized':
-                smoothed_firing_rates = firing_by_bin_winz_mean(var_cond.astype(int), n, bins, remove_empty = False)
+                smoothed_firing_rates = firing_by_bin_winz_mean(var_cond, n, bins, remove_empty = False)
             
             # Gaussian fitting
             valid_idx = ~np.isnan(smoothed_firing_rates)
@@ -240,11 +242,13 @@ def tuning_method_no_trials_parallel_function(shared_name, shape, dtype, i, neur
     n = escape_matrix[neuron_index, cond_indices]  # Avoid passing large slices through multiprocessing
     v = var[cond_indices]
 
+    v, n = nan_valid_check(v,n)
+
     # Compute firing rates
     if avg == 'median':
-        smoothed_firing_rates = firing_by_bin_median_numba(v.astype(int), n, bins, remove_empty = False)
+        smoothed_firing_rates = firing_by_bin_median_numba(v, n, bins, remove_empty = False)
     elif avg == 'winsorized':
-        smoothed_firing_rates = firing_by_bin_winz_mean(v.astype(int), n, bins, remove_empty = False)
+        smoothed_firing_rates = firing_by_bin_winz_mean(v, n, bins, remove_empty = False)
 
     # Gaussian fitting
     R, y_fitted, params = 0, np.full_like(smoothed_firing_rates, np.nan), np.full(6, np.nan)
