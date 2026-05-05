@@ -21,7 +21,7 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_pre_flip',
     #                                         'barrier_post_flip',
     #                                         "barrier_removed"
-    conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip", "all_time"],
+    conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
     # if 'time_conditions' it compares first vs second half
@@ -66,7 +66,7 @@ Settings_ae = Settings_analyze_efizz(
     place_cell_bin_size_pix=50,  # in pix (10cm/pix) at least 50
     place_cell_speed_threshold=2.5,  # in cm/s, threshold for excluding time points when the mouse is stationary or moving very slowly
     place_cell_smoothing_sigma=2.0,  # in bins, for smoothing the spike count and occupancy maps before computing rate maps
-    place_cell_min_occupancy=0.05,  # in seconds, minimum occupancy time for a bin to be included in the analysis
+    place_cell_min_occupancy=0.5,  # in seconds, minimum occupancy time for a bin to be included in the analysis
     # ------------ CCA settings ----------------------
     # list of behavioral variables to include in CCA, e.g. ["speed", "hdir_velocity", "distance_to_shelter"]
     cca_behavioral_vars=["hdir", "hdir_velocity", "mouse_x_position", "mouse_y_position", "speed", "acceleration", "hsa", "h_preflipbar_a", "h_postflipbar_a", "distance_to_shelter", "distance_to_barrier1", "distance_to_barrier2"],

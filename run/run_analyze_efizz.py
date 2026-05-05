@@ -49,15 +49,22 @@ def analyze_efizz(analysis_name=None, variable=None, overrides=None):
 
     logger.success("Efizz analysis pipeline complete")
 
-# analyze_efizz(analysis_name='PlaceCells')
-# analyze_efizz(analysis_name='classify_cells')
-# analyze_efizz(analysis_name='EscapePattern', 
-#               variable='tuned: escape in homing&escape - bird_dist_shelter in homing&escape')
-analyze_efizz(analysis_name='EscapePattern', 
-              variable='escape in homing&escape')
-analyze_efizz(analysis_name='EscapePattern', 
-              variable='bird_dist_shelter in explore')
 analyze_efizz(analysis_name='EscapePattern', 
               variable='residual: escape in homing&escape - bird_dist_shelter in explore')
+# desired_settings = {"cca_behavioral_vars": ["hdir", "hdir_velocity", "mouse_x_position", "mouse_y_position", "speed", "acceleration", "hsa", "h_preflipbar_a", "h_postflipbar_a", "distance_to_shelter", "distance_to_barrier1", "distance_to_barrier2"],
+#                     "cca_n_components": 5,
+#                     "cca_xval_method": "random_split",
+#                     "cca_test_sets": ["shelter_outing", "bout_runs","explore"],
+#                     "cca_train_set": "correct_full_homing&escape",
+#                     'redo_compute': False}
+# analyze_efizz(analysis_name='CCA', overrides=desired_settings)
 
-
+# analyze_efizz(analysis_name='PlaceCells', variable = 'homing&escape')
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - 2D_position in explore')
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - bird_dist_shelter in explore') # must run because i changed the linear shift!
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - speed in explore')
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - distance_shelter in explore')
