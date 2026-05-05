@@ -15,6 +15,5 @@ defined_settings_postprocess = Settings_postprocess(
     cluster_type="good",
     efizz=True,  # false for behavior only sessions
     homings=True,  # find escape onset
-    response_thresh=5,  # in seconds, when did mouse escape after the stim? Cut off time
     regenerate_synthetic_data=True,  # If you have chosen synthetic data, do you want to regenerate the synthetic data?
 )

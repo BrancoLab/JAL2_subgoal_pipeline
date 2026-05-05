@@ -118,6 +118,9 @@ class BaseDataPostprocessor(ABC):
         Returns:
             Video_df (pl.DataFrame)"""
 
+        n_frames = len(self.tracking_data["hdir"])
+        frame_idx = np.arange(n_frames) + 1  # 1-based frame index
+
         if len(self.session.shelter_time) > 0:
             # if mushroom, estend size to outer circle
             if np.logical_and(
@@ -137,37 +140,34 @@ class BaseDataPostprocessor(ABC):
 
         # when was the shelter in the arena?
         if len(self.session.shelter_time) > 0:
-            if not (np.logical_and(self.session.shelter_time[0] == 0, self.session.shelter_time[1] == -1)):
-                if self.session.shelter_time[1] == -1:  # shelter until the end of the session
-                    shelter = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.sheltertime[0] * self.session.video.fps)
-                else:
-                    shelter = np.logical_and(
-                        np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.sheltertime[0] * self.session.video.fps),
-                        np.arange(1, len(self.tracking_data["hdir"]) + 1) < (self.sheltertime[1] * self.session.video.fps),
-                    )
+            start = self.session.shelter_time[0] * self.session.video.fps * 60
+            if self.session.shelter_time[1] == -1:  # shelter until the end of the session
+                end = n_frames + 1
             else:
-                shelter = np.zeros(len(OutofShelterIdx)) == 0
+                end = self.session.shelter_time[1] * self.session.video.fps * 60
+            
+            shelter = np.logical_and(frame_idx > start, frame_idx < end)
         else:
-            shelter = np.zeros(len(OutofShelterIdx)) == 1
+            # there was never a shelter in the session, so shelter is always false
+            shelter = np.full(n_frames, False)
 
         # what period in the recording was there a barrier?
         if len(self.session.barrier_time) > 0:
+            start = self.session.barrier_time[0] * self.session.video.fps * 60
             if self.session.barrier_time[1] == -1:  # barrier present until the end of the session
-                barrier_present = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barriertime[0] * self.session.video.fps)
+                end = n_frames + 1
             else:
-                barrier_present = np.logical_and(
-                    np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barriertime[0] * self.session.video.fps),
-                    np.arange(1, len(self.tracking_data["hdir"]) + 1) < (self.barriertime[1] * self.session.video.fps),
-                )
+                end = self.session.barrier_time[1] * self.session.video.fps * 60
+            barrier_present = np.logical_and(frame_idx > start, frame_idx < end)
         else:
-            barrier_present = np.zeros(len(OutofShelterIdx)) == 1
+            barrier_present = np.full(n_frames, False)
             print("no barrier in this session")
 
         # when was the barrier flipped?
         if self.session.barrier_flip_time:
-            barrier_flipped = np.arange(1, len(self.tracking_data["hdir"]) + 1) > (self.barrierfliptime * self.session.video.fps)
+            barrier_flipped = frame_idx > (self.session.barrier_flip_time * self.session.video.fps * 60)
         else:
-            barrier_flipped = np.zeros(len(OutofShelterIdx)) == 1
+            barrier_flipped = np.full(n_frames, False)
             print("barrier was not flipped in this session")
 
         # find the escape periods: from stim onset to offset

@@ -14,7 +14,7 @@ from behave_analysis.database.Experiments.JAL002_ex import (
 )
 from behave_analysis.database.Experiments.JAL003_ex import JAL3_25aug, JAL3_1sept, JAL3_4sept, JAL3_7sept, JAL3_17aug, JAL3_22aug
 
-from behave_analysis.database.Experiments.JAL004_ex import JAL4_mush1, JAL4_3rdSept, JAL4_19thSept, JAL4_11thSept, JAL4_28aug, JAL4_17aug
+from behave_analysis.database.Experiments.JAL004_ex import JAL4_22Aug, JAL4_3rdSept, JAL4_19thSept, JAL4_11thSept, JAL4_28aug, JAL4_17aug
 
 from behave_analysis.database.Experiments.JAL005_ex import JAL5_3oct, JAL005_8thSept, JAL005_21stSept, JAL005_2ndSept, JAL005_5thSept
 
@@ -54,8 +54,6 @@ from behave_analysis.database.Experiments.JAL008_ex import (
 
 # from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
-"""What we're running now"""
-experiments_objects = [JAL5_3oct]
 
 """Fix these soon"""
 
@@ -64,11 +62,12 @@ experiments_objects = [JAL5_3oct]
 # JAL8_flip3_7may] # these ones need hdir pkls made! also, maybe it shouldn't be a pkl, but it could be an npz?
 
 """The complete lists"""
-# experiments_objects = [JAL4_28aug, JAL4_11thSept,
-# JAL005_8thSept, JAL005_21stSept, JAL005_5thSept,
-# JAL6_28mar, JAL6_flip4_21mar, JAL6_flip5_25mar, JAL6_flip3_18mar, JAL6_flip7_1apr,
+experiments_objects = [JAL6_flip3_18mar]
+# experiments_objects = [JAL4_3rdSept, JAL4_19thSept, JAL4_28aug, JAL4_11thSept,
+# JAL005_8thSept, JAL005_21stSept, # JAL005_5thSept this one doesn't flip, but can be used as first barrier appearance
+# JAL6_28mar, JAL6_flip4_21mar, JAL6_flip3_18mar, JAL6_flip5_25mar, # (unmatched number of neurons and cluster ids) # JAL6_flip7_1apr, # this session is sus
 # JAL7_sesh8_9apr, JAL7_flip5_22mar, JAL7_flip2_12mar, JAL7_sesh9_16apr, JAL7_23apr,
-# JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_flip3_7may, JAL8_flip4_10may, JAL8_14may]
+# JAL8_flip1_25apr,JAL8_flip2_29apr, JAL8_flip3_7may, JAL8_14may, JAL8_flip4_10may]
 
 # all barrier flip sessions
 # experiments_objects = [JAL3_7sept, JAL3_4sept, JAL3_1sept, JAL3_25aug, JAL3_22aug,

@@ -164,8 +164,12 @@ class Settings_analyze_efizz:
     place_cell_speed_threshold: float = 2.5  # in cm/s, threshold for excluding time points when the mouse is stationary or moving very slowly
     place_cell_smoothing_sigma: float = 2.0  # in bins, for smoothing the spike count and occupancy maps before computing rate maps
     place_cell_min_occupancy: float = 0.5  # in seconds, minimum occupancy time for a bin to be included in the analysis
-
-
+    # CCA settings
+    cca_behavioral_vars: list = None  # list of behavioral variables to include in CCA, e.g. ["speed", "hdir_velocity", "distance_to_shelter"]
+    cca_n_components: int = 3  # number of CCA components to compute
+    cca_test_sets: list = None  # list of test sets to use for CCA, e.g. ["explore", "homing", "escape"]
+    cca_train_set: str = "explore"  # name of training set to use for CCA, e.g. "explore"
+    cca_xval_method: str = "random_split"  # method for splitting data into train and test sets, e.g. "random split", "half", "random split", "half", "match_pos_homings", "match_pos_hdir_homings"
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ""

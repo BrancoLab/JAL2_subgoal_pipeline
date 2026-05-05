@@ -8,11 +8,12 @@ import polars as pl
 import pickle
 import pandas as pd
 
-from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
+from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells, COLUMNS_TO_KEEP
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
 from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
+from behave_analysis.analyze.CCA.CCAmodel import CCAmodel
 
 # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
@@ -34,19 +35,6 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pa
 from behave_analysis.analyze.Replay.ReplayAnalysis import ReplayAnalysis
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 
-COLUMNS_TO_KEEP = ["frames",
-                "mouse_x_position",
-                "mouse_y_position",
-                "spike_clusters",
-                "spike_count",
-                "OutofshelterIdx",
-                "EscapePeriod",
-                "shelter",
-                "barrier_present",
-                "barrier_flipped",
-                "homingPeriod",
-                "speed",
-            ]
 class AnalyzeEfizz:
     """
     A class that loads already processed efizz data and then runs all of the models on it set in the settings file.
@@ -84,7 +72,7 @@ class AnalyzeEfizz:
             self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "good_spike_data.csv"))
 
         # load video_df, frame by cluster matrix and cluster_Ids
-        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells']:
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells', 'CCA']:
             if analysis_name == 'PlaceCells':
                 if "speed" in self.video_and_spike_data.columns:
                     # if we're doing place cell analysis, we need the speed column in the video_and_spike_data df to exclude low speed frames
@@ -93,7 +81,7 @@ class AnalyzeEfizz:
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
         
         # load firing rate matrix
-        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay']:
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'CCA']:
 
             if (analysis_name == 'Replay' and self.settings.replay_template_match_method == 'SS_decoder'):
                 # don't load the frame by cluster matrix, we're using the spike_df for the state space decoder method
@@ -120,7 +108,7 @@ class AnalyzeEfizz:
             self.tracking_data = open_tracking_data(self.session)
 
         # Load the homings object
-        if analysis_name in ['single_trial', 'EscapePattern', 'Replay']:
+        if analysis_name in ['single_trial', 'EscapePattern', 'Replay', 'CCA']:
             try:
                 homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
                 with open(homing_path, "rb") as f:
@@ -239,6 +227,10 @@ class AnalyzeEfizz:
                 if computeET.do_analysis:
                     logger.info(f"{'Computing Residual of ' if 'residual' in computeET.ET.name.lower() else 'Computing '}Escape Pattern Tuning on {computeET.ET.tuning_var} during {computeET.ET.escape_pattern_time} periods")
                     computeET.prepare_data()
+                    if computeET.insufficient_data:
+                        logger.warning(f"Insufficient data for {variable}, saving empty results")
+                        computeET.save_escape_tuning(variable)
+                        return {}
                     computeET.filter_data_and_compute_tuning()
                     computeET.compute_statistical_significance()
                     computeET.save_escape_tuning(variable)
@@ -283,7 +275,8 @@ class AnalyzeEfizz:
                 # map speed at each frome to the video and spike data df so we can exclude low speed frames in the place cell analysis
                 self.video_and_spike_data = self.video_and_spike_data.join(self.video_df.select(["frames", "speed"]), on='frames', how='left')
 
-            PC = PlaceCells(aefizz = self)
+            # YOU-RE IN DEBUGGER BECAUSE YOU WANT TO CHECK THE DATA TYPE OF FRAMES IN VIDEO_DF AND VIDEO_AND_SPIKE_DATA
+            PC = PlaceCells(aefizz = self, time_period = variable)
             if PC.do_analysis:
                 PC.preprocess_data()
                 PC.compute_place_fields_conditions()
@@ -291,6 +284,14 @@ class AnalyzeEfizz:
                 PC.save()
             
             logger.success("Place Cell analysis complete")
+
+        # ------------------------------ Compute CCA --------------------------------
+        if analysis_name == 'CCA':
+            logger.info("Running CCA analysis")
+            cca_model = CCAmodel(aefizz = self)
+            if cca_model.do_analysis:
+                cca_model.cca_across_conditions()
+            logger.success("CCA analysis complete")
 
         # ----------------------------- Conduct Dimensionality Reduction and clustering ----------------------------------
         if analysis_name == 'PCA' or analysis_name == 'UMAP':

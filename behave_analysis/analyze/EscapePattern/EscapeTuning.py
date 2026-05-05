@@ -16,6 +16,7 @@ class EscapeTuning:
     homing_vector: float = 0.0
     escape_vector: float = 0.0
     explore_vector: float = 0.0
+    shelter_outing_vector: float = 0.0
     neural_matrix: float = 0.0
     condition: float = 0.0
     discretized_var: float = 0.0
@@ -27,16 +28,15 @@ class EscapeTuning:
     params_full: float = 0.0
     mat_num_cond: float = 0.0
     # shift tuning
+    shifts: int = 0
     y_fitted_shift: float = 0.0
     R_shift: float = 0.0
     fr_shift: float = 0.0
     params_shifts: float = 0.0
     mat_shift_cond: float = 0.0
     loo_shift: float = 0.0
-    discretized_var_shift: float = 0.0
     # residual tuning
-    residual_var2_t1: float = 0.0
-    residual_fr_var2_t2: float = 0.0
+    residual_var2_all_time: float = 0.0
 
 
 def init_escape_tuning(settings, tuning):

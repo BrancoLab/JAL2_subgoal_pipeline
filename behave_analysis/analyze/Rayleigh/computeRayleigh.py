@@ -506,7 +506,7 @@ def identify_which_compartment(aefizz, filtered_video_df: pl.DataFrame) -> np.nd
 ## ---------------------PLOTTING -----------------------------
 
 
-def polar_plot(df, ax, fig, pcentile, max_firing_rate, cluster_title=True, plot_type="line") -> None:
+def polar_plot(df, ax, fig, pcentile = None, max_firing_rate=None, cluster_title=True, plot_type="line") -> None:
     """Creates a polar plot for a single cluster in a single condition
 
     Visulises the firing rate at each angle (e.g. HD or HSA) for different
@@ -532,7 +532,9 @@ def polar_plot(df, ax, fig, pcentile, max_firing_rate, cluster_title=True, plot_
             angle_firing, [int(np.shape(df["angles"].to_list())[1]), int(np.shape(angle_firing)[1] / np.shape(df["angles"].to_list())[1])]
         )
         angle_firing = angle_firing.T
-
+    
+    if max_firing_rate is None:
+        max_firing_rate = np.amax(angle_firing)
     for compartment in np.arange(len(df["Rayleigh"][0])):
         # Plot the rayleigh vector magnitude and angle
         ax.vlines(
@@ -594,6 +596,7 @@ def polar_plot(df, ax, fig, pcentile, max_firing_rate, cluster_title=True, plot_
         clutitle = clutitle + "\n" + "Rayleigh = " + str(np.around(df["Rayleigh"][0][int(compartment)], 2))
         if df["Rayleigh_sig"][0][int(compartment)] == 1:
             clutitle = clutitle + " (sig.)"
-        if df["Rayleigh"][0][int(compartment)] > pcentile:
-            fig.suptitle("This cluster is worth a check", fontsize=30)
+        if pcentile is not None:
+            if df["Rayleigh"][0][int(compartment)] > pcentile:
+                fig.suptitle("This cluster is worth a check", fontsize=30)
     ax.title.set_text(clutitle)
