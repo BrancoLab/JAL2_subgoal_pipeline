@@ -23,7 +23,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
 )
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
 from behave_analysis.utils.creating_directories import make_directory
-from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check
+from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, generate_run_id, settings_to_check
 from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells, COLUMNS_TO_KEEP
 
 class ComputeEscapeTuning:
@@ -376,10 +376,13 @@ class ComputeEscapeTuning:
             PC_dict = load_or_compute_2d_position_tuning(self.aefizz, time_period2)
             if isinstance(PC_dict["shelter_only"], dict):
                 self.ET.residual_fr_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+                logger.warning("Using full rate map for residual tuning in linear shift as well!")
+                # self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
             elif isinstance(PC_dict["shelter_only"], object):
                 self.ET.residual_fr_var2_t2 = np.array([PC_dict[c].item()["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c].item()["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+                logger.warning("Using full rate map for residual tuning in linear shift as well!")
+                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c].item()["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
             check_bin_match(self.ET.residual_var2_all_time, self.ET.residual_fr_var2_t2)
         else:
             # load tuning data for var2 in exploration from ComputeTuning object
