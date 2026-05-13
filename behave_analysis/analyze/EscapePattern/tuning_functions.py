@@ -51,13 +51,15 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
 
     reliability = np.full((n_cond, n_neur), np.nan)  # conditions x neurons
 
+    condition_transitions = np.concatenate([np.where(np.diff(cond)!=0)[0],[len(cond)-1]]) # indices where condition changes, we add the end of the vector to capture the last trial
     # step 3: compute firing per bin per trial
     # iterate through conditions
     for i in range(n_cond):
         i = int(i)
         # start by condition
         cond_start = [x for x in h_start if cond[x] == i]
-        cond_start = np.concatenate((cond_start,[np.sum(cond < i+1)])) # this adds the end of the last trial
+        cond_end = condition_transitions[cond[condition_transitions] == i]
+        cond_start = np.sort(np.concatenate([cond_start,cond_end])) # this adds the end of the last trial
 
         # iterate through neurons
         for j, n in enumerate(escape_matrix):
@@ -75,19 +77,17 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
             # Step 5: Gaussian fit
             distances = np.arange(len(smoothed_firing_rates))
             valid_idx = ~np.isnan(smoothed_firing_rates)
-            v = np.where(valid_idx)[0]
             y_fitted = np.full(bins, np.nan)
             R, params = 0, np.full(6, np.nan)
-            if np.any(valid_idx):
+            if len(np.where(valid_idx[1:-1])[0]) > 3:  # need at least 3 points to fit
                 if fitting:
                     R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], distances[valid_idx], verbose=False)
                     y_fitted[valid_idx] = y
                 else:
-                    y = gaussian_filter1d(smoothed_firing_rates[v[1:-1]], 2)
-                    # WARNING: I'm not allowing the max to be at the edges
-                    params[0] = np.nanmax(y)  # amplitude of the peak response
-                    params[1] = v[np.argmax(y) + 1]  # location of the peak response
                     y_fitted[valid_idx] = gaussian_filter1d(smoothed_firing_rates[valid_idx], 2)
+                    # WARNING: I'm not allowing the max to be at the edges
+                    params[0] = np.nanmax(y_fitted[1:-1])  # amplitude of the peak response
+                    params[1] = np.nanargmax(y_fitted[1:-1]) + 1  # location of the peak response
 
             # Step 6: Leave one out reliability
             if loo:
@@ -133,16 +133,15 @@ def compute_tuning_curves_no_trials(var, escape_matrix, cond, bins, n_cond, n_ne
             # Gaussian fitting
             valid_idx = ~np.isnan(smoothed_firing_rates)
             R, y_fitted, params = 0, np.full_like(smoothed_firing_rates, np.nan), np.full(6, np.nan)
-            valid = np.where(valid_idx)[0]
-            if np.any(valid_idx):
+            if len(np.where(valid_idx[1:-1])[0]) > 3:
                 if fitting:
                     R, y, params, _ = gaussian_fitting(smoothed_firing_rates[valid_idx], np.arange(np.sum(valid_idx)), verbose=False)
                     y_fitted[valid_idx] = y
                 else:
                     y = gaussian_filter1d(smoothed_firing_rates[valid_idx], 2)
-                    params[0] = np.nanmax(y[1:-1])
                     y_fitted[valid_idx] = y
-                    params[1] = valid[np.argmax(y[1:-1])+1] # WARNING: I'm not allowing the max to be at the edges
+                    params[0] = np.nanmax(y_fitted[1:-1])
+                    params[1] = np.nanargmax(y_fitted[1:-1])+1 # WARNING: I'm not allowing the max to be at the edges
 
             # dump together for output
             fr_full[c, i, :] = smoothed_firing_rates
