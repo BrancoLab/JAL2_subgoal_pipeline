@@ -14,6 +14,7 @@ from behave_analysis.utils.settings_objects import Settings_postprocess
 defined_settings_postprocess = Settings_postprocess(
     cluster_type="good",
     efizz=True,  # false for behavior only sessions
-    homings=True,  # find escape onset
+    homings=False,  # find homings, works best if you-ve manually labeled homings in boris
     regenerate_synthetic_data=True,  # If you have chosen synthetic data, do you want to regenerate the synthetic data?
+    save_spike_video_parquet=False, # this will save a dataframe with the spike count for each cluster for each video frame, merged with the video data (like position and speed) large and redundant since there are also dataframes of spikes and behaviour
 )

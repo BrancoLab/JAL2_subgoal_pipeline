@@ -22,7 +22,7 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
     print("\nPress 'q' to quit and 'n' to move to the next video")
     metadata = zip(onsets, stimulus_durations)
     for trial_num, (onset_frames, stimulus_duration) in enumerate(metadata):
-        fisheye_correction_map = load_fisheye_correction_map(session.video)
+        fisheye_correction_map = load_fisheye_correction_map(session.video.fisheye_correction_file)
         delay_between_frames = int(1000 / session.video.fps * (not settings.rapid) + settings.rapid)
         source_video, frames_in_this_trial, stim_status, trial_video = set_up_videos(
             session, settings, stim_type, trial_num, onset_frames, stimulus_duration

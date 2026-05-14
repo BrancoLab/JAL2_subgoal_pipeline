@@ -69,13 +69,13 @@ class Register():
 
     def get_image_of_registered_arena(self, session, video, video_object: object, frame):
         """ Loading arena image and registering it to get shelter and barrier positions"""
-        fisheye_correction_map = load_fisheye_correction_map(video)
+        fisheye_correction_map = load_fisheye_correction_map(video.fisheye_correction_file)
         video_object.set(cv2.CAP_PROP_POS_FRAMES, frame)
         _, self.actual_arena = video_object.read()
         self.actual_arena = correct_and_register_frame(self.actual_arena[:, :, 0], video, fisheye_correction_map, regTransform=self.transform)
 
     def perform_fisheye_correction(self, video: object):
-        self.fisheye_correction_map = load_fisheye_correction_map(video)
+        self.fisheye_correction_map = load_fisheye_correction_map(video.fisheye_correction_file)
         self.actual_arena = correct_and_register_frame(self.actual_arena[:, :, 0], video, self.fisheye_correction_map, skip_registration=True)
 
     def initialize_transform(self):

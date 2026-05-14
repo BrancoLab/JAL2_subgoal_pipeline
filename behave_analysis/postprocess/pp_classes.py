@@ -7,6 +7,7 @@ from loguru import logger
 import numpy as np
 import polars as pl
 
+from behave_analysis.analyze.EscapePattern.escape_pattern_utils import check_not_list
 from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
@@ -172,8 +173,9 @@ class BaseDataPostprocessor(ABC):
 
         # find the escape periods: from stim onset to offset
         EscapePeriod = np.zeros_like(OutofShelterIdx)
-        for (onsets, duration) in zip(self.session.audio.onset_frames, self.session.audio.stimulus_durations):
-            EscapePeriod[onsets[0] : (onsets[0] + int(duration * self.session.video.fps))] = 1
+        for (onsets, duration) in zip(check_not_list(self.session.audio.onset_frames), check_not_list(self.session.audio.stimulus_durations)):
+
+            EscapePeriod[onsets : (onsets + int(duration * self.session.video.fps))] = 1
 
         # make a video dataframe where for each video frame:
         video_df = pl.DataFrame(
@@ -322,7 +324,6 @@ class BaseDataPostprocessor(ABC):
         else:
             video_df = video_df.select([video_df["frames"].cast(pl.Float64), pl.exclude("frames")])
 
-        potato
         # NB: this is new code for joining behaviour and spikes, 
         # by not filling null in the cluster ID column we can keep track of which frames have spikes and which don't, 
         # and we only fill null in the spike count column to 0
@@ -337,9 +338,11 @@ class BaseDataPostprocessor(ABC):
         # old code! This will assign frames with 0 spike count to cluster_ID 0 
         # large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
         # large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
+
+        # save the big ass dataframe
         large_dataFrame.write_parquet(
-            os.path.join(self.session.base_path, self.session.processed_path + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet")
-        )
+                os.path.join(self.session.base_path, self.session.processed_path + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet")
+            )
         
         return large_dataFrame
 
@@ -409,7 +412,8 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
             self.spike_data = self.load_spike_data()
             self.clu_label = self.extract_cluster_labels()
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(regenerate=settings.regenerate_synthetic_data)
-            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
+            if settings.save_spike_video_parquet:
+                self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
             self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
 
     def check_synthetic_data_exists_if_not_generate_it(self, video_df) -> None:
@@ -505,7 +509,8 @@ class DataPostprocessor(BaseDataPostprocessor):
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
             self.clu_label = self.extract_cluster_labels()
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
-            self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
+            if settings.save_spike_video_parquet:
+                self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
             self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(
                 spikeCountByFrameAndCluster, video_df
             )  # This is slow can we speed it up?
