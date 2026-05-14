@@ -36,8 +36,7 @@ def load_or_extract_homings(session):
     else:
         logger.info("Homings object not found. Extracting homings now...")
         homings_obj = get_Homings(settings=settings, session=session)
-        homings = homings_obj.homing
-    return homings
+    return homings_obj
 
 
 def load_or_extract_escapes(session):

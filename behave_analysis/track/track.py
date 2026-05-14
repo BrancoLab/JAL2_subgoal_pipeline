@@ -388,7 +388,7 @@ class Track(DLC):
         A little function for loading the first frame of the movie to point to shelter and barrier location
         """
         
-        fisheye_correction_map = load_fisheye_correction_map(session.video)
+        fisheye_correction_map = load_fisheye_correction_map(session.video.fisheye_correction_file)
         video_file = os.path.join(session.base_path,session.file_path,session.video.camFilePath)
         source_video = cv2.VideoCapture(video_file)
         source_video.set(cv2.CAP_PROP_POS_FRAMES, session.video.num_frames-(2*session.video.fps)) # read a frame 2 seconds from the end

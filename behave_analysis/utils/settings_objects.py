@@ -176,3 +176,4 @@ class Settings_postprocess:
     efizz: bool = False
     homings: bool = False
     regenerate_synthetic_data: bool = False
+    save_spike_video_parquet: bool = False

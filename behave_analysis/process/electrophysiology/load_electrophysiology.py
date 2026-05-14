@@ -20,8 +20,10 @@ class LoadEfizz:
         """
         logger.info("Searching through efizz files")
         efizz_folder = os.path.join(self.file_path,[x for x in os.listdir(self.file_path) if '_g0' in x][0])
+        KS_folder = os.path.join(efizz_folder, [x for x in os.listdir(efizz_folder) if 'imec' in x][0])
+        KS_folder = os.path.join(KS_folder, 'SI_KS_output')
         files = []
-        for dirpath, dirnames, filenames in os.walk(efizz_folder):
+        for dirpath, dirnames, filenames in os.walk(KS_folder):
             for filename in filenames:
                 files.append(os.path.join(dirpath, filename))
         logger.success("Efizz file names collected")
@@ -43,13 +45,15 @@ class LoadEfizz:
             logger.info(f"The number of spikes is: {len(self.spike_times)}")
             self.spike_clusters = np.load(self.filter_by_ending(self.files, "spike_clusters.npy")[0])
             self.spike_clusters = np.hstack(self.spike_clusters)
-            sync = self.filter_by_ending(self.files, "exported.imec0.ap.bin")
+            efizz_folder = os.path.join(self.file_path,[x for x in os.listdir(self.file_path) if '_g0' in x][0])
+            KS_folder = os.path.join(efizz_folder, [x for x in os.listdir(efizz_folder) if 'imec' in x][0])
+            sync = self.filter_by_ending(os.listdir(KS_folder), "exported.imec0.ap.bin")
             if len(sync) > 0: 
-                self.imec_sync_path = sync[0]
+                self.imec_sync_path = os.path.join(KS_folder,sync[0])
             else:
                 logger.warning("No exported .bin sync channel was found!")
-                self.imec_sync_path = self.filter_by_ending(self.files, "_t0.imec0.ap.bin")[0]
-            self.imec_bin_path = self.filter_by_ending(self.files, "_t0.imec0.ap.bin")[0]
+                self.imec_sync_path = os.path.join(KS_folder, self.filter_by_ending(os.listdir(KS_folder), "_t0.imec0.ap.bin")[0])
+            self.imec_bin_path = self.filter_by_ending(os.listdir(KS_folder), "_t0.imec0.ap.bin")[0]
             self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter="\t", skiprows=1, dtype=str)
             self.num_of_good_units = self.count_number_of_label_units("good")
             logger.info(f"The number of good units is: {self.num_of_good_units} out of {len(self.cluster_group)} units")

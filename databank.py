@@ -54,6 +54,7 @@ from behave_analysis.database.Experiments.JAL008_ex import (
 
 # from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
+experiments_objects = [JAL5_3oct]
 
 """Fix these soon"""
 
@@ -62,7 +63,7 @@ from behave_analysis.database.Experiments.JAL008_ex import (
 # JAL8_flip3_7may] # these ones need hdir pkls made! also, maybe it shouldn't be a pkl, but it could be an npz?
 
 """The complete lists"""
-experiments_objects = [JAL6_flip3_18mar]
+
 # experiments_objects = [JAL4_3rdSept, JAL4_19thSept, JAL4_28aug, JAL4_11thSept,
 # JAL005_8thSept, JAL005_21stSept, # JAL005_5thSept this one doesn't flip, but can be used as first barrier appearance
 # JAL6_28mar, JAL6_flip4_21mar, JAL6_flip3_18mar, JAL6_flip5_25mar, # (unmatched number of neurons and cluster ids) # JAL6_flip7_1apr, # this session is sus
