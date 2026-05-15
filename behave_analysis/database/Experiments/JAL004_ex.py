@@ -3,6 +3,57 @@ from pathlib import Path
 from behave_analysis.database.Experiments.experiment_class import Experiment
 from behave_analysis.database.Mice.AllMouses import JAL004
 
+JAL4_17aug = Experiment(  # Mouse specific
+    nick_name=JAL004.nick_name,
+    total_sessions=JAL004.total_sessions,
+    mouse_number_pyrat=JAL004.mouse_number_pyrat,
+    experiment_file_names=JAL004.experiment_file_names,
+    root_path=JAL004.root_path,
+    # Experiment specific
+    experiment_name="baseline",
+    experiment_idx=0,
+    experiment_date="2023_08_17",
+    experiment_time="13_41_44",
+    shelter_time=[60.75, -1],
+    barrier_time=[],
+    barrier_flip_time=None,
+    experiment_path=Path(r"004_baseline_2023_08_17T13_41_44"),
+)
+
+JAL4_18aug = Experiment(  # Mouse specific
+    nick_name=JAL004.nick_name,
+    total_sessions=JAL004.total_sessions,
+    mouse_number_pyrat=JAL004.mouse_number_pyrat,
+    experiment_file_names=JAL004.experiment_file_names,
+    root_path=JAL004.root_path,
+    # Experiment specific
+    experiment_name="baseline",
+    experiment_idx=0,
+    experiment_date="2023_08_18",
+    experiment_time="08_22_16",
+    shelter_time=[119.85, -1],
+    barrier_time=[],
+    barrier_flip_time=None,
+    experiment_path=Path(r"004_mushroom_2023_08_18T08_22_16"),
+)
+
+JAL4_21Aug = Experiment(  # Mouse specific
+    nick_name=JAL004.nick_name,
+    total_sessions=JAL004.total_sessions,
+    mouse_number_pyrat=JAL004.mouse_number_pyrat,
+    experiment_file_names=JAL004.experiment_file_names,
+    root_path=JAL004.root_path,
+    # Experiment specific
+    experiment_name="barrierflip",
+    experiment_idx=0,
+    experiment_date="2023_08_21",
+    experiment_time="12_53_10",
+    shelter_time=[.75, -1],
+    barrier_time=[119.6, -1],
+    barrier_flip_time=227.25,
+    experiment_path=Path(r"004_flip_2023_08_21T12_53_10"),
+)
+
 JAL4_22Aug = Experiment(  # Mouse specific
     nick_name=JAL004.nick_name,
     total_sessions=JAL004.total_sessions,
@@ -18,6 +69,23 @@ JAL4_22Aug = Experiment(  # Mouse specific
     barrier_time=[],
     barrier_flip_time=None,
     experiment_path=Path(r"004_mush1_2023_08_22T13_13_41"),
+)
+
+JAL4_28aug = Experiment(  # Mouse specific
+    nick_name=JAL004.nick_name,
+    total_sessions=JAL004.total_sessions,
+    mouse_number_pyrat=JAL004.mouse_number_pyrat,
+    experiment_file_names=JAL004.experiment_file_names,
+    root_path=JAL004.root_path,
+    # Experiment specific
+    experiment_name="flip",
+    experiment_idx=0,
+    experiment_date="2023_08_28",
+    experiment_time="09_36_04",
+    shelter_time=[0.25, -1],
+    barrier_time=[84.25, -1],  # seconds needed to be more precise
+    barrier_flip_time=219,
+    experiment_path=Path(r"JAL004_flip_rotated_2023_08_28T09_36_04"),
 )
 
 JAL4_3rdSept = Experiment(  # Mouse specific
@@ -71,36 +139,3 @@ JAL4_19thSept = Experiment(  # Mouse specific
     experiment_path=Path(r"004_flipppuf19sept_2023_09_19T14_10_56"),
 )
 
-JAL4_28aug = Experiment(  # Mouse specific
-    nick_name=JAL004.nick_name,
-    total_sessions=JAL004.total_sessions,
-    mouse_number_pyrat=JAL004.mouse_number_pyrat,
-    experiment_file_names=JAL004.experiment_file_names,
-    root_path=JAL004.root_path,
-    # Experiment specific
-    experiment_name="flip",
-    experiment_idx=0,
-    experiment_date="2023_08_28",
-    experiment_time="09_36_04",
-    shelter_time=[0.25, -1],
-    barrier_time=[84.25, -1],  # seconds needed to be more precise
-    barrier_flip_time=219,
-    experiment_path=Path(r"JAL004_flip_rotated_2023_08_28T09_36_04"),
-)
-
-JAL4_17aug = Experiment(  # Mouse specific
-    nick_name=JAL004.nick_name,
-    total_sessions=JAL004.total_sessions,
-    mouse_number_pyrat=JAL004.mouse_number_pyrat,
-    experiment_file_names=JAL004.experiment_file_names,
-    root_path=JAL004.root_path,
-    # Experiment specific
-    experiment_name="baseline",
-    experiment_idx=0,
-    experiment_date="2023_08_17",
-    experiment_time="13_41_44",
-    shelter_time=[60.75, -1],
-    barrier_time=[],
-    barrier_flip_time=None,
-    experiment_path=Path(r"004_baseline_2023_08_17T13_41_44"),
-)

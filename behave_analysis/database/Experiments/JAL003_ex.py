@@ -19,6 +19,23 @@ JAL3_17aug = Experiment(# Mouse specific
                     barrier_flip_time = None, # time in minutes when the barrier was flipped e.g. 184
                     experiment_path = Path(r"003_baseline_2023_08_17T08_16_46"))
 
+JAL3_21aug = Experiment(# Mouse specific
+                    nick_name = JAL003.nick_name,
+                    total_sessions = JAL003.total_sessions,
+                    mouse_number_pyrat = JAL003.mouse_number_pyrat,
+                    experiment_file_names = JAL003.experiment_file_names,
+                    root_path = JAL003.root_path,
+
+                    # Experiment specific
+                    experiment_name = 'mush0',
+                    experiment_idx = 0,
+                    experiment_date = "2023_08_21",
+                    experiment_time = "08_58_29",
+                    shelter_time = [90.6, -1],
+                    barrier_time = [], # in minutes when the barrier was present e.g. [30, -1] (if until the end of session put -1 as second in list)
+                    barrier_flip_time = None, # time in minutes when the barrier was flipped e.g. 184
+                    experiment_path = Path(r"003_mushroom_2023_08_21T08_58_29"))
+
 JAL3_22aug = Experiment(# Mouse specific
                     nick_name = JAL003.nick_name,
                     total_sessions = JAL003.total_sessions,
