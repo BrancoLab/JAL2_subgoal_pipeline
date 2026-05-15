@@ -65,7 +65,18 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     ephys_sync_onsets, ephys_sync_offsets = get_onset_offset(imec_TTL, 0.5)
 
     # Check pulse lengths
-    ephys_sync_onsets, bonsai_sync_onsets = check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate)
+    (
+        bonsai_sync_onsets,
+        bonsai_sync_offsets,
+        ephys_sync_onsets,
+        ephys_sync_offsets,
+    ) = check_for_abberant_pulses(
+        bonsai_sync_onsets,
+        bonsai_sync_offsets,
+        ephys_sync_onsets,
+        ephys_sync_offsets,
+        sampling_rate,
+    )
     
     # Hacky logic for JAL6 April 1st session
     # Step 1: Remove the assertion to ensure imec is longer
@@ -77,24 +88,6 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
         ephys_sync_onsets
     ), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
     logger.success("The number of efizz pulses onsets match the number of bonsai pulses onsets")
-
-    # remove pulses that are too brief --------------------------------------------------------------------------
-    bonsai_pulse_len_errors = np.where(np.diff(bonsai_sync_onsets) < sampling_rate / 3)[0]
-    if bonsai_pulse_len_errors.any():
-        for pulse in bonsai_pulse_len_errors:
-            logger.error(f"There is a pulse length error in the bonsai signal: {bonsai_pulse_len_errors}, removing pulse")
-            bonsai_sync_offsets = np.delete(bonsai_sync_offsets, pulse)
-            bonsai_sync_onsets = np.delete(bonsai_sync_onsets, pulse)
-
-    imec_pulse_len_errors = np.where(np.diff(ephys_sync_onsets) < sampling_rate / 3)[0]
-    if imec_pulse_len_errors.any():
-        for pulse in imec_pulse_len_errors:
-            logger.error(f"There is a pulse length error in the imec signal: {imec_pulse_len_errors}, removing pulse")
-            ephys_sync_onsets = np.delete(ephys_sync_onsets, pulse)
-            ephys_sync_offsets = np.delete(ephys_sync_offsets, pulse)
-
-    if not imec_pulse_len_errors.any() and bonsai_pulse_len_errors.any():
-        logger.error("There was an imbalance in pulse lengths this can't be good")
 
     # define the TTL object
     ttl_object = TTL_Sync(
@@ -237,7 +230,7 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
     """
 
     # Threshold for acceptable number of abberant signals
-    threshold = 1000
+    threshold = len(bonsai_ttl) * 0.1  # this seems arbitrary
 
     # check for signal differences, they should not differ by 30 seconds. Unless there has been a mannual delay between stopping both systems. 
     if abs(len(bonsai_ttl) - len(imec_TTL)) > 30 * sampling_rate:
@@ -274,13 +267,22 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
 
 
 # Highlight weird length pulses
-def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_rate, delete = True):
+def check_for_abberant_pulses(
+    bonsai_sync_onsets,
+    bonsai_sync_offsets,
+    ephys_sync_onsets,
+    ephys_sync_offsets,
+    sampling_rate,
+    delete=True,
+):
     """A function that checks if the delta between onsets and offsets is not greater or less than
     what should roughly be expected. Are pulse lengths to be expected?
 
     Args:
         bonsai_sync_onsets (_type_): _description_
+        bonsai_sync_offsets (_type_): _description_
         ephys_sync_onsets (_type_): _description_
+        ephys_sync_offsets (_type_): _description_
         sampling_rate (_type_): _description_
         delete (bool): If True, remove the pulse onsets that are too brief, this is likely a result of a bad sync signal. This will hopefully fix alignment issues.
             if False, just log the error. 
@@ -304,6 +306,7 @@ def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_ra
         if delete:
             logger.warning("Removing bonsai pulses onsets that are too brief, this is likely a result of a bad sync signal. This will hopefully fix alignment issues.")
             bonsai_sync_onsets = np.delete(bonsai_sync_onsets, bonsai_pulse_len_under_errors)
+            bonsai_sync_offsets = np.delete(bonsai_sync_offsets, bonsai_pulse_len_under_errors)
 
     if bonsai_pulse_len_over_errors.any():
         logger.warning("Bonsai pulse greater than 1hz duration")
@@ -324,10 +327,11 @@ def check_for_abberant_pulses(bonsai_sync_onsets, ephys_sync_onsets, sampling_ra
         if delete:
             logger.warning("Removing imec pulses onsets that are too brief, this is likely a result of a bad sync signal. This will hopefully fix alignment issues.")
             ephys_sync_onsets = np.delete(ephys_sync_onsets, imec_pulse_len_under_errors)
+            ephys_sync_offsets = np.delete(ephys_sync_offsets, imec_pulse_len_under_errors)
     
-    logger.info("If pulses have been removed that will create a downstream error as there will be less onsets than offsets. This is expected")
+    logger.info("Pulse checks complete. Onsets and offsets were filtered together where needed.")
 
-    return ephys_sync_onsets, bonsai_sync_onsets
+    return bonsai_sync_onsets, bonsai_sync_offsets, ephys_sync_onsets, ephys_sync_offsets
 
 # ====================================================================================================================================================================
 
