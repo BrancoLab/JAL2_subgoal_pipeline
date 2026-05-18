@@ -54,9 +54,9 @@ from behave_analysis.database.Experiments.JAL008_ex import (
 
 # from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
-# mushrooms + JAL4_21Aug
-# experiments_objects = [JAL4_21Aug, JAL5_3oct, JAL3_21aug, JAL4_18aug, JAL4_22Aug]
-experiments_objects = [JAL5_3oct, JAL4_18aug, JAL4_22Aug]
+# mushrooms + JAL4_21Aug, JAL4_21Aug, JAL5_3oct, 
+experiments_objects = [JAL4_18aug, JAL4_22Aug]
+# experiments_objects = [JAL3_21aug]
 
 """Fix these soon"""
 

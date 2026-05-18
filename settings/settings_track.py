@@ -17,5 +17,5 @@ settings_track = Settings_track(
     tracking_file_location = None,
     # Is will use the output of DLC nothing that has been processed
     save_labeled_video = False, # if you want to save the video with the DLC dots plotted on it
-    random_points = 'full_arena', # compute the head angle to extra points in the arena, 'manual' makes you input points in gui, 'full_arena' computes a full grid of points in the arena, [] empty if you don't want angle with randompoints
+    random_points = None, # compute the head angle to extra points in the arena, 'manual' makes you input points in gui, 'full_arena' computes a full grid of points in the arena, None if you don't want angle with randompoints
 )
