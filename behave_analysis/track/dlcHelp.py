@@ -30,6 +30,13 @@ class DLC:
         dlc_already_run = bool(
             glob.glob(os.path.join(session.base_path, session.processed_path, "*resnet*"))
         )  # Does a file exist with this token in the name?
+        if not dlc_already_run:
+            dlc_already_run = bool(
+                glob.glob(os.path.join(session.base_path, session.file_path, "newDLC", "*resnet*"))
+            )  # Does a file exist with this token in the name?
+            if dlc_already_run:
+                for files in glob.glob(os.path.join(session.base_path, session.file_path, "newDLC", "*resnet*")):
+                    os.rename(files, os.path.join(session.base_path, session.processed_path, os.path.basename(files)))
 
         _, dlc_settings_file = get_computer_specific_paths()
 

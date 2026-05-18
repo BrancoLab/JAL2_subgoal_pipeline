@@ -188,7 +188,7 @@ class Track(DLC):
         self.region_tracking_data['hdir'] = self.compute_head_direction()
         self.compute_angle_shelter(session)
         self.compute_angle_barrier(session)
-        if len(self.settings.random_points) > 0 :self.compute_angle_random_points(session)
+        if self.settings.random_points is not None: self.compute_angle_random_points(session)
         self.compute_new_average_speed(session)
         # Reincluding philips compute speed function as it has a relative to shelter var needed for homings
         shelter_location = [int(np.mean([session.shelter_location[0][0],session.shelter_location[1][0]])),
