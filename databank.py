@@ -12,52 +12,35 @@ from behave_analysis.database.Experiments.JAL002_ex import (
     seq1_1,
     mushroom_3_002,
 )
-from behave_analysis.database.Experiments.JAL003_ex import JAL3_21aug, JAL3_22aug, JAL3_25aug, JAL3_1sept, JAL3_4sept, JAL3_7sept, JAL3_17aug
+from behave_analysis.database.Experiments.JAL003_ex import JAL3_shelt_17aug, JAL3_mush_21aug, JAL3_flip1_22aug, JAL3_flip2_25aug, JAL3_flip3_29aug, JAL3_flip4_1sept, JAL3_flip5_4sept, JAL3_flip6_7sept
 
-from behave_analysis.database.Experiments.JAL004_ex import JAL4_17aug, JAL4_18aug, JAL4_21Aug, JAL4_22Aug, JAL4_3rdSept, JAL4_19thSept, JAL4_11thSept, JAL4_28aug
+from behave_analysis.database.Experiments.JAL004_ex import JAL4_shelt_17aug, JAL4_mush_18aug, JAL4_flip1_21Aug, JAL4_mush2_22Aug, JAL4_flip3_28aug, JAL4_flip4_3Sept, JAL4_flip5_11Sept, JAL4_flip6_19Sept
 
-from behave_analysis.database.Experiments.JAL005_ex import JAL5_3oct, JAL005_8thSept, JAL005_21stSept, JAL005_2ndSept, JAL005_5thSept
+from behave_analysis.database.Experiments.JAL005_ex import JAL5_shelt_2Sept, JAL5_barr_5Sept, JAL5_flip1_8Sept, JAL5_flip3_21Sept, JAL5_mush_3oct
 
-from behave_analysis.database.Experiments.JAL006_ex import (
-    JAL6_hab_1mar,
-    JAL6_shelt_4mar,
-    JAL6_28mar,
-    JAL6_flip5_25mar,
-    JAL6_flip7_1apr,
-    JAL6_flip4_21mar,
-    JAL6_flip3_18mar,
-)
+from behave_analysis.database.Experiments.JAL006_ex import JAL6_hab_1mar, JAL6_shelt_4mar, JAL6_flip3_18mar, JAL6_flip4_21mar, JAL6_flip5_25mar, JAL6_flip6_28mar, JAL6_flip7_1apr, JAL6_flip8_5apr
 
-from behave_analysis.database.Experiments.JAL007_ex import (
-    JAL7_hab_1mar,
-    JAL7_empty_shelter_5mar,
-    JAL7_sesh8_9apr,
-    JAL7_sesh9_16apr,
-    JAL7_flip2_12mar,
-    JAL7_flip5_22mar,
-    JAL7_23apr,
-    JAL7_30apr,
-)
+
+from behave_analysis.database.Experiments.JAL007_ex import JAL7_hab_1mar, JAL7_empty_shelter_5mar, JAL7_flip2_12mar, JAL7_flip3_15mar, JAL7_flip4_19mar, JAL7_flip5_22mar, JAL7_flip7_4apr, JAL7_flip8_9apr, JAL7_flip9_16apr, JAL7_flip10_23apr, JAL7_tiny_30apr
 
 from behave_analysis.database.Experiments.JAL008_ex import (
     JAL8_shelt_22apr,
     JAL8_flip1_25apr,
     JAL8_flip2_29apr,
     JAL8_tiny_3may,
-    JAL8_flip4_10may,
-    JAL8_14may,
-    JAL8_21may,
     JAL8_flip3_7may,
+    JAL8_flip4_10may,
+    JAL8_flip5_14may,
+    JAL8_tiny2_21may,
 )
 
 # ## -------------JR BEHAVIOR MICE
 
 # from behave_analysis.database.Experiments.Burrow_ex import burrow_3456, burrow_3440, burrow_3457, burrow_3457_2
 
-# mushrooms + JAL4_21Aug, JAL4_21Aug, JAL5_3oct, 
-experiments_objects = [JAL4_18aug, JAL4_22Aug]
-# experiments_objects = [JAL3_21aug]
-
+# full pipeline!
+experiments_objects = [JAL3_flip3_29aug, JAL6_flip8_5apr, JAL7_flip3_15mar, JAL7_flip4_19mar, JAL7_flip7_4apr] # postprocess
+# JAL3_flip3_29aug, JAL6_flip8_5apr, JAL7_flip3_15mar, JAL7_flip4_19mar,
 """Fix these soon"""
 
 # experiments_objects = [JAL005_5thSept,
