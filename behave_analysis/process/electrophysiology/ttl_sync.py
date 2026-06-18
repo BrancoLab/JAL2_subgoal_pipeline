@@ -57,7 +57,7 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path)
     
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
-    assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be"
+    assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be - the session likely crashed or disconnected"
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
 
     # Extract the onset and offsets for the TTL signals and check they match -----------------------------------
@@ -82,7 +82,19 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     # Step 1: Remove the assertion to ensure imec is longer
     # Step 2: Select the same number of onsets for both
     # diff = len(bonsai_sync_onsets) - len(ephys_sync_onsets)
-    # bonsai_sync_onsets = bonsai_sync_onsets[diff:]
+    # bonsai_sync_onsets = bonsai_sync_onsets[diff:] # chop the beginning?
+    # for JAL7 4april, disconnected, chop the end
+    # bonsai_sync_onsets = bonsai_sync_onsets[:len(ephys_sync_onsets)]
+    # bonsai_sync_offsets = bonsai_sync_offsets[:len(ephys_sync_onsets)]
+    # visualize alignment
+    # i = 0
+    # plt.plot(imec_TTL[ephys_sync_onsets[i]-10000:ephys_sync_onsets[i]+150000])
+    # plt.plot(bonsai_ttl[bonsai_sync_onsets[i]-10000:bonsai_sync_onsets[i]+150000])
+    # plt.show()
+    # i = len(ephys_sync_onsets) - 1
+    # plt.plot(imec_TTL[ephys_sync_onsets[i]-150000:ephys_sync_onsets[i]+150000])
+    # plt.plot(bonsai_ttl[bonsai_sync_onsets[i]-150000:bonsai_sync_onsets[i]+150000])
+    # plt.show()
     
     assert len(bonsai_sync_onsets) == len(
         ephys_sync_onsets
