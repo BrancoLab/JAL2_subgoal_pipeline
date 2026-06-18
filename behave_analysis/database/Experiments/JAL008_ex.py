@@ -104,7 +104,7 @@ JAL8_flip4_10may = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL008_shelter_barrier_flip_4_2024_05_10T11_47_47"),
 )
 
-JAL8_14may = Experiment(  # Mouse specific
+JAL8_flip5_14may = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
     mouse_number_pyrat=mouse.mouse_number_pyrat,
@@ -121,7 +121,7 @@ JAL8_14may = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL008_shelter_barrier_flip_5_2024_05_14T10_18_03"),
 )
 
-JAL8_21may = Experiment(  # Mouse specific
+JAL8_tiny2_21may = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
     mouse_number_pyrat=mouse.mouse_number_pyrat,

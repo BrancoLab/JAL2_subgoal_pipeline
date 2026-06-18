@@ -44,4 +44,5 @@ def get_computer_specific_paths(session_path = '', return_ceph = False):
     if return_ceph:
         return ceph_path, DLC_path
     else:
+        logger.info("All data has been moved from winstor to ceph so we should always load ceph data now")
         return base_path, DLC_path

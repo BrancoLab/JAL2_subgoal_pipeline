@@ -53,6 +53,40 @@ JAL7_flip2_12mar = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL007_barrierflip2_2024_03_12T11_18_26"),
 )
 
+JAL7_flip3_15mar = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="sesh8",
+    experiment_idx=0,
+    experiment_date="2024_03_12",
+    experiment_time="11_18_26",
+    shelter_time=[.25, -1],
+    barrier_time=[59.8, -1],
+    barrier_flip_time= 188,
+    experiment_path=Path(r"JAL007_barrier_flip3_2024_03_15T11_20_19"),
+)
+
+JAL7_flip4_19mar = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="sesh8",
+    experiment_idx=0,
+    experiment_date="2024_03_12",
+    experiment_time="11_18_26",
+    shelter_time=[.25, -1],
+    barrier_time=[68.25, -1],
+    barrier_flip_time= 189.5,
+    experiment_path=Path(r"JAL007_barrier_flip4_2024_03_19T10_43_53"),
+)
+
 JAL7_flip5_22mar = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
@@ -70,7 +104,24 @@ JAL7_flip5_22mar = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL007_shelter_barrier_flip_5_2024_03_22T11_15_43"),
 )
 
-JAL7_sesh8_9apr = Experiment(  # Mouse specific
+JAL7_flip7_4apr = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="sesh8",
+    experiment_idx=0,
+    experiment_date="2024_04_09",
+    experiment_time="10_07_45",
+    shelter_time=[0.25, -1],
+    barrier_time=[94.7 , -1],
+    barrier_flip_time=209.75,
+    experiment_path=Path(r"JAL007_shelter_barrier_flip_7_2024_04_04T11_03_24"),
+)
+
+JAL7_flip8_9apr = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
     mouse_number_pyrat=mouse.mouse_number_pyrat,
@@ -87,7 +138,7 @@ JAL7_sesh8_9apr = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL007_shelter_barrier_flip_8_2024_04_09T10_07_45"),
 )
 
-JAL7_sesh9_16apr = Experiment(  # Mouse specific
+JAL7_flip9_16apr = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
     mouse_number_pyrat=mouse.mouse_number_pyrat,
@@ -104,7 +155,7 @@ JAL7_sesh9_16apr = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL007_shelter_barrier_flip_9_2024_04_16T11_13_05"),
 )
 
-JAL7_23apr = Experiment(  # Mouse specific
+JAL7_flip10_23apr = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
     mouse_number_pyrat=mouse.mouse_number_pyrat,
@@ -121,7 +172,7 @@ JAL7_23apr = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL007_shelter_barrier_flip_100_2024_04_23T09_59_40"),
 )
 
-JAL7_30apr = Experiment(  # Mouse specific
+JAL7_tiny_30apr = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
     mouse_number_pyrat=mouse.mouse_number_pyrat,

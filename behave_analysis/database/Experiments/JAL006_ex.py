@@ -35,23 +35,6 @@ JAL6_shelt_4mar = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL006_empty_shelter_2024_03_04T11_24_29"),
 )
 
-JAL6_28mar = Experiment(  # Mouse specific
-    nick_name=mouse.nick_name,
-    total_sessions=mouse.total_sessions,
-    mouse_number_pyrat=mouse.mouse_number_pyrat,
-    experiment_file_names=mouse.experiment_file_names,
-    root_path=mouse.root_path,
-    # Experiment specific
-    experiment_name="flip",
-    experiment_idx=6,
-    experiment_date="2024_03_28",
-    experiment_time="10_54_20",
-    shelter_time=[0.25, -1],
-    barrier_time=[60.26, 281.18],
-    barrier_flip_time=176,
-    experiment_path=Path(r"JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20"),
-)
-
 JAL6_flip3_18mar = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
@@ -103,6 +86,23 @@ JAL6_flip5_25mar = Experiment(  # Mouse specific
     experiment_path=Path(r"JAL006_shelter_barrier_flip_5_2024_03_25T11_05_33"),
 )
 
+JAL6_flip6_28mar = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="flip",
+    experiment_idx=6,
+    experiment_date="2024_03_28",
+    experiment_time="10_54_20",
+    shelter_time=[0.25, -1],
+    barrier_time=[60.26, 281.18],
+    barrier_flip_time=176,
+    experiment_path=Path(r"JAL006_shelter_barrier_flip_6_2024_03_28T10_54_20"),
+)
+
 JAL6_flip7_1apr = Experiment(  # Mouse specific
     nick_name=mouse.nick_name,
     total_sessions=mouse.total_sessions,
@@ -118,4 +118,21 @@ JAL6_flip7_1apr = Experiment(  # Mouse specific
     barrier_time=[77, -1],
     barrier_flip_time=189.25,
     experiment_path=Path(r"JAL006_shelter_barrier_flip_7_take2_2024_04_01T11_24_46"),
+)
+
+JAL6_flip8_5apr = Experiment(  # Mouse specific
+    nick_name=mouse.nick_name,
+    total_sessions=mouse.total_sessions,
+    mouse_number_pyrat=mouse.mouse_number_pyrat,
+    experiment_file_names=mouse.experiment_file_names,
+    root_path=mouse.root_path,
+    # Experiment specific
+    experiment_name="flip",
+    experiment_idx=8,
+    experiment_date="2024_04_05",
+    experiment_time="10_45_20",
+    shelter_time=[0.33, -1],
+    barrier_time=[86.5, -1],
+    barrier_flip_time=194.5,
+    experiment_path=Path(r"JAL006_shelter_barrier_flip_8_2024_04_05T10_45_20"),
 )
