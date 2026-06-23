@@ -9,7 +9,8 @@ import numpy as np
 
 # import
 # from behave_analysis.analyze.behaviour.spatial_efficiency import identify_condition_escape, base_plotting
-from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial
+from behave_analysis.analyze.behaviour.utils import base_plotting, 
+from behave_analysis.utils.identify_condition import identify_condition_of_trial
 from behave_analysis.utils.arena_plotting import Arena
 
 def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, session, settings, save_path):
