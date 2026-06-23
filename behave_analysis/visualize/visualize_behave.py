@@ -8,6 +8,7 @@ import polars as pl
 import dill as pickle
 
 
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
 from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
 from behave_analysis.visualize.behaviour.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_position
@@ -19,7 +20,7 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data, open_k
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions
 from settings.settings_visualize import defined_settings_visualize as settings_v
-from behave_analysis.utils.data_loading import load_or_extract_homings
+from settings.settings_overrides import settings_overrides
 
 class Visualize_behave:
     """
@@ -101,10 +102,12 @@ class Visualize_behave:
 
         if stim_type == "homing":
             logger.info("Making movies for homing trials")
-            homings_obj = load_or_extract_homings(self.session)
+            from settings.settings_analyze_behave import settings_ab
+            settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+            homings = get_Homings(settings_ab, self.session).get_homings(self.video_df, self.tracking_data)
 
-            onsets = homings_obj.onset_frames
-            stimulus_durations = homings_obj.stimulus_durations
+            onsets = homings["onset_frames"]
+            stimulus_durations = homings["stimulus_durations"]
 
         trial_movies(
             tracking_data=self.tracking_data,

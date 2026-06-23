@@ -22,6 +22,7 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.analyze.behaviour.homings_escapes.analyze_homing_consolidated import HomingAnalyzer
 from behave_analysis.utils.identify_condition import build_shelter_condition_bool, build_barrier_condition_bool, build_flippedbarrier_condition_bool, identify_condition_of_trial
+from settings.settings_overrides import settings_overrides
 
 class get_Homings:
     """Extract homings metrics from a session
@@ -61,14 +62,14 @@ class get_Homings:
         if self.settings.homings_use_boris:
             boris_path = os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv"
             if os.path.isfile(boris_path):
-                use_boris = True
+                self.use_boris = True
                 logger.info("Using manually labelled homings")
                 self.onset_frames, self.stimulus_durations, self.offset_frames = load_manual_labels(self.session)
             else:
                 logger.warning("You want to use Borris homing labelling, but Borris file doesn't exist! Automatically detecting homings instead")
-                use_boris = False
+                self.use_boris = False
         
-        if self.settings.homings_use_boris == False or use_boris == False:
+        if self.settings.homings_use_boris == False or self.use_boris == False:
             # Begin extracting variables for homings
             logger.info("Extracting homings automatically...")
             self.identify_homing_runs_with_logic(video_df = video_df, tracking_data = tracking_data)
@@ -96,6 +97,9 @@ class get_Homings:
         np.savez(os.path.join(filename + "_results.npz"), **results_dict, allow_pickle=True)
         settings = asdict(self.settings)
         np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
+        set_dict = {**settings_to_check(self.settings, ["homing"])}
+        if self.settings.homings_use_boris and self.use_boris:
+            set_dict = {**settings_to_check(self.settings, ["homing"]), "homings_curated": True}
         add_run_to_database(self.database, 
                             {**settings_to_check(self.settings, ["homing"])}, 
                             self.savepath + os.sep + "Homing_database.csv", 
@@ -356,3 +360,28 @@ def load_manual_labels(session) -> tuple:
     durations = offsets - onsets
     durations = np.array([[x] for x in (durations) / session.video.fps])  # match the format of the automatic labels
     return onsets, durations, offsets
+
+# ------------------- SAVING BOOL TO DF -------------------------------
+def add_homie_to_video_df(session, video_df, tracking_data = [], savepath = []):
+
+    from settings.settings_analyze_behave import settings_ab
+    settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+    homing = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings(video_df, tracking_data)
+
+    # if homing data is present, create a boolean array to indicate when homing is occuring in the session
+    number_of_frames = len(video_df)
+    homing_bool = np.zeros(number_of_frames, dtype=bool)
+    onset_frames = homing["onset_frames"]
+    offset_frames = homing["offset_frames"]
+    for onset, offset in zip(onset_frames, offset_frames):
+        homing_bool[onset: offset + 1] = True
+
+    if "homingPeriod" in video_df.columns:
+        video_df = video_df.drop("homingPeriod")
+    video_df = video_df.hstack([pl.Series("homingPeriod", homing_bool)])
+
+    # save the video dataframe
+    if len(savepath) > 0:
+        video_df.write_csv(savepath)
+
+    return video_df

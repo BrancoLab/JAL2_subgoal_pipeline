@@ -11,8 +11,9 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import check_not
 from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
-from behave_analysis.utils.data_loading import load_or_extract_homings
-from behave_analysis.analyze.behaviour.homings_escapes.homings import Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.utils.identify_condition import build_shelter_condition_bool, build_barrier_condition_bool, build_flippedbarrier_condition_bool
+from settings.settings_overrides import settings_overrides
 
 
 class BaseDataPostprocessor(ABC):
@@ -140,36 +141,13 @@ class BaseDataPostprocessor(ABC):
             OutofShelterIdx = np.logical_not(np.zeros(len(self.tracking_data["hdir"])))
 
         # when was the shelter in the arena?
-        if len(self.session.shelter_time) > 0:
-            start = self.session.shelter_time[0] * self.session.video.fps * 60
-            if self.session.shelter_time[1] == -1:  # shelter until the end of the session
-                end = n_frames + 1
-            else:
-                end = self.session.shelter_time[1] * self.session.video.fps * 60
-            
-            shelter = np.logical_and(frame_idx > start, frame_idx < end)
-        else:
-            # there was never a shelter in the session, so shelter is always false
-            shelter = np.full(n_frames, False)
+        shelter = build_shelter_condition_bool(session=self.session, frame_idx=frame_idx, n_frames=n_frames)
 
         # what period in the recording was there a barrier?
-        if len(self.session.barrier_time) > 0:
-            start = self.session.barrier_time[0] * self.session.video.fps * 60
-            if self.session.barrier_time[1] == -1:  # barrier present until the end of the session
-                end = n_frames + 1
-            else:
-                end = self.session.barrier_time[1] * self.session.video.fps * 60
-            barrier_present = np.logical_and(frame_idx > start, frame_idx < end)
-        else:
-            barrier_present = np.full(n_frames, False)
-            print("no barrier in this session")
+        barrier_present = build_barrier_condition_bool(session=self.session, frame_idx=frame_idx, n_frames=n_frames)
 
         # when was the barrier flipped?
-        if self.session.barrier_flip_time:
-            barrier_flipped = frame_idx > (self.session.barrier_flip_time * self.session.video.fps * 60)
-        else:
-            barrier_flipped = np.full(n_frames, False)
-            print("barrier was not flipped in this session")
+        barrier_flipped = build_flippedbarrier_condition_bool(session=self.session, frame_idx=frame_idx, n_frames=n_frames)
 
         # find the escape periods: from stim onset to offset
         EscapePeriod = np.zeros_like(OutofShelterIdx)
@@ -208,23 +186,6 @@ class BaseDataPostprocessor(ABC):
         if "hdir_randP" in self.tracking_data:
             for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
                 video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
-
-        # save the video dataframe
-        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
-
-        return video_df
-
-    def add_homie_to_video_df(self, video_df, homing_obj):
-
-        # if homing data is present, create a boolean array to indicate when homing is occuring in the session
-        number_of_frames = len(video_df)
-        homing_bool = np.zeros(number_of_frames, dtype=bool)
-        onset_frames = homing_obj.onset_frames
-        offset_frames = homing_obj.offset_frames
-        for onset, offset in zip(onset_frames, offset_frames):
-            homing_bool[onset: offset + 1] = True
-
-        video_df = video_df.hstack([pl.Series("homingPeriod", homing_bool)])
 
         # save the video dataframe
         video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
@@ -501,9 +462,10 @@ class DataPostprocessor(BaseDataPostprocessor):
         video_df = self.track_to_polars()
         QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session)  # For now just log the warning and don't touch the data
         if settings.homings:
-            homings = load_or_extract_homings(session)
-            escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
-            video_df = self.add_homie_to_video_df(video_df, homings)
+            from settings.settings_analyze_behave import settings_ab
+            settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+            homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings(video_df, self.tracking_data)
+            video_df = add_homie_to_video_df(video_df, homings, savepath = os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
