@@ -10,7 +10,7 @@ JAL5_shelt_2Sept = Experiment(# Mouse specific
                     root_path = mouse.root_path,
                     
                     # Experiment specific
-                    experiment_name='empty_shelter_2nd_sept_jal005',
+                    experiment_name='shelter',
                     experiment_idx=1,
                     experiment_date="2023_09_02",
                     experiment_time="11_00_25",
@@ -27,7 +27,7 @@ JAL5_barr_5Sept = Experiment(# Mouse specific
                     root_path = mouse.root_path,
                     
                     # Experiment specific
-                    experiment_name='barrier1_5th_sept_jal005',
+                    experiment_name='barrier',
                     experiment_idx=1,
                     experiment_date="2023_09_05",
                     experiment_time="07_48_58",
@@ -44,7 +44,7 @@ JAL5_flip1_8Sept = Experiment(# Mouse specific
                     root_path = mouse.root_path,
                     
                     # Experiment specific
-                    experiment_name='flip_puff1_8th_sept_jal005',
+                    experiment_name='flip',
                     experiment_idx=1,
                     experiment_date="2023_09_08",
                     experiment_time="07_36_54",
@@ -61,7 +61,7 @@ JAL5_flip3_21Sept = Experiment(# Mouse specific
                     root_path = mouse.root_path,
                     
                     # Experiment specific
-                    experiment_name = '21stSept_barrierflip',
+                    experiment_name = 'flip',
                     experiment_idx=2,
                     experiment_date="2023_09_21",
                     experiment_time="11_11_13",
