@@ -12,6 +12,8 @@ Simplified workflow:
 8. Syd viewer with manual curation (remove run)
 """
 
+import os
+
 import numpy as np
 import pandas as pd
 import polars as pl
@@ -19,9 +21,13 @@ from pathlib import Path
 from typing import Dict, List, Tuple, Optional
 from dataclasses import dataclass, field
 from loguru import logger
+import json
 import matplotlib.pyplot as plt
 from scipy import stats
+from behave_analysis.analyze.behaviour.homings_escapes.homings import load_manual_labels
+from behave_analysis.database.computer_ID import get_computer_specific_paths
 from behave_analysis.utils.arena_plotting import Arena
+from behave_analysis.utils.creating_directories import make_directory
 
 @dataclass
 class RunFeatures:
@@ -70,12 +76,14 @@ class SessionData:
 class HomingAnalyzer:
     """Consolidated homing/escape detection pipeline."""
     
-    def __init__(self, experiments_dict: Dict):
+    def __init__(self, experiments_list: List, settings: object):
         """
         Args:
-            experiments_dict: Dict[session_name] = experiment_object
+            experiments_list: List of experiment objects
+            settings: Settings object containing analysis parameters
         """
-        self.experiments = experiments_dict
+        self.experiments = experiments_list
+        self.settings = settings
         self.session_data: Dict[str, SessionData] = {}
         self.all_runs: List[RunFeatures] = []
         self.extracted_runs: List[RunFeatures] = []
@@ -85,6 +93,8 @@ class HomingAnalyzer:
         self.phase2_selected_features: List[str] = []
         self.output_dir = Path('analysis_output')
         self.output_dir.mkdir(exist_ok=True)
+        base_path,_ = get_computer_specific_paths(session_path='', return_ceph=True)
+        self.homings_base_path = make_directory(os.path.join(base_path, "Homings"))
         
     def load_all_sessions(self) -> None:
         """Load session data from experiment objects."""
@@ -93,13 +103,21 @@ class HomingAnalyzer:
         
         logger.info(f"Loading {len(self.experiments)} sessions...")
         
-        for session_name, exp in self.experiments.items():
+        for exp in self.experiments:
+            session_name = exp.nick_name + '_' + exp.experiment_name + '_' + exp.experiment_date
             try:
                 session = Process(exp).load_session()
                 tracking_data = open_tracking_data(session)
                 video_df_path = Path(session.base_path) / session.processed_path / 'full_video_dataframe.csv'
                 video_df = pl.read_csv(video_df_path)
                 
+                # check if manual labels exist
+                if os.path.isfile(session.base_path + '/' + session.processed_path + '/Borris/scored_homings.csv'):
+                    onset, _, offset = load_manual_labels(session)
+                    ishoming = np.zeros(len(video_df), dtype=bool)
+                    for on, off in zip(onset, offset):
+                        ishoming[on:off + 1] = True
+
                 fps = float(session.video.fps) if hasattr(session.video, 'fps') else 30.0
                 pixel_per_cm = float(session.video.pixels_per_cm) if hasattr(session.video, 'pixels_per_cm') else 1.0
                 
@@ -113,7 +131,7 @@ class HomingAnalyzer:
                         tracking_data['avg_loc'][:, 0],
                         tracking_data['avg_loc'][:, 1]
                     ]),
-                    is_homing=video_df['homingPeriod'].to_numpy(),
+                    is_homing=ishoming,
                     is_escape=video_df['EscapePeriod'].to_numpy(),
                     barrier_loc=tracking_data.get('barrier_loc', None),
                     barrier_present=video_df['barrier_present'].to_numpy(),
@@ -123,7 +141,38 @@ class HomingAnalyzer:
                 logger.info(f"  ✓ {session_name}")
             except Exception as e:
                 logger.error(f"  ✗ {session_name}: {e}")
-                
+    
+    def preloaded_session_data(self, video_df: pl.DataFrame, tracking_data: Dict, session) -> None:
+        """If running homing analyzer from analyze_behave or other piepeline where data has been loaded already, 
+        this function takes the preloaded data and formats it into the session_data dictionary."""
+
+        session_name = session.mouse + '_' + session.experiment + '_' + session.date
+
+        # check if manual labels exist
+        if os.path.isfile(session.base_path + '/' + session.processed_path + '/Borris/scored_homings.csv'):
+            onset, _, offset = load_manual_labels(session)
+            ishoming = np.zeros(len(video_df), dtype=bool)
+            for on, off in zip(onset, offset):
+                ishoming[on:off + 1] = True
+
+        self.session_data[session_name] = SessionData(
+                    name=session_name,
+                    fps=float(session.video.fps),
+                    pixel_per_cm=float(session.video.pixels_per_cm),
+                    speed=video_df['speed'].to_numpy(),
+                    hdir=video_df['hdir'].to_numpy(),
+                    xy_position=np.column_stack([
+                        tracking_data['avg_loc'][:, 0],
+                        tracking_data['avg_loc'][:, 1]
+                    ]),
+                    is_homing=ishoming,
+                    is_escape=video_df['EscapePeriod'].to_numpy(),
+                    barrier_loc=tracking_data.get('barrier_loc', None),
+                    barrier_present=video_df['barrier_present'].to_numpy(),
+                    barrier_flipped=video_df['barrier_flipped'].to_numpy(),
+                    outofshelter_idx=video_df['OutofshelterIdx'].to_numpy(),
+                )
+        
     def extract_runs(self, speed_threshold: float = 2.0, gap_tolerance_frames: int = 10) -> None:
         """
         Extract runs based on speed threshold with gap merging.
@@ -299,7 +348,7 @@ class HomingAnalyzer:
         run.displacement_vertical_ratio = float(disp[1] / (np.linalg.norm(disp) + 1e-8))
         
         # Initial acceleration (first 1.0s)
-        window_frames = int(round(1.0 * fps))
+        window_frames = int(round(self.settings.homings_features_initial_window_s * fps))
         if len(speed_seg) > window_frames:
             accel = (speed_seg[window_frames] - speed_seg[0]) / 1.0  # cm/s per second
             run.mean_initial_acceleration = float(accel)
@@ -308,7 +357,7 @@ class HomingAnalyzer:
         
         # Initial head direction change (0.5-1.5s window, circular mean)
         on_0p5 = int(round(0.5 * fps))
-        off_1p5 = int(round(1.5 * fps))
+        off_1p5 = int(round((self.settings.homings_features_initial_window_s+0.5) * fps))
         if off_1p5 <= len(hdir_seg):
             hdir_window = hdir_seg[on_0p5:off_1p5]
             hdir_change = np.abs(self._circular_mean(hdir_window) - hdir_seg[0])
@@ -318,7 +367,6 @@ class HomingAnalyzer:
             run.initial_hdir_change_abs = np.nan
         
         # Mean initial angular head velocity (first 1.0s, 3-frame step)
-        window_frames = int(round(1.0 * fps))
         if len(hdir_seg) > 3:
             step = 3
             hdir_diff = np.abs(np.diff(self._wrap_to_pi(hdir_seg[:window_frames]), n=step))
@@ -425,7 +473,7 @@ class HomingAnalyzer:
         self.feature_ranking.sort(key=lambda x: abs(x[1]['cohens_d']), reverse=True)
         
         logger.info("  Feature ranking (by |Cohen's d|):")
-        for idx, (fname, stats_dict) in enumerate(self.feature_ranking[:10]):
+        for idx, (fname, stats_dict) in enumerate(self.feature_ranking):
             logger.info(
                 f"    {idx+1}. {fname}: d={stats_dict['cohens_d']:.3f}, "
                 f"AUC={stats_dict['auc']:.3f}, p={stats_dict['pval']:.3e}"
@@ -529,20 +577,25 @@ class HomingAnalyzer:
         fig.legend(handles=legend_handles, loc='upper right', fontsize=9)
         
         plt.tight_layout()
+
+        fig_path = os.path.join(self.homings_base_path, "feature_distributions.png")
+        fig.savefig(fig_path, dpi=150, bbox_inches='tight')
+        logger.info(f"  Saved feature distributions to {fig_path}")
     
-    def fit_phase2_gates(self, target_recall: float = 0.90) -> Dict[str, Dict]:
+    def fit_classification_gates(self, target_recall: float = 0.90) -> Dict[str, Dict]:
         """
         Fit single-feature binary gates using manually-labelled runs.
         Returns learned gates.
         """
-        logger.info(f"Fitting Phase 2 gates (target_recall={target_recall})...")
+        logger.info(f"Fitting gates (target_recall={target_recall})...")
         
         exploration_runs = [r for r in self.extracted_runs if r.is_exploration]
         target_runs = self.manual_runs
         
         self.phase2_gates = {}
-        
-        for fname, _ in self.feature_ranking[:4]:
+        ranking_stats = {fname: sd for fname, sd in self.feature_ranking}
+
+        for fname, _ in self.feature_ranking:
             tgt_vals = np.array([getattr(r, fname) for r in target_runs], dtype=float)
             exp_vals = np.array([getattr(r, fname) for r in exploration_runs], dtype=float)
             
@@ -560,7 +613,10 @@ class HomingAnalyzer:
             if len(pool) > 200:
                 pool = np.quantile(pool, np.linspace(0.01, 0.99, 200))
             
-            best_gate = None
+            best_gate_recall = None  # meets target_recall, highest precision
+            best_gate_f1 = None      # best F1 overall (fallback)
+            best_f1_score = -1.0
+
             for thr in pool:
                 if direction == '>=':
                     tp = np.sum(tgt_vals >= thr)
@@ -571,18 +627,33 @@ class HomingAnalyzer:
                 
                 recall = tp / len(tgt_vals) if len(tgt_vals) > 0 else 0.0
                 precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-                
+                f1 = 2.0 * precision * recall / (precision + recall + 1e-12)
+
+                gate_entry = {
+                    'feature': fname,
+                    'dir': direction,
+                    'threshold': float(thr),
+                    'recall': float(recall),
+                    'precision': float(precision),
+                }
+
                 if recall >= target_recall:
-                    if best_gate is None or precision > best_gate['precision']:
-                        best_gate = {
-                            'feature': fname,
-                            'dir': direction,
-                            'threshold': float(thr),
-                            'recall': float(recall),
-                            'precision': float(precision),
-                        }
+                    if best_gate_recall is None or precision > best_gate_recall['precision']:
+                        best_gate_recall = gate_entry
+                
+                if f1 > best_f1_score:
+                    best_f1_score = f1
+                    best_gate_f1 = gate_entry
             
+            best_gate = best_gate_recall if best_gate_recall is not None else best_gate_f1
             if best_gate is not None:
+                # Enrich with distribution-level stats so the saved file is self-contained
+                fd = ranking_stats.get(fname, {})
+                best_gate['cohens_d']        = float(fd.get('cohens_d', np.nan))
+                best_gate['auc']             = float(fd.get('auc', np.nan))
+                best_gate['auc_session_mean']= float(fd.get('auc_session_mean', np.nan))
+                best_gate['n_target']        = int(fd.get('n_target', 0))
+                best_gate['n_exploration']   = int(fd.get('n_exploration', 0))
                 self.phase2_gates[fname] = best_gate
                 logger.info(
                     f"  {fname}: keep if value {best_gate['dir']} {best_gate['threshold']:.4f} "
@@ -590,9 +661,15 @@ class HomingAnalyzer:
                 )
         
         self.phase2_selected_features = list(self.phase2_gates.keys())
+
+        gates_path = os.path.join(self.homings_base_path, "fitted_homing_classification_gates.json")
+        with open(gates_path, 'w') as f:
+            json.dump(self.phase2_gates, f, indent=2)
+        logger.info(f"  ✓ Saved {len(self.phase2_gates)} gates to {gates_path}")
+
         return self.phase2_gates
     
-    def run_phase2_classification(
+    def run_classification(
         self,
         manual_gates: Optional[Dict[str, Dict]] = None,
         use_learned_gates: bool = True,
@@ -602,15 +679,33 @@ class HomingAnalyzer:
         
         Args:
             manual_gates: Optional dict of {feature_name: {'dir': '>=', 'threshold': value}}
-            use_learned_gates: If True, use fitted gates; if False, use manual_gates
+            use_learned_gates: If True, load gates from disk and filter by target_recall
+            target_recall: Minimum recall a gate must achieve to be used (only applied when use_learned_gates=True)
         """
-        if use_learned_gates and len(self.phase2_gates) == 0:
-            raise RuntimeError("Run fit_phase2_gates() first or set use_learned_gates=False")
-        
         if not use_learned_gates and manual_gates is None:
             raise ValueError("Must provide manual_gates if use_learned_gates=False")
-        
-        gates = self.phase2_gates if use_learned_gates else manual_gates
+
+        if use_learned_gates:
+            gates_path = os.path.join(self.homings_base_path, "fitted_homing_classification_gates.json")
+            # if not gates_path.exists():
+            #     raise RuntimeError(f"Gates file not found: {gates_path}. Run fit_classification_gates() first.")
+            with open(gates_path, 'r') as f:
+                all_gates = json.load(f)
+            gates = {
+                        k: v for k, v in all_gates.items()
+                        if v.get('recall', 0.0)           >= self.settings.homings_classification_recall_threshold
+                        and v.get('precision', 0.0)        >= self.settings.homings_classification_precision_threshold
+                        and v.get('auc', 0.0)              >= self.settings.homings_classification_auc_threshold
+                        and abs(v.get('cohens_d', 0.0))    >= self.settings.homings_classification_cohens_d_threshold
+                    }
+            self.classification_gates = gates
+            logger.info(
+                        f"  Loaded {len(all_gates)} gates; {len(gates)} pass filters "
+                        f"(recall>={self.settings.homings_classification_recall_threshold}, precision>={self.settings.homings_classification_precision_threshold}, "
+                        f"auc>={self.settings.homings_classification_auc_threshold}, |d|>={self.settings.homings_classification_cohens_d_threshold})"
+                    )
+        else:
+            gates = manual_gates
         logger.info(f"Running Phase 2 classification with {len(gates)} gates...")
         
         candidates = []
@@ -643,14 +738,14 @@ class HomingAnalyzer:
                     'feature_values': {fname: float(getattr(run, fname, np.nan)) for fname in gates.keys()},
                 })
 
-        self.phase2_candidates_by_session = candidates_by_session
-        self.phase2_candidate_meta = candidate_meta_by_session
-        self.phase2_gates_used = gates
+        self.candidates_by_session = candidates_by_session
+        self.candidate_meta = candidate_meta_by_session
+        self.gates_used = gates
         
         logger.info(f"  ✓ {len(candidates)} runs passed Phase 2 gates")
         return candidates
     
-    def compute_phase3_overlap(
+    def compute_manualvsauto_overlap(
         self,
         candidates: Optional[List[Tuple[int, int]]] = None,
         candidates_by_session: Optional[Dict[str, List[Tuple[int, int]]]] = None,
@@ -666,8 +761,8 @@ class HomingAnalyzer:
         # Prefer explicit session mapping. If unavailable, use stored Phase 2 mapping.
         # A flat candidates list is ambiguous across sessions and can inflate counts.
         if candidates_by_session is None:
-            if hasattr(self, 'phase2_candidates_by_session'):
-                candidates_by_session = self.phase2_candidates_by_session
+            if hasattr(self, 'candidates_by_session'):
+                candidates_by_session = self.candidates_by_session
             elif candidates is not None and len(self.session_data) == 1:
                 only_session = list(self.session_data.keys())[0]
                 candidates_by_session = {only_session: list(candidates)}
@@ -764,44 +859,47 @@ class HomingAnalyzer:
         self,
         candidates: List[Tuple[int, int]],
         session_name: Optional[str] = None,
-        removed_run_log_path: Optional[Path] = None,
-        speed_threshold: float = 2.0,
         include_manual_events_in_iteration: bool = True,
+        manual_curation = False,
     ):
         """
         Create interactive Syd viewer for exploring extracted runs and manual labels.
         Optional: save removed runs to CSV.
         
         Args:
-            candidates: List of (onset, offset) tuples for Phase 2 candidates
-            session_name: Filter to single session (if None, includes all)
-            removed_run_log_path: Path to save removed runs CSV
+            candidates: List of (onset, offset) tuples if only plotting one session, or a dict of {session_name: [(onset, offset), ...]} if plotting multiple sessions
+            session_name: Filter to single session (if None, includes all), or if pasing a list of tuples give name as str
         """
         from syd import make_viewer
         
         if session_name is None:
-            session_names = list(self.session_data.keys())
+            if isinstance(candidates, list):
+                logger.error("Session name must be provided when candidates is a flat list. Pass candidates as a dict of {session_name: [(onset, offset), ...]} instead.")
+                return
+            session_names = list(candidates.keys())
+            candidates_by_session = candidates
         else:
             session_names = [session_name]
-
-        if hasattr(self, 'phase2_candidates_by_session'):
-            candidates_by_session = self.phase2_candidates_by_session
-        elif session_name is not None:
             candidates_by_session = {session_name: list(candidates)}
-        else:
-            raise RuntimeError(
-                "Session-wise candidates are required for multi-session viewer. "
-                "Run run_phase2_classification() first or pass session_name with candidates."
-            )
         
         viewer = make_viewer()
         viewer.add_integer('trial', min=0, max=500, value=0)
-        viewer.add_integer('speed_thresh', min=0, max=20, value=speed_threshold)
+        viewer.add_integer('speed_thresh', min=0, max=20, value=self.settings.homings_speed_threshold)
         viewer.add_integer('session_idx', min=0, max=len(session_names) - 1, value=0)
         viewer.add_integer('include_manual_events', min=0, max=1, value=1 if include_manual_events_in_iteration else 0)
         
-        removed_runs = {}  # Event IDs of removed runs
-        
+        if manual_curation:
+            removed_runs = {}  # Event IDs of removed runs
+
+            def remove_run(state):
+                idx = int(state['trial'])
+                s_name = session_names[int(state['session_idx'])]
+                if s_name not in removed_runs.keys():
+                    removed_runs[s_name] = [idx]
+                else:
+                    removed_runs[s_name].append(idx)
+            viewer.add_button('remove_event', label='Remove Event', callback = remove_run, replot = False)
+
         def plot(state):
             idx = int(state['trial'])
             s_name = session_names[int(state['session_idx'])]
@@ -865,13 +963,6 @@ class HomingAnalyzer:
             onset = int(all_onsets[idx])
             offset = int(all_offsets[idx])
 
-            event_key = (s_name, onset, offset, int(all_source[idx]))
-            if event_key in removed_runs:
-                fig, ax = plt.subplots(1, 1, figsize=(8, 3))
-                ax.axis('off')
-                ax.text(0.02, 0.8, f"Event marked removed: {event_key}")
-                return fig
-
             pad = int(round(fps))
             start = max(0, onset - pad)
             stop = min(n_frames, offset + pad + 1)
@@ -906,7 +997,7 @@ class HomingAnalyzer:
                 barrier_coordinates = data.barrier_loc[:-1], full_image = False)
 
             src = 'candidate' if all_source[idx] == 0 else 'manual'
-            axs[0, 0].set_title(f'{s_name} | trial {idx} ({src}) | onset={onset} offset={offset}')
+            axs[0, 0].set_title(f'{s_name} | trial {idx} ({src})')
             axs[0, 0].set_xlim(0, 1024)
             axs[0, 0].set_ylim(0, 1024)
             axs[0, 0].set_aspect('equal')
@@ -946,69 +1037,10 @@ class HomingAnalyzer:
             cand_count = int(np.sum(candidate_mask[onset:offset + 1]))
             axs[0, 1].set_title(f'candidate frames={cand_count} | manual frames={manual_count} | overlap={overlap}')
 
-            if all_source[idx] == 0:
-                axs[2, 1].text(
-                    0.02,
-                    0.95,
-                    'REMOVE THIS RUN: set state["remove_current"]=1',
-                    transform=axs[2, 1].transAxes,
-                    va='top',
-                    ha='left',
-                    fontsize=9,
-                    bbox=dict(boxstyle='round', facecolor='red', alpha=0.20),
-                )
-
-            if int(state.get('remove_current', 0)) == 1 and all_source[idx] == 0:
-                removed_runs[event_key] = True
-
             plt.tight_layout()
             return fig
 
         viewer.set_plot(plot)
-        viewer.add_integer('remove_current', min=0, max=1, value=0)
-        
-        # Store state for curation
-        viewer.removed_runs = removed_runs
-        viewer.session_names = session_names
-        viewer.candidates_by_session = candidates_by_session
-        viewer.removed_run_log_path = removed_run_log_path or (self.output_dir / 'removed_runs.csv')
 
-        logger.info("Syd viewer created. Set remove_current=1 on a candidate trial to mark removal.")
-        return viewer
+        return viewer, removed_runs
     
-    def save_removed_runs(self, viewer, removed_event_ids: List[int]) -> None:
-        """Save removed runs to CSV."""
-        if hasattr(viewer, 'removed_runs') and len(getattr(viewer, 'removed_runs', {})) > 0:
-            rows = []
-            for key in viewer.removed_runs.keys():
-                s_name, onset, offset, src = key
-                rows.append({
-                    'session_name': s_name,
-                    'onset': onset,
-                    'offset': offset,
-                    'type': 'candidate' if src == 0 else 'manual',
-                    'duration_frames': offset - onset + 1,
-                })
-            df = pd.DataFrame(rows)
-            df.to_csv(viewer.removed_run_log_path, index=False)
-            logger.info(f"Saved {len(rows)} removed runs to {viewer.removed_run_log_path}")
-            return
-
-        rows = []
-        for evt_id in removed_event_ids:
-            if hasattr(viewer, 'all_events') and evt_id < len(viewer.all_events):
-                on, off, s_name, is_cand, _ = viewer.all_events[evt_id]
-                rows.append({
-                    'session_name': s_name,
-                    'onset': on,
-                    'offset': off,
-                    'type': 'candidate' if is_cand else 'manual',
-                    'duration_frames': off - on + 1,
-                })
-        
-        if rows:
-            df = pd.DataFrame(rows)
-            df.to_csv(viewer.removed_run_log_path, index=False)
-            logger.info(f"Saved {len(rows)} removed runs to {viewer.removed_run_log_path}")
-
-
