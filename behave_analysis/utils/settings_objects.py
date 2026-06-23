@@ -77,28 +77,23 @@ class Settings_visualize:
 
 @dataclass(frozen=True)
 class Settings_analyze_behave:
-    stim_type: str = "None"
     show_plots: bool = False
     # homing settings
-    fast_speed: float = 10  # 15 cm/s seems quite slow no? In the paper philip used 10 cm/s
-    min_frames_between_trials: int = 40  # 1 second between trials to stop double counting split homings
-    edge_proximity: int = 100  # 10 pixels is 1 cm, so 100 pixels is 10 cm. Defining subgoal start homings
-    fast_angular_speed: float = np.pi / 2  # Turning towards some reference location speed in rad/s with a threshold of 60 degrees
-    padding_duration: float = 0.5  # How long should the box car filter be in seconds and how long should a homing event be
-    min_change_in_dist_to_shelter: float = 0.3  # (maybe %) How far does the mouse have to move towards the shelter to be considered a homing event
-    max_time_within_session: float = 2000  # How long is session in minutes - Ignore I think # TODO remove?
-    threat_area_width: int = 820
-    cum_threshold: int = 25  # How many cm does the mouse have to move when considering homing angle
-    speed_threshold: int = 15  # this determined when the mouse has actually srated running (after the initial head turn)
-    threat_area_height: int = 275
-    by_session: bool = True
-    # sessions: list
-    all_sessions: bool = False
-    redo_homings: bool = False  # TODO remove!
-    use_boris: bool = True
+    homings_speed_threshold: float = 4.0  # cm/s, used to find bouts of running that may be homings
+    homings_gap_tolerance: int = 1  # frames, used to merge bouts
+    homings_features_initial_window_s: float = 1.0  # seconds, used to compute initial features of homings like acceleration and hdir change
+    homing_classification_target_recall: float = 0.9  # minimum recall for a gate to be considered valid
+    homings_classification_recall_threshold: float = 0.9  # minimum recall for a feature gate to be considered valid
+    homings_classification_precision_threshold: float = 0.1  # minimum precision for a feature gate to be considered valid
+    homings_classification_auc_threshold: float = 0.9  # or .8, minimum AUC for a feature gate to be considered valid
+    homings_classification_cohens_d_threshold: float = 1  # minimum absolute Cohen's d for a feature gate to be considered valid
+    redo_compute: bool = False
+    homings_use_boris: bool = True
+    homings_distance_threshold: int = 25 # in cm, minimum lengthto be kept as a homings
     # escape_settings
-    stim_type: str = "audio"
-    response_thresh: int = 5
+    escape_stim_type: str = "audio"
+    escape_response_thresh: int = 5
+    escape_speed_threshold: float = 10.0  # cm/s, used to find bouts of running that may be escapes
 
 
 @dataclass(frozen=True)
@@ -169,7 +164,11 @@ class Settings_analyze_efizz:
     cca_n_components: int = 3  # number of CCA components to compute
     cca_test_sets: list = None  # list of test sets to use for CCA, e.g. ["explore", "homing", "escape"]
     cca_train_set: str = "explore"  # name of training set to use for CCA, e.g. "explore"
-    cca_xval_method: str = "random_split"  # method for splitting data into train and test sets, e.g. "random split", "half", "random split", "half", "match_pos_homings", "match_pos_hdir_homings"
+    cca_xval_method: str = (
+        "random_split"  # method for splitting data into train and test sets, e.g. "random split", "half", "random split", "half", "match_pos_homings", "match_pos_hdir_homings"
+    )
+
+
 @dataclass(frozen=True)
 class Settings_postprocess:
     cluster_type: str = ""
