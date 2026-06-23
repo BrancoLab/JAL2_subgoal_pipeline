@@ -9,6 +9,7 @@ import pickle
 import pandas as pd
 
 from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells, COLUMNS_TO_KEEP
+from behave_analysis.analyze.behaviour.homings_escapes.homings import add_homie_to_video_df
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA
@@ -61,6 +62,10 @@ class AnalyzeEfizz:
                 # it doesn't always work with .parquet
                 video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
                 self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
+                video_df = pl.Dataframe({"frames": np.unique(self.video_and_spike_data["frames"].to_numpy())})
+                video_df = add_homie_to_video_df(self.session, video_df)
+                self.video_and_spike_data = self.video_and_spike_data.join(video_df.select([pl.col("frames").cast(pl.Float64), pl.col("homingPeriod")]).unique(subset=["frames"], keep="first"), 
+                                                                           on="frames", how="left")
                 
             except FileNotFoundError:
                 logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (try removing .parquet?)")
@@ -79,7 +84,8 @@ class AnalyzeEfizz:
                     pass
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
-        
+            self.video_df = add_homie_to_video_df(self.session, self.video_df)
+            
         # load firing rate matrix
         if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'CCA']:
 

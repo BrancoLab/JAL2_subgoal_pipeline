@@ -30,15 +30,15 @@ def load_or_extract_homings(session):
     - AssertionError: If the homing data file does not exist at the expected path.
     """
     logger.warning("This homing loading function is deprecated! Use getHomings class with redo_compute set to False!")
-    homie_path = os.path.join(session.base_path, session.processed_path, "homings", "homings_obj.pkl")
-    if np.logical_and(os.path.exists(homie_path), not(settings.redo_homings)):
-        logger.info("Homings object found. Loading...")
-        with open(homie_path, "rb") as dill_file:
-            homings = pickle.load(dill_file)
-    else:
-        logger.info("Homings object not found. Extracting homings now...")
-        homings_obj = get_Homings(settings=settings, session=session)
-    return homings_obj
+    # homie_path = os.path.join(session.base_path, session.processed_path, "homings", "homings_obj.pkl")
+    # if np.logical_and(os.path.exists(homie_path), not(settings.redo_homings)):
+    #     logger.info("Homings object found. Loading...")
+    #     with open(homie_path, "rb") as dill_file:
+    #         homings = pickle.load(dill_file)
+    # else:
+    #     logger.info("Homings object not found. Extracting homings now...")
+    #     homings_obj = get_Homings(settings=settings, session=session)
+    # return homings_obj
 
 
 def load_or_extract_escapes(session):
@@ -67,6 +67,6 @@ def load_or_extract_escapes(session):
     else:
         logger.info("Escape dict not found. Extracting escapes now...")
         settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
-            homings = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings()
+        homings = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings()
         escapes = get_Escapes(settings, session, tracking_data = [], video_df = [], homings = homings)
     return escapes
