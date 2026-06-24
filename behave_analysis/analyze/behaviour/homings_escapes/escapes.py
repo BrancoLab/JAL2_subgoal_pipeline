@@ -46,7 +46,7 @@ class get_Escapes:
         return {
             "stim_onset_frames": list(onset_frames), # when was the stim presented
             "stimulus_durations": list(stimulus_durations),
-            "onset_frames": [], # when did the actual escape start
+            "onset_frames": list(onset_frames), # when did the actual escape start
             "offset_frames": [a + b for a, b in zip(onset_frames, stimulus_durations)],
             "escape_latency_sec": np.zeros_like(onset_frames).astype(float), # how many seconds after stim onset did the mouse escape
             "freeze_bool": np.zeros_like(onset_frames), # did the mouse freeze?
@@ -85,17 +85,19 @@ class get_Escapes:
         for c_fr, on_fr in enumerate(onset_frames):
             # this is always the head ori when the stim was first played
             self.results["hdir_at_start"][c_fr] = self.tracking_data["hdir"][on_fr]
+            self.homings["escapes"] = np.zeros_like(self.homings["onset_frames"], dtype=bool)  # init a new column in the homings object to mark which homings are escapes
 
-            (
-                self.results["offset_frames"][c_fr],
-                self.results["start_locs"][c_fr, :],
-                self.results["end_locs"][c_fr, :],
-                self.results["avg_speed"][c_fr],
-                head_orientation_dic,
-                self.results["onset_frames"][c_fr],
-                self.results["escape_latency_sec"][c_fr],
-                self.homings,
-            ) = check_if_in_homing_obj(self.homings, on_fr, self.settings, self.session, head_orientation_dic)
+            if len(self.homings["onset_frames"]) > 0:
+                (
+                    self.results["offset_frames"][c_fr],
+                    self.results["start_locs"][c_fr, :],
+                    self.results["end_locs"][c_fr, :],
+                    self.results["avg_speed"][c_fr],
+                    head_orientation_dic,
+                    self.results["onset_frames"][c_fr],
+                    self.results["escape_latency_sec"][c_fr],
+                    self.homings,
+                ) = check_if_in_homing_obj(self.homings, on_fr, self.settings, self.session, head_orientation_dic)
 
             # if no homing after escape, did the mouse freeze?
             if self.results["onset_frames"][c_fr] == 0:  # that means that it wasn't a homing
@@ -120,7 +122,7 @@ class get_Escapes:
                     fps=self.session.video.fps,
                     angles=head_orientation_dic.keys(),
                 )
-                for key in self.homings.head_orientation_dic.keys():
+                for key in self.homings["head_orientation_dic"].keys():
                     head_orientation_dic[key].append(ht[key])
                 if np.isnan(self.results["onset_frames"][c_fr]):
                     self.results["escape_latency_sec"][c_fr] = np.nan
@@ -143,21 +145,21 @@ class get_Escapes:
 
         self.results["head_orientation_dic"] = head_orientation_dic
 
-        self.save_session(self.session)  # save escapes to pickle
+        self.save_session()  # save escapes to pickle
 
-        return self.escapes
+        return self.results, self.homings
 
     def save_session(self) -> None:
         """Save ecape object as a pickle file within the session folder"""
         folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "escapes"))
-        file_name = os.path.join(folder, "escapes.npz")
-        np.savez(file_name, **self.results, allow_pickle=True)
+        file_name = os.path.join(folder, "escapes.npy")
+        np.save(file_name, self.results, allow_pickle=True)
         logger.success("Escape dict saved")
 
 
 def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
-    h_nearest_to_stim = homings["onset_frames"][np.argmin(np.abs(homings["onset_frames"] - on_fr))]
-    h_idx = int(np.where(homings["onset_frames"] == h_nearest_to_stim)[0])
+    h_idx = np.argmin(np.abs(homings["onset_frames"] - on_fr))
+    h_nearest_to_stim = homings["onset_frames"][h_idx]
     # find if there is a homing right after the stim
     # DEF: it must start after the stim and within 5 seconds of stim
     if np.logical_or(
@@ -188,16 +190,8 @@ def check_if_in_homing_obj(homings, on_fr, settings, session, head_theta):
             esc_onset = on_fr
             esc_latency = 0  # (on_fr) / session.video.fps  # in seconds
 
-        # remove this homing from the homing object because it's an escape!
-        for key in homings.__dict__:
-            if key == "head_orientation_dic":
-                for hd_key in homings["head_orientation_dic"].keys():
-                    homings["head_orientation_dic"][hd_key] = np.delete(homings["head_orientation_dic"][hd_key], h_idx)
-            else:
-                if isinstance(homings.__dict__[key], list):
-                    del homings.__dict__[key][h_idx]
-                elif isinstance(homings.__dict__[key], np.ndarray):
-                    homings.__dict__[key] = np.delete(homings.__dict__[key], h_idx, 0)
+        # flag this homing as an escape!
+        homings["escapes"][h_idx] = True
 
         return (
             esc_offset,

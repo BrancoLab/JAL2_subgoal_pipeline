@@ -24,7 +24,7 @@ from loguru import logger
 import json
 import matplotlib.pyplot as plt
 from scipy import stats
-from behave_analysis.analyze.behaviour.homings_escapes.homings import load_manual_labels
+from behave_analysis.analyze.behaviour.homings_escapes.homing_load_manual_labels import load_manual_labels
 from behave_analysis.database.computer_ID import get_computer_specific_paths
 from behave_analysis.utils.arena_plotting import Arena
 from behave_analysis.utils.creating_directories import make_directory
@@ -146,12 +146,18 @@ class HomingAnalyzer:
         """If running homing analyzer from analyze_behave or other piepeline where data has been loaded already, 
         this function takes the preloaded data and formats it into the session_data dictionary."""
 
-        session_name = session.mouse + '_' + session.experiment + '_' + session.date
+        if not hasattr(session, "date"):
+            import re
+            m = re.search(r"(\d{4})_?(\d{2})_?(\d{2})T(\d{2})_?(\d{2})_?(\d{2})$", session.file_path)
+            date = f"{m.group(1)}_{m.group(2)}_{m.group(3)}"
+        else:
+            date = session.date
+        session_name = session.mouse + '_' + session.experiment + '_' + date
 
         # check if manual labels exist
+        ishoming = np.zeros(len(video_df), dtype=bool)
         if os.path.isfile(session.base_path + '/' + session.processed_path + '/Borris/scored_homings.csv'):
             onset, _, offset = load_manual_labels(session)
-            ishoming = np.zeros(len(video_df), dtype=bool)
             for on, off in zip(onset, offset):
                 ishoming[on:off + 1] = True
 
@@ -675,7 +681,7 @@ class HomingAnalyzer:
         use_learned_gates: bool = True,
     ) -> List[Tuple[int, int]]:
         """
-        Phase 2 classification.
+        Homing classification.
         
         Args:
             manual_gates: Optional dict of {feature_name: {'dir': '>=', 'threshold': value}}
@@ -706,7 +712,7 @@ class HomingAnalyzer:
                     )
         else:
             gates = manual_gates
-        logger.info(f"Running Phase 2 classification with {len(gates)} gates...")
+        logger.info(f"Running Homing classification with {len(gates)} gates...")
         
         candidates = []
         candidates_by_session = {s: [] for s in self.session_data.keys()}
@@ -742,7 +748,7 @@ class HomingAnalyzer:
         self.candidate_meta = candidate_meta_by_session
         self.gates_used = gates
         
-        logger.info(f"  ✓ {len(candidates)} runs passed Phase 2 gates")
+        logger.info(f"  ✓ {len(candidates)} runs passed Homing classification gates")
         return candidates
     
     def compute_manualvsauto_overlap(
@@ -860,7 +866,6 @@ class HomingAnalyzer:
         candidates: List[Tuple[int, int]],
         session_name: Optional[str] = None,
         include_manual_events_in_iteration: bool = True,
-        manual_curation = False,
     ):
         """
         Create interactive Syd viewer for exploring extracted runs and manual labels.
@@ -888,18 +893,6 @@ class HomingAnalyzer:
         viewer.add_integer('session_idx', min=0, max=len(session_names) - 1, value=0)
         viewer.add_integer('include_manual_events', min=0, max=1, value=1 if include_manual_events_in_iteration else 0)
         
-        if manual_curation:
-            removed_runs = {}  # Event IDs of removed runs
-
-            def remove_run(state):
-                idx = int(state['trial'])
-                s_name = session_names[int(state['session_idx'])]
-                if s_name not in removed_runs.keys():
-                    removed_runs[s_name] = [idx]
-                else:
-                    removed_runs[s_name].append(idx)
-            viewer.add_button('remove_event', label='Remove Event', callback = remove_run, replot = False)
-
         def plot(state):
             idx = int(state['trial'])
             s_name = session_names[int(state['session_idx'])]
@@ -1042,5 +1035,5 @@ class HomingAnalyzer:
 
         viewer.set_plot(plot)
 
-        return viewer, removed_runs
+        return viewer
     

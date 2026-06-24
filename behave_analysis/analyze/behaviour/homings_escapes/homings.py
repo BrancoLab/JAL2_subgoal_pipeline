@@ -22,7 +22,8 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.analyze.behaviour.homings_escapes.analyze_homing_consolidated import HomingAnalyzer
 from behave_analysis.utils.identify_condition import build_shelter_condition_bool, build_barrier_condition_bool, build_flippedbarrier_condition_bool, identify_condition_of_trial
-from settings.settings_overrides import settings_overrides
+from behave_analysis.analyze.behaviour.homings_escapes.homing_load_manual_labels import load_manual_labels
+from behave_analysis.utils.creating_directories import make_directory
 
 class get_Homings:
     """Extract homings metrics from a session
@@ -36,7 +37,7 @@ class get_Homings:
     def __init__(self, settings, session):
         self.settings = settings
         self.session = session
-        self.savepath = os.path.join(self.session.base_path, self.session.processed_path, "homings")
+        self.savepath = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings"))
         logger.info(f"checking for existing homings results")
         if self.settings.homings_use_boris:
             self.database, self.do_analysis, self.hexaname = check_database_for_same_run(
@@ -55,8 +56,8 @@ class get_Homings:
 
         if not self.do_analysis:
             logger.info("Homing analysis already done with these settings, loading from database...")
-            filename = os.path.join(self.savepath, "homings_" + self.hexaname + "_results.npz")
-            homings = np.load(filename, allow_pickle=True)
+            filename = os.path.join(self.savepath, "homings_" + self.hexaname + "_results.npy")
+            homings = np.load(filename, allow_pickle=True).item()
             return homings
 
         if self.settings.homings_use_boris:
@@ -74,38 +75,45 @@ class get_Homings:
             logger.info("Extracting homings automatically...")
             self.identify_homing_runs_with_logic(video_df = video_df, tracking_data = tracking_data)
 
-        self.get_homing_properties(tracking_data=tracking_data, video_df = video_df)
+        self.results = self.intialize_homings_results_dict()
 
-        results = self.save_session()
+        if len(self.onset_frames) > 0:
+            self.get_homing_properties(tracking_data=tracking_data, video_df = video_df)
+
+        self.save_session()
+
         if return_dict:
-            return results
+            return self.results
 
-    def save_session(self) -> None:
-        """Save homings object as a pickle file within the session folder"""
-        filename = os.path.join(self.savepath, "homings_" + self.hexaname)
+    def intialize_homings_results_dict(self):
+        """Initialize a dictionary to store homings results"""
         results_dict = {"onset_frames": self.onset_frames,
                         "offset_frames": self.offset_frames,
                         "stimulus_durations": self.stimulus_durations,
-                        "start_locs": self.start_locs,
-                        "end_locs": self.end_locs,
-                        "avg_speed": self.avg_speed,
-                        "head_orientation_dic": self.homing_angles_dic,
-                        "hdir_at_start": self.hdir_at_start,
-                        "spatial_efficiency": self.spatial_efficiency_values,
-                        "trajectory_length": self.trajectory_length,
-                        "condition": self.condition}
-        np.savez(os.path.join(filename + "_results.npz"), **results_dict, allow_pickle=True)
+                        "start_locs": [],
+                        "end_locs": [],
+                        "avg_speed": [],
+                        "head_orientation_dic": {"avg_hdir": [], "avg_hsa": [], "avg_pre_flip_head_angle": [], "avg_post_flip_head_angle": []},
+                        "hdir_at_start": [],
+                        "spatial_efficiency": [],
+                        "trajectory_length": [],
+                        "condition": []}
+        return results_dict
+    
+    def save_session(self) -> None:
+        """Save homings object as a pickle file within the session folder"""
+        filename = os.path.join(self.savepath, "homings_" + self.hexaname)
+        np.save(os.path.join(filename + "_results.npy"), self.results, allow_pickle=True)
         settings = asdict(self.settings)
-        np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
+        np.save(filename + "_settings.npy", settings, allow_pickle=True)
         set_dict = {**settings_to_check(self.settings, ["homing"])}
         if self.settings.homings_use_boris and self.use_boris:
             set_dict = {**settings_to_check(self.settings, ["homing"]), "homings_curated": True}
         add_run_to_database(self.database, 
-                            {**settings_to_check(self.settings, ["homing"])}, 
+                            set_dict, 
                             self.savepath + os.sep + "Homing_database.csv", 
                             self.hexaname)
         logger.success("Homings saved")
-        return results_dict
 
     # ------------------- SELECT FEATURES OF HOMINGS ----------------------
 
@@ -118,16 +126,16 @@ class get_Homings:
                 "frames": np.arange(1, len(tracking_data["hdir"]) + 1).astype(np.int64)
             })
 
-        self.start_locs, self.end_locs = get_start_and_end_locs(
+        self.results["start_locs"], self.results["end_locs"] = get_start_and_end_locs(
             tracking=tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
         )
-        self.avg_speed = get_avg_speed(self.onset_frames, self.offset_frames, tracking_data, self.session)
-        self.homing_angles_dic, self.hdir_at_start = get_avg_homing_angle_for_first15cm_of_run(
-            self.session, self.onset_frames, self.offset_frames, tracking_data, self.settings.cum_threshold
+        self.results["avg_speed"] = get_avg_speed(self.onset_frames, self.offset_frames, tracking_data, self.session)
+        self.results["head_orientation_dic"], self.results["hdir_at_start"] = get_avg_homing_angle_for_first15cm_of_run(
+            self.session, self.onset_frames, self.offset_frames, tracking_data, self.settings.homings_distance_threshold
         )
-        self.condition = get_condition_homing(video_df, self.onset_frames, self.session)
-        self.spatial_efficiency_values, self.trajectory_length = spatial_efficiency(
-            self.onset_frames, self.stimulus_durations, self.session, self.settings, self.condition, tracking_data, trial_type="Homings", plotting=False
+        self.results["condition"] = get_condition_homing(video_df, self.onset_frames, self.session)
+        self.results["spatial_efficiency"], self.results["trajectory_length"] = spatial_efficiency(
+            self.onset_frames, self.stimulus_durations, self.session, self.settings, self.results["condition"], tracking_data, trial_type="Homings", plotting=False
         )
 
     # ------------------- IDENTIFY HOMINGS --------------------------------
@@ -144,13 +152,20 @@ class get_Homings:
         analyzer = HomingAnalyzer([], settings=self.settings)
         analyzer.preloaded_session_data(video_df = video_df, tracking_data = tracking_data, session = self.session)
         analyzer.extract_runs(speed_threshold=self.settings.homings_speed_threshold, gap_tolerance_frames=self.settings.homings_gap_tolerance)
-        analyzer._compute_run_features(analyzer.extracted_runs[0])
+        for run in analyzer.extracted_runs:
+            analyzer._compute_run_features(run)
+            analyzer.all_runs.append(run)
 
         candidates = analyzer.run_classification(use_learned_gates=True)
         # cadidates is list of tuple of onsets and offsets, so we can unpack it here
         candidates = np.array(candidates, dtype = int)
-        self.onset_frames, self.offset_frames = candidates[:,0], candidates[:,1]
-        self.stimulus_durations = (self.offset_frames - self.onset_frames)/self.session.video.fps  # match the format of the manual labels
+        if len(candidates) == 0:
+            logger.warning("No homings found with these settings!")
+            self.onset_frames, self.offset_frames = np.array([]), np.array([])
+            self.stimulus_durations = np.array([])
+        else:
+            self.onset_frames, self.offset_frames = candidates[:,0], candidates[:,1]
+            self.stimulus_durations = (self.offset_frames - self.onset_frames)/self.session.video.fps  # match the format of the manual labels
 
 ##-------- HOMING FEATURE FUNCTIONS--------------
 """USED ALSO FOR ESCAPES"""
@@ -335,53 +350,3 @@ def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int)
     logger.error(f"Mouse never reaches cum threshold {cum_threshold} cm")
     frame = None
     return frame, start_frame
-
-# ------------------- Use manual labels -------------------------------
-
-def load_manual_labels(session) -> tuple:
-    """Load manual labels from a csv file.
-    NB: Assumes image frames are 1 indexed and converts to 0 based indexing here."""
-    df = pd.read_csv(os.path.join(session.base_path, session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv")
-    columns_to_keep = ["Time", "Image index", "Behavior type"]
-    fdf = df[columns_to_keep]
-    time = fdf["Time"].to_numpy()
-    diff = np.diff(time)
-    assert np.all(diff > 0), "Time is not increasing"
-    start = len(fdf[fdf["Behavior type"] == "START"])
-    end = len(fdf[fdf["Behavior type"] == "STOP"])
-    assert start == end, "Start and end homings are not the same length"
-    logger.info("Loaded manual labels")
-    logger.info("Number of homings: {}".format(start))
-    onsets = fdf[fdf["Behavior type"] == "START"]["Image index"].to_numpy() - 1  # convert to 0-based index
-    offsets = fdf[fdf["Behavior type"] == "STOP"]["Image index"].to_numpy() - 1  # convert to 0-based index
-    assert len(onsets) == len(offsets), "Onsets and offsets are not the same length"
-    assert np.diff(onsets).all() > 0, "Onsets are not increasing"
-    assert np.diff(offsets).all() > 0, "Offsets are not increasing"
-    durations = offsets - onsets
-    durations = np.array([[x] for x in (durations) / session.video.fps])  # match the format of the automatic labels
-    return onsets, durations, offsets
-
-# ------------------- SAVING BOOL TO DF -------------------------------
-def add_homie_to_video_df(session, video_df, tracking_data = [], savepath = []):
-
-    from settings.settings_analyze_behave import settings_ab
-    settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
-    homing = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings(video_df, tracking_data)
-
-    # if homing data is present, create a boolean array to indicate when homing is occuring in the session
-    number_of_frames = len(video_df)
-    homing_bool = np.zeros(number_of_frames, dtype=bool)
-    onset_frames = homing["onset_frames"]
-    offset_frames = homing["offset_frames"]
-    for onset, offset in zip(onset_frames, offset_frames):
-        homing_bool[onset: offset + 1] = True
-
-    if "homingPeriod" in video_df.columns:
-        video_df = video_df.drop("homingPeriod")
-    video_df = video_df.hstack([pl.Series("homingPeriod", homing_bool)])
-
-    # save the video dataframe
-    if len(savepath) > 0:
-        video_df.write_csv(savepath)
-
-    return video_df
