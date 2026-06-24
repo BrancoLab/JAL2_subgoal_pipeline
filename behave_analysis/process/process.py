@@ -65,13 +65,13 @@ class Process():
             
         if settings_p.efizz:
             efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
-                                                             slope = slope, 
-                                                             intercept = intercept,
-                                                             samplingRate = self.ttl.sampling_rate,
-                                                             filePath = os.path.join(self.session.base_path,self.session.processed_path),
-                                                             camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
-                                                             lastPulse = lastPulse,
-                                                             firstPulse = firstPulse)        
+                                                slope = slope, 
+                                                intercept = intercept,
+                                                samplingRate = self.ttl.sampling_rate,
+                                                filePath = os.path.join(self.session.base_path,self.session.processed_path),
+                                                camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
+                                                lastPulse = lastPulse,
+                                                firstPulse = firstPulse)        
         
         return self.session
     

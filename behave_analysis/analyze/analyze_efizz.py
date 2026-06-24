@@ -9,7 +9,7 @@ import pickle
 import pandas as pd
 
 from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells, COLUMNS_TO_KEEP
-from behave_analysis.analyze.behaviour.homings_escapes.homings import add_homie_to_video_df
+from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
 from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
 from behave_analysis.analyze.TunED.model import TunEdModel
 from behave_analysis.analyze.LDA.LDAmodel import LDA

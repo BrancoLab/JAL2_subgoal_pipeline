@@ -17,7 +17,8 @@ from behave_analysis.analyze.behaviour.plot_homings import (
     trial_speed_hist,
 )
 from behave_analysis.utils.data_loading import load_or_extract_escapes
-from behave_analysis.analyze.behaviour.homings_escapes.homings import add_homie_to_video_df, get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
 from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
 from behave_analysis.analyze.behaviour.correlation_matrix import compute_correlation_matrix, plot_correlation_matrix, circular_linear_corr
 from settings.settings_overrides import settings_overrides
@@ -50,7 +51,8 @@ class AnalyzeBehave:
         if analysis_name in ['homings&escape', 'correlations']:
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
-            self.video_df = add_homie_to_video_df(self.session, self.video_df, self.tracking_data)
+            if analysis_name == "correlations":
+                self.video_df = add_homie_to_video_df(self.session, self.video_df, self.tracking_data)
 
     def behaviour_analyses(self, analysis_name, variables=None):
         
@@ -60,8 +62,11 @@ class AnalyzeBehave:
         if analysis_name == 'homings&escape':
             """Let's check out some homings and threshold crossings."""
             logger.info("The homings pipeline has started")
-            homings_dict = get_Homings(settings=self.settings, session=self.session).get_homings(video_df = self.video_df, tracking_data = self.tracking_data)
-            get_Escapes(settings=self.settings, session=self.session, tracking_data = self.tracking_data, video_df = self.video_df, homings = homings_dict).get_escape()
+            h_class = get_Homings(settings=self.settings, session=self.session)
+            homings_dict = h_class.get_homings(video_df = self.video_df, tracking_data = self.tracking_data)
+            esc, homie = get_Escapes(settings=self.settings, session=self.session, tracking_data = self.tracking_data, video_df = self.video_df, homings = homings_dict).get_escape()
+            filename = os.path.join(h_class.savepath, "homings_" + h_class.hexaname)
+            np.save(os.path.join(filename + "_results.npy"), homie, allow_pickle=True) # overwrite homings now that we've removed escapes
             logger.success("Homing & escapes pipeline complete")
 
 

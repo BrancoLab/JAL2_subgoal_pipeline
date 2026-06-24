@@ -530,6 +530,8 @@ def discretize_nd(var, bins):
 
 
 def check_not_list(var):
+    if len(var) == 0:
+        return var
     if np.logical_or(isinstance(var[0], list), isinstance(var[0], np.ndarray)):
         var = [x[0] for x in var]
     return var

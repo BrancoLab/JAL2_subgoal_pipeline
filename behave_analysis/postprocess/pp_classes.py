@@ -10,7 +10,8 @@ import polars as pl
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import check_not_list
 from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
-from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings, add_homie_to_video_df
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
 from behave_analysis.utils.identify_condition import build_shelter_condition_bool, build_barrier_condition_bool, build_flippedbarrier_condition_bool
 from settings.settings_overrides import settings_overrides
 
