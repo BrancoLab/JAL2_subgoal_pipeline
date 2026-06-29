@@ -6,6 +6,7 @@ import polars as pl
 
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
 from settings.settings_overrides import settings_overrides
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 
 
 def discover_condition_based_on_video_df(dataframe):
@@ -131,6 +132,7 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
     from settings.settings_analyze_behave import settings_ab
     settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
     homings = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings()
+    homings = remove_manually_curated(homings)
     # single out the homings in this condition
     homies_in_condition = (homings["onset_frames"] > dataframe["frames"][0]) * (homings["offset_frames"] < dataframe["frames"][-1])
     homies_in_condition = [item for sublist in homies_in_condition for item in sublist]

@@ -18,6 +18,7 @@ from behave_analysis.analyze.behaviour.plot_homings import (
 )
 from behave_analysis.utils.data_loading import load_or_extract_escapes
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
 from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
 from behave_analysis.analyze.behaviour.correlation_matrix import compute_correlation_matrix, plot_correlation_matrix, circular_linear_corr
@@ -46,6 +47,7 @@ class AnalyzeBehave:
             from settings.settings_analyze_behave import settings_ab
             settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
             self.homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings()
+            self.homings = remove_manually_curated(self.homings)
             assert self.homings is not None, "Failed to load homing data."
 
         if analysis_name in ['homings&escape', 'correlations']:

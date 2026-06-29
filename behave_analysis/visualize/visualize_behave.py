@@ -9,6 +9,7 @@ import dill as pickle
 
 
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 from behave_analysis.visualize.behaviour.circular_coeff_of_angles import plot_the_circular_rho
 from behave_analysis.visualize.behaviour.behaviour_coverage_metrics import CoverageStatistics
 from behave_analysis.visualize.behaviour.heat_plot import plot_heat_map_of_position
@@ -104,7 +105,8 @@ class Visualize_behave:
             logger.info("Making movies for homing trials")
             from settings.settings_analyze_behave import settings_ab
             settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
-            homings = get_Homings(settings_ab, self.session).get_homings(self.video_df, self.tracking_data)
+            homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings(self.video_df, self.tracking_data)
+            homings = remove_manually_curated(homings)
 
             onsets = homings["onset_frames"]
             stimulus_durations = homings["stimulus_durations"]

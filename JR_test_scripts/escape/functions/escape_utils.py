@@ -13,6 +13,7 @@ import dill as pickle
 from behave_analysis.process.process import Process
 from settings.settings_overrides import settings_overrides
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 
 ###------------------------DATA LOADING----------------------
 
@@ -51,6 +52,7 @@ def load_homing(session, n_frames):
     from settings.settings_analyze_behave import settings_ab
     settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
     homings = get_Homings(settings=settings_ab, session=session).get_homings()
+    homings = remove_manually_curated(homings)
 
     # homing bool
     homing_bool = np.zeros(n_frames, dtype=bool)
