@@ -14,6 +14,7 @@ from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homing
 from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
 from behave_analysis.utils.identify_condition import build_shelter_condition_bool, build_barrier_condition_bool, build_flippedbarrier_condition_bool
 from settings.settings_overrides import settings_overrides
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 
 class BaseDataPostprocessor(ABC):
     """
@@ -464,6 +465,7 @@ class DataPostprocessor(BaseDataPostprocessor):
             from settings.settings_analyze_behave import settings_ab
             settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
             homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings(video_df, self.tracking_data)
+            homings = remove_manually_curated(homings)
             video_df = add_homie_to_video_df(video_df, homings, savepath = os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()

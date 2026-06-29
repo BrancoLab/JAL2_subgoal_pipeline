@@ -84,7 +84,7 @@ JAL4_flip3_28aug = Experiment(  # Mouse specific
     experiment_time="09_36_04",
     shelter_time=[0.25, -1],
     barrier_time=[84.25, -1],  # seconds needed to be more precise
-    barrier_flip_time=219,
+    barrier_flip_time=159,
     experiment_path=Path(r"JAL004_flip_rotated_2023_08_28T09_36_04"),
 )
 
@@ -100,7 +100,7 @@ JAL4_flip4_3Sept = Experiment(  # Mouse specific
     experiment_date="2023_09_03",
     experiment_time="12_04_16",
     shelter_time=[0.33, -1],
-    barrier_time=[54.6, -1],
+    barrier_time=[54.75, -1],
     barrier_flip_time=171,
     experiment_path=Path(r"004_flip_2023_09_03T12_04_16"),
 )
