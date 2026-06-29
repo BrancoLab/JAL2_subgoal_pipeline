@@ -174,6 +174,7 @@ class HomingAnalyzer:
                     is_homing=ishoming,
                     is_escape=video_df['EscapePeriod'].to_numpy(),
                     barrier_loc=tracking_data.get('barrier_loc', None),
+                    shelter_loc=tracking_data.get('shelter_loc', None),
                     barrier_present=video_df['barrier_present'].to_numpy(),
                     barrier_flipped=video_df['barrier_flipped'].to_numpy(),
                     outofshelter_idx=video_df['OutofshelterIdx'].to_numpy(),
@@ -982,12 +983,14 @@ class HomingAnalyzer:
             axs[0, 0].scatter(x[0], y[0], s=35, color='green', label='window start')
             axs[0, 0].scatter(x[-1], y[-1], s=35, color='red', label='window end')
             Arena(ax = axs[0, 0], condition = condition,
-                barrier_coordinates = data.barrier_loc[:-1], full_image = False)
+                barrier_coordinates = data.barrier_loc[:-1],
+                shelter_coordinates = data.shelter_loc, full_image = False)
 
             axs[0, 1].scatter(x[man_win], y[man_win], s=8, color='tab:orange', alpha=0.8, label='manual')
             axs[0, 1].plot(x, y, color='0.85', lw=1)
             Arena(ax = axs[0, 1], condition = condition,
-                barrier_coordinates = data.barrier_loc[:-1], full_image = False)
+                barrier_coordinates = data.barrier_loc[:-1],
+                shelter_coordinates = data.shelter_loc, full_image = False)
 
             src = 'candidate' if all_source[idx] == 0 else 'manual'
             axs[0, 0].set_title(f'{s_name} | trial {idx} ({src})')

@@ -74,7 +74,7 @@ class get_Escapes:
         if len(onset_frames) == 0:
             logger.warning("No escapes in this session!")
             self.save_session()  # save escapes to pickle
-            return
+            return self.results, self.homings
 
         head_orientation_dic = {}
         for key in self.homings["head_orientation_dic"].keys():
