@@ -106,6 +106,7 @@ class Settings_analyze_efizz:
     condition_types: str = ""
     compartment_split: str = ""
     parallel_pool_linshit: bool = True
+    homings: str = "manual"  # 'manual' or 'auto' or 'auto_curated'
     # LDA settings
     epoch_num: int = 6  # number of epochs for cross validation
     number_of_bins: int = 19

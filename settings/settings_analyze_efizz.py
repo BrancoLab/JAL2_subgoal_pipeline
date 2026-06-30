@@ -24,13 +24,15 @@ Settings_ae = Settings_analyze_efizz(
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
-    # if 'time_conditions' it compares first vs second half
-    # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
-    # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
+        # if 'time_conditions' it compares first vs second half
+        # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
+        # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
     compartment_split=["all"],  # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
-    # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
-    # If 'by_position', it will compute LDA decoding by arena position
+        # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
+        # If 'by_position', it will compute LDA decoding by arena position
     number_of_bins=13,  # number of bin edges for angles, e.g. 13 or 19 are good numbers
+    homings = "manual",  # 'manual' or 'auto' or 'auto_curated', which homings to load to video_df,
+        # if 'manual' it will load the manually detected homings, if 'auto' it will load the automatically detected homings, if 'auto_curated' it will load the automatically detected homings that have been manually curated
     # ------------- Linear Shift stats settings --------------------------
     linshift_min_step=120,  # in frames, minimum shift to consider for linear shift stats
     linshift_step=80,  # in frames, step size for linear shift stats

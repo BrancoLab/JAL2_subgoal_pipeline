@@ -6,7 +6,7 @@ from loguru import logger
 import ast
 import os
 
-SETTINGS_AE = ["stim_type", "cluster_type", "condition_types", "compartment_split"]
+SETTINGS_AE = ["stim_type", "cluster_type", "condition_types", "compartment_split", "homings"]
 
 
 def check_database_for_same_run(db_settings, results_csv_name, settings):
@@ -97,10 +97,16 @@ def find_matching_run(database, settings_dict, saved_vars=[]):
         # iterate over settings to check, if a mismatch break and set matched_rows to false for this row
         for setting_name, setting_value in settings_dict.items():
             if setting_name not in row_dict:
-                matched_rows[row] = False
-                break
+                # Special case: if this is the 'homings' setting and it's not in the database,
+                # assume it's 'manual' (the default for older entries)
+                if setting_name == 'homings':
+                    db_value = 'manual'
+                else:
+                    matched_rows[row] = False
+                    break
             else:
                 db_value = row_dict[setting_name]
+                
                 # if the db value is a string representation of a list/tuple, parse it
                 if isinstance(db_value, str) and isinstance(setting_value, (list, tuple)):
                     try:
