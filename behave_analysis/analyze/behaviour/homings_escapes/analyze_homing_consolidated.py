@@ -68,6 +68,7 @@ class SessionData:
     is_homing: np.ndarray    # shape (n_frames,) - bool
     is_escape: np.ndarray    # shape (n_frames,) - bool
     barrier_loc: np.ndarray  # shape (n_frames, ...) or None
+    shelter_loc: np.ndarray  # shape (n_frames, ...) or None
     barrier_present: np.ndarray  # shape (n_frames,) - bool
     barrier_flipped: np.ndarray  # shape (n_frames,) - bool
     outofshelter_idx: Optional[np.ndarray] = None  # shape (n_frames,) - bool, optional

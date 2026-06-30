@@ -60,10 +60,10 @@ def load_or_extract_escapes(session):
     Raises:
     - AssertionError: If the homing data file does not exist at the expected path.
     """
-    esc_path = os.path.join(session.base_path, session.processed_path, "escapes", "escapes.npz")
+    esc_path = os.path.join(session.base_path, session.processed_path, "escapes", "escapes.npy")
     if os.path.exists(esc_path):
         logger.info("Escape dict found. Loading...")
-        escapes = np.load(esc_path, allow_pickle=True)
+        escapes = np.load(esc_path, allow_pickle=True).item()
     else:
         logger.info("Escape dict not found. Extracting escapes now...")
         settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
