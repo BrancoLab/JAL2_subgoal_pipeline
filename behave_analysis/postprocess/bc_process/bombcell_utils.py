@@ -13,37 +13,11 @@ def get_params(ks_dir, raw_file_path, meta_file_path, mouse):
         param["probeType"] = 2  # NP2.0
     param["reextractRaw"] = False
 
-    # noise params
-    param["spDecayLinFit"] = False # don't use linear fit, use exponential fit instead (recommended)
-    param["computeSpatialDecay"] = True
+    JR_params = np.load(r"Z:\Jasmine_Laurence\bombcell\bombcell_params.npy", allow_pickle=True).item()
+    # Update param with JR_params
+    for key, value in JR_params.items():
+        param[key] = value
 
-    param['presenceRatioBinSize'] = 300 # default 60s, our recordings are so long...
-
-    # 1. classification thresholds like: 
-
-    #  2. or which quality metrics are computed (by default these are not): 
-    # param["computeDistanceMetrics"] = 0
-    # param["computeDrift"] = 0
-    # param["splitGoodAndMua_NonSomatic"] = 0
-    # TODO: check the wwaveformBaselineFlatness again to check that we like param["maxWvBaselineFraction"] = .3
-
-    #  3. how quality metrics are calculated:
-
-    # a. Refractory period violation (RPV) method - choose one of:
-    #    'hill' (default): Hill et al. method
-    #    'llobet': Llobet et al. method, llobet more stringent, relevant for cells that have FR>30, EXTREMELY SLOW
-    param["rpv_method"] = "llobet" # can we do llobet on server?
-
-    # b. Refractory period values to test (in seconds)
-    #    For a single value: np.array([0.002])
-
-    # c. Censored period (in seconds) - ISIs below this are excluded as duplicates
-    # param["tauC"] = 0.0001  # 0.1ms
-
-    # e. Whether the recording is split into time chunks to determine "good" time chunks: 
-    # param["computeTimeChunks"] = 0
-
-    # full list in the wiki or in the bc.get_default_parameters function
     return param
 
 def get_metric_info_dict_JR(param):
