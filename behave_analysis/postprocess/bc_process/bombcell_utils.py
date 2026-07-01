@@ -1,5 +1,50 @@
 from collections import namedtuple
-import bombcell as bc
+import numpy as np
+
+"""Set up params"""
+def get_params(ks_dir, raw_file_path, meta_file_path, mouse):
+    param_path = r"c:\Users\Jasmine\Documents\GitHub\JAL2_subgoal_pipeline\behave_analysis\postprocess\bc_process\bc_default_params_JAL008_10may.npy"
+    param = np.load(param_path, allow_pickle=True).item()
+    
+    # general params:
+    if mouse == "JAL003":
+        param["probeType"] = 1  # NP1.0
+    else:
+        param["probeType"] = 2  # NP2.0
+    param["reextractRaw"] = False
+
+    # noise params
+    param["spDecayLinFit"] = False # don't use linear fit, use exponential fit instead (recommended)
+    param["computeSpatialDecay"] = True
+
+    param['presenceRatioBinSize'] = 300 # default 60s, our recordings are so long...
+
+    # 1. classification thresholds like: 
+
+    #  2. or which quality metrics are computed (by default these are not): 
+    # param["computeDistanceMetrics"] = 0
+    # param["computeDrift"] = 0
+    # param["splitGoodAndMua_NonSomatic"] = 0
+    # TODO: check the wwaveformBaselineFlatness again to check that we like param["maxWvBaselineFraction"] = .3
+
+    #  3. how quality metrics are calculated:
+
+    # a. Refractory period violation (RPV) method - choose one of:
+    #    'hill' (default): Hill et al. method
+    #    'llobet': Llobet et al. method, llobet more stringent, relevant for cells that have FR>30, EXTREMELY SLOW
+    param["rpv_method"] = "llobet" # can we do llobet on server?
+
+    # b. Refractory period values to test (in seconds)
+    #    For a single value: np.array([0.002])
+
+    # c. Censored period (in seconds) - ISIs below this are excluded as duplicates
+    # param["tauC"] = 0.0001  # 0.1ms
+
+    # e. Whether the recording is split into time chunks to determine "good" time chunks: 
+    # param["computeTimeChunks"] = 0
+
+    # full list in the wiki or in the bc.get_default_parameters function
+    return param
 
 def get_metric_info_dict_JR(param):
     """
@@ -37,19 +82,19 @@ def get_metric_info_dict_JR(param):
 
 
     """
-
     MetricInfo = namedtuple("MetricInfo", "name, short_name, metric_type, min_threshold, max_threshold")
-    MetricInfo(name="nPeaks", short_name="# peaks", metric_type="noise", min_threshold=None, max_threshold=param.get("maxNPeaks"))
 
-    MetricInfo(name="nTroughs", short_name="# troughs", metric_type="noise", min_threshold=None, max_threshold=param.get("maxNTroughs"))
+    metric_info_list = [MetricInfo(name="nPeaks", short_name="# peaks", metric_type="noise", min_threshold=None, max_threshold=param.get("maxNPeaks")),
 
-    MetricInfo(name="waveformBaselineFlatness", short_name="baseline flatness", metric_type="noise", min_threshold=None, max_threshold=param.get("maxWvBaselineFraction"))
+    MetricInfo(name="nTroughs", short_name="# troughs", metric_type="noise", min_threshold=None, max_threshold=param.get("maxNTroughs")),
+
+    MetricInfo(name="waveformBaselineFlatness", short_name="baseline flatness", metric_type="noise", min_threshold=None, max_threshold=param.get("maxWvBaselineFraction")),
 
     MetricInfo(
         name="waveformDuration_peakTrough", short_name="waveform duration", metric_type="noise", min_threshold=param.get("minWvDuration"), max_threshold=param.get("maxWvDuration")
-    )
+    ),
 
-    MetricInfo(name="scndPeakToTroughRatio", short_name="peak_2/trough", metric_type="noise", min_threshold=None, max_threshold=param.get("maxScndPeakToTroughRatio_noise"))
+    MetricInfo(name="scndPeakToTroughRatio", short_name="peak_2/trough", metric_type="noise", min_threshold=None, max_threshold=param.get("maxScndPeakToTroughRatio_noise")),
 
     MetricInfo(
         name="spatialDecaySlope",
@@ -57,13 +102,13 @@ def get_metric_info_dict_JR(param):
         metric_type="noise",
         min_threshold=param.get("minSpatialDecaySlope") if param.get("spDecayLinFit") else param.get("minSpatialDecaySlopeExp"),
         max_threshold=None if param.get("spDecayLinFit") else param.get("maxSpatialDecaySlopeExp"),
-    )
+    ),
 
-    MetricInfo(name="peak1ToPeak2Ratio", short_name="peak_1/peak_2", metric_type="nonsomatic", min_threshold=None, max_threshold=param.get("maxPeak1ToPeak2Ratio_nonSomatic"))
+    MetricInfo(name="peak1ToPeak2Ratio", short_name="peak_1/peak_2", metric_type="nonsomatic", min_threshold=None, max_threshold=param.get("maxPeak1ToPeak2Ratio_nonSomatic")),
 
     MetricInfo(
         name="mainPeakToTroughRatio", short_name="peak_{main}/trough", metric_type="nonsomatic", min_threshold=None, max_threshold=param.get("maxMainPeakToTroughRatio_nonSomatic")
-    )
+    ),
 
     MetricInfo(
         name="rawAmplitude",
@@ -71,7 +116,7 @@ def get_metric_info_dict_JR(param):
         metric_type="mua",
         min_threshold=param.get("minAmplitude"),
         max_threshold=None,
-    )
+    ),
 
     MetricInfo(
         name="signalToNoiseRatio",
@@ -79,11 +124,11 @@ def get_metric_info_dict_JR(param):
         metric_type="mua",
         min_threshold=param.get("minSNR"),
         max_threshold=None,
-    )
+    ),
 
-    MetricInfo(name="fractionRPVs_estimatedTauR", short_name="refractory period viol. (RPV)", metric_type="mua", min_threshold=None, max_threshold=param.get("maxRPVviolations"))
+    MetricInfo(name="fractionRPVs_estimatedTauR", short_name="refractory period viol. (RPV)", metric_type="mua", min_threshold=None, max_threshold=param.get("maxRPVviolations")),
 
-    MetricInfo(name="nSpikes", short_name="# spikes", metric_type="mua", min_threshold=param.get("minNumSpikes"))
+    MetricInfo(name="nSpikes", short_name="# spikes", metric_type="mua", min_threshold=param.get("minNumSpikes"), max_threshold=None),
 
     MetricInfo(
         name="presenceRatio",
@@ -91,7 +136,7 @@ def get_metric_info_dict_JR(param):
         metric_type="mua",
         min_threshold=param.get("minPresenceRatio"),
         max_threshold=None,
-    )
+    ),
 
     MetricInfo(
         name="percentageSpikesMissing_gaussian",
@@ -99,7 +144,7 @@ def get_metric_info_dict_JR(param):
         metric_type="mua",
         min_threshold=None,
         max_threshold=param.get("maxPercSpikesMissing"),
-    )
+    ),
 
     MetricInfo(
         name="maxDriftEstimate",
@@ -107,7 +152,7 @@ def get_metric_info_dict_JR(param):
         metric_type="mua",
         min_threshold=None,
         max_threshold=param.get("maxDrift"),
-    )
+    ),
 
     MetricInfo(
         name="isolationDistance",
@@ -115,7 +160,7 @@ def get_metric_info_dict_JR(param):
         metric_type="mua",
         min_threshold=param.get("isoDmin"),
         max_threshold=None,
-    )
+    ),
 
     MetricInfo(
         name="Lratio",
@@ -123,6 +168,6 @@ def get_metric_info_dict_JR(param):
         metric_type="mua",
         min_threshold=None,
         max_threshold=param.get("lratioMax"),
-    )
+    )]
 
-    return {mi.name: mi for mi in MetricInfo}
+    return {mi.name: mi for mi in metric_info_list}
