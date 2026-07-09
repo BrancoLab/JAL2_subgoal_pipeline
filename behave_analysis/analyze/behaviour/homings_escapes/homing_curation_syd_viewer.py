@@ -33,6 +33,8 @@ def homing_curation_syd_viewer(
     
     viewer = make_viewer()
     viewer.add_integer('speed_thresh', min=0, max=20, value=settings.homings_speed_threshold)
+    conditions = list(np.unique(homing_dict['condition']))
+    viewer.add_selection('condition', value = conditions[0], options=conditions)
     
     # load data
     if len(tracking_data) == 0:
@@ -109,13 +111,17 @@ def homing_curation_syd_viewer(
             removed_runs.append(all_indices[idx])
         viewer.add_button('remove_event', label='Remove Event', callback = remove_run, replot = False)
 
-    # figure set up
     # blank figure if no events
     if len(all_onsets) == 0:
         fig, ax = plt.subplots(1, 1, figsize=(8, 3))
         ax.axis('off')
         mode_txt = 'candidates + manual' if include_manual_events else 'candidates only'
         ax.text(0.02, 0.8, f"No events in ({mode_txt})", fontsize=11)
+    
+    x_all = video_df["mouse_x_position"].to_numpy()
+    y_all = video_df["mouse_y_position"].to_numpy()
+    speed_all = video_df["speed"].to_numpy()
+    hdir_all = video_df["hdir"].to_numpy()
 
     def plot(state):
         idx = int(state['trial'])
@@ -127,6 +133,15 @@ def homing_curation_syd_viewer(
             ax.text(0.02, 0.8, f"Trial index {idx} exceeds number of events ({len(all_onsets)})")
             return fig
         
+        # blank figure if no events
+        if len(all_onsets) == 0:
+            fig, ax = plt.subplots(1, 1, figsize=(8, 3))
+            ax.axis('off')
+            mode_txt = 'candidates + manual' if include_manual_events else 'candidates only'
+            ax.text(0.02, 0.8, f"No events in ({mode_txt})", fontsize=11)
+        
+        fig, axs = plt.subplots(2, 2, figsize=(10, 11))
+        
         # get the index run!
         onset = int(all_onsets[idx])
         offset = int(all_offsets[idx])
@@ -137,72 +152,55 @@ def homing_curation_syd_viewer(
 
         # segment the relevant behavioral data
         t = (np.arange(start, stop) - start) / fps
-        x = video_df["mouse_x_position"].to_numpy()[start:stop]
-        y = video_df["mouse_y_position"].to_numpy()[start:stop]
-        speed = video_df["speed"].to_numpy()[start:stop]
-        hdir = video_df["hdir"].to_numpy()[start:stop]
+        x = x_all[start:stop]
+        y = y_all[start:stop]
+        speed = speed_all[start:stop]
+        hdir = hdir_all[start:stop]
         condition = identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset)), session)
 
         cand_win = candidate_mask[start:stop]
         man_win = manual_mask[start:stop]
 
-        # plot it!
-        fig, axs = plt.subplots(3, 2, figsize=(10, 11), gridspec_kw={'height_ratios': [2, 1, 1]})
-
         axs[0, 0].plot(x, y, color='0.75', lw=1)
-        axs[0, 0].scatter(x[cand_win], y[cand_win], s=8, color='tab:blue', alpha=0.8, label='candidate')
+        axs[0, 0].plot(x[cand_win], y[cand_win], color='tab:blue', alpha=0.8, label='candidate')
         axs[0, 0].scatter(x[0], y[0], s=35, color='green', label='window start')
         axs[0, 0].scatter(x[-1], y[-1], s=35, color='red', label='window end')
-        Arena(ax = axs[0, 0], condition = condition,
-            barrier_coordinates = tracking_data["barrier_loc"][:-1], 
-            shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
+        if condition != state['condition']:
+            Arena(ax = axs[0, 0], condition = condition,
+                barrier_coordinates = tracking_data["barrier_loc"][:-1], 
+                shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
 
-        axs[0, 1].scatter(x[man_win], y[man_win], s=8, color='tab:orange', alpha=0.8, label='manual')
         axs[0, 1].plot(x, y, color='0.85', lw=1)
-        Arena(ax = axs[0, 1], condition = condition,
-            barrier_coordinates = tracking_data["barrier_loc"][:-1], 
-            shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
+        axs[0, 1].plot(x[man_win], y[man_win], color='tab:orange', alpha=0.8, label='manual')
+        
+        if condition != state['condition']:
+            Arena(ax = axs[0, 1], condition = condition,
+                barrier_coordinates = tracking_data["barrier_loc"][:-1], 
+                shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
+            state['condition'] = condition
 
         src = 'candidate' if all_source[idx] == 0 else 'manual'
         axs[0, 0].set_title(f'trial {idx} ({src})')
-        axs[0, 0].set_xlim(0, 1024)
-        axs[0, 0].set_ylim(0, 1024)
-        axs[0, 0].set_aspect('equal')
-        axs[0, 0].invert_yaxis()
         axs[0, 0].legend(loc='upper right', fontsize=8)
 
-        axs[0, 1].set_xlim(0, 1024)
-        axs[0, 1].set_ylim(0, 1024)
-        axs[0, 1].set_aspect('equal')
-        axs[0, 1].invert_yaxis()
+        # # plot speed profile
+        # axs[1, 0].plot(t, speed, color='black', lw=1)
+        # axs[1, 0].plot(t[cand_win], speed[cand_win]+2, color='tab:blue', label='candidate')
+        # axs[1, 0].plot(t[man_win], speed[man_win]-2, color='tab:orange', label='manual')
+        # axs[1, 0].axhline(state['speed_thresh'], color='tab:green', ls='--', lw=1, label='speed threshold')
+        # axs[1, 0].axvline((onset - start) / fps, color='tab:green', ls='--', lw=1)
+        # axs[1, 0].axvline((offset - start) / fps, color='tab:red', ls='--', lw=1)
+        # axs[1, 0].set_ylabel('speed')
+        # axs[1, 0].set_xlabel('time (s)')
 
-        axs[1, 0].plot(t, speed, color='black', lw=1)
-        axs[1, 0].fill_between(t, 0, speed, where=cand_win, color='tab:blue', alpha=0.25)
-        ax_r0 = axs[1, 0].twinx()
-        ax_r0.plot(t, speed > state['speed_thresh'], color='tab:red', lw=1)
-
-        axs[1, 1].plot(t, speed, color='black', lw=1)
-        axs[1, 1].fill_between(t, 0, speed, where=man_win, color='tab:orange', alpha=0.18)
-        ax_r1 = axs[1, 1].twinx()
-        ax_r1.plot(t, speed > state['speed_thresh'], color='tab:red', lw=1)
-
-        axs[1, 0].axvline((onset - start) / fps, color='tab:green', ls='--', lw=1)
-        axs[1, 0].axvline((offset - start) / fps, color='tab:red', ls='--', lw=1)
-        axs[1, 0].set_ylabel('speed')
-
-        axs[2, 0].plot(t, hdir, color='slategray', lw=1)
-        axs[2, 0].fill_between(t, np.nanmin(hdir), np.nanmax(hdir), where=cand_win, color='tab:blue', alpha=0.12)
-        axs[2, 1].plot(t, hdir, color='slategray', lw=1)
-        axs[2, 1].fill_between(t, np.nanmin(hdir), np.nanmax(hdir), where=man_win, color='tab:orange', alpha=0.10)
-        axs[2, 0].axvline((onset - start) / fps, color='tab:green', ls='--', lw=1)
-        axs[2, 0].axvline((offset - start) / fps, color='tab:red', ls='--', lw=1)
-        axs[2, 0].set_ylabel('hdir')
-        axs[2, 0].set_xlabel('time (s)')
-
-        overlap = int(np.sum(candidate_mask[onset:offset + 1] & manual_mask[onset:offset + 1]))
-        manual_count = int(np.sum(manual_mask[onset:offset + 1]))
-        cand_count = int(np.sum(candidate_mask[onset:offset + 1]))
-        axs[0, 1].set_title(f'candidate frames={cand_count} | manual frames={manual_count} | overlap={overlap}')
+        # # plot hdir profile
+        # axs[1, 1].plot(t, hdir, color='black', lw=1)
+        # axs[1, 1].plot(t[cand_win], hdir[cand_win]+.1, color='tab:blue', label='candidate')
+        # axs[1, 1].plot(t[man_win], hdir[man_win]-.1, color='tab:orange', label='manual')
+        # axs[1, 1].axvline((onset - start) / fps, color='tab:green', ls='--', lw=1)
+        # axs[1, 1].axvline((offset - start) / fps, color='tab:red', ls='--', lw=1)
+        # axs[1, 1].set_ylabel('hdir')
+        # axs[1, 1].set_xlabel('time (s)')
 
         plt.tight_layout()
         return fig
