@@ -269,6 +269,7 @@ class Track(DLC):
             self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi)
         else:
             self.region_tracking_data['shelter_loc'] = []
+            self.region_tracking_data['hdir_shelt'] = np.full((len(self.region_tracking_data['avg_loc']),1), np.nan)
         logger.info("Shelter angle computed")
 
     def compute_angle_barrier(self, session):
@@ -282,7 +283,7 @@ class Track(DLC):
         else:
             self.region_tracking_data['barrier_loc'] = [[800,512],[224,512],[512,512]] # for sessions with no barrier when we still want to know the angless to the barrier
             
-        self.region_tracking_data['hdir_barrier'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.region_tracking_data['barrier_loc'])))
+        self.region_tracking_data['hdir_barrier'] = np.full((len(self.region_tracking_data['avg_loc']),len(self.region_tracking_data['barrier_loc'])), np.nan)
 
         for i in np.arange(len(self.region_tracking_data['barrier_loc'])): # calculate body to barrier angle for each edge of barrier
             self.region_tracking_data['hdir_barrier'][:,i] = compute_angle_head_point(self,'barrier_loc',i)
