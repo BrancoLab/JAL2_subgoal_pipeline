@@ -156,7 +156,12 @@ class get_Homings:
             analyzer._compute_run_features(run)
             analyzer.all_runs.append(run)
 
-        candidates = analyzer.run_classification(use_learned_gates=True)
+        if self.settings.homings_classifiction_manual_gates is not None:
+            logger.info("Using manually defined gates for homing classification")
+            candidates = analyzer.run_classification(use_learned_gates=False, manual_gates=self.settings.homings_classifiction_manual_gates)
+        else:
+            candidates = analyzer.run_classification(use_learned_gates=True)
+            
         # cadidates is list of tuple of onsets and offsets, so we can unpack it here
         candidates = np.array(candidates, dtype = int)
         if len(candidates) == 0:
@@ -180,7 +185,7 @@ def get_avg_speed(onsets, offsets, tracking_data, session) -> np.array:
 
     for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
         y_loc = tracking_data['head_loc'][onset:offset,1]
-        in_shelt = np.where(y_loc > tracking_data['shelter_loc'][0][1])[0]
+        in_shelt = np.where(y_loc > tracking_data['shelter_loc'][0][1])[0] if len(tracking_data['shelter_loc']) > 0 else []
         trial_speed = tracking_data["avg_Velocity"][onset:offset]
         if len(in_shelt)>0:
             trial_speed = trial_speed[:in_shelt[0]]

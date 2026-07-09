@@ -87,6 +87,7 @@ class Settings_analyze_behave:
     homings_classification_precision_threshold: float = 0.1  # minimum precision for a feature gate to be considered valid
     homings_classification_auc_threshold: float = 0.9  # or .8, minimum AUC for a feature gate to be considered valid
     homings_classification_cohens_d_threshold: float = 1  # minimum absolute Cohen's d for a feature gate to be considered valid
+    homings_classifiction_manual_gates: dict = None  # dictionary of manually defined gates for homing classification
     redo_compute: bool = False
     homings_use_boris: bool = False
     homings_distance_threshold: int = 25 # in cm, minimum lengthto be kept as a homings
