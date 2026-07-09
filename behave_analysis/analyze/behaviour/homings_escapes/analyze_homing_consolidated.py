@@ -135,6 +135,7 @@ class HomingAnalyzer:
                     is_homing=ishoming,
                     is_escape=video_df['EscapePeriod'].to_numpy(),
                     barrier_loc=tracking_data.get('barrier_loc', None),
+                    shelter_loc=tracking_data.get('shelter_loc', None),
                     barrier_present=video_df['barrier_present'].to_numpy(),
                     barrier_flipped=video_df['barrier_flipped'].to_numpy(),
                     outofshelter_idx=video_df['OutofshelterIdx'].to_numpy(),
@@ -342,8 +343,8 @@ class HomingAnalyzer:
         
         # Speed stats
         run.speed_mean = float(np.nanmean(speed_seg))
-        run.speed_peak = float(np.nanmax(speed_seg))
-        run.speed_min = float(np.nanmin(speed_seg))
+        run.speed_peak = float(np.nanpercentile(speed_seg, 90)) # float(np.nanmax(speed_seg))
+        run.speed_min = float(np.nanpercentile(speed_seg, 10)) # float(np.nanmin(speed_seg))
 
         # Heading at run onset (wrapped to [-pi, pi])
         run.head_turn_angle_initial = float(np.arctan2(np.sin(hdir_seg[0]), np.cos(hdir_seg[0])))
@@ -382,6 +383,9 @@ class HomingAnalyzer:
             run.mean_initial_angular_head_velocity = float(np.nanmean(ang_vel))
         else:
             run.mean_initial_angular_head_velocity = np.nan
+        
+        run.speed_variance = float(np.nanvar(speed_seg))
+        run.hdir_variance = float(self._circular_variance(hdir_seg))
     
     def _wrap_to_pi(self, a: np.ndarray) -> np.ndarray:
         """Wrap angles to [-pi, pi]."""
@@ -397,6 +401,15 @@ class HomingAnalyzer:
         cos_mean = np.mean(np.cos(angles))
         return float(np.arctan2(sin_mean, cos_mean))
     
+    def _circular_variance(self, theta):
+        """Compute circular variance of angles (in radians)."""
+        theta = np.asarray(theta, dtype=float)
+        theta = theta[np.isfinite(theta)]
+        if theta.size == 0:
+            return np.nan
+        R = np.abs(np.mean(np.exp(1j * theta))) # mean resultant length in [0, 1]
+        return 1.0 - R # circular variance in [0, 1]
+
     def compute_feature_distributions(self) -> Dict:
         """
         Analyze feature distributions for two groups:
@@ -409,7 +422,7 @@ class HomingAnalyzer:
         target_runs = self.manual_runs
         
         feature_names = [
-            'speed_mean', 'speed_peak',
+            'speed_mean', 'speed_peak', 'speed_variance', 'hdir_variance',
             'head_turn_angle_initial',
             'net_distance', 'net_dx', 'net_dy', 'displacement_vertical_ratio',
             'mean_initial_acceleration', 'initial_hdir_change_abs', 'mean_initial_angular_head_velocity'
@@ -512,6 +525,8 @@ class HomingAnalyzer:
             'head_turn_angle_initial': (-np.pi, np.pi),
             'initial_hdir_change_abs': (0.0, np.pi),
             'mean_initial_angular_head_velocity': (0.0, 5.0),
+            'speed_variance': (0.0, 300.0),
+            'hdir_variance': (0.0, 1.5),
         }
         
         n_plots = min(only_top_n, len(self.feature_ranking))
@@ -757,17 +772,24 @@ class HomingAnalyzer:
         self,
         candidates: Optional[List[Tuple[int, int]]] = None,
         candidates_by_session: Optional[Dict[str, List[Tuple[int, int]]]] = None,
+        recovered_fraction_threshold: float = 0.30,
     ) -> Dict:
         """
-        Compute Phase 3 overlap metrics (new formulation).
-        
-        For each extracted run: fraction of frames that were manually labelled (is_homing or is_escape)
-        For each manually-labelled run: fraction of frames that overlapped extracted runs
-        Find: fraction of manually-labelled runs containing >1 extracted run
-        Find: fraction of extracted runs overlapping >1 manually-labelled run
+        Compute Phase 3 overlap metrics.
+
+        For each extracted run:
+            - fraction of frames that were manually labelled
+            - recovered if best overlap with any manual run is >= recovered_fraction_threshold
+
+        For each manually-labelled run:
+            - best fraction of the manual run covered by any extracted run
+            - recovered if best overlap with any extracted run is >= recovered_fraction_threshold
+
+        Session summary reports:
+            - mean fraction of extracted frames that are manually labelled
+            - fraction of extracted runs recovered
+            - fraction of manual runs recovered
         """
-        # Prefer explicit session mapping. If unavailable, use stored Phase 2 mapping.
-        # A flat candidates list is ambiguous across sessions and can inflate counts.
         if candidates_by_session is None:
             if hasattr(self, 'candidates_by_session'):
                 candidates_by_session = self.candidates_by_session
@@ -785,81 +807,103 @@ class HomingAnalyzer:
             logger.warning(
                 "Ignoring flat candidates list in Phase 3 because session-wise candidates are available."
             )
-        
+
         logger.info("Computing Phase 3 overlap metrics...")
-        
+
         results = {'by_session': {}, 'summary': {}}
-        
+
         for session_name, data in self.session_data.items():
-            # Get manually-labelled runs in this session
             manual_homing = self._contiguous_events(data.is_homing)
             manual_escape = self._contiguous_events(data.is_escape)
             all_manual = manual_homing + manual_escape
-            
-            # Get extracted candidates in this session
+
             session_candidates = list(candidates_by_session.get(session_name, []))
-            
-            # Build overlap metrics
+
             extracted_metrics = []
+            recovered_extracted_count = 0
+
             for c_on, c_off in session_candidates:
                 n_frames_extracted = c_off - c_on + 1
                 n_frames_manual_overlap = 0
+                best_fraction_extracted_covered = 0.0
                 n_manual_runs_overlapping = 0
-                
+
                 for m_on, m_off in all_manual:
                     inter = max(0, min(c_off, m_off) - max(c_on, m_on) + 1)
                     if inter > 0:
                         n_frames_manual_overlap += inter
                         n_manual_runs_overlapping += 1
-                
-                fraction_manually_labelled = n_frames_manual_overlap / n_frames_extracted
+                        fraction_extracted_covered = inter / n_frames_extracted if n_frames_extracted > 0 else 0.0
+                        best_fraction_extracted_covered = max(best_fraction_extracted_covered, fraction_extracted_covered)
+
+                fraction_manually_labelled = n_frames_manual_overlap / n_frames_extracted if n_frames_extracted > 0 else np.nan
+                is_recovered = best_fraction_extracted_covered >= recovered_fraction_threshold
+                if is_recovered:
+                    recovered_extracted_count += 1
+
                 extracted_metrics.append({
                     'onset': c_on,
                     'offset': c_off,
                     'n_manual_overlap_frames': n_frames_manual_overlap,
                     'fraction_manually_labelled': fraction_manually_labelled,
+                    'best_fraction_extracted_covered': best_fraction_extracted_covered,
+                    'is_recovered': is_recovered,
+                    'recovered_threshold': recovered_fraction_threshold,
                     'n_manual_runs_overlapping': n_manual_runs_overlapping,
                 })
-            
+
             manual_metrics = []
+            recovered_manual_count = 0
             multi_extracted_count = 0
+
             for m_on, m_off in all_manual:
                 n_frames_manual = m_off - m_on + 1
                 n_frames_extracted_overlap = 0
+                best_fraction_manual_covered = 0.0
                 n_extracted_runs_overlapping = 0
-                
+
                 for c_on, c_off in session_candidates:
                     inter = max(0, min(c_off, m_off) - max(c_on, m_on) + 1)
                     if inter > 0:
                         n_frames_extracted_overlap += inter
                         n_extracted_runs_overlapping += 1
-                
+                        fraction_manual_covered = inter / n_frames_manual if n_frames_manual > 0 else 0.0
+                        best_fraction_manual_covered = max(best_fraction_manual_covered, fraction_manual_covered)
+
+                is_recovered = best_fraction_manual_covered >= recovered_fraction_threshold
+                if is_recovered:
+                    recovered_manual_count += 1
                 if n_extracted_runs_overlapping > 1:
                     multi_extracted_count += 1
-                
-                fraction_extracted_labelled = n_frames_extracted_overlap / n_frames_manual
+
                 manual_metrics.append({
                     'onset': m_on,
                     'offset': m_off,
                     'n_extracted_overlap_frames': n_frames_extracted_overlap,
-                    'fraction_extracted_labelled': fraction_extracted_labelled,
+                    'best_fraction_manual_covered': best_fraction_manual_covered,
+                    'is_recovered': is_recovered,
+                    'recovered_threshold': recovered_fraction_threshold,
                     'n_extracted_runs_overlapping': n_extracted_runs_overlapping,
                 })
-            
-            # Session summary
+
             mean_frac_manual = np.mean([m['fraction_manually_labelled'] for m in extracted_metrics]) if extracted_metrics else np.nan
-            mean_frac_extracted = np.mean([m['fraction_extracted_labelled'] for m in manual_metrics]) if manual_metrics else np.nan
-            
+            fraction_extracted_recovered = recovered_extracted_count / len(session_candidates) if session_candidates else np.nan
+            fraction_manual_recovered = recovered_manual_count / len(all_manual) if all_manual else np.nan
+
             results['by_session'][session_name] = {
                 'n_extracted': len(session_candidates),
                 'n_manual': len(all_manual),
                 'extracted_metrics': extracted_metrics,
                 'manual_metrics': manual_metrics,
                 'mean_fraction_extracted_that_are_manually_labelled': mean_frac_manual,
-                'mean_fraction_manual_that_are_extracted': mean_frac_extracted,
+                'fraction_extracted_recovered': fraction_extracted_recovered,
+                'recovered_extracted_count': recovered_extracted_count,
+                'fraction_manual_recovered': fraction_manual_recovered,
+                'recovered_manual_count': recovered_manual_count,
+                'recovered_threshold': recovered_fraction_threshold,
                 'fraction_manual_with_multiple_extracted': multi_extracted_count / len(all_manual) if all_manual else np.nan,
             }
-        
+
         logger.info("  ✓ Phase 3 overlap computed")
         return results
     
@@ -894,6 +938,10 @@ class HomingAnalyzer:
         viewer.add_integer('speed_thresh', min=0, max=20, value=self.settings.homings_speed_threshold)
         viewer.add_integer('session_idx', min=0, max=len(session_names) - 1, value=0)
         viewer.add_integer('include_manual_events', min=0, max=1, value=1 if include_manual_events_in_iteration else 0)
+        
+        def see_next(state):
+            viewer.update_integer("trial", value=state["trial"] + 1)
+        viewer.add_button("see_next", label="See next", callback=see_next)
         
         def plot(state):
             idx = int(state['trial'])
