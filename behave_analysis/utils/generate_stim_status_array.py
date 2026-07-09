@@ -9,7 +9,7 @@ def generate_stim_status_array(onset_frames: np.int64, stimulus_durations, secon
     if not isinstance(onset_frames, np.int64):
         onset_frames = int(onset_frames)
 
-    stim_status = np.zeros((0) + int((seconds_before + stimulus_durations[-1] + seconds_after) * fps)) + 0.01  # 0.01 ~ in between stimuli
+    stim_status = np.zeros((0) + int((seconds_before + stimulus_durations + seconds_after) * fps)) + 0.01  # 0.01 ~ in between stimuli
     stim_status[: seconds_before * fps] = np.arange(-seconds_before * fps - 1, -1) / fps  # pre-stimulus countdown in seconds
     stim_status[
         int(seconds_before * fps + onset_frames - int(onset_frames)) : int((seconds_before + stimulus_durations) * fps)

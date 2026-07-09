@@ -9,7 +9,7 @@ import numpy as np
 
 # import
 # from behave_analysis.analyze.behaviour.spatial_efficiency import identify_condition_escape, base_plotting
-from behave_analysis.analyze.behaviour.utils import base_plotting, 
+from behave_analysis.analyze.behaviour.utils import base_plotting
 from behave_analysis.utils.identify_condition import identify_condition_of_trial
 from behave_analysis.utils.arena_plotting import Arena
 
