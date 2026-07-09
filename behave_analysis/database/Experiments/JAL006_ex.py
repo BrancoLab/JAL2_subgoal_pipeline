@@ -81,7 +81,7 @@ JAL6_flip5_25mar = Experiment(  # Mouse specific
     experiment_date="2024_03_25",
     experiment_time="11_05_33",
     shelter_time=[0.25, -1],
-    barrier_time=[61.5, -1],
+    barrier_time=[61.5, 303.5],
     barrier_flip_time=169.75,
     experiment_path=Path(r"JAL006_shelter_barrier_flip_5_2024_03_25T11_05_33"),
 )
@@ -132,7 +132,7 @@ JAL6_flip8_5apr = Experiment(  # Mouse specific
     experiment_date="2024_04_05",
     experiment_time="10_45_20",
     shelter_time=[0.33, -1],
-    barrier_time=[86.5, -1],
+    barrier_time=[86.5, 263],
     barrier_flip_time=194.5,
     experiment_path=Path(r"JAL006_shelter_barrier_flip_8_2024_04_05T10_45_20"),
 )
