@@ -12,7 +12,7 @@ from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dat
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
 from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
-from behave_analysis.utils.identify_condition import build_shelter_condition_bool, build_barrier_condition_bool, build_flippedbarrier_condition_bool
+from behave_analysis.utils.identify_condition import build_condition_bool, build_flippedbarrier_condition_bool
 from settings.settings_overrides import settings_overrides
 from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 
@@ -26,11 +26,6 @@ class BaseDataPostprocessor(ABC):
         self.select_cluster_labels = cluster_labels_to_filter
         self.tracking_data = tracking_data
         self.session = session
-        (
-            self.sheltertime,
-            self.barriertime,
-            self.barrierfliptime,
-        ) = self.convert_experimental_settings_to_conditon_timings(session)
 
     # --------------- Abstract methods to be implemented by all children ---------------------------------------------
 
@@ -43,30 +38,6 @@ class BaseDataPostprocessor(ABC):
         pass
 
     # --------------- Concrete methods implemented ----------------------------------------------------------------------
-
-    def convert_experimental_settings_to_conditon_timings(self, session):
-        """
-        Take the times inserted into the experimental class and convert them to seconds
-
-        NOTE: The naming of sheltertime is not great as there is another variable called shelter_time in the session class. This is true for the other variables as well.
-        consider renaming them to something more descriptive.
-        """
-
-        # Init variables incase they are not defined
-        sheltertime = None
-        barriertime = None
-        barrierfliptime = None
-
-        if session.shelter_time:
-            sheltertime = np.array(self.session.shelter_time) * 60
-
-        if session.barrier_time:
-            barriertime = np.array(self.session.barrier_time) * 60
-
-        if session.barrier_flip_time:
-            barrierfliptime = np.array(self.session.barrier_flip_time) * 60
-
-        return sheltertime, barriertime, barrierfliptime
 
     def extract_cluster_labels(self):
         """
@@ -140,11 +111,17 @@ class BaseDataPostprocessor(ABC):
         else:
             OutofShelterIdx = np.logical_not(np.zeros(len(self.tracking_data["hdir"])))
 
+        # what are the valid times of recording?
+        if len(self.session.valid_time) == 0:
+            valid_time = np.ones(n_frames, dtype=bool)
+        else:
+            valid_time = build_condition_bool(time_list = self.session.valid_time, cond_name = 'valid', frame_idx=frame_idx, n_frames=n_frames, fps = self.session.video.fps)
+
         # when was the shelter in the arena?
-        shelter = build_shelter_condition_bool(session=self.session, frame_idx=frame_idx, n_frames=n_frames)
+        shelter = build_condition_bool(time_list = self.session.shelter_time, cond_name = 'shelter', frame_idx=frame_idx, n_frames=n_frames, fps = self.session.video.fps)
 
         # what period in the recording was there a barrier?
-        barrier_present = build_barrier_condition_bool(session=self.session, frame_idx=frame_idx, n_frames=n_frames)
+        barrier_present = build_condition_bool(time_list = self.session.barrier_time, cond_name = 'barrier', frame_idx=frame_idx, n_frames=n_frames, fps = self.session.video.fps)
 
         # when was the barrier flipped?
         barrier_flipped = build_flippedbarrier_condition_bool(session=self.session, frame_idx=frame_idx, n_frames=n_frames)
@@ -165,6 +142,7 @@ class BaseDataPostprocessor(ABC):
                 "speed": self.tracking_data["avg_Velocity"],
                 "OutofshelterIdx": OutofShelterIdx,  # was the mouse in the shelter?
                 "EscapePeriod": EscapePeriod == 1,  # frames from 1 second before to 10 seconds after escape
+                "valid_time": valid_time,  # true when the mouse is in the arena, hasn't jumped off, there are no recording problems
                 "shelter": shelter,  # true when the shelter is in the arena
                 "barrier_present": barrier_present,  # true when the barrier is in the arena
                 "barrier_flipped": barrier_flipped,

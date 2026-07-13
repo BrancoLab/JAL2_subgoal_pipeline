@@ -209,7 +209,7 @@ def angle_histograms(tracking_data, session, settings, save_path):
         # only for times when there is a shelter-only
         frames_with_shelter = np.zeros_like(tracking_data["hdir_shelt"])
         if session.shelter_time[1] == -1:
-            frames_with_shelter[session.shelter_time[0] * 60 * self.session.video.fps :] = 1
+            frames_with_shelter[session.shelter_time[0] * 60 * session.video.fps :] = 1
         else:
             frames_with_shelter[session.shelter_time[0] * 60 * session.video.fps : session.shelter_time[1] * 60 * session.video.fps] = 1
         axs[1].hist(
