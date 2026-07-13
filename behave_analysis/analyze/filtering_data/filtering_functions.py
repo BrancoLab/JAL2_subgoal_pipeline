@@ -43,7 +43,9 @@ def filter_video_dataframe(dataframe, condition = "", outofshelter=True, exclude
 
     assert type(dataframe) == pl.DataFrame, "dataframe must be a polars dataframe else filtering will not work"
 
-    filtered_video_df = dataframe.filter((dataframe["speed"] >= speed_threshold))
+    filtered_video_df = dataframe.filter((dataframe["valid_time"] == True))  # only keep valid times of recording
+    
+    filtered_video_df = filtered_video_df.filter((filtered_video_df["speed"] >= speed_threshold))
 
     if not outofshelter is None:
         filtered_video_df = filtered_video_df.filter((filtered_video_df["OutofshelterIdx"] == outofshelter))
@@ -243,7 +245,41 @@ def identify_conditions(session) -> list:
         if session.barrier_time[1] != -1:
             condition.append("barrier_removed")
 
-    return condition
+
+def identify_epoch_conditions(session) -> list:
+    """Return the ordered list of mutually-exclusive epoch condition names used as
+    integer-index labels (0, 1, 2, ...) in ComputeEscapeTuning.preprocess_data().
+
+    The index order mirrors the incremental condition vector built there:
+      - index 0 = "pre_shelter"  (if a pre-shelter epoch exists), otherwise "shelter_only"
+      - index 1 = "shelter_only" (if pre-shelter exists),          otherwise "barrier_pre_flip" (if barrier)
+      - index 2 = "barrier_pre_flip"  (if pre-shelter + barrier)   otherwise "barrier_post_flip"
+      - index 3 = "barrier_post_flip" (if pre-shelter + barrier + flip)
+      - index 4 = "barrier_removed" (if pre-shelter + barrier + flip + removal)
+
+    Unlike identify_conditions(), this returns only the epochs that correspond to
+    distinct integer values of the condition vector, with names consistent with
+    compute_dist_shelt() ("barrier_pre_flip" / "barrier_post_flip").
+    """
+    conditions = []
+    has_pre_shelter = len(session.shelter_time) > 0 and session.shelter_time[0] > 0
+    has_shelter = len(session.shelter_time) > 0
+    has_barrier = len(session.barrier_time) > 0
+    has_barflip = bool(session.barrier_flip_time)
+
+    if has_pre_shelter:
+        conditions.append("pre_shelter")
+    if has_shelter and (session.shelter_time[0] < session.barrier_time[0] if has_barrier else True):
+        conditions.append("shelter_only")
+    if has_barrier:
+        if has_barflip:
+            conditions.append("barrier_pre_flip")
+            conditions.append("barrier_post_flip")
+        else:
+            conditions.append("barrier_pre_flip")
+    if has_barrier and session.barrier_time[1] != -1:
+        conditions.append("barrier_removed")
+    return conditions
 
 
 def extract_all_or_custom_conditions(settings, session):

@@ -89,7 +89,6 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         offs: vector of offset times in frames for homing and escape periods
         esc_ons: vector of onset times in frames for escape periods
     """
-    cond_list = ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]
 
     ons = []
     offs = []
@@ -100,26 +99,27 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
     # check if we want to include escapes
     if "escape" in escape_pattern_time:
         # pull out escape onsets and calculate offset estimate based on stimulus duration (assuming 40 fps) - mouse will likely lon gbe in shelter by then
-        esc_ons = np.array(check_not_list(aefizz.escape_object.onset_frames))
+        esc_ons = np.array(check_not_list(aefizz.escape_dict["onset_frames"]))
         not_nan = np.where(~np.isnan(esc_ons))[0]  # if the mouse didn't perform an escape after the stim!
         ons = np.append(ons, esc_ons[not_nan])
-        offs = np.append(offs, np.array(check_not_list(aefizz.escape_object.offset_frames))[not_nan])
-        trajectory_length = np.append(trajectory_length, aefizz.escape_object.trajectory_length[not_nan])
-        condition = np.append(condition, [c for idx, c in enumerate(aefizz.escape_object.condition) if idx in not_nan])
+        offs = np.append(offs, np.array(check_not_list(aefizz.escape_dict["offset_frames"]))[not_nan])
+        trajectory_length = np.append(trajectory_length, aefizz.escape_dict["trajectory_length"][not_nan])
+        condition = np.append(condition, [c for idx, c in enumerate(aefizz.escape_dict["condition"]) if idx in not_nan])
 
     if "homing" in escape_pattern_time:
         # pull out homing onsets and offsets
-        ons = np.append(ons, check_not_list(aefizz.homings_object.onset_frames))
-        offs = np.append(offs, check_not_list(aefizz.homings_object.offset_frames))
-        trajectory_length = np.append(trajectory_length, aefizz.homings_object.trajectory_length)
-        condition = np.append(condition, aefizz.homings_object.condition)
+        ons = np.append(ons, check_not_list(aefizz.homing_dict["onset_frames"]))
+        offs = np.append(offs, check_not_list(aefizz.homing_dict["offset_frames"]))
+        trajectory_length = np.append(trajectory_length, aefizz.homing_dict["trajectory_length"])
+        condition = np.append(condition, aefizz.homing_dict["condition"])
 
     # combine homing and escape onsets and offsets
-    idx = np.argsort(ons)
-    ons = ons[idx]
-    offs = offs[idx]
-    trajectory_length = trajectory_length[idx]
-    condition = condition[idx]
+    sort_idx = np.argsort(ons)
+    ons = ons[sort_idx]
+    offs = offs[sort_idx]
+    trajectory_length = trajectory_length[sort_idx]
+    condition = condition[sort_idx]
+    cond_list = np.unique(condition)
 
     # compute spatial efficiency for each run
     optimal_distances = np.zeros(len(ons))
@@ -127,10 +127,10 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         dist_to_shelter = compute_dist_shelt(
             x_pos=np.array([aefizz.video_df["mouse_x_position"].to_numpy()[int(ons[idx])]]),
             y_pos=np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(ons[idx])]]),
-            cond=np.array([x for x, c in enumerate(cond_list) if c == condition[idx]]),
+            cond=np.array([condition[idx]]),
             shelter_location=[np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]],
-            barrier_location1=aefizz.session.barrier_location[0],
-            barrier_location2=aefizz.session.barrier_location[1],
+            barrier_location1=aefizz.session.barrier_location[0] if len(aefizz.session.barrier_location) > 0 else None,
+            barrier_location2=aefizz.session.barrier_location[1] if len(aefizz.session.barrier_location) > 1 else None,
         )
         optimal_distances[idx] = dist_to_shelter[0]
 
@@ -250,7 +250,7 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
         aefizz: AnalyzeEfizz object
         x: mouse x position vector - the variable of interest will be computed based on this and the y position vector
         y: mouse y position vector - the variable of interest will be computed based on this and the x position vector
-        condition: vector of condition at each time point
+        condition: vector of string of the name of the condition at each time point
         tuning_var: string defining which behavioral variable to compute
         time_mask_vector: boolean vector defining time periods of interest (e.g. homings)
         bin_edges: edges of bins to discretize variable into (if empty, will be defined based on settings)
@@ -259,7 +259,9 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
     if tuning_var in ["distance_shelter"]:
         shelter = [np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]]
         var = compute_dist_shelt(
-            x, y, condition, shelter_location=shelter, barrier_location1=aefizz.session.barrier_location[0], barrier_location2=aefizz.session.barrier_location[1]
+            x, y, condition, shelter_location=shelter, 
+            barrier_location1=aefizz.session.barrier_location[0] if len(aefizz.session.barrier_location) > 0 else None,
+            barrier_location2=aefizz.session.barrier_location[1] if len(aefizz.session.barrier_location) > 1 else None
         )
 
     # compute distance to first goal (either shelter or subgoal)
@@ -270,7 +272,9 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
     elif tuning_var in ["bird_dist_shelter"]:
         shelter = [np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]]
         var = compute_dist_shelt(
-            x, y, cond=np.zeros_like(x), shelter_location=shelter, barrier_location1=aefizz.session.barrier_location[0], barrier_location2=aefizz.session.barrier_location[1]
+            x, y, cond=np.full_like(x, "shelter_only"), shelter_location=shelter, 
+            barrier_location1=aefizz.session.barrier_location[0] if len(aefizz.session.barrier_location) > 0 else None, 
+            barrier_location2=aefizz.session.barrier_location[1] if len(aefizz.session.barrier_location) > 1 else None
         )
         # cond=np.zeros_like(x) is a hack which forces bird's eye distance, ignoring barrier
 
@@ -332,7 +336,7 @@ def compute_dist_shelt(x_pos, y_pos, cond, shelter_location, barrier_location1, 
     The distance is computed as the shortest path between mouse and shelter (around barrier, if necessary)
     INPUTS:
         x_pos, y_pos: vector of the x and y position of the mouse at any given time
-        cond: vector of the condition the mouse is in at any given time (0 for shelter_only, 1 for barrier, 2 for flipped_barrier)
+        cond: vector of strings of the condition the mouse is in at any given time
         shelter_location: (x, y) coordinates of the shelter (X is the middle of the shelter, Y is the top edge of the shelter)
         barrier_location1: (x, y) coordinates of the edge of the barrier in the preflip condition
         barrier_location2: (x, y) coordinates of the edge of the barrier in the postflip condition
@@ -345,15 +349,17 @@ def compute_dist_shelt(x_pos, y_pos, cond, shelter_location, barrier_location1, 
 
     # for times when the mouse is in the top half of the arena and the barrier is inserted,
     # compute path around barrier: mouse → barrier_edge → shelter
-    top_barrier = np.logical_and(cond == 1, y_pos < 512)
-    dist[top_barrier] = np.sqrt(((x_pos[top_barrier] - barrier_location1[0]) ** 2) + ((y_pos[top_barrier] - barrier_location1[1]) ** 2)) + np.sqrt(
-        ((barrier_location1[0] - shelter_location[0]) ** 2) + ((barrier_location1[1] - shelter_location[1]) ** 2)
-    )
+    top_barrier = np.logical_and(cond == "barrier_pre_flip", y_pos < 512)
+    if np.sum(top_barrier.astype(int)) > 0:
+        dist[top_barrier] = np.sqrt(((x_pos[top_barrier] - barrier_location1[0]) ** 2) + ((y_pos[top_barrier] - barrier_location1[1]) ** 2)) + np.sqrt(
+            ((barrier_location1[0] - shelter_location[0]) ** 2) + ((barrier_location1[1] - shelter_location[1]) ** 2)
+        )
 
-    top_barrierflip = np.logical_and(cond == 2, y_pos < 512)
-    dist[top_barrierflip] = np.sqrt(((x_pos[top_barrierflip] - barrier_location2[0]) ** 2) + ((y_pos[top_barrierflip] - barrier_location2[1]) ** 2)) + np.sqrt(
-        ((barrier_location2[0] - shelter_location[0]) ** 2) + ((barrier_location2[1] - shelter_location[1]) ** 2)
-    )
+    top_barrierflip = np.logical_and(cond == "barrier_post_flip", y_pos < 512)
+    if np.sum(top_barrierflip.astype(int)) > 0:
+        dist[top_barrierflip] = np.sqrt(((x_pos[top_barrierflip] - barrier_location2[0]) ** 2) + ((y_pos[top_barrierflip] - barrier_location2[1]) ** 2)) + np.sqrt(
+            ((barrier_location2[0] - shelter_location[0]) ** 2) + ((barrier_location2[1] - shelter_location[1]) ** 2)
+        )
 
     # for all other positions (bottom half or no barrier), use direct distance to shelter
     no_barrier_path = ~(top_barrier | top_barrierflip)

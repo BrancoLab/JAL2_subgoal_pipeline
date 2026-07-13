@@ -8,6 +8,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import define_bi
 class EscapeTuning:
     name: str
     nbins: int
+    all_conditions: list
     tuning_var: str
     settings: object
     escape_pattern_time: str
@@ -18,7 +19,7 @@ class EscapeTuning:
     explore_vector: float = 0.0
     shelter_outing_vector: float = 0.0
     neural_matrix: float = 0.0
-    condition: float = 0.0
+    condition_vector: float = 0.0
     discretized_var: float = 0.0
     # full tuning
     loo_reliability: float = 0.0
