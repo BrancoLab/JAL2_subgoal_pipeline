@@ -44,8 +44,8 @@ class ComputeEscapeTuning:
 
         # check that we're not trying to compute %escape tuning during explore periods
         # self.ET.escape_pattern_time == "explore": looking at exploration period
-        # "escape" in self.ET.tuning_var: trying to compute tuning to % escape which can't be done in exploration
-        if (self.ET.escape_pattern_time == "explore") and ("escape" in self.ET.tuning_var):
+        # "frac_route" in self.ET.tuning_var: trying to compute tuning to fractional route which can't be done in exploration
+        if (self.ET.escape_pattern_time == "explore") and ("frac_route" in self.ET.tuning_var):
             raise ValueError("Cannot compute escape tuning during explore periods")
         pass
 

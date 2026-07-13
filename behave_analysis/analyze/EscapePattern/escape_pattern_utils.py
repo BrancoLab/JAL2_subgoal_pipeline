@@ -15,7 +15,7 @@ def define_bin_edges(settings, tuning_var):
 
     range_dict = {
         "bird_dist_shelter": (0, 900),
-        "escape": (0, 1),
+        "frac_route": (0, 1),
         "distance_shelter": (0, 1200),
         "speed": (0, 100),
         "y_pos": (0, 1024)
@@ -140,7 +140,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
 
     assert not (("correct" in escape_pattern_time) and ("error" in escape_pattern_time)), "You cannot select for both correct and error homings/escapes at the same time"
     assert not (("full" in escape_pattern_time) and ("to_subgoal" in escape_pattern_time)), "You cannot select for both full and to_subgoal homings/escapes at the same time"
-    
+
     if "correct" in escape_pattern_time:  # homings with spatial efficiency of 0.95-1.05 are considered correct
         keepers = keepers & ((spatial_efficiency > spatial_efficiency_threshold[0]) & (spatial_efficiency < spatial_efficiency_threshold[1]))
     if "error" in escape_pattern_time:
@@ -285,16 +285,16 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
         )
         # cond=np.zeros_like(x) is a hack which forces bird's eye distance, ignoring barrier
 
-    # compute fraction of escape trajectory
-    elif "escape" in tuning_var:
-        # iterate over escape trials to compute distance travelled during each escape
+    # compute fraction of trajectory
+    elif "frac_route" in tuning_var:
+        # iterate over trials to compute distance travelled during each
         ons = np.where(np.diff(time_mask_vector.astype(int)) == 1)[0] + 1  # homing onsets
         offs = np.where(np.diff(time_mask_vector.astype(int)) == -1)[0] + 1  # homing offsets
         homie_starts = offs - ons
         first = 0
         var = np.zeros_like(x)
         for hs in homie_starts:
-            dd = compute_escape_trajectory(x[first : first + hs], y[first : first + hs])
+            dd = compute_total_trajectory(x[first : first + hs], y[first : first + hs])
             var[first : first + hs] = dd / np.amax(dd)
             first += hs
 
@@ -326,7 +326,7 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
     return var
 
 
-def compute_escape_trajectory(xpos, ypos, start=0, stop=-1):
+def compute_total_trajectory(xpos, ypos, start=0, stop=-1):
     # compute cumulative distance travelled at every time point
     distance_travelled = np.zeros_like(xpos)
     all_time = np.arange(len(xpos) + 1)

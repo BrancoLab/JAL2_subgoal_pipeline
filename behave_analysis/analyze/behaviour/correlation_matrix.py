@@ -40,7 +40,7 @@ def compute_correlation_matrix(abehave, variables):
         if var == 'speed':
             var_matrix[i,:] = abehave.video_df.filter((time_mask))["speed"].to_numpy()
             var_properties.append("linear")
-        elif var in ['bird_dist_shelter', 'position', 'escape', 'distance_shelter']:
+        elif var in ['bird_dist_shelter', 'position', 'frac_route', 'distance_shelter']:
             if var == 'position': logger.warning("Using bird_dist_shelter as 1D proxy for position.")
             condition_vector = np.zeros(np.sum(time_mask), dtype=int)
             condition_vector[abehave.video_df.filter((time_mask))["barrier_present"].to_numpy().astype(bool)] += 1
