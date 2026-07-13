@@ -138,6 +138,9 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
 
     keepers = np.ones_like(ons, dtype=bool)
 
+    assert not (("correct" in escape_pattern_time) and ("error" in escape_pattern_time)), "You cannot select for both correct and error homings/escapes at the same time"
+    assert not (("full" in escape_pattern_time) and ("to_subgoal" in escape_pattern_time)), "You cannot select for both full and to_subgoal homings/escapes at the same time"
+    
     if "correct" in escape_pattern_time:  # homings with spatial efficiency of 0.95-1.05 are considered correct
         keepers = keepers & ((spatial_efficiency > spatial_efficiency_threshold[0]) & (spatial_efficiency < spatial_efficiency_threshold[1]))
     if "error" in escape_pattern_time:
@@ -146,6 +149,10 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         starts = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(on)] for on in ons])
         ends = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(off)] for off in offs])
         keepers = keepers & (starts < 300) & (ends > 800)
+    if "to_subgoal" in escape_pattern_time:  # homings that go to the subgoal-ish
+        ends = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(off)] for off in offs])
+        keepers = keepers & (ends > 450) & (ends < 530)
+    
     if "not" in escape_pattern_time:
         keepers = ~keepers
     
