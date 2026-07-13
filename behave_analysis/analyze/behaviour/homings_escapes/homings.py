@@ -21,7 +21,7 @@ from behave_analysis.analyze.results_database_utils import settings_to_check, ch
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.analyze.behaviour.homings_escapes.analyze_homing_consolidated import HomingAnalyzer
-from behave_analysis.utils.identify_condition import build_shelter_condition_bool, build_barrier_condition_bool, build_flippedbarrier_condition_bool, identify_condition_of_trial
+from behave_analysis.utils.identify_condition import build_condition_bool, build_flippedbarrier_condition_bool, identify_condition_of_trial
 from behave_analysis.analyze.behaviour.homings_escapes.homing_load_manual_labels import load_manual_labels
 from behave_analysis.utils.creating_directories import make_directory
 
@@ -171,6 +171,14 @@ class get_Homings:
         else:
             self.onset_frames, self.offset_frames = candidates[:,0], candidates[:,1]
             self.stimulus_durations = (self.offset_frames - self.onset_frames)/self.session.video.fps  # match the format of the manual labels
+            end_of_valid = self.session.valid_time[1] * self.session.video.fps * 60 if self.session.valid_time[1] != -1 else len(video_df)
+            invalid = np.where(np.logical_and(self.onset_frames < self.session.valid_time[0] * self.session.video.fps * 60),
+                               (self.offset_frames > end_of_valid))[0]
+            if len(invalid) > 0:
+                logger.warning(f"Removing {len(invalid)} homings that are outside of valid time")
+                self.onset_frames = np.delete(self.onset_frames, invalid)
+                self.offset_frames = np.delete(self.offset_frames, invalid)
+                self.stimulus_durations = np.delete(self.stimulus_durations, invalid)
 
 ##-------- HOMING FEATURE FUNCTIONS--------------
 """USED ALSO FOR ESCAPES"""
@@ -211,9 +219,10 @@ def get_start_and_end_locs(tracking: object, onset_frames: np.array, offset_fram
 def get_condition_homing(video_df, onset_frames, session) -> list:
     """Return the experimental condition that the homing happened"""
     if "shelter" not in video_df.columns:
-        video_df = video_df.hstack([pl.Series("shelter", build_shelter_condition_bool(session=session, frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df)))])
+        shelter = build_condition_bool(time_list = session.shelter_time, cond_name = 'shelter', frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df), fps = session.video.fps)
+        video_df = video_df.hstack([pl.Series("shelter", shelter)])
     if "barrier_present" not in video_df.columns:
-        video_df = video_df.hstack([pl.Series("barrier_present", build_barrier_condition_bool(session=session, frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df)))])
+        video_df = video_df.hstack([pl.Series("barrier_present", build_condition_bool(time_list = session.barrier_time, cond_name = 'barrier', frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df), fps = session.video.fps))])
     if "barrier_flipped" not in video_df.columns:
         video_df = video_df.hstack([pl.Series("barrier_flipped", build_flippedbarrier_condition_bool(session=session, frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df)))])
 
