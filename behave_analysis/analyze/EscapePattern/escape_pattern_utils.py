@@ -103,7 +103,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         not_nan = np.where(~np.isnan(esc_ons))[0]  # if the mouse didn't perform an escape after the stim!
         ons = np.append(ons, esc_ons[not_nan])
         offs = np.append(offs, np.array(check_not_list(aefizz.escape_dict["offset_frames"]))[not_nan])
-        trajectory_length = np.append(trajectory_length, aefizz.escape_dict["trajectory_length"][not_nan])
+        trajectory_length = np.append(trajectory_length, np.array(aefizz.escape_dict["trajectory_length"])[not_nan])
         condition = np.append(condition, [c for idx, c in enumerate(aefizz.escape_dict["condition"]) if idx in not_nan])
 
     if "homing" in escape_pattern_time:
@@ -129,8 +129,8 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
             y_pos=np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(ons[idx])]]),
             cond=np.array([condition[idx]]),
             shelter_location=[np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]],
-            barrier_location1=aefizz.session.barrier_location[0] if len(aefizz.session.barrier_location) > 0 else None,
-            barrier_location2=aefizz.session.barrier_location[1] if len(aefizz.session.barrier_location) > 1 else None,
+            barrier_location1=aefizz.session.barrier_location[0] if aefizz.session.barrier_location is not None else None,
+            barrier_location2=aefizz.session.barrier_location[1] if aefizz.session.barrier_location is not None else None,
         )
         optimal_distances[idx] = dist_to_shelter[0]
 
@@ -224,9 +224,6 @@ def get_homings_onsets_in_filtered_time(filtering_vector):
 
 def select_onset_offsets_in_shift_vector(shift_vector, ons, offs):
     """This function selects homing/escape onsets and offsets that are within the shift vector"""
-
-    logger.warning("Debug this function to make sure it is working correctly!")
-
     # which ones to keep: the start and end of the homing has to inside the chunks defined by shifted_vec
     mask = np.logical_and(shift_vector[ons], shift_vector[offs])
     ons = ons[mask]
@@ -418,100 +415,70 @@ def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural
 
 # ------------------------------------Linear Shift Stats------------------------------------
 
+def build_shift_vector(ET, full_condition_vector, settings):
 
-def build_shift_vector(aefizz, ET):
     """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics
     If settings.escape_pattern_time is 'homing&escape' it makes sure there are enough homings in each central third"""
 
     # --- 1. Compute condition boundaries (in interpolated frame space) ---
-    mult = aefizz.settings.ep_interpolation_mult
-    ttime = len(aefizz.video_df) * mult  # total number of (interpolated) frames in the session
-    # frame index where the barrier first appears (end of shelter-only condition)
-    shelter = np.where(aefizz.video_df["barrier_present"].to_numpy() == True)[0][0] * mult
-    # frame index where the barrier flips (end of pre-flip barrier condition)
-    bar_in = np.where(aefizz.video_df["barrier_flipped"].to_numpy() == True)[0][0] * mult
+    mult = settings.ep_interpolation_mult
+    ttime = len(full_condition_vector) # total number of (interpolated) frames in the session
+    cond_start_end = [(np.where(full_condition_vector == i)[0][0], np.where(full_condition_vector == i)[0][-1]) for i in np.unique(full_condition_vector)]
 
     # --- 2. Define the central third of each condition ---
     # These are the "null" windows: data that won't be shifted past its own condition boundary
     shift_total_size_one_side = (
-        (aefizz.settings.linshift_step * mult * (aefizz.settings.linshift_step_n / 2)) + (aefizz.settings.linshift_min_step * mult) + 1
-    )  # total size of shifts on one side (e.g. 10s step * 3 steps = 30s)
-    mid_shelter = [int(shift_total_size_one_side), int(shelter - shift_total_size_one_side)]
-    mid_bar = [int(shelter + shift_total_size_one_side), int(bar_in - shift_total_size_one_side)]
-    mid_flip = [int(bar_in + shift_total_size_one_side), int(ttime - shift_total_size_one_side)]
-    # OLD VERSION: simply the middle third of each condition
-    # mid_shelter = [int(shelter / 3), int((shelter / 3) * 2)]
-    # mid_bar = [int(shelter + ((bar_in - shelter) / 3)), int(shelter + (((bar_in - shelter) / 3) * 2))]
-    # mid_flip = [int(bar_in + ((ttime - bar_in) / 3)), int(bar_in + (((ttime - bar_in) / 3) * 2))]
+            (settings.linshift_step * mult * (settings.linshift_step_n / 2)) + (settings.linshift_min_step * mult) + 1
+    )# total size of shifts on one side (e.g. 10s step * 3 steps = 30s)
+    shift_range = [(a+shift_total_size_one_side, b-shift_total_size_one_side) for (a,b) in cond_start_end]
 
     # --- 3. Define the shift amounts (one-sided, in interpolated frames) ---
     # e.g. min_step=3s, step=10s → shifts at 3s, 13s, 23s, ... (multiplied by interpolation factor)
     shifts_one_sided = np.arange(
-        aefizz.settings.linshift_min_step * mult,
-        aefizz.settings.linshift_step * mult + ((aefizz.settings.linshift_step_n / 2) * aefizz.settings.linshift_step * mult),
-        aefizz.settings.linshift_step * mult,
+        settings.linshift_min_step * mult,
+        settings.linshift_step * mult + ((settings.linshift_step_n / 2) * settings.linshift_step * mult),
+        settings.linshift_step * mult,
     )
 
     # --- 4. If using homing data, adjust central thirds to ensure enough homings fall inside ---
     if ET.escape_pattern_time == "homing&escape":
         all_ons = np.where(np.diff(ET.homing_vector.astype(int)) == 1)[0] + 1  # all homing onset frames
 
-        # --- 4a. Adjust shelter_only central third if too few homings ---
-        if np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1])) < aefizz.settings.ep_linshift_min_homings:
-            # Redefine: start at the 1/3 mark of homings in this condition, span 1/3 of the condition length
-            mid_shelter = [
-                all_ons[int(np.round(len(all_ons[all_ons < shelter]) / 3))] - 1,
-                (all_ons[int(np.round(len(all_ons[all_ons < shelter]) / 3))] - 1) + int(shelter / 3),
-            ]
-            # Clamp: don't let the window start too close to 0 (need room for left shifts)
-            if mid_shelter[0] < np.amax(shifts_one_sided):
-                mid_shelter = [x + (np.amax(shifts_one_sided) - mid_shelter[0]) for x in mid_shelter]
-            # Clamp: don't let the window end too close to the barrier onset (need room for right shifts)
-            if mid_shelter[1] > (shelter - np.amax(shifts_one_sided)):
-                mid_shelter = [x - (mid_shelter[1] - (shelter - np.amax(shifts_one_sided))) for x in mid_shelter]
-            print("Number of homings in shelter_only centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_shelter[0], all_ons < mid_shelter[1]))))
+        # -- Adjust central third of each condition if too few homings fall inside ---
+        for i, (a, b) in enumerate(shift_range):
+            if np.sum(np.logical_and(all_ons > a, all_ons < b)) < settings.ep_linshift_min_homings:
+                # Redefine: start at the 1/3 mark of homings in this condition, span 1/3 of the condition length
+                homings_this_cond = all_ons[np.logical_and(all_ons > cond_start_end[i][0], all_ons < cond_start_end[i][1])]
+                a = homings_this_cond[int(np.round(len(homings_this_cond) / 3))] - 1
+                b = a + int((cond_start_end[i][1] - cond_start_end[i][0]) / 3)
 
-        # --- 4b. Adjust barrier central third if too few homings ---
-        if np.sum(np.logical_and(all_ons > mid_bar[0], all_ons < mid_bar[1])) < aefizz.settings.ep_linshift_min_homings:
-            h_bar = all_ons[np.logical_and(all_ons > shelter, all_ons < bar_in)]  # homings during barrier condition
-            mid_bar = [h_bar[int(np.round(len(h_bar) / 3))] - 1, int(shelter + h_bar[int(np.round(len(h_bar) / 3))] - 1)]
-            # Clamp left: ensure room for left shifts within barrier condition
-            if mid_bar[0] < (shelter + np.amax(shifts_one_sided)):
-                mid_bar = [x + ((shelter + np.amax(shifts_one_sided)) - mid_bar[0]) for x in mid_bar]
-            # Clamp right: ensure room for right shifts before barrier flip
-            if mid_bar[1] > (bar_in - np.amax(shifts_one_sided)):
-                mid_bar = [bar_in - np.amax(shifts_one_sided) - ((bar_in - shelter) / 3), bar_in - np.amax(shifts_one_sided)]
-            print("Number of homings in barrier centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_bar[0], all_ons < mid_bar[1]))))
+                # Clamp: don't let the window start too close to 0 (need room for left shifts)
+                if a < (cond_start_end[i][0] + np.amax(shifts_one_sided)):
+                    b = b + (np.amax(shifts_one_sided) - a)
+                    a = a + (np.amax(shifts_one_sided) - a)
 
-        # --- 4c. Adjust flipped barrier central third if too few homings ---
-        if np.sum(np.logical_and(all_ons > mid_flip[0], all_ons < mid_flip[1])) < aefizz.settings.ep_linshift_min_homings:
-            h_flip = all_ons[np.logical_and(all_ons > bar_in, all_ons < ttime)]  # homings during flipped condition
-            mid_flip = [h_flip[int(np.round(len(h_flip) / 3))] - 1, int(bar_in + h_flip[int(np.round(len(h_flip) / 3))] - 1)]
-            # Clamp left: ensure room for left shifts within flipped condition
-            if mid_flip[0] < (bar_in + np.amax(shifts_one_sided)):
-                mid_flip = [x + ((bar_in + np.amax(shifts_one_sided)) - mid_flip[0]) for x in mid_flip]
-            # Clamp right: ensure room for right shifts before session end
-            # BUG: len(ttime) should be just ttime (ttime is an int)
-            if mid_flip[1] > (ttime - np.amax(shifts_one_sided)):
-                mid_flip = [ttime - np.amax(shifts_one_sided) - ((ttime - bar_in) / 3), ttime - np.amax(shifts_one_sided)]
-            print("Number of homings in flipped barrier centre chunk: " + str(np.sum(np.logical_and(all_ons > mid_flip[0], all_ons < mid_flip[1]))))
+                # Clamp: don't let the window end too close to the barrier onset (need room for right shifts)
+                if b > (cond_start_end[i][1] - np.amax(shifts_one_sided)):
+                    a = a - (b - (cond_start_end[i][1] - np.amax(shifts_one_sided)))
+                    b = b - (b - (cond_start_end[i][1] - np.amax(shifts_one_sided)))
+
+                shift_range[i] = (a, b)
+            print(f"Number of homings in {ET.all_conditions[i]} centre chunk: " + str(np.sum(np.logical_and(all_ons > a, all_ons < b))))
 
     # --- 5. Build the boolean shift_vector marking the central chunk of each condition ---
     shift_vector = np.zeros(ttime)
-    shift_vector[int(mid_shelter[0]) : int(mid_shelter[1])] = 1  # shelter-only central third
-    shift_vector[int(mid_bar[0]) : int(mid_bar[1])] = 1  # barrier central third
-    shift_vector[int(mid_flip[0]) : int(mid_flip[1])] = 1  # flipped barrier central third
+    for (a, b) in shift_range:
+        shift_vector[int(a):int(b)] = 1
     shift_vector = shift_vector.astype(bool)
 
     # --- 6. Trim shifts that would go out of bounds ---
-    shifts_left = shifts_one_sided[shifts_one_sided < mid_shelter[0]]  # left shifts that stay within session start
-    shifts_right = shifts_one_sided[(shifts_one_sided + mid_flip[1]) < ttime]  # right shifts that stay within session end
+    shifts_left = shifts_one_sided[shifts_one_sided < shift_range[0][0]]  # left shifts that stay within session start
+    shifts_right = shifts_one_sided[(shifts_one_sided + shift_range[-1][1]) < ttime]  # right shifts that stay within session end
 
     # --- 7. Combine into symmetric shifts (negative = past, positive = future) plus zero ---
     shifts = np.sort(np.hstack((0, shifts_right, -shifts_left)))
 
     return shifts, shift_vector
-
 
 # ------------------------------------Helper functions------------------------------------
 

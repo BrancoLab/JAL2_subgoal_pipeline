@@ -137,7 +137,7 @@ class Settings_analyze_efizz:
     ep_bins: int = 25
     ep_no_stationary: bool = False
     ep_interpolation_mult: int = 2
-    ep_linshift_min_homings = 5  # minimum number of homings in the central third of each condition for linear shift stats
+    ep_linshift_min_homings: int = 4  # minimum number of homings in the central third of each condition for linear shift stats
     ep_gaussian_fitting: bool = False
     ep_compute_loo_reliability: bool = False
     ep_tuned_compare_method: str = "euclidean"  # or 'cosine'

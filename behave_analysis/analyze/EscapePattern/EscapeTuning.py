@@ -8,10 +8,10 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import define_bi
 class EscapeTuning:
     name: str
     nbins: int
-    all_conditions: list
     tuning_var: str
     settings: object
     escape_pattern_time: str
+    all_conditions: list = None
     bin_edges: float = None
     savepath: str = ""
     homing_vector: float = 0.0

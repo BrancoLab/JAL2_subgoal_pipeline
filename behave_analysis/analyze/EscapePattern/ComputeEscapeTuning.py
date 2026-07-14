@@ -41,6 +41,7 @@ class ComputeEscapeTuning:
         self.insufficient_data = False
         self.settings = aefizz.settings
         self.ET.all_conditions = identify_epoch_conditions(aefizz.session)
+        print(f"computing tuning in conditions: {self.ET.all_conditions}")
 
         # check that we're not trying to compute %escape tuning during explore periods
         # self.ET.escape_pattern_time == "explore": looking at exploration period
@@ -151,7 +152,7 @@ class ComputeEscapeTuning:
         3. The shift vector is shifted and the shifted vector is applied to the neural data"""
 
         # build shift vector to subselect central 1/3 of each condition
-        self.ET.shifts, shift_vector = build_shift_vector(self.aefizz, self.ET)
+        self.ET.shifts, shift_vector = build_shift_vector(ET = self.ET, full_condition_vector = self.condition, settings = self.aefizz.settings)
 
         # select which onsets and offsets to keep based on shift vector
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time or self.ET.escape_pattern_time == "shelter_outing":
@@ -254,6 +255,8 @@ class ComputeEscapeTuning:
         """This function builds a boolean vector of length time which is True when the mouse is exploring
         i.e. not in homing or escape periods and is outside of the shelter"""
 
+        explore_vector = self.aefizz.video_df["valid_time"].to_numpy().astype(bool)
+
         # check that homingPeriod column exists
         if "homingPeriod" not in self.aefizz.video_df.columns:
             # NB: as soon as postprocess is rerun, this logic should be fixed and applied there as well
@@ -263,9 +266,13 @@ class ComputeEscapeTuning:
             homing_period = self.aefizz.video_df["homingPeriod"].to_numpy()
             escape_period = self.aefizz.video_df["EscapePeriod"].to_numpy()
 
-        # extract explore periods: out of shelter, not in homing, not in escape
-        explore_vector = np.logical_and(
+        # not in homing, not in escape
+        explore_vector = np.logical_and(explore_vector,
             np.logical_and(homing_period == False, escape_period == False),
+        )
+
+        # out of shelter
+        explore_vector = np.logical_and(explore_vector,
             self.aefizz.video_df["OutofshelterIdx"].to_numpy() == True,
         )
 
@@ -340,6 +347,7 @@ class ComputeEscapeTuning:
             self.y = np.interp(new_time, current_time, self.y)
             self.x = np.interp(new_time, current_time, self.x)
             # experimental condition
+            shelter = np.repeat(shelter, self.settings.ep_interpolation_mult)
             bar = np.repeat(bar, self.settings.ep_interpolation_mult)
             barflip = np.repeat(barflip, self.settings.ep_interpolation_mult)
             # neural data
@@ -356,6 +364,9 @@ class ComputeEscapeTuning:
             self.condition[shelter == True] += 1 # shelter present
         self.condition[bar == True] += 1 # barrier is present
         self.condition[(bar == True) & (barflip == True)] += 1 # barrier is present and flipped
+        if (np.sum(bar == True) > 0) & (bar[-1] == False):
+            bar_removed = np.where(np.diff(bar.astype(int)) < 0)[0][0] + 1
+            self.condition[bar_removed:] = np.amax(self.condition)+1 # barrier was removed
         assert np.unique(self.condition).size == len(self.ET.all_conditions), "Condition vector does not match expected conditions"
 
     def load_data_for_residual(self):
