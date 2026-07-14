@@ -8,7 +8,7 @@ from behave_analysis.process.electrophysiology.ttl_sync import get_TTL
 from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
-from behave_analysis.process.session import NEW_Session, get_experiment # Testing refactored dataclass structure
+from behave_analysis.process.session import NEW_Session, get_experiment, confirm_session # Testing refactored dataclass structure
 from behave_analysis.database.computer_ID import get_computer_specific_paths
 
 
@@ -115,6 +115,7 @@ class Process():
             with open(os.path.join(self.session.base_path, self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
                 session.base_path, _ = get_computer_specific_paths(session.file_path, return_ceph=True)
+                session = confirm_session(session, self.session)
 
         except FileNotFoundError:
             print(f"Meta data file for path {os.path.join(self.session.base_path, self.session.metadata_file)} not found, aborting script")
