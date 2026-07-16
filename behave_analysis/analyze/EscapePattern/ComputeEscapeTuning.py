@@ -548,17 +548,16 @@ def check_aefizz_completeness(aefizz, attrlist):
 
     if (not hasattr(aefizz, "video_and_spike_data")) & ("video_and_spike_data" in attrlist):
         from behave_analysis.analyze.PlaceCells.PlaceCells import COLUMNS_TO_KEEP
-        video_and_spike_path = os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "good_video_spike_count_df.parquet")
-        aefizz.video_and_spike_data = pl.read_parquet(video_and_spike_path)
-        aefizz.video_and_spike_data = aefizz.video_and_spike_data.select([x for x in COLUMNS_TO_KEEP if x in aefizz.video_and_spike_data.columns])
-        if "speed" not in aefizz.video_and_spike_data.columns:
-            if hasattr(pl.col("frames"), "apply"):
-                video_df = aefizz.video_df.select(
-                    [pl.col("frames").apply(float), pl.exclude("frames")]
-                )  # Cast frames to float to permit join and remove old frames column with wrong type
-            else:
-                video_df = aefizz.video_df.select([aefizz.video_df["frames"].cast(pl.Float64), pl.exclude("frames")])
-            # map speed at each frome to the video and spike data df so we can exclude low speed frames in the place cell analysis
-            aefizz.video_and_spike_data = aefizz.video_and_spike_data.join(video_df.select(["frames", "speed"]), on='frames', how='left')
+        from behave_analysis.analyze.analyze_efizz import merge_spike_df_video_df
+        video_df = aefizz.video_df.select([x for x in COLUMNS_TO_KEEP if x in aefizz.video_df.columns])
+        video_spike_count_path = (os.path.join(aefizz.session.base_path, aefizz.session.processed_path)
+                                        + "/"
+                                        + "spike_count_by_frame_and_"
+                                        + aefizz.cluster_type
+                                        + "cluster" + aefizz.qualifier
+                                        + ".csv"
+                                    )
+        spike_count_df = pl.read_csv(video_spike_count_path)
+        aefizz.video_and_spike_data = merge_spike_df_video_df(spike_count_df, video_df)
 
 
