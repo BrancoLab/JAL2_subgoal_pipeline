@@ -1,15 +1,16 @@
 # Custom lib
-from behave_analysis.utils.AI_dataClass_objects import Electrophsyiology
+from behave_analysis.utils.AI_dataClass_objects import Electrophysiology
 
 # OS libs
 import os
 import numpy as np
 from loguru import logger
-
+import pandas as pd
 
 class LoadEfizz:
-    def __init__(self, session_ID):
+    def __init__(self, session_ID, settings):
         self.file_path = os.path.join(session_ID.base_path, session_ID.file_path)
+        self.settings = settings
         self.files = self.collect_efizz_files()
         self.select_and_load_efizz_files()
 
@@ -47,6 +48,8 @@ class LoadEfizz:
             self.spike_clusters = np.hstack(self.spike_clusters)
             efizz_folder = os.path.join(self.file_path,[x for x in os.listdir(self.file_path) if '_g0' in x][0])
             KS_folder = os.path.join(efizz_folder, [x for x in os.listdir(efizz_folder) if 'imec' in x][0])
+            
+            # sync channel
             sync = self.filter_by_ending(os.listdir(KS_folder), "exported.imec0.ap.bin")
             if len(sync) > 0: 
                 self.imec_sync_path = os.path.join(KS_folder,sync[0])
@@ -54,7 +57,19 @@ class LoadEfizz:
                 logger.warning("No exported .bin sync channel was found!")
                 self.imec_sync_path = os.path.join(KS_folder, self.filter_by_ending(os.listdir(KS_folder), "_t0.imec0.ap.bin")[0])
             self.imec_bin_path = self.filter_by_ending(os.listdir(KS_folder), "_t0.imec0.ap.bin")[0]
-            self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], delimiter="\t", skiprows=1, dtype=str)
+            
+            # cluster classification
+            load_ks = False
+            if self.settings.cluster_labels == "manual":
+                self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_group.tsv")[0], dtype=str, delimiter="\t", skiprows=1)
+            if self.settings.cluster_labels == "bombcell":
+                try:
+                    self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_bc_unitType.tsv")[0], dtype=str, delimiter="\t", skiprows=1)
+                except FileNotFoundError:
+                    logger.warning("No bombcell cluster classification file was found! Defaulting to kilosort classification")
+                    load_ks = True
+            if self.settings.cluster_labels == "kilosort" or load_ks:
+                self.cluster_group = np.loadtxt(self.filter_by_ending(self.files, "cluster_KSlabel.tsv")[0], dtype=str, delimiter="\t", skiprows=1)
             self.num_of_good_units = self.count_number_of_label_units("good")
             logger.info(f"The number of good units is: {self.num_of_good_units} out of {len(self.cluster_group)} units")
             num_mua = self.count_number_of_label_units("mua")
@@ -62,7 +77,7 @@ class LoadEfizz:
 
             # assert self.cluster_group[0][0] == "0", "The first cluster should be indexed by 0"  # sort check
 
-            return Electrophsyiology(
+            return Electrophysiology(
                 spike_times=self.spike_times,
                 spike_clusters=self.spike_clusters,
                 cluster_group=self.cluster_group,
@@ -81,6 +96,9 @@ class LoadEfizz:
 
     def count_number_of_label_units(self, label):
         """
-        A function that counts the number of good units in the cluster group file
+        A function that counts the number of units matching `label` in the cluster group file.
+        Case-insensitive and whitespace-tolerant.
         """
-        return np.count_nonzero(self.cluster_group[:, 1] == label)
+        labels = np.char.lower(np.char.strip(self.cluster_group[:, 1].astype(str)))
+        target = str(label).strip().lower()
+        return np.count_nonzero(labels == target)

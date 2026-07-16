@@ -124,7 +124,7 @@ class BaseDataPostprocessor(ABC):
         barrier_present = build_condition_bool(time_list = self.session.barrier_time, cond_name = 'barrier', frame_idx=frame_idx, n_frames=n_frames, fps = self.session.video.fps)
 
         # when was the barrier flipped?
-        barrier_flipped = build_flippedbarrier_condition_bool(session=self.session, frame_idx=frame_idx, n_frames=n_frames)
+        barrier_flipped = build_flippedbarrier_condition_bool(flip_time=self.session.barrier_flip_time, frame_idx=frame_idx, n_frames=n_frames, fps=self.session.video.fps)
 
         # find the escape periods: from stim onset to offset
         EscapePeriod = np.zeros_like(OutofShelterIdx)
@@ -203,7 +203,8 @@ class BaseDataPostprocessor(ABC):
                 + "/"
                 + "spike_count_by_frame_and_"
                 + self.select_cluster_labels
-                + "cluster.csv"
+                + "cluster" + self.qualifier
+                + ".csv"
             )
             return spikecountbyframe_neuron
 
@@ -214,7 +215,8 @@ class BaseDataPostprocessor(ABC):
                 + "/"
                 + "spike_count_by_frame_and_"
                 + self.select_cluster_labels
-                + "cluster.csv",
+                + "cluster" + self.qualifier
+                + ".csv",
                 "rb",
             ) as file:
                 spikecountbyframe_neuron = pl.read_csv(file.read())
@@ -245,7 +247,8 @@ class BaseDataPostprocessor(ABC):
                 + "/"
                 + "spike_count_by_frame_and_"
                 + self.select_cluster_labels
-                + "cluster.csv"
+                + "cluster" + self.qualifier
+                + ".csv"
             )
             return spikecountbyframe_neuron
 
@@ -344,6 +347,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         self.csv_path = os.path.join(session.base_path, session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
+        self.qualifier = ""
         self.settings = settings
         video_df = self.track_to_polars()
         if settings.efizz:
@@ -433,7 +437,8 @@ class DataPostprocessor(BaseDataPostprocessor):
     def __init__(self, cluster_labels_to_filter, tracking_data, session, settings):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
-        self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
+        self.qualifier = "_bc" if settings.cluster_labels == "bombcell" else ""
+        self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data" + self.qualifier))[0]
         self.select_clusters = cluster_labels_to_filter
 
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
@@ -459,17 +464,24 @@ class DataPostprocessor(BaseDataPostprocessor):
     def filter_spike_data(self, df):
         """
         Filter the spike data to only include good neurons or good + MUA
+        Matching is case-insensitive and trims surrounding whitespace.
         """
+        cluster_group_norm = (
+            pl.col("cluster_group")
+            .cast(pl.Utf8)
+            .str.strip_chars()
+            .str.to_lowercase()
+        )
+        selected_norm = str(self.select_clusters).strip().lower()
 
-        if self.select_clusters == "all":
-            filtered_spike_data = df.filter((df["cluster_group"] == "good") | (df["cluster_group"] == "mua"))
+        if selected_norm == "all":
+            filtered_spike_data = df.filter(cluster_group_norm.is_in(["good", "mua"]))
             logger.info("Loaded good and multi unit clusters")
         else:
-            filtered_spike_data = df.filter(df["cluster_group"] == self.select_clusters)
+            filtered_spike_data = df.filter(cluster_group_norm == selected_norm)
             numNeurons = len(filtered_spike_data["spike_clusters"].unique())
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
 
-        # save the filtered spike data
         filtered_spike_data.write_csv(
             os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_cluster_labels + "_spike_data.csv"
         )

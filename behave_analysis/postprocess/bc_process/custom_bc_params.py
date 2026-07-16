@@ -17,10 +17,10 @@ param["maxWvBaselineFraction"] = .2
 param["maxWvDuration"] = 750
 
 # for mua
-param["minAmplitude"] = 50
+param["minAmplitude"] = 10
 param["minSNR"] = 10
 param["maxRPVviolations"] = .08
-param["maxPercSpikesMissing"] = 5
+param["maxPercSpikesMissing"] = 10
 
 #  2. or which quality metrics are computed (by default these are not): 
 
@@ -30,7 +30,7 @@ param["maxPercSpikesMissing"] = 5
 # a. Refractory period violation (RPV) method - choose one of:
 #    'hill' (default): Hill et al. method
 #    'llobet': Llobet et al. method, llobet more stringent, relevant for cells that have FR>30, EXTREMELY SLOW
-param["rpv_method"] = "llobet" # can we do llobet on server?
+param["rpv_method"] = "hill" # can we do llobet on server?
 
 # b. Refractory period values to test (in seconds)
 #    For a single value: np.array([0.002])

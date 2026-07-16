@@ -20,6 +20,7 @@ class Settings_process:
     all_sessions: bool = False
     efizz: bool = False
     efizzDataPath: str = None
+    cluster_labels: str = "bombcell"  # 'bombcell' or "kilosort" or "manual"
     radius: int = 460
 
 
@@ -103,6 +104,7 @@ class Settings_analyze_efizz:
     stim_type: str = "None"
     redo_compute: bool = False
     cluster_type: str = ""
+    cluster_labels: str = "bombcell"  # 'bombcell' or "kilosort" or "manual"
     show_plots: bool = False
     condition_types: str = ""
     compartment_split: str = ""
@@ -137,7 +139,7 @@ class Settings_analyze_efizz:
     ep_bins: int = 25
     ep_no_stationary: bool = False
     ep_interpolation_mult: int = 2
-    ep_linshift_min_homings: int = 4  # minimum number of homings in the central third of each condition for linear shift stats
+    ep_min_homings: int = 4  # minimum number of homings in the central third of each condition for linear shift stats
     ep_gaussian_fitting: bool = False
     ep_compute_loo_reliability: bool = False
     ep_tuned_compare_method: str = "euclidean"  # or 'cosine'
@@ -178,3 +180,4 @@ class Settings_postprocess:
     homings: bool = False
     regenerate_synthetic_data: bool = False
     save_spike_video_parquet: bool = False
+    cluster_labels: str = "bombcell"  # 'bombcell' or "kilosort" or "manual"

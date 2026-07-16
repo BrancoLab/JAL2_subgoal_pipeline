@@ -16,7 +16,7 @@ class TTL_Sync:
     ephys_sync_offset: int
 
 @dataclass(frozen=True)
-class Electrophsyiology:
+class Electrophysiology:
     spike_times: object
     spike_clusters: object
     cluster_group: object

@@ -40,7 +40,7 @@ class Process():
             os.makedirs(os.path.join(self.session.base_path,self.session.processed_path))
         
         if settings_p.efizz:
-            self.efizzDataLoaded = LoadEfizz(self.session)
+            self.efizzDataLoaded = LoadEfizz(self.session, settings)
             self.ttl = get_TTL(self.session, self.efizzDataLoaded.imec_sync_path)
         
         # # Retrieve Dev 3 NIDAQ signals

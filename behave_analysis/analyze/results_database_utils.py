@@ -7,7 +7,7 @@ import ast
 import os
 import json
 
-SETTINGS_AE = ["stim_type", "cluster_type", "condition_types", "compartment_split", "homings"]
+SETTINGS_AE = ["stim_type", "cluster_type","cluster_labels", "condition_types", "compartment_split", "homings"]
 
 
 def check_database_for_same_run(db_settings, results_csv_name, settings):

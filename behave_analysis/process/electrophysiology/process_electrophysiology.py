@@ -108,15 +108,16 @@ class ProcessedEfizz:
         """
         Save the processed efizz data
         """
+        qualifier = "_bc" if self.settings.cluster_labels == "bombcell" else ""
         if 'sep' in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
-            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data", sep=",")
+            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier, sep=",")
             logger.success("Processed Efizz data saved")
         elif 'separator' in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
-            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data", separator = ",")
+            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier, separator = ",")
             logger.success("Processed Efizz data saved")
         else:
             logger.warning("DF saving was not successful because of polars version issues")
 
 
         # UNIT TESTS
-        assert os.path.exists(str(self.filePath) + "/" + "Processed_efizz_data"), "Processed Efizz data not saved"
+        assert os.path.exists(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier), "Processed Efizz data not saved"
