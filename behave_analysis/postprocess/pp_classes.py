@@ -50,7 +50,7 @@ class BaseDataPostprocessor(ABC):
             clu_label = self.spike_data.groupby(["spike_clusters"]).first()
         clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
         np.save(
-            str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_clusters + "_cluster_Ids"),
+            str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_clusters + "_cluster_Ids_"+ self.qualifier + ".npy"),
             clu_label["spike_clusters"].unique().to_numpy(),
         )
         return clu_label
@@ -160,11 +160,6 @@ class BaseDataPostprocessor(ABC):
             video_df = video_df.hstack([pl.Series("h_postflipbar_a", self.tracking_data["hdir_barrier"][:, 1])])
             video_df = video_df.hstack([pl.Series("h_bar_centre_a", self.tracking_data["hdir_barrier"][:, 2])])
 
-        # if random points were included, add the angles to video_df
-        if "hdir_randP" in self.tracking_data:
-            for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
-                video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
-
         # save the video dataframe
         video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
 
@@ -179,78 +174,50 @@ class BaseDataPostprocessor(ABC):
         #NOTE - This logic seems suspciious, doesn't delete exsisting files when running the code again
         """
 
-        if regenerate:
-            logger.info("Regeneration was selected, creating a new spike count by frame and cluster dataframe")
-            logger.info("Commencing long computation to count spikes for each cluster for each frame")
-            logger.info("This can take up to 1.5 hours depending on the size of the data")
-            if hasattr(self.spike_data, "groupby"):
-                query = (
-                    self.spike_data.lazy()
-                    .groupby(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            elif hasattr(self.spike_data, "group_by"):
-                query = (
-                    self.spike_data.lazy()
-                    .group_by(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
-            spikecountbyframe_neuron = query.collect()
-            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(
-                os.path.join(self.session.base_path, self.session.processed_path)
-                + "/"
-                + "spike_count_by_frame_and_"
-                + self.select_cluster_labels
-                + "cluster" + self.qualifier
-                + ".csv"
-            )
-            return spikecountbyframe_neuron
+        if self.select_cluster_labels == "synthetic" and regenerate == False:
+            try:
+                logger.info("Attempting to load a previously computed spike frame count")
+                with open(
+                    os.path.join(self.session.base_path, self.session.processed_path)
+                    + "/"
+                    + "spike_count_by_frame_and_"
+                    + self.select_cluster_labels
+                    + "cluster" + self.qualifier
+                    + ".csv",
+                    "rb",
+                ) as file:
+                    spikecountbyframe_neuron = pl.read_csv(file.read())
+                logger.success("Found spike count by frame and cluster dataframe, loading it now")
+                return spikecountbyframe_neuron
 
-        try:
-            logger.info("Attempting to load a previously computed spike frame count")
-            with open(
-                os.path.join(self.session.base_path, self.session.processed_path)
-                + "/"
-                + "spike_count_by_frame_and_"
-                + self.select_cluster_labels
-                + "cluster" + self.qualifier
-                + ".csv",
-                "rb",
-            ) as file:
-                spikecountbyframe_neuron = pl.read_csv(file.read())
-            logger.success("Found spike count by frame and cluster dataframe, loading it now")
-            return spikecountbyframe_neuron
-
-        except FileNotFoundError:
-            logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
-            logger.info("Commencing long computation to count spikes for each cluster for each frame")
-            logger.info("This can take up to 1.5 hours depending on the size of the data")
-            if hasattr(self.spike_data, "groupby"):
-                query = (
-                    self.spike_data.lazy()
-                    .groupby(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            elif hasattr(self.spike_data, "group_by"):
-                query = (
-                    self.spike_data.lazy()
-                    .group_by(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
-            spikecountbyframe_neuron = query.collect()
-            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(
-                os.path.join(self.session.base_path, self.session.processed_path)
-                + "/"
-                + "spike_count_by_frame_and_"
-                + self.select_cluster_labels
-                + "cluster" + self.qualifier
-                + ".csv"
-            )
-            return spikecountbyframe_neuron
+            except FileNotFoundError:
+                regenerate = True
+        
+        logger.info("Commencing long computation to count spikes for each cluster for each frame")
+        if hasattr(self.spike_data, "groupby"):
+            query = (
+                self.spike_data.lazy()
+                .groupby(["spike_aligned_to_frame", "spike_clusters"])
+                .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            )  # Lazy query to plan computation
+        elif hasattr(self.spike_data, "group_by"):
+            query = (
+                self.spike_data.lazy()
+                .group_by(["spike_aligned_to_frame", "spike_clusters"])
+                .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            )  # Lazy query to plan computation
+        start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
+        spikecountbyframe_neuron = query.collect()
+        print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
+        spikecountbyframe_neuron.write_csv(
+            os.path.join(self.session.base_path, self.session.processed_path)
+            + "/"
+            + "spike_count_by_frame_and_"
+            + self.select_cluster_labels
+            + "cluster" + self.qualifier
+            + ".csv"
+        )
+        return spikecountbyframe_neuron
 
     def merge_and_save_spike_count_df_with_frame_data(self, spikeCountByFrameAndCluster, video_df):
         """Merges the video dataframe with the spike count by frame and cluster dataframe and saves the result as a parquet file.
