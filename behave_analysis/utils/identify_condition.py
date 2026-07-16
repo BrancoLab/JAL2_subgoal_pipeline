@@ -22,10 +22,10 @@ def build_condition_bool(time_list, cond_name: str, frame_idx: np.array, n_frame
         
     return cond_bool
 
-def build_flippedbarrier_condition_bool(session, frame_idx: np.array, n_frames: int) -> None:
+def build_flippedbarrier_condition_bool(flip_time: float, frame_idx: np.array, n_frames: int, fps: int) -> None:
     # when was the barrier flipped?
-    if session.barrier_flip_time:
-        barrier_flipped = frame_idx > (session.barrier_flip_time * session.video.fps * 60)
+    if flip_time:
+        barrier_flipped = frame_idx > (flip_time * fps * 60)
     else:
         barrier_flipped = np.full(n_frames, False)
         print("barrier was not flipped in this session")

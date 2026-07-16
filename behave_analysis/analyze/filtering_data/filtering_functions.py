@@ -279,6 +279,10 @@ def identify_epoch_conditions(session) -> list:
             conditions.append("barrier_pre_flip")
     if has_barrier and session.barrier_time[1] != -1:
         conditions.append("barrier_removed")
+
+    if len(conditions) == 0:
+        conditions.append("habituation")
+        
     return conditions
 
 

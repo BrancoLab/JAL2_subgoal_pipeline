@@ -128,7 +128,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
             x_pos=np.array([aefizz.video_df["mouse_x_position"].to_numpy()[int(ons[idx])]]),
             y_pos=np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(ons[idx])]]),
             cond=np.array([condition[idx]]),
-            shelter_location=[np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]],
+            shelter_location=[np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]] if aefizz.session.shelter_location is not None else [aefizz.session.video.height/2, aefizz.session.video.height/2],
             barrier_location1=aefizz.session.barrier_location[0] if aefizz.session.barrier_location is not None else None,
             barrier_location2=aefizz.session.barrier_location[1] if aefizz.session.barrier_location is not None else None,
         )
@@ -156,8 +156,8 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
     if "not" in escape_pattern_time:
         keepers = ~keepers
     
-    if np.sum(keepers) < 5:
-        logger.warning(f"{np.sum(keepers)} homing/escape periods does not meet the criteria for {escape_pattern_time}")
+    if np.sum(keepers) < aefizz.settings.ep_min_homings:
+        logger.warning(f"Only {np.sum(keepers)} homing/escapes meet the criteria for {escape_pattern_time}")
 
     return {
         "ons": ons[keepers],
@@ -446,7 +446,7 @@ def build_shift_vector(ET, full_condition_vector, settings):
 
         # -- Adjust central third of each condition if too few homings fall inside ---
         for i, (a, b) in enumerate(shift_range):
-            if np.sum(np.logical_and(all_ons > a, all_ons < b)) < settings.ep_linshift_min_homings:
+            if np.sum(np.logical_and(all_ons > a, all_ons < b)) < settings.ep_min_homings:
                 # Redefine: start at the 1/3 mark of homings in this condition, span 1/3 of the condition length
                 homings_this_cond = all_ons[np.logical_and(all_ons > cond_start_end[i][0], all_ons < cond_start_end[i][1])]
                 a = homings_this_cond[int(np.round(len(homings_this_cond) / 3))] - 1

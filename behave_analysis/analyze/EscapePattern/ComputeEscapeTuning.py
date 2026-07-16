@@ -18,6 +18,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     homing_escape_boolean_vectors,
     homing_escape_filtering_vector,
 )
+from behave_analysis.utils.identify_condition import build_condition_bool, build_flippedbarrier_condition_bool
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check
@@ -167,7 +168,7 @@ class ComputeEscapeTuning:
         condition = self.condition[filtering_vector]
 
         # how many trials per condition?
-        trial_start_cond = self.condition[np.where(np.diff(filtering_vector) > 0)[0]]
+        trial_start_cond = self.condition[np.where(np.diff(filtering_vector.astype(int)) > 0)[0]]
         trial_n_cond = np.bincount(trial_start_cond.astype(int), minlength=len(self.ET.all_conditions))
 
         # compute behavioral variable
@@ -184,6 +185,11 @@ class ComputeEscapeTuning:
         self.ET.params_shifts = np.zeros((step_n, n_neur, n_cond, 6))  # neurons x conditions
         self.ET.fr_shift = np.full((step_n, n_cond, n_neur, Nbins), np.nan)
         self.ET.mat_shift_cond = np.full((step_n, n_cond, n_neur, max(trial_n_cond), Nbins), np.nan)
+
+        if np.sum(trial_n_cond) == 0:
+            logger.warning("No trials in any condition after filtering for linear shift - skipping")
+            self.insufficient_data = True
+            return
 
         # iterate over shifts, compute the tuning curves
         for s_idx, s in enumerate(self.ET.shifts):
@@ -335,9 +341,9 @@ class ComputeEscapeTuning:
         # load behavioral data
         self.y = self.aefizz.video_df["mouse_y_position"].to_numpy()
         self.x = self.aefizz.video_df["mouse_x_position"].to_numpy()
-        bar = self.aefizz.video_df["barrier_present"].to_numpy()
-        barflip = self.aefizz.video_df["barrier_flipped"].to_numpy()
-        shelter = self.aefizz.video_df["shelter"].to_numpy()
+        bar = build_condition_bool(time_list = self.aefizz.session.barrier_time, cond_name = 'barrier', frame_idx=np.arange(len(self.aefizz.video_df)) + 1, n_frames=len(self.aefizz.video_df), fps = self.aefizz.session.video.fps)
+        barflip = build_flippedbarrier_condition_bool(flip_time=self.aefizz.session.barrier_flip_time, frame_idx=np.arange(len(self.aefizz.video_df)) + 1, n_frames=len(self.aefizz.video_df), fps=self.aefizz.session.video.fps)
+        shelter = build_condition_bool(time_list = self.aefizz.session.shelter_time, cond_name = 'shelter', frame_idx=np.arange(len(self.aefizz.video_df)) + 1, n_frames=len(self.aefizz.video_df), fps = self.aefizz.session.video.fps)
 
         # interpolate time
         if self.settings.ep_interpolation_mult > 1:
