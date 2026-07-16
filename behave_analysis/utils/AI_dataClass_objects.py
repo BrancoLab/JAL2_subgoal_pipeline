@@ -20,8 +20,10 @@ class Electrophysiology:
     spike_times: object
     spike_clusters: object
     cluster_group: object
+    cluster_labels: str
     TTL_bin_path: str
     number_of_good_units: int
+    imec_sync_path: str  
     
 @dataclass(frozen=True)
 class Camera_trigger:

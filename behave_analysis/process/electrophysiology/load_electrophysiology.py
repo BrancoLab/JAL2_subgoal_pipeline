@@ -12,7 +12,6 @@ class LoadEfizz:
         self.file_path = os.path.join(session_ID.base_path, session_ID.file_path)
         self.settings = settings
         self.files = self.collect_efizz_files()
-        self.select_and_load_efizz_files()
 
     def collect_efizz_files(self) -> list:
         """
@@ -81,8 +80,10 @@ class LoadEfizz:
                 spike_times=self.spike_times,
                 spike_clusters=self.spike_clusters,
                 cluster_group=self.cluster_group,
+                cluster_labels=self.settings.cluster_labels,
                 TTL_bin_path=self.imec_bin_path,
                 number_of_good_units=self.num_of_good_units,
+                imec_sync_path=self.imec_sync_path, 
             )
 
         except IndexError:
