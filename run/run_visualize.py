@@ -9,7 +9,17 @@ from behave_analysis.process.process import Process
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 
-def visualize():
+VISUALIZATIONS = ["escape_plotting", 
+                  "homing_plotting", 
+                  "spatial_position_firing", 
+                  "spatial_position_firing_hdir",
+                  "single_unit_heatmaps",
+                  "pop_rasters",
+                  "pop_PSTH",
+                  "PSTH_single_cluster",
+                  "single_cluster_raster"]
+
+def visualize(visualization_name=None):
     """Viusalize mouse behavior and efizz data
     
     Responsibilities:
@@ -19,23 +29,26 @@ def visualize():
     """
 
     logger.info("Visualisation started")
+    if visualization_name not in VISUALIZATIONS:
+        logger.warning("No valid visualization name provided - skipping efizz visualizations")
+        return
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_id))
         #Visualize_behave(session).plot_behavioral_stats()
 
         # # ------ BEHAVIORAL VISUALIZATION ------
-        if settings_v.escape_trials:
+        if visualization_name == "escape_plotting":
             Visualize_behave(session).make_movies(stim_type="audio")
             Visualize_behave(session).escape_plotting(stim_type="audio")
-        if settings_v.homing_trials:
+        if visualization_name == "homing_plotting":
             Visualize_behave(session).make_movies(stim_type="homing")
 
         # ------ EFIZZ VISUALIZATION ------
-        if settings_v.efizz:
-            Visualize_efizz(session).run_tuning_functions()
-            if settings_v.stim_type != "None":
-                Visualize_efizz(session).run_stim_resp_plotting()
+        else:
+            vefizz = Visualize_efizz(session)
+            vefizz.load_data(visualization_name)
+            vefizz.run_visualizations(visualization_name)
 
     logger.success("Visualisation pipeline step complete")
 

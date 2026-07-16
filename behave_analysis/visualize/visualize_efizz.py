@@ -5,6 +5,7 @@ import os
 import numpy as np
 
 # Import custom settings
+from behave_analysis.analyze.analyze_efizz import merge_spike_df_video_df
 from settings.settings_visualize import defined_settings_visualize as settings_v
 from behave_analysis.visualize.efizz.egocentric_firing_map_binned import egocentric_firing_map
 from behave_analysis.visualize.efizz.rayleigh_map import rayleigh_map
@@ -30,30 +31,34 @@ class Visualize_efizz:
 
     def __init__(self, session):
         self.session = session
-        base_path = os.path.join(self.session.base_path, self.session.processed_path)
-
-        try:
-            self.spike_data = pl.read_csv(os.path.join(base_path, settings_v.cluster_type + "_spike_data.csv"))
-            self.video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
-            self.clu_ids = np.load(os.path.join(base_path, settings_v.cluster_type + "_cluster_ids.npy"))
-            if hasattr(self.spike_data, 'groupby'):
-                self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
-            elif hasattr(self.spike_data, 'group_by'):
-                self.clu_label = self.spike_data.group_by(["spike_clusters"]).first()
-            self.video_spike_count_df = pl.read_parquet(
-                os.path.join(base_path + "\\" + str(settings_v.cluster_type) + "_video_spike_count_df.parquet"), 
-                low_memory=True,
-                use_pyarrow = True,
-                memory_map=True,
-            )
-        except FileNotFoundError:
-            raise FileNotFoundError("The efizz data has not been processed yet. Please run the process pipeline first for all files.")
-        
+        self.base_path = os.path.join(self.session.base_path, self.session.processed_path)
         logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
 
+    def load_data(self, visualization_name):
+        
+        self.spike_data = pl.read_csv(os.path.join(self.base_path, settings_v.cluster_type + "_spike_data.csv"))
+        self.clu_ids = np.load(os.path.join(self.base_path, settings_v.cluster_type + "_cluster_ids.npy"))
+        if hasattr(self.spike_data, 'groupby'):
+            self.clu_label = self.spike_data.groupby(["spike_clusters"]).first()
+        elif hasattr(self.spike_data, 'group_by'):
+            self.clu_label = self.spike_data.group_by(["spike_clusters"]).first()
+
+        if visualization_name in ["single_unit_heatmaps", "spatial_position_firing", "spatial_position_firing_hdir"]:
+            self.video_df = pl.read_csv(os.path.join(self.base_path, "full_video_dataframe.csv"))
+        if visualization_name in ["single_unit_heatmaps", "spatial_position_firing"]:
+            video_spike_count_path = (os.path.join(self.session.base_path, self.session.processed_path)
+                                        + "/"
+                                        + "spike_count_by_frame_and_"
+                                        + self.cluster_type
+                                        + "cluster" + self.qualifier
+                                        + ".csv"
+                                    )
+            self.spike_count_df = pl.read_csv(video_spike_count_path)
+            self.video_spike_count_df = merge_spike_df_video_df(self.spike_count_df, self.video_df)
+        
     ##----------TUNING PLOTTING
-    def run_tuning_functions(self):
-        """Excute five visulisation functions on the efizz data related to spatial information
+    def run_visualizations(self, visualization_name):
+        """Excute visulisation functions on the efizz data related to spatial information and stimulus triggered responses!
 
         Responsibilities:
             Create spatial firing maps for each neuron coloured by head direction
@@ -61,39 +66,84 @@ class Visualize_efizz:
             Create egocentric firing maps for each neuron
             Create rayleigh maps for each neuron
             Create population level heatmaps
+            Rasters and PSTHs for each neuron and population level in response to threat
 
-        Save the resulting plots to a spatial_firing directory in the processed folder
+        Save the resulting plots to a spatial_firing or stim_resp directory in the processed folder
         """
-        logger.info("Starting to make some efizz tuning plots...")
         spatial_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "spatial_firing"))
+        stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp"))
 
-        # Make single unit heatmaps per condition
-        single_unit_level_heatmaps(
-            video_and_spike_data=self.video_spike_count_df,
-            conditions=extract_all_or_custom_conditions(settings_v, self.session),
-            save_base=spatial_path,
+        if visualization_name == "single_unit_heatmaps":
+            # Make single unit heatmaps per condition
+            single_unit_level_heatmaps(
+                video_and_spike_data=self.video_spike_count_df,
+                conditions=extract_all_or_custom_conditions(settings_v, self.session),
+                save_base=spatial_path,
+                session=self.session,
+                )
+
+        if visualization_name == "spatial_position_firing_hdir":
+            # where a neuron fires coloured by hdir
+            save_path = make_directory(os.path.join(spatial_path, "spatial_firing_hdir_color", settings_v.cluster_type))
+            spatial_position_firing_hdir(
+                data=self.spike_data,
+                clu_label=self.clu_label,
+                video_df=self.video_df,
+                save_path=save_path + "/" + settings_v.cluster_type,
+                show_plots=settings_v.show_plots,
+                )
+
+        if visualization_name == "spatial_position_firing":
+            # where a neuron fires
+            save_path = make_directory(os.path.join(spatial_path, "spatial_firing_maps", settings_v.cluster_type))
+            spatial_position_firing(
+                data=self.spike_data,
+                clu_label=self.clu_label,
+                video_spike_count_df=self.video_spike_count_df,
+                save_path=save_path + "/" + settings_v.cluster_type,
+                show_plots=settings_v.show_plots,
+                )
+        
+        if visualization_name == "pop_rasters":
+            rasters(
+            data=self.spike_data,
             session=self.session,
+            stim_type=settings_v.stim_type,
+            show_plots=settings_v.show_plots,
+            save_path=str(os.path.join(stim_resp_path, "raster")) + "/" + settings_v.cluster_type + "_cluster_raster_trial_" + str(settings_v.stim_type) + ".png",
         )
 
-        # where a neuron fires coloured by hdir
-        save_path = make_directory(os.path.join(spatial_path, "spatial_firing_hdir_color", settings_v.cluster_type))
-        spatial_position_firing_hdir(
-            data=self.spike_data,
-            clu_label=self.clu_label,
-            video_df=self.video_df,
-            save_path=save_path + "/" + settings_v.cluster_type,
-            show_plots=settings_v.show_plots,
-        )
+        if visualization_name == "pop_PSTH":
+            PSTH_all_neurons(
+                session=self.session,
+                data=self.spike_data,
+                stim_type=settings_v.stim_type,
+                show_plots=settings_v.show_plots,
+                save_path=str(os.path.join(stim_resp_path, "PSTH"))
+                + "/"
+                + settings_v.cluster_type
+                + "_clusters_PSTH_all_neurons_"
+                + str(settings_v.stim_type)
+                + ".png",
+            )
 
-        # where a neuron fires
-        save_path = make_directory(os.path.join(spatial_path, "spatial_firing_maps", settings_v.cluster_type))
-        spatial_position_firing(
-            data=self.spike_data,
-            clu_label=self.clu_label,
-            video_spike_count_df=self.video_spike_count_df,
-            save_path=save_path + "/" + settings_v.cluster_type,
-            show_plots=settings_v.show_plots,
-        )
+        if visualization_name == "PSTH_single_cluster":
+            PSTH_single_neurons(
+                data=self.spike_data,
+                session=self.session,
+                stim_type=settings_v.stim_type,
+                show_plots=settings_v.show_plots,
+                save_path=str(os.path.join(stim_resp_path, "PSTH_single_cluster")) + "/" + str(settings_v.stim_type) + "_single_" + settings_v.cluster_type,
+            )
+
+        if visualization_name == "single_cluster_raster":
+            single_cluster_raster(
+                data=self.spike_data,
+                session=self.session,
+                stim_type=settings_v.stim_type,
+                show_plots=settings_v.show_plots,
+                save_path=str(os.path.join(stim_resp_path, "raster_single_cluster")) + "/" + settings_v.cluster_type + "_clusters_" + str(settings_v.stim_type),
+            )
 
         # TODO: the two plots below are very nice but ver very slow to make
         # egocentric view of features where a neuron fires
@@ -122,45 +172,3 @@ class Visualize_efizz:
         #     tracking_data=self.processed_data.tracking_data,
         # )
         # logger.info(f"Finished! Making some efizz tuning plots...")
-
-    ##------------STIMULUS RESPONSE PLOTTING
-    def run_stim_resp_plotting(self):
-        """Make plots of stimulus response"""
-        logger.info(f"Starting to make some plots of threat stimulus responses.")
-        stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "raster"))
-        rasters(
-            data=self.spike_data,
-            session=self.session,
-            stim_type=settings_v.stim_type,
-            show_plots=settings_v.show_plots,
-            save_path=str(stim_resp_path) + "/" + settings_v.cluster_type + "_cluster_raster_trial_" + str(settings_v.stim_type) + ".png",
-        )
-        stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "PSTH"))
-        PSTH_all_neurons(
-            session=self.session,
-            data=self.spike_data,
-            stim_type=settings_v.stim_type,
-            show_plots=settings_v.show_plots,
-            save_path=str(stim_resp_path)
-            + "/"
-            + settings_v.cluster_type
-            + "_clusters_PSTH_all_neurons_"
-            + str(settings_v.stim_type)
-            + ".png",
-        )
-        stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "PSTH_single_cluster"))
-        PSTH_single_neurons(
-            data=self.spike_data,
-            session=self.session,
-            stim_type=settings_v.stim_type,
-            show_plots=settings_v.show_plots,
-            save_path=str(stim_resp_path) + "/" + str(settings_v.stim_type) + "_single_" + settings_v.cluster_type,
-        )
-        stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp", "raster_single_cluster"))
-        single_cluster_raster(
-            data=self.spike_data,
-            session=self.session,
-            stim_type=settings_v.stim_type,
-            show_plots=settings_v.show_plots,
-            save_path=str(stim_resp_path) + "/" + settings_v.cluster_type + "_clusters_" + str(settings_v.stim_type),
-        )
