@@ -298,7 +298,7 @@ class BaseDataPostprocessor(ABC):
         # save the matrix
         base_path = os.path.join(self.session.base_path, self.session.processed_path)
         np.save(
-            str(base_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"),
+            str(base_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix" + self.qualifier),
             X,
         )
 

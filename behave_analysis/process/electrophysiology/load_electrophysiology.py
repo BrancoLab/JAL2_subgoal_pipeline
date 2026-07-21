@@ -21,7 +21,7 @@ class LoadEfizz:
         logger.info("Searching through efizz files")
         efizz_folder = os.path.join(self.file_path,[x for x in os.listdir(self.file_path) if '_g0' in x][0])
         KS_folder = os.path.join(efizz_folder, [x for x in os.listdir(efizz_folder) if 'imec' in x][0])
-        KS_folder = os.path.join(KS_folder, 'SI_KS_output')
+        KS_folder = os.path.join(KS_folder, 'SI_KS_output', 'sorter_output')
         files = []
         for dirpath, dirnames, filenames in os.walk(KS_folder):
             for filename in filenames:
@@ -58,6 +58,7 @@ class LoadEfizz:
         
         # cluster classification
         if self.settings.cluster_labels == "manual":
+            logger.info("Using manual (phy) cluster classification, if no curation this is the same as kilosort")
             cluster_label = self.filter_by_ending(self.files, "cluster_group.tsv")[0]
         if self.settings.cluster_labels == "bombcell":
             cluster_label = self.filter_by_ending(self.files, "cluster_bc_unitType.tsv")
@@ -65,9 +66,11 @@ class LoadEfizz:
                 logger.warning("No bombcell cluster classification file was found! Defaulting to kilosort classification")
                 cluster_label = self.filter_by_ending(self.files, "cluster_KSLabel.tsv")[0]
             else:
+                logger.info("Using bombcell cluster classification")
                 cluster_label = cluster_label[0]
         if self.settings.cluster_labels == "kilosort":
             cluster_label = self.filter_by_ending(self.files, "cluster_KSLabel.tsv")[0]
+            logger.info("Using kilosort cluster classification")
         self.cluster_group = np.loadtxt(cluster_label, dtype=str, delimiter="\t", skiprows=1)
         self.num_of_good_units = self.count_number_of_label_units("good")
         logger.info(f"The number of good units is: {self.num_of_good_units} out of {len(self.cluster_group)} units")

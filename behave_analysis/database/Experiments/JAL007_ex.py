@@ -119,7 +119,7 @@ JAL7_flip7_4apr = Experiment(  # Mouse specific
     # Experiment specific
     experiment_name="sesh8",
     experiment_idx=0,
-    experiment_date="2024_04_09",
+    experiment_date="2024_04_04",
     experiment_time="10_07_45",
     valid_time=[.25, -1],
     shelter_time=[0, -1],
