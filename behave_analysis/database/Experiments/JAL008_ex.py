@@ -28,7 +28,7 @@ JAL8_flip1_25apr = Experiment(  # Mouse specific
     root_path=mouse.root_path,
     # Experiment specific
     experiment_name="flip",
-    experiment_idx=3,
+    experiment_idx=1,
     experiment_date="2024_04_25",
     experiment_time="11_27_42",
     valid_time=[2.5, -1],
@@ -46,7 +46,7 @@ JAL8_flip2_29apr = Experiment(  # Mouse specific
     root_path=mouse.root_path,
     # Experiment specific
     experiment_name="flip",
-    experiment_idx=4,
+    experiment_idx=2,
     experiment_date="2024_04_29",
     experiment_time="12_14_54",
     valid_time=[2.5, -1],
@@ -64,7 +64,7 @@ JAL8_tiny_3may = Experiment(  # Mouse specific
     root_path=mouse.root_path,
     # Experiment specific
     experiment_name="tiny",
-    experiment_idx=5,
+    experiment_idx=1,
     experiment_date="2024_05_03",
     experiment_time="10_02_35",
     valid_time=[.25, -1],
@@ -82,7 +82,7 @@ JAL8_flip3_7may = Experiment(  # Mouse specific
     root_path=mouse.root_path,
     # Experiment specific
     experiment_name="flip",
-    experiment_idx=7,
+    experiment_idx=3,
     experiment_date="2024_05_7",
     experiment_time="10_16_26",
     valid_time=[.3, -1],
@@ -100,7 +100,7 @@ JAL8_flip4_10may = Experiment(  # Mouse specific
     root_path=mouse.root_path,
     # Experiment specific
     experiment_name="flip",
-    experiment_idx=7,
+    experiment_idx=4,
     experiment_date="2024_05_10",
     experiment_time="11_47_47",
     valid_time=[.25, -1],
@@ -118,7 +118,7 @@ JAL8_flip5_14may = Experiment(  # Mouse specific
     root_path=mouse.root_path,
     # Experiment specific
     experiment_name="flip",
-    experiment_idx=7,
+    experiment_idx=5,
     experiment_date="2024_05_14",
     experiment_time="10_18_03",
     valid_time=[.25, -1],
@@ -135,8 +135,8 @@ JAL8_tiny2_21may = Experiment(  # Mouse specific
     experiment_file_names=mouse.experiment_file_names,
     root_path=mouse.root_path,
     # Experiment specific
-    experiment_name="flip",
-    experiment_idx=7,
+    experiment_name="tiny",
+    experiment_idx=2,
     experiment_date="2024_05_21",
     experiment_time="11_10_19",
     valid_time=[.25, -1],

@@ -300,7 +300,7 @@ class PlaceCells:
             for j, c in enumerate(self.aefizz.all_conditions):
                 # Plot real data rate map
                 real_map = self.results_dict[c]["rate_map"][:, :, idx]
-                Arena(ax=axs[0, j], dim=real_map.shape[0] - 1, condition=c, 
+                Arena(ax=axs[0, j], dim=real_map.shape[0] - 1, condition=c + ("_tiny" if "tiny" in self.aefizz.session.experiment else ""), 
                       barrier_coordinates=self.aefizz.session.barrier_location[:-1], 
                       shelter_coordinates=self.aefizz.tracking_data["shelter_loc"], full_image=False)
                 if np.isnan(real_map).all():
@@ -313,7 +313,7 @@ class PlaceCells:
 
                 # Plot null data rate map
                 null_map = self.results_dict[c]["rate_map_null"][:, :, idx]
-                Arena(ax=axs[1, j], dim=null_map.shape[0] - 1, condition=c, 
+                Arena(ax=axs[1, j], dim=null_map.shape[0] - 1, condition=c + ("_tiny" if "tiny" in self.aefizz.session.experiment else ""), 
                       barrier_coordinates=self.aefizz.session.barrier_location[:-1], 
                       shelter_coordinates=self.aefizz.tracking_data["shelter_loc"], full_image=False)
                 if np.isnan(null_map).all():

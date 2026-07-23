@@ -105,7 +105,7 @@ def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
                 Arena(
                     ax=ax,
                     shelter_coordinates=tracking_data["shelter_loc"],
-                    condition=trial_condition,
+                    condition=trial_condition + ("_tiny" if "tiny" in session.experiment else ""),
                     barrier_coordinates=session.barrier_location,
                 )
                 # base_plotting(ax, tracking_data, condition=trial_condition, session = session)
@@ -167,7 +167,8 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
                 ax[i].set_title(con)
                 sum_homings += 1
 
-        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
+        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], 
+              condition=con + ("_tiny" if "tiny" in session.experiment else ""), barrier_coordinates=session.barrier_location)
         ax[i].set_title(f"{con} (n={sum_homings})")
 
     # save figure in session dir
@@ -260,7 +261,8 @@ def plot_the_probability_of_start_locations(session, onset_frames, all_condition
         # Set the title with the number of points
         ax[i].set_title(f"{con} (n={len(start_locs)})")
         
-        Arena(dim = np.amax(ax[i].get_ylim()), ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
+        Arena(dim = np.amax(ax[i].get_ylim()), ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], 
+              condition=con + ("_tiny" if "tiny" in session.experiment else ""), barrier_coordinates=session.barrier_location)
 
     if show_plots: plt.show()
     # save figure in session dir
@@ -423,7 +425,8 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
 
                 sum_homings += 1
 
-        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
+        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], 
+              condition=con + ("_tiny" if "tiny" in session.experiment else ""), barrier_coordinates=session.barrier_location)
         ax[i].set_title(f"{con} (n={sum_homings})")
 
     # make a legend for the two types of arrows
@@ -503,7 +506,8 @@ def trajectory_by_target(session, onsets, offsets, head_angle, all_conditions, t
                 y_loc = tracking_data["head_loc"][onset : offset, 1]
                 ax[i].scatter(x_loc, y_loc, s=3, color=color[np.argmax(cosim)])
 
-        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=session.barrier_location)
+        Arena(ax=ax[i], shelter_coordinates=tracking_data["shelter_loc"], 
+              condition=con + ("_tiny" if "tiny" in session.experiment else ""), barrier_coordinates=session.barrier_location)
         ax[i].set_title(f"{con} (n={sum_homings})")
 
     # save figure in session dir

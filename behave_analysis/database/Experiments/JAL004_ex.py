@@ -29,7 +29,7 @@ JAL4_mush_18aug = Experiment(  # Mouse specific
     root_path=JAL004.root_path,
     # Experiment specific
     experiment_name="mushroom",
-    experiment_idx=0,
+    experiment_idx=1,
     experiment_date="2023_08_18",
     experiment_time="08_22_16",
     valid_time=[.5, -1],
@@ -46,7 +46,7 @@ JAL4_flip1_21Aug = Experiment(  # Mouse specific
     experiment_file_names=JAL004.experiment_file_names,
     root_path=JAL004.root_path,
     # Experiment specific
-    experiment_name="barrierflip",
+    experiment_name="flip",
     experiment_idx=1,
     experiment_date="2023_08_21",
     experiment_time="12_53_10",

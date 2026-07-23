@@ -46,8 +46,8 @@ JAL3_flip1_22aug = Experiment(# Mouse specific
                     root_path = JAL003.root_path,
 
                     # Experiment specific
-                    experiment_name = 'flip_rotated_0',
-                    experiment_idx = 0,
+                    experiment_name = 'flip',
+                    experiment_idx = 1,
                     experiment_date = "2023_08_22",
                     experiment_time = "08_04_56",
                     valid_time = [.1, -1],

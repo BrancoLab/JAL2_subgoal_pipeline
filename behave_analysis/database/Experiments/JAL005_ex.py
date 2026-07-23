@@ -65,7 +65,7 @@ JAL5_flip3_21Sept = Experiment(# Mouse specific
                     
                     # Experiment specific
                     experiment_name = 'flip',
-                    experiment_idx=2,
+                    experiment_idx=3,
                     experiment_date="2023_09_21",
                     experiment_time="11_11_13",
                     valid_time=[.4, -1],

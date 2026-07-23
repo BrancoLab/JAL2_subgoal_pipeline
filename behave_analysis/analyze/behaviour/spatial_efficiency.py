@@ -60,7 +60,9 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, tria
 
                 if plotting:
                     ax = fig.add_subplot(gs[row, col])
-                    Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=condition, barrier_coordinates=session.barrier_location)
+                    Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], 
+                          condition=condition + ("_tiny" if "tiny" in session.experiment else ""), 
+                          barrier_coordinates=session.barrier_location)
                     # base_plotting(ax,tracking_data,condition, session = session)
                 else:
                     ax = []

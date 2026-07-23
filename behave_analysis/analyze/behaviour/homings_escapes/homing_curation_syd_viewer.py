@@ -166,7 +166,7 @@ def homing_curation_syd_viewer(
         axs[0, 0].scatter(x[0], y[0], s=35, color='green', label='window start')
         axs[0, 0].scatter(x[-1], y[-1], s=35, color='red', label='window end')
         if condition != state['condition']:
-            Arena(ax = axs[0, 0], condition = condition,
+            Arena(ax = axs[0, 0], condition = condition + ("_tiny" if "tiny" in session.experiment else ""),
                 barrier_coordinates = tracking_data["barrier_loc"][:-1], 
                 shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
 
@@ -174,7 +174,7 @@ def homing_curation_syd_viewer(
         axs[0, 1].plot(x[man_win], y[man_win], color='tab:orange', alpha=0.8, label='manual')
         
         if condition != state['condition']:
-            Arena(ax = axs[0, 1], condition = condition,
+            Arena(ax = axs[0, 1], condition = condition + ("_tiny" if "tiny" in session.experiment else ""),
                 barrier_coordinates = tracking_data["barrier_loc"][:-1], 
                 shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
             state['condition'] = condition
