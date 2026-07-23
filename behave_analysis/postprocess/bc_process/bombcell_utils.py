@@ -145,3 +145,25 @@ def get_metric_info_dict_JR(param):
     )]
 
     return {mi.name: mi for mi in metric_info_list}
+
+def get_waveform_peak_channel_safe(template_waveforms):
+    # template_waveforms expected shape: n_templates x n_samples x n_channels
+    n_templates = template_waveforms.shape[0]
+    max_channels = np.zeros(n_templates, dtype=int)
+
+    # Valid templates have at least one finite value
+    valid = ~np.all(np.isnan(template_waveforms), axis=(1, 2))
+    n_invalid = int((~valid).sum())
+    if n_invalid > 0:
+        print(f"BombCell patch: {n_invalid} all-NaN templates found; assigning fallback channel 0.")
+
+    if np.any(valid):
+        wv = template_waveforms[valid]
+        max_value = np.nanmax(wv, axis=1)
+        min_value = np.nanmin(wv, axis=1)
+        ptp = max_value - min_value
+        max_channels_valid = np.nanargmax(ptp, axis=1)
+        max_channels[valid] = max_channels_valid
+
+    # invalid templates remain channel 0 fallback
+    return max_channels

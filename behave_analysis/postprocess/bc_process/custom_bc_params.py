@@ -24,7 +24,6 @@ param["maxPercSpikesMissing"] = 10
 
 #  2. or which quality metrics are computed (by default these are not): 
 
-
 #  3. how quality metrics are calculated:
 
 # a. Refractory period violation (RPV) method - choose one of:
