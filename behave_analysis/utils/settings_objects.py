@@ -21,6 +21,8 @@ class Settings_process:
     efizz: bool = False
     efizzDataPath: str = None
     cluster_labels: str = "bombcell"  # 'bombcell' or "kilosort" or "manual"
+    remove_duplicate_spike_times: bool = True
+    duplicate_spikes_censored_period_ms: float = 0.1
     radius: int = 460
 
 
