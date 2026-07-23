@@ -163,11 +163,20 @@ class HomingAnalyzer:
             for on, off in zip(onset, offset):
                 ishoming[on:off + 1] = True
 
+        # ensure runs are only foudn in valid_time by setting all other frames to 0 speed
+        speed = video_df['speed'].to_numpy()
+        speed[video_df['valid_time'].to_numpy() == False] = 0.0
+
+        # ensure runs are only found outside shelter by setting in shelter frames to 0 speed
+        if session.shelter_location is not None:
+            in_shelter = video_df['OutofshelterIdx'].to_numpy() == False
+            speed[in_shelter] = 0.0
+
         self.session_data[session_name] = SessionData(
                     name=session_name,
                     fps=float(session.video.fps),
                     pixel_per_cm=float(session.video.pixels_per_cm),
-                    speed=video_df['speed'].to_numpy(),
+                    speed=speed,
                     hdir=video_df['hdir'].to_numpy(),
                     xy_position=np.column_stack([
                         tracking_data['avg_loc'][:, 0],

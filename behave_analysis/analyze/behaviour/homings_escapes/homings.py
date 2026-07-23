@@ -18,6 +18,7 @@ import polars as pl
 from dataclasses import asdict
 
 from behave_analysis.analyze.results_database_utils import settings_to_check, check_database_for_same_run, add_run_to_database
+from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficiency
 from behave_analysis.analyze.behaviour.homings_escapes.analyze_homing_consolidated import HomingAnalyzer
@@ -122,9 +123,7 @@ class get_Homings:
         if len(tracking_data) == 0:
             tracking_data = open_tracking_data(self.session)
         if len(video_df) == 0:
-            video_df = pl.Dataframe({
-                "frames": np.arange(1, len(tracking_data["hdir"]) + 1).astype(np.int64)
-            })
+            video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv"))
 
         self.results["start_locs"], self.results["end_locs"] = get_start_and_end_locs(
             tracking=tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
@@ -171,14 +170,6 @@ class get_Homings:
         else:
             self.onset_frames, self.offset_frames = candidates[:,0], candidates[:,1]
             self.stimulus_durations = (self.offset_frames - self.onset_frames)/self.session.video.fps  # match the format of the manual labels
-            end_of_valid = self.session.valid_time[1] * self.session.video.fps * 60 if self.session.valid_time[1] != -1 else len(video_df)
-            invalid = np.where(np.logical_and(self.onset_frames < self.session.valid_time[0] * self.session.video.fps * 60),
-                               (self.offset_frames > end_of_valid))[0]
-            if len(invalid) > 0:
-                logger.warning(f"Removing {len(invalid)} homings that are outside of valid time")
-                self.onset_frames = np.delete(self.onset_frames, invalid)
-                self.offset_frames = np.delete(self.offset_frames, invalid)
-                self.stimulus_durations = np.delete(self.stimulus_durations, invalid)
 
 ##-------- HOMING FEATURE FUNCTIONS--------------
 """USED ALSO FOR ESCAPES"""
@@ -190,10 +181,10 @@ def get_avg_speed(onsets, offsets, tracking_data, session) -> np.array:
     -- avg_speed: np.array of shape (n_runs, ) with the average speed in cm/s for each homing run"""
 
     avg_speed = np.zeros(len(onsets))
+    outofshelterfilter = out_of_shelter_filter(tracking_data) if len(tracking_data['shelter_loc']) > 0 else np.ones(len(tracking_data['avg_loc']), dtype=bool)
 
     for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
-        y_loc = tracking_data['head_loc'][onset:offset,1]
-        in_shelt = np.where(y_loc > tracking_data['shelter_loc'][0][1])[0] if len(tracking_data['shelter_loc']) > 0 else []
+        in_shelt = np.where(outofshelterfilter[onset:offset] == False)[0]
         trial_speed = tracking_data["avg_Velocity"][onset:offset]
         if len(in_shelt)>0:
             trial_speed = trial_speed[:in_shelt[0]]
@@ -228,7 +219,7 @@ def get_condition_homing(video_df, onset_frames, session) -> list:
 
     condition = []
     for onset in onset_frames:
-        condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset)), session))
+        condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset+1)), session))
     return condition
 
 def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, speed_thresh = 15) -> dict:
