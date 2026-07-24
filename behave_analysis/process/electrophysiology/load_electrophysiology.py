@@ -118,9 +118,9 @@ class LoadEfizz:
         This is important because duplicate spike times can cause issues in downstream analyses.
         """
         # sort globally by time (recommended if not guaranteed sorted)
-        order = np.argsort(spike_times, kind="mergesort")
-        t = spike_times[order]
-        c = spike_clusters[order]
+        order = np.argsort(spike_times.reshape(-1), kind="mergesort")
+        t = spike_times[order].reshape(-1)
+        c = spike_clusters[order].reshape(-1)
 
         # parameters
         fs = 30000.0               # sampling rate Hz (set correctly!)
@@ -134,7 +134,7 @@ class LoadEfizz:
 
         for clu in np.unique(c):
             idx = np.flatnonzero(c == clu)
-            tt = t[idx]
+            tt = t[idx] # spikes in this cluster
             dt = np.diff(tt)
             dup = dt <= thr
             n_dup = int(np.count_nonzero(dup))
