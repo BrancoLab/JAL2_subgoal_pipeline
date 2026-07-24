@@ -112,6 +112,9 @@ class ComputeEscapeTuning:
             # how many trials are in each condition?
             trial_start_cond = self.condition[np.where(np.diff(filtering_vector) > 0)[0]]
             trial_n_cond = np.bincount(trial_start_cond.astype(int), minlength=len(self.ET.all_conditions))
+            for i, t in enumerate(trial_n_cond):
+                if t == 0:
+                    logger.info(f"No {self.ET.escape_pattern_time} in condition {self.ET.all_conditions[i]}")
 
             y_fit, R, fr, params, mat, loo = compute_tuning_curves(
                 var=self.ET.discretized_var,
@@ -207,7 +210,7 @@ class ComputeEscapeTuning:
                 
 
             # compute the tuning curve on the unshifted, subselected data
-            if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time or self.ET.escape_pattern_time == "shelter_outing":
+            if ("homing" in self.ET.escape_pattern_time) or ("escape" in self.ET.escape_pattern_time) or (self.ET.escape_pattern_time == "shelter_outing"):
                 y, gf, fr, p, mat, reli = compute_tuning_curves(
                     var=self.discretized_var_shift,
                     escape_matrix=neural_matrix,
@@ -298,6 +301,11 @@ class ComputeEscapeTuning:
         # create time filtering vector
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
             self.ET.homing_vector, self.ET.escape_vector = homing_escape_filtering_vector(nframes=len(self.condition), onset_dict=self.onset_dict, xpos=self.x, ypos=self.y, shelter_location=self.aefizz.session.shelter_location, interpolation_mult=self.aefizz.settings.ep_interpolation_mult)
+            valid_time_vector = self.aefizz.video_df["valid_time"].to_numpy().astype(bool)
+            if self.settings.ep_interpolation_mult > 1:
+                valid_time_vector = np.repeat(valid_time_vector, self.settings.ep_interpolation_mult)
+            self.ET.homing_vector = (self.ET.homing_vector.astype(bool)) & (valid_time_vector.astype(bool))
+            self.ET.escape_vector = (self.ET.escape_vector.astype(bool)) & (valid_time_vector.astype(bool))
             filtering_vector = self.ET.homing_vector
         if self.ET.escape_pattern_time == "shelter_outing":
             filtering_vector = np.zeros_like(self.condition, dtype=bool)

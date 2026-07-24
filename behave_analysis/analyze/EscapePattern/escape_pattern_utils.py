@@ -193,14 +193,13 @@ def homing_escape_filtering_vector(nframes, onset_dict, xpos, ypos, shelter_loca
 
         # crop homings at shelter entry
         # find actual length of time until mouse is in shelter
-        in_shelt = np.logical_and(
-            this_y > shelter_location[0][1],
-            np.logical_and(this_x > shelter_location[0][0], this_x < shelter_location[1][0]),
-        )
-        shelter_entry = np.where(np.diff(in_shelt) > 0)[0][0] + 1 if np.any(np.diff(in_shelt) > 0) else len(in_shelt)
-        of = on + shelter_entry
-
-        # do we want to crop homings into first and second leg?
+        if shelter_location is not None:
+            in_shelt = np.logical_and(
+                this_y > shelter_location[0][1],
+                np.logical_and(this_x > shelter_location[0][0], this_x < shelter_location[1][0]),
+            )
+            shelter_entry = np.where(np.diff(in_shelt) > 0)[0][0] + 1 if np.any(np.diff(in_shelt) > 0) else len(in_shelt)
+            of = on + shelter_entry
 
         if interpolation_mult > 1:
             on = on * interpolation_mult
@@ -449,6 +448,9 @@ def build_shift_vector(ET, full_condition_vector, settings):
             if np.sum(np.logical_and(all_ons > a, all_ons < b)) < settings.ep_min_homings:
                 # Redefine: start at the 1/3 mark of homings in this condition, span 1/3 of the condition length
                 homings_this_cond = all_ons[np.logical_and(all_ons > cond_start_end[i][0], all_ons < cond_start_end[i][1])]
+                if len(homings_this_cond) == 0:
+                    logger.warning(f"No homings in {ET.all_conditions[i]} condition, cannot compute linear shift statistics")
+                    continue
                 a = homings_this_cond[int(np.round(len(homings_this_cond) / 3))] - 1
                 b = a + int((cond_start_end[i][1] - cond_start_end[i][0]) / 3)
 

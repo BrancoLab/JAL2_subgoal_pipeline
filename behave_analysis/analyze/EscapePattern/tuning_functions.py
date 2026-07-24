@@ -58,6 +58,8 @@ def compute_tuning_curves(var, escape_matrix, cond, bins, filtering_vector, n_co
         i = int(i)
         # start by condition
         cond_start = [x for x in h_start if cond[x] == i]
+        if len(cond_start) == 0:
+            continue
         cond_end = condition_transitions[cond[condition_transitions] == i]
         cond_start = np.sort(np.concatenate([cond_start,cond_end])) # this adds the end of the last trial
 
