@@ -12,6 +12,7 @@ Settings_ae = Settings_analyze_efizz(
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type="good",  # 'synthetic','synthetichdir','all','good',
+    cluster_labels="bombcell",  # 'bombcell','kilosort','manual'
     show_plots=False,
     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),
@@ -31,7 +32,7 @@ Settings_ae = Settings_analyze_efizz(
         # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
         # If 'by_position', it will compute LDA decoding by arena position
     number_of_bins=13,  # number of bin edges for angles, e.g. 13 or 19 are good numbers
-    homings = "manual",  # 'manual' or 'auto' or 'auto_curated', which homings to load to video_df,
+    homings = "auto",  # 'manual' or 'auto' or 'auto_curated', which homings to load to video_df,
         # if 'manual' it will load the manually detected homings, if 'auto' it will load the automatically detected homings, if 'auto_curated' it will load the automatically detected homings that have been manually curated
     # ------------- Linear Shift stats settings --------------------------
     linshift_min_step=120,  # in frames, minimum shift to consider for linear shift stats
@@ -56,9 +57,9 @@ Settings_ae = Settings_analyze_efizz(
     # ------------ Escape Pattern settings ----------------------
     ep_bins=25,  # number of bins for escape pattern tuning
     # ------------ Replay model settings ----------------------
-    replay_cells="all",  # 'all','hdir','escape_tuned'
-    replay_template_variable="escape",  # to make the order template of the replay sequence
-    replay_decoder_variable="escape",  # 'shelter_dist' or 'escape' or 'speed' or '2D_position
+    replay_cells="all",  # 'all','hdir','frac_route_tuned'
+    replay_template_variable="frac_route",  # to make the order template of the replay sequence
+    replay_decoder_variable="frac_route",  # 'shelter_dist' or 'frac_route' or 'speed' or '2D_position
     replay_train_condition="barrier_pre_flip",  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
     replay_test_condition="barrier_pre_flip",  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
     replay_decoder_train_time_period="correct_full_homing&escape",  # 'homing&escape', "correct_<>", "error_<>", "full_<>"
