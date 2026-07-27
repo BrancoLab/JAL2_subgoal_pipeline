@@ -1,0 +1,27 @@
+name: JAL2pipeline
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - numpy
+  - scipy
+  - pandas
+  - matplotlib
+  - polars
+  - opencv
+  - h5py
+  - pyarrow
+  - scikit-learn
+  - scikit-image
+  - statsmodels
+  - nptdms
+  - pyyaml
+  - ffmpeg
+  - ipykernel
+  - tk
+  - pip:
+      - loguru
+      - dill
+      - ephysiopy
