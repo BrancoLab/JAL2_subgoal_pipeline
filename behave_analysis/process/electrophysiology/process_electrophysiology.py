@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import inspect
 
+
 class ProcessedEfizz:
     def __init__(self, efizzDataLoaded, slope, intercept, samplingRate, filePath, camera_trigger, lastPulse, firstPulse):
         logger.info("Processing Efizz Data via alignment to bonsai machine and creating a polars dataframe")
@@ -34,14 +35,10 @@ class ProcessedEfizz:
         Returns:
             object: Polars dataframe
         """
-        assert (
-            self.spike_times.shape[0] == self.spike_clusters.shape[0]
-        ), "Spike times and clusters are not the same shape this can't be"
+        assert self.spike_times.shape[0] == self.spike_clusters.shape[0], "Spike times and clusters are not the same shape this can't be"
 
         # delete all spike times that come before the first pulse or after the last one
-        spike_times_to_delete = np.hstack(
-            [np.where(self.spike_times < self.firstPulse)[0], np.where(self.spike_times > self.lastPulse)[0]]
-        )
+        spike_times_to_delete = np.hstack([np.where(self.spike_times < self.firstPulse)[0], np.where(self.spike_times > self.lastPulse)[0]])
         self.spike_times = np.delete(self.spike_times, spike_times_to_delete)
         self.spike_clusters = np.delete(self.spike_clusters, spike_times_to_delete)
 
@@ -49,9 +46,7 @@ class ProcessedEfizz:
         dataFrame = pl.DataFrame({"spike_times": self.spike_times.ravel(), "spike_clusters": self.spike_clusters.astype(np.int32)})
 
         # ADD CLUSTER GROUPS labels
-        clusterLabelDataFrame = pl.DataFrame(
-            {"spike_clusters": self.cluster_group[:, 0].astype(np.int32), "cluster_group": self.cluster_group[:, 1]}
-        )
+        clusterLabelDataFrame = pl.DataFrame({"spike_clusters": self.cluster_group[:, 0].astype(np.int32), "cluster_group": self.cluster_group[:, 1]})
 
         # MERGE
         dataFrame = dataFrame.join(clusterLabelDataFrame, on="spike_clusters")
@@ -74,25 +69,25 @@ class ProcessedEfizz:
             ]
         )
 
-        if 'bin' in inspect.getfullargspec(pl.Series.cut).args: # older Polars version
+        frame_labels = [str(x) for x in np.arange(0, len(self.camera_trigger) + 1)]
+
+        if "bin" in inspect.getfullargspec(pl.Series.cut).args:  # older Polars version
             logger.warning("You are using an old version of Polars that is deprecated but this code should still work for now")
             self.alignedDataFrame = self.alignedDataFrame.with_columns(
-                self.alignedDataFrame["aligned_spike_times_in_samples"]
-                .cut(bins=self.camera_trigger, labels=[str(x) for x in np.arange(0, len(self.camera_trigger) + 1)])["category"]
+                pl.col("aligned_spike_times_in_samples")
+                .cut(bins=self.camera_trigger, labels=frame_labels)["category"]
+                .cast(pl.Utf8)
+                .cast(pl.Float64, strict=False)
                 .alias("spike_aligned_to_frame")
             )
-            self.alignedDataFrame = self.alignedDataFrame.select(
-                [pl.col("spike_aligned_to_frame").apply(float), pl.exclude("spike_aligned_to_frame")]
-            )
-        elif 'breaks' in inspect.getfullargspec(pl.Series.cut).args: # jasmine's more recent polars version
+        elif "breaks" in inspect.getfullargspec(pl.Series.cut).args:  # jasmine's more recent polars version
             logger.warning("Congrats! You have an updated version of polars but we're not super confident this data alignment thing works")
             self.alignedDataFrame = self.alignedDataFrame.with_columns(
-                self.alignedDataFrame["aligned_spike_times_in_samples"]
-                .cut(breaks=self.camera_trigger, labels=[str(x) for x in np.arange(0, len(self.camera_trigger) + 1)])
+                pl.col("aligned_spike_times_in_samples")
+                .cut(breaks=self.camera_trigger, labels=frame_labels)
+                .cast(pl.Utf8)
+                .cast(pl.Float64, strict=False)
                 .alias("spike_aligned_to_frame")
-            )
-            self.alignedDataFrame = self.alignedDataFrame.select(
-                [self.alignedDataFrame["spike_aligned_to_frame"].cast(pl.Float64), pl.exclude("spike_aligned_to_frame")]
             )
 
         # UNIT TESTs
@@ -110,15 +105,14 @@ class ProcessedEfizz:
         Save the processed efizz data
         """
         qualifier = "_bc" if self.cluster_labels == "bombcell" else ""
-        if 'sep' in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
+        if "sep" in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
             self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier, sep=",")
             logger.success("Processed Efizz data saved")
-        elif 'separator' in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
-            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier, separator = ",")
+        elif "separator" in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
+            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier, separator=",")
             logger.success("Processed Efizz data saved")
         else:
             logger.warning("DF saving was not successful because of polars version issues")
-
 
         # UNIT TESTS
         assert os.path.exists(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier), "Processed Efizz data not saved"
