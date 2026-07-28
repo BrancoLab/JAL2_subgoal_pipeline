@@ -4,10 +4,14 @@
 import os
 import re
 import numpy as np
+import matplotlib
+
+# On headless Linux nodes, force a non-interactive backend.
+if os.environ.get("MPLBACKEND") is None and os.name != "nt" and not os.environ.get("DISPLAY"):
+    matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
-import matplotlib
-matplotlib.use('TkAgg')
 from sklearn.metrics.pairwise import cosine_similarity
 
 from behave_analysis.utils.arena_plotting import Arena

@@ -27,9 +27,13 @@ from loguru import logger
 import numpy as np
 import cv2
 import matplotlib
+
+# On headless Linux nodes, force a non-interactive backend.
+if os.environ.get("MPLBACKEND") is None and os.name != "nt" and not os.environ.get("DISPLAY"):
+    matplotlib.use("Agg")
+
 import matplotlib.pyplot as plt
 import dill as pickle
-matplotlib.use('TKAgg')
 
 from behave_analysis.track.dlcHelp import DLC
 from behave_analysis.track.kalmanFilter import kalmann
