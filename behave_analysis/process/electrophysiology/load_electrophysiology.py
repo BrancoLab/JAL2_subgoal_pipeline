@@ -67,17 +67,21 @@ class LoadEfizz:
         if self.settings.cluster_labels == "manual":
             logger.info("Using manual (phy) cluster classification, if no curation this is the same as kilosort")
             cluster_label = self.filter_by_ending(self.files, "cluster_group.tsv")[0]
+            used_cluster_labels = "manual"
         if self.settings.cluster_labels == "bombcell":
             cluster_label = self.filter_by_ending(self.files, "cluster_bc_unitType.tsv")
             if len(cluster_label) == 0:
                 logger.warning("No bombcell cluster classification file was found! Defaulting to kilosort classification")
                 cluster_label = self.filter_by_ending(self.files, "cluster_KSLabel.tsv")[0]
+                used_cluster_labels = "kilosort"
             else:
                 logger.info("Using bombcell cluster classification")
                 cluster_label = cluster_label[0]
+                used_cluster_labels = "bombcell"
         if self.settings.cluster_labels == "kilosort":
             cluster_label = self.filter_by_ending(self.files, "cluster_KSLabel.tsv")[0]
             logger.info("Using kilosort cluster classification")
+            used_cluster_labels = "kilosort"
         self.cluster_group = np.loadtxt(cluster_label, dtype=str, delimiter="\t", skiprows=1)
         self.num_of_good_units = self.count_number_of_label_units("good")
         logger.info(f"The number of good units is: {self.num_of_good_units} out of {len(self.cluster_group)} units")
@@ -90,7 +94,7 @@ class LoadEfizz:
             spike_times=self.spike_times,
             spike_clusters=self.spike_clusters,
             cluster_group=self.cluster_group,
-            cluster_labels=self.settings.cluster_labels,
+            cluster_labels=used_cluster_labels,
             TTL_bin_path=self.imec_bin_path,
             number_of_good_units=self.num_of_good_units,
             imec_sync_path=self.imec_sync_path, 
