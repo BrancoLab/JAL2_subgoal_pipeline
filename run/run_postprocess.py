@@ -4,7 +4,7 @@ from behave_analysis.postprocess.pp_main import Postprocessor
 from behave_analysis.process.process import Process
 from databank import experiments_objects
 
-def postprocess():
+def postprocess(experiments_objects):
     """ 
     A function that outputs and saves a postprocessed object as a pickle file in the processed data folder.
     """
@@ -15,4 +15,4 @@ def postprocess():
         Postprocessor(session)
     logger.success("The post processing of the data has finished and the postprocessed object has been saved to a pickle file")
     
-postprocess()
+postprocess(experiments_objects)

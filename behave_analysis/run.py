@@ -4,11 +4,9 @@ from settings.settings_process import settings_process as settings_p
 from settings.settings_track import settings_track as settings_t
 from settings.settings_visualize import Settings_visualize as settings_v
 from settings.settings_analyze_efizz import Settings_ae
-from settings.settings_analyze_behave import settings_analyze_behave as settings_a
+from settings.settings_analyze_behave import settings_ab
 from behave_analysis.process.process import Process
 from behave_analysis.track.track import Track
-from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
-from behave_analysis.analyze.behaviour.homings_escapes.threshold_crossings import get_Threshold_crossings
 from behave_analysis.visualize.visualize_efizz import Visualize_efizz
 from behave_analysis.visualize.visualize_behave import Visualize_behave
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
@@ -43,12 +41,6 @@ def track():
         logger.info("Loaded a session with the following details: {}".format(session_ID))
         Track(settings_t, session)
     logger.success("Tracking complete")
-
-# def homings():
-#     for session_ID in experiments_objects:
-#         session = Process(session_ID).load_session()
-#         get_Homings(settings_a, session)
-#         get_Threshold_crossings(settings_a, session)
 
 def postprocess():
     """ 
@@ -123,7 +115,7 @@ def analyze_behave():
     
     logger.info("The behaviour analysis pipeline has started")
     
-    if settings_a.stim_type == "None":
+    if settings_ab.stim_type == "None":
         logger.warning("No stim type defined in settings - skipping behavioral analyses")
         return
     

@@ -5,8 +5,9 @@ import uuid
 from loguru import logger
 import ast
 import os
+import json
 
-SETTINGS_AE = ["stim_type", "cluster_type", "condition_types", "compartment_split"]
+SETTINGS_AE = ["stim_type", "cluster_type","cluster_labels", "condition_types", "compartment_split", "homings"]
 
 
 def check_database_for_same_run(db_settings, results_csv_name, settings):
@@ -83,50 +84,89 @@ def settings_to_check(settings_obj, analysis_type):
 
     return settings_to_check_dict
 
+def _normalize_value(value):
+    """Convert values to JSON/comparison friendly Python types."""
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, np.ndarray):
+        return [_normalize_value(v) for v in value.tolist()]
+    if isinstance(value, tuple):
+        return [_normalize_value(v) for v in value]
+    if isinstance(value, list):
+        return [_normalize_value(v) for v in value]
+    if isinstance(value, dict):
+        # Sort keys for deterministic representation
+        return {k: _normalize_value(value[k]) for k in sorted(value, key=lambda x: str(x))}
+    return value
+
+def _coerce_db_value(db_value):
+    """Parse structured values that were stored as strings in CSV."""
+    if isinstance(db_value, str):
+        s = db_value.strip()
+        if s == "":
+            return db_value
+        try:
+            return json.loads(s)
+        except (json.JSONDecodeError, TypeError):
+            try:
+                return ast.literal_eval(s)
+            except (ValueError, SyntaxError):
+                return db_value
+    return db_value
+
+def _is_flat_scalar_list(v):
+    return isinstance(v, list) and all(not isinstance(x, (list, tuple, dict)) for x in v)
+
+def _values_match(db_value, setting_value):
+    db_norm = _normalize_value(_coerce_db_value(db_value))
+    setting_norm = _normalize_value(setting_value)
+
+    # Keep legacy behavior: flat list order does not matter
+    if _is_flat_scalar_list(db_norm) and _is_flat_scalar_list(setting_norm):
+        return _same_items_ignore_order(db_norm, setting_norm)
+
+    return db_norm == setting_norm
+
+def _to_storage_value(value):
+    """
+    Store structured values as canonical JSON strings for stable roundtrip.
+    Scalars are stored directly.
+    """
+    norm = _normalize_value(value)
+    if isinstance(norm, (dict, list)):
+        return json.dumps(norm, sort_keys=True, separators=(",", ":"))
+    return norm
 
 def find_matching_run(database, settings_dict, saved_vars=[]):
-    """A function that checks a database for rows with settings that match settings_dict.
-    Optionally you can also ask to check the list of saved_vars for this row by passing a list of var names"""
-    # we set everything to true and then check for mismatches to set to false
+    """Check database for rows with settings matching settings_dict."""
     matched_rows = np.ones(len(database), dtype=bool)
     saved_vars_rows = np.ones(len(database), dtype=bool)
 
-    # iterate over rows
     for row in range(len(database)):
         row_dict = database.iloc[row].to_dict()
-        # iterate over settings to check, if a mismatch break and set matched_rows to false for this row
+
         for setting_name, setting_value in settings_dict.items():
             if setting_name not in row_dict:
-                matched_rows[row] = False
-                break
+                if setting_name == "homings":
+                    db_value = "manual"
+                else:
+                    matched_rows[row] = False
+                    break
             else:
                 db_value = row_dict[setting_name]
-                # if the db value is a string representation of a list/tuple, parse it
-                if isinstance(db_value, str) and isinstance(setting_value, (list, tuple)):
-                    try:
-                        db_value = ast.literal_eval(db_value)
-                    except (ValueError, SyntaxError):
-                        pass
-                # if it's a list or tuple, we want to check if they have the same items regardless of order
-                if isinstance(setting_value, (list, tuple)) and isinstance(db_value, (list, tuple)):
-                    if not _same_items_ignore_order(db_value, setting_value):
-                        matched_rows[row] = False
-                        break
-                # if not list or tuple, just check for equality
-                else:
-                    if db_value != setting_value:
-                        matched_rows[row] = False
-                        break
-        # is there a list of the variables saved for this iteration of the analysis? if so check if they match
+
+            if not _values_match(db_value, setting_value):
+                matched_rows[row] = False
+                break
+
         if len(saved_vars) > 0:
-            data_vars = ast.literal_eval(row_dict["data_vars"]) if isinstance(row_dict["data_vars"], str) else row_dict["data_vars"]
-            if data_vars != saved_vars:
+            data_vars_db = _coerce_db_value(row_dict.get("data_vars", []))
+            if _normalize_value(data_vars_db) != _normalize_value(saved_vars):
                 saved_vars_rows[row] = False
 
     if len(saved_vars) > 0:
         return matched_rows, saved_vars_rows
-    else:
-        return matched_rows
+    return matched_rows
 
 def _same_items_ignore_order(a, b):
     # Compare list/tuple values as multisets, so order does not matter.
@@ -141,32 +181,22 @@ def _same_items_ignore_order(a, b):
         return sorted(map(repr, a)) == sorted(map(repr, b))
 
 def add_run_to_database(dataframe, settings_dict, savepath, hexadecimal_name, saved_vars=None):
-    """INPUTS:
-    dataframe: the pandas dataframe that is the database of runs
-    settings_dict: a dictionary of the settings for this run (best to filter the settings_obj with a settings_list of interest
-    savepath: where the database csv is saved - it must exist!
-    hexadecimal_name: the unique identifier for this run (e.g. a random 16 character hex string)"""
-    # add a row to dataframe with the settings and the hexadecimal name
     row = {"name": hexadecimal_name}
-    # Build row data
+
     for key, value in settings_dict.items():
-        row[key] = value
+        row[key] = _to_storage_value(value)
 
-    if not saved_vars is None:
-        # add a column for variables saved to data
-        row["data_vars"] = saved_vars
+    if saved_vars is not None:
+        row["data_vars"] = _to_storage_value(saved_vars)
 
-    # Add to dataframe
     new_df = pd.DataFrame([row])
     if dataframe.empty:
         dataframe = new_df
     else:
         dataframe = pd.concat([dataframe, new_df], ignore_index=True)
 
-    # Save to CSV
     dataframe.to_csv(savepath, index=False)
     logger.info(f"Added run {hexadecimal_name} to database")
-
 
 def generate_run_id() -> str:
     """Generate a random 16-character hex identifier."""

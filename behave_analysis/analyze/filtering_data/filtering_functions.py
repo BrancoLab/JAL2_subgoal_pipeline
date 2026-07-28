@@ -4,7 +4,9 @@
 import numpy as np
 import polars as pl
 
-from behave_analysis.utils.data_loading import load_or_extract_homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from settings.settings_overrides import settings_overrides
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 
 
 def discover_condition_based_on_video_df(dataframe):
@@ -41,7 +43,9 @@ def filter_video_dataframe(dataframe, condition = "", outofshelter=True, exclude
 
     assert type(dataframe) == pl.DataFrame, "dataframe must be a polars dataframe else filtering will not work"
 
-    filtered_video_df = dataframe.filter((dataframe["speed"] >= speed_threshold))
+    filtered_video_df = dataframe.filter((dataframe["valid_time"] == True))  # only keep valid times of recording
+    
+    filtered_video_df = filtered_video_df.filter((filtered_video_df["speed"] >= speed_threshold))
 
     if not outofshelter is None:
         filtered_video_df = filtered_video_df.filter((filtered_video_df["OutofshelterIdx"] == outofshelter))
@@ -127,18 +131,21 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
     and when the mouse is doing at least 2 consecutive bad homings.
     """
     # get homings
-    homings = load_or_extract_homings(session)
+    from settings.settings_analyze_behave import settings_ab
+    settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+    homings = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings()
+    homings = remove_manually_curated(homings)
     # single out the homings in this condition
-    homies_in_condition = (homings.onset_frames > dataframe["frames"][0]) * (homings.offset_frames < dataframe["frames"][-1])
+    homies_in_condition = (homings["onset_frames"] > dataframe["frames"][0]) * (homings["offset_frames"] < dataframe["frames"][-1])
     homies_in_condition = [item for sublist in homies_in_condition for item in sublist]
     # extract the avg angle towards all targets for homings in this condition
-    homie_angles = np.zeros((len(homings.homing_angles_dic.keys()), np.sum(homies_in_condition)))
-    for i, angle in enumerate(homings.homing_angles_dic.keys()):
-        homie_angles[i, :] = homings.homing_angles_dic[angle][homies_in_condition]
+    homie_angles = np.zeros((len(homings["head_orientation_dic"].keys()), np.sum(homies_in_condition)))
+    for i, angle in enumerate(homings["head_orientation_dic"].keys()):
+        homie_angles[i, :] = homings["head_orientation_dic"][angle][homies_in_condition]
     # identify the target: object with smallest head angle
     target_of_homing = np.argmin(np.abs(homie_angles), axis=0)
     # which is the correct target for this condition
-    angle_keys = [key for key in homings.homing_angles_dic.keys()]
+    angle_keys = [key for key in homings["head_orientation_dic"].keys()]
     if np.logical_or(condition == "shelter_only", condition == "shelter_present"):
         target_of_homing = target_of_homing == angle_keys.index("avg_hsa")
     if condition == "barrier_pre_flip":
@@ -150,7 +157,7 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
     # honestly this is pretty ugly, there must be a more elegant pythonic way around this
     frames = dataframe["frames"].to_numpy()
     correct_targeting = np.zeros(len(dataframe))
-    onset_frames = homings.onset_frames[homies_in_condition]
+    onset_frames = homings["onset_frames"][homies_in_condition]
     for c in np.arange(1, len(target_of_homing)):  # not looking befoe first homing - uncertain times
         if np.logical_and(target_of_homing[c] == good_homie, target_of_homing[c - 1] == good_homie):
             start_idx = np.where(frames == int(onset_frames[c - 1]))[0]
@@ -164,9 +171,9 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
 
     # import matplotlib.pyplot as plt
     # plt.plot([dataframe["frames"][0],dataframe["frames"][-1]],[0, 0],'k',marker = '--')
-    # plt.scatter(homings.onset_frames[homies_in_condition],homings.homing_angles_dic['avg_hsa'][homies_in_condition])
-    # plt.scatter(homings.onset_frames[homies_in_condition],homings.homing_angles_dic['avg_hdir_bar_goal1'][homies_in_condition],c='r')
-    # plt.scatter(homings.onset_frames[homies_in_condition],homings.homing_angles_dic['avg_hdir_bar_goal2'][homies_in_condition],c='g')
+    # plt.scatter(homings["onset_frames"][homies_in_condition],homings["head_orientation_dic"]["avg_hsa"][homies_in_condition])
+    # plt.scatter(homings["onset_frames"][homies_in_condition],homings["head_orientation_dic"]["avg_hdir_bar_goal1"][homies_in_condition],c='r')
+    # plt.scatter(homings["onset_frames"][homies_in_condition],homings["head_orientation_dic"]["avg_hdir_bar_goal2"][homies_in_condition],c='g')
     return filtered_video_df
 
 
@@ -178,19 +185,21 @@ def filter_video_df_homing_number(dataframe, condition, session, good_homie, num
     Here the time in this condition is split up into before the mouse does number_of_homings good homings and after the mouse does number_of_homings good homings.
     """
     # get homings
-    homings = load_or_extract_homings(session)
+    from settings.settings_analyze_behave import settings_ab
+    settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+    homings = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings()
     # single out the homings in this condition
-    homies_in_condition = (homings.onset_frames > dataframe["frames"][0]) * (homings.offset_frames < dataframe["frames"][-1])
+    homies_in_condition = (homings["onset_frames"] > dataframe["frames"][0]) * (homings["offset_frames"] < dataframe["frames"][-1])
     homies_in_condition = [item for sublist in homies_in_condition for item in sublist]
     # extract the avg angle towards all targets for homings in this condition
-    homie_angles = np.zeros((len(homings.homing_angles_dic.keys()), np.sum(homies_in_condition)))
-    for i, angle in enumerate(homings.homing_angles_dic.keys()):
-        homie_angles[i, :] = homings.homing_angles_dic[angle][homies_in_condition]
+    homie_angles = np.zeros((len(homings["head_orientation_dic"].keys()), np.sum(homies_in_condition)))
+    for i, angle in enumerate(homings["head_orientation_dic"].keys()):
+        homie_angles[i, :] = homings["head_orientation_dic"][angle][homies_in_condition]
     # identify the target: object with smallest head angle
     target_of_homing = np.argmin(np.abs(homie_angles), axis=0)
     # which is the correct target for this condition
     # target_of_homing = boolean with 1s for homings that are targeting the correct (sub)goal for this condition
-    angle_keys = [key for key in homings.homing_angles_dic.keys()]
+    angle_keys = [key for key in homings["head_orientation_dic"].keys()]
     if np.logical_or(condition == "shelter_only", condition == "shelter_present"):
         target_of_homing = target_of_homing == angle_keys.index("avg_hsa")
     if condition == "barrier_pre_flip":
@@ -200,7 +209,7 @@ def filter_video_df_homing_number(dataframe, condition, session, good_homie, num
 
     good_homies = np.where(target_of_homing)[0]
     if len(good_homies) > number_of_homings:
-        good_behavior_threshold = homings.onset_frames[good_homies[number_of_homings - 1]]  # the frame of the nth good homing
+        good_behavior_threshold = homings["onset_frames"][good_homies[number_of_homings - 1]]  # the frame of the nth good homing
     else:
         good_behavior_threshold = dataframe["frames"].to_numpy()[-1]
 
@@ -236,7 +245,45 @@ def identify_conditions(session) -> list:
         if session.barrier_time[1] != -1:
             condition.append("barrier_removed")
 
-    return condition
+
+def identify_epoch_conditions(session) -> list:
+    """Return the ordered list of mutually-exclusive epoch condition names used as
+    integer-index labels (0, 1, 2, ...) in ComputeEscapeTuning.preprocess_data().
+
+    The index order mirrors the incremental condition vector built there:
+      - index 0 = "pre_shelter"  (if a pre-shelter epoch exists), otherwise "shelter_only"
+      - index 1 = "shelter_only" (if pre-shelter exists),          otherwise "barrier_pre_flip" (if barrier)
+      - index 2 = "barrier_pre_flip"  (if pre-shelter + barrier)   otherwise "barrier_post_flip"
+      - index 3 = "barrier_post_flip" (if pre-shelter + barrier + flip)
+      - index 4 = "barrier_removed" (if pre-shelter + barrier + flip + removal)
+
+    Unlike identify_conditions(), this returns only the epochs that correspond to
+    distinct integer values of the condition vector, with names consistent with
+    compute_dist_shelt() ("barrier_pre_flip" / "barrier_post_flip").
+    """
+    conditions = []
+    has_pre_shelter = len(session.shelter_time) > 0 and session.shelter_time[0] > 0
+    has_shelter = len(session.shelter_time) > 0
+    has_barrier = len(session.barrier_time) > 0
+    has_barflip = bool(session.barrier_flip_time)
+
+    if has_pre_shelter:
+        conditions.append("pre_shelter")
+    if has_shelter and (session.shelter_time[0] < session.barrier_time[0] if has_barrier else True):
+        conditions.append("shelter_only")
+    if has_barrier:
+        if has_barflip:
+            conditions.append("barrier_pre_flip")
+            conditions.append("barrier_post_flip")
+        else:
+            conditions.append("barrier_pre_flip")
+    if has_barrier and session.barrier_time[1] != -1:
+        conditions.append("barrier_removed")
+
+    if len(conditions) == 0:
+        conditions.append("habituation")
+        
+    return conditions
 
 
 def extract_all_or_custom_conditions(settings, session):

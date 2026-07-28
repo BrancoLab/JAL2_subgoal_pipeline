@@ -36,7 +36,7 @@ class Arena:
             self.draw_shelter(shelter_coordinates)
 
         if barrier_coordinates is not None:
-            if not np.logical_or(condition == "shelter_only", condition == "pre_shelter"):
+            if np.logical_or("barrier" in condition, condition == "all_time"):
                 if not full_image:
                     barrier_coordinates = [[b + (512 - 460) for b in bc] for bc in barrier_coordinates]
                 self.draw_barrier(condition, barrier_coordinates)
@@ -61,30 +61,31 @@ class Arena:
         We are assuming a barrier that varies in the x direction, so the two points should have the same y coordinate. 
         If this is not the case, the barrier will still be plotted but it may look weird!"""
 
-        if condition == "barrier_removed":
+        if "barrier_removed" in condition:
             return
         
         bar_loc = [] 
 
         if (len(barrier_coordinates) >= 2) & (isinstance(barrier_coordinates[0], list) or isinstance(barrier_coordinates[0], np.ndarray)):
             # barrier_coordinates needs to be a list of two points, each with x and y coordinates, e.g. [[x1, y1], [x2, y2]]
-            if np.logical_or(np.logical_or(condition == "barrier_present", condition == "all_time"), condition == "shelter_present"):
+            if np.logical_or(np.logical_or("barrier_present" in condition, "all_time" in condition), "shelter_present" in condition):
                 # draw old two-sided barrier
                 bar_loc = [barrier_coordinates[0][0] * self.scaling, barrier_coordinates[1][0] * self.scaling] # assuming barrier varies in x direction
-            elif condition == "barrier_pre_flip":
+            elif "barrier_pre_flip" in condition:
                 # take the first point
                 barrier_coordinates = barrier_coordinates[0]
-            elif condition == "barrier_post_flip":
+            elif "barrier_post_flip" in condition:
                 # take the second point
                 barrier_coordinates = barrier_coordinates[1]
 
         if len(bar_loc) == 0:
             # draw from the barrier point to the edge of the arena in cases where we only got one point
-            if (barrier_coordinates[0] * self.scaling) < self.arena_center:  # if 224 < 512
+            if np.logical_or(np.logical_and("tiny" not in condition, (barrier_coordinates[0] * self.scaling) < self.arena_center),
+                             np.logical_and("tiny" in condition, (barrier_coordinates[0] * self.scaling) > self.arena_center)):  # if 224 < 512
                 bar_loc = [barrier_coordinates[0] * self.scaling, self.arena_center + self.arena_radius]  # [224 * 1, 512 + 460]
-            else:
+            elif np.logical_or(np.logical_and("tiny" not in condition, (barrier_coordinates[0] * self.scaling) > self.arena_center),
+                               np.logical_and("tiny" in condition, (barrier_coordinates[0] * self.scaling) < self.arena_center)):  # if 800 > 512
                 bar_loc = [self.arena_center - self.arena_radius, barrier_coordinates[0] * self.scaling]  # [512 - 460, 797 * 1]
-
         self.ax.plot(
                 [bar_loc[0], bar_loc[1]], [self.arena_center, self.arena_center], color=[0, 0, 0]
             )

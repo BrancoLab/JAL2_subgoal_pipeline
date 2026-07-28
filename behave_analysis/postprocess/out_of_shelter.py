@@ -9,9 +9,6 @@ def out_of_shelter_filter(tracking_data: dict) -> np.ndarray:
     + shelter_loc: list of lists, each list contains the x, y coordinates of the opposite corners of the shelter
     
     Output: np.ndarray of booleans, True if the mouse is out of the shelter and False if the mouse is in the shelter.
-    
-    # BUG - I think this function is not working properly. I think it is not filtering out the frames where the mouse is in the shelter
-    when the shelter is at the top of the arena and the points clicked where top left and bottom right. 
     """
     
     avg_loc_x, avg_loc_y   = tracking_data['avg_loc'][:, 0], tracking_data['avg_loc'][:, 1]

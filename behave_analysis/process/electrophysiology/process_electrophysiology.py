@@ -12,6 +12,7 @@ class ProcessedEfizz:
         self.spike_times = efizzDataLoaded.spike_times
         self.spike_clusters = efizzDataLoaded.spike_clusters
         self.cluster_group = efizzDataLoaded.cluster_group
+        self.cluster_labels = efizzDataLoaded.cluster_labels
         self.filePath = filePath
         self.camera_trigger = camera_trigger
         self.lastPulse = lastPulse
@@ -108,15 +109,16 @@ class ProcessedEfizz:
         """
         Save the processed efizz data
         """
+        qualifier = "_bc" if self.cluster_labels == "bombcell" else ""
         if 'sep' in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
-            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data", sep=",")
+            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier, sep=",")
             logger.success("Processed Efizz data saved")
         elif 'separator' in inspect.getfullargspec(pl.DataFrame.write_csv).kwonlyargs:
-            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data", separator = ",")
+            self.alignedDataFrame.write_csv(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier, separator = ",")
             logger.success("Processed Efizz data saved")
         else:
             logger.warning("DF saving was not successful because of polars version issues")
 
 
         # UNIT TESTS
-        assert os.path.exists(str(self.filePath) + "/" + "Processed_efizz_data"), "Processed Efizz data not saved"
+        assert os.path.exists(str(self.filePath) + "/" + "Processed_efizz_data" + qualifier), "Processed Efizz data not saved"

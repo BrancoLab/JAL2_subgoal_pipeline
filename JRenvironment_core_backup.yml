@@ -1,0 +1,48 @@
+name: JAL2pipeline
+channels:
+  - defaults
+dependencies:
+  - backcall
+  - blas
+  - ca-certificates
+  - certifi
+  - colorama
+  - ffmpeg
+  - geos
+  - icc_rt
+  - icu
+  - ipykernel
+  - ipython_genutils
+  - jedi
+  - jpeg
+  - libpng
+  - libsodium
+  - mkl
+  - mkl-service
+  - mkl_random
+  - numpy-base
+  - openssl
+  - parso
+  - pickleshare
+  - pip
+  - pygments
+  - pyqt
+  - python
+  - python_abi
+  - pytz
+  - pywin32
+  - pyzmq
+  - qt
+  - setuptools
+  - sip
+  - six
+  - sqlite
+  - tornado
+  - traitlets
+  - vc
+  - vs2015_runtime
+  - wcwidth
+  - wincertstore
+  - zeromq
+  - zlib
+prefix: C:\Users\Jasmine\miniconda3\envs\JAL2pipeline

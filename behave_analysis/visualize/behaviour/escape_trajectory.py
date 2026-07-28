@@ -9,7 +9,8 @@ import numpy as np
 
 # import
 # from behave_analysis.analyze.behaviour.spatial_efficiency import identify_condition_escape, base_plotting
-from behave_analysis.analyze.behaviour.utils import base_plotting, identify_condition_of_trial
+from behave_analysis.analyze.behaviour.utils import base_plotting
+from behave_analysis.utils.identify_condition import identify_condition_of_trial
 from behave_analysis.utils.arena_plotting import Arena
 
 def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, session, settings, save_path):
@@ -33,7 +34,9 @@ def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, sess
         ax = plt.subplot(nrows, ncols, trial_num + 1)
         # set up axes with shelt and barrier locations
         condition = identify_condition_of_trial(video_df.filter(video_df["frames"] == onset_frames), session)
-        Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=condition, barrier_coordinates=session.barrier_location)
+        Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], 
+              condition=condition + ("_tiny" if "tiny" in session.experiment else ""), 
+              barrier_coordinates=session.barrier_location)
         # base_plotting(ax, tracking_data, condition, session = session)
         # plot escape trajectory
         plot_trajectories(

@@ -95,7 +95,9 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
             full_pos = np.logical_not(empty_pos)
 
             # plot at each position that has a rayleigh an arrow/line with length and orientation given by rayleigh
-            Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=c, barrier_coordinates=session.barrier_location)
+            Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], 
+                  condition=c + ("_tiny" if "tiny" in session.experiment else ""), 
+                  barrier_coordinates=session.barrier_location)
             # base_plotting(ax, tracking_data, condition = c, session = session)
             ax.scatter(this_pos[empty_pos, 0], this_pos[empty_pos, 1], 5, "k")
             ax.quiver(

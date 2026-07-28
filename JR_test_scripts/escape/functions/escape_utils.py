@@ -11,7 +11,9 @@ from pathlib import Path
 import dill as pickle
 
 from behave_analysis.process.process import Process
-from behave_analysis.utils.data_loading import load_or_extract_homings
+from settings.settings_overrides import settings_overrides
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 
 ###------------------------DATA LOADING----------------------
 
@@ -47,16 +49,19 @@ def load(exp):
 def load_homing(session, n_frames):
     """Load homing onset and offset frames, and create homing bool"""
     # homing object
-    homings = load_or_extract_homings(session)
+    from settings.settings_analyze_behave import settings_ab
+    settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+    homings = get_Homings(settings=settings_ab, session=session).get_homings()
+    homings = remove_manually_curated(homings)
 
     # homing bool
     homing_bool = np.zeros(n_frames, dtype=bool)
-    onset_frames = homings.onset_frames
-    offset_frames = homings.offset_frames
+    onset_frames = homings["onset_frames"]
+    offset_frames = homings["offset_frames"]
     for onset, offset in zip(onset_frames, offset_frames):
         homing_bool[onset: offset + 1] = True
 
-    return homings.onset_frames, homings.offset_frames, homing_bool
+    return homings["onset_frames"], homings["offset_frames"], homing_bool
 
 def load_hdir_cells(experiments_objects, session_names):
     """Loads in the pickle with all the hdir cells and the good cluster Ids from the sessions in the experiments_objects list.

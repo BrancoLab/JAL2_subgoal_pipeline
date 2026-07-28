@@ -16,10 +16,13 @@ from behave_analysis.analyze.behaviour.plot_homings import (
     trial_initial_heading_angle,
     trial_speed_hist,
 )
-from behave_analysis.utils.data_loading import load_or_extract_homings, load_or_extract_escapes
+from behave_analysis.utils.data_loading import load_or_extract_escapes
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
+from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
 from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
 from behave_analysis.analyze.behaviour.correlation_matrix import compute_correlation_matrix, plot_correlation_matrix, circular_linear_corr
+from settings.settings_overrides import settings_overrides
 
 class AnalyzeBehave:
     """
@@ -38,22 +41,20 @@ class AnalyzeBehave:
         if analysis_name == "escape_plots" or analysis_name == 'correlations':
             self.escape_object = load_or_extract_escapes(self.session)
             assert self.escape_object is not None, "Failed to load escape data."
-            assert hasattr(self.escape_object, "onset_frames") and hasattr(
-                self.escape_object, "stimulus_durations"
-            ), "Escape object must have 'onset_frames' and 'stimulus_durations'."
-            assert len(self.escape_object.onset_frames) > 0, "No escape trials found for this session."
+            assert len(self.escape_object["onset_frames"]) > 0, "No escape trials found for this session."
 
         if analysis_name == "homings_plots" or analysis_name == "correlations":
-            self.homings_object = load_or_extract_homings(self.session)
-            assert self.homings_object is not None, "Failed to load homing data."
-            assert hasattr(self.homings_object, "onset_frames") and hasattr(
-                self.homings_object, "stimulus_durations"
-            ), "Homings object must have 'onset_frames' and 'stimulus_durations'."
+            from settings.settings_analyze_behave import settings_ab
+            settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+            self.homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings()
+            self.homings = remove_manually_curated(self.homings)
+            assert self.homings is not None, "Failed to load homing data."
 
         if analysis_name in ['homings&escape', 'correlations']:
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
-            
+            if analysis_name == "correlations":
+                self.video_df = add_homie_to_video_df(self.session, self.video_df, self.tracking_data)
 
     def behaviour_analyses(self, analysis_name, variables=None):
         
@@ -63,8 +64,11 @@ class AnalyzeBehave:
         if analysis_name == 'homings&escape':
             """Let's check out some homings and threshold crossings."""
             logger.info("The homings pipeline has started")
-            homings_obj = get_Homings(settings=self.settings, session=self.session).get_homings()
-            get_Escapes(settings=self.settings, session=self.session, tracking_data = self.tracking_data, video_df = self.video_df, homings = homings_obj).get_escape()
+            h_class = get_Homings(settings=self.settings, session=self.session)
+            homings_dict = h_class.get_homings(video_df = self.video_df, tracking_data = self.tracking_data)
+            esc, homie = get_Escapes(settings=self.settings, session=self.session, tracking_data = self.tracking_data, video_df = self.video_df, homings = homings_dict).get_escape()
+            filename = os.path.join(h_class.savepath, "homings_" + h_class.hexaname)
+            np.save(os.path.join(filename + "_results.npy"), homie, allow_pickle=True) # overwrite homings now that we've removed escapes
             logger.success("Homing & escapes pipeline complete")
 
 
@@ -75,14 +79,14 @@ class AnalyzeBehave:
                 trial_obj = self.escape_object
             elif analysis_name == "homings_plots":
                 trials = "Homings"
-                trial_obj = self.homings_object
+                trial_obj = self.homings
 
             logger.info(f"Making plots of {trials}")
             spatial_efficiency(self.onsets,
-                                trial_obj.stimulus_durations,
+                                trial_obj["stimulus_durations"],
                                 self.session,
                                 self.settings,
-                                trial_obj.condition,
+                                trial_obj["condition"],
                                 self.tracking_data,
                                 trial_type=trials,
                                 plotting=True,
@@ -90,47 +94,47 @@ class AnalyzeBehave:
                             )
 
             plot_the_start_of_each_run(session=self.session,
-                                        onsets=trial_obj.onset_frames,
-                                        hdir_at_start=self.starting_hdir,
-                                        all_conditions=trial_obj.condition,
+                                        onsets=trial_obj["onset_frames"],
+                                        hdir_at_start=trial_obj["starting_hdir"],
+                                        all_conditions=trial_obj["condition"],
                                         tracking_data=self.tracking_data,
                                         title=trials)
 
             plot_the_probability_of_start_locations(session=self.session,
-                                                    onset_frames=trial_obj.onset_frames,
-                                                    all_conditions=trial_obj.condition,
+                                                    onset_frames=trial_obj["onset_frames"],
+                                                    all_conditions=trial_obj["condition"],
                                                     tracking_data=self.tracking_data,
                                                     title=trials,
                                                 )
 
             trial_speed_hist(session=self.session, 
-                            avg_speed=trial_obj.avg_speed, 
+                            avg_speed=trial_obj["avg_speed"], 
                             title=trials)
 
             trial_initial_heading_angle(session=self.session,
-                                        onsets=trial_obj.onset_frames,
-                                        offsets=trial_obj.offset_frames,
-                                        head_angle=self.head_angles_dic["avg_hdir"],
-                                        hdir_at_start=trial_obj.hdir_at_start,
-                                        all_conditions=trial_obj.condition,
+                                        onsets=trial_obj["onset_frames"],
+                                        offsets=trial_obj["offset_frames"],
+                                        head_angle=trial_obj["head_orientation_dic"]["avg_hdir"],
+                                        hdir_at_start=trial_obj["starting_hdir"],
+                                        all_conditions=trial_obj["condition"],
                                         tracking_data=self.tracking_data,
                                         title=trials,
                                     )
 
             trajectory_by_target(session=self.session,
-                                onsets=trial_obj.onset_frames,
-                                offsets=trial_obj.offset_frames,
-                                head_angle=trial_obj.head_orientation_dic["avg_hdir"],
-                                all_conditions=trial_obj.condition,
+                                onsets=trial_obj["onset_frames"],
+                                offsets=trial_obj["offset_frames"],
+                                head_angle=trial_obj["head_orientation_dic"]["avg_hdir"],
+                                all_conditions=trial_obj["condition"],
                                 tracking_data=self.tracking_data,
                                 title=trials,
                             )
 
             hist_initial_heading_angle(session=self.session,
-                                        onsets=trial_obj.onset_frames,
-                                        offsets=trial_obj.offset_frames,
-                                        head_angle=trial_obj.head_orientation_dic["avg_hdir"],
-                                        all_conditions=trial_obj.condition,
+                                        onsets=trial_obj["onset_frames"],
+                                        offsets=trial_obj["offset_frames"],
+                                        head_angle=trial_obj["head_orientation_dic"]["avg_hdir"],
+                                        all_conditions=trial_obj["condition"],
                                         tracking_data=self.tracking_data,
                                         title=trials,
                                     )

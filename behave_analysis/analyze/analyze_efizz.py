@@ -8,32 +8,19 @@ import polars as pl
 import pickle
 import pandas as pd
 
-from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells, COLUMNS_TO_KEEP
-from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
-from behave_analysis.analyze.TunED.model import TunEdModel
-from behave_analysis.analyze.LDA.LDAmodel import LDA
-from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
-from behave_analysis.analyze.CCA.CCAmodel import CCAmodel
-
-# from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
+from behave_analysis.analyze.PlaceCells.PlaceCells import COLUMNS_TO_KEEP
+from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df, load_homing_for_aefizz
 # from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
-from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh
 # from behave_analysis.analyze.single_trial.predict_future import select_neural_activity_chunk, explore_neural_activity_over_time
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
-from behave_analysis.analyze.classification.head_direction import classify_hdir
-from behave_analysis.analyze.classification.head_shelter import classify_hsa
 from behave_analysis.analyze.dimentionality_reduction.preprocessing_dim_reduce import Preprocess_for_DimReduction
 from behave_analysis.analyze.dimentionality_reduction.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_tracking_data
-from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
 from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
 from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
-from behave_analysis.analyze.single_trial.single_trial_regression import SingleTrialRegression
-from behave_analysis.analyze.single_trial.preprocess_regression import PreprocessSingleTrialRegression
-from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pattern_TunED
-from behave_analysis.analyze.Replay.ReplayAnalysis import ReplayAnalysis
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
+from behave_analysis.utils.data_loading import load_or_extract_escapes
 
 class AnalyzeEfizz:
     """
@@ -50,6 +37,7 @@ class AnalyzeEfizz:
         self.settings = settings
         self.all_conditions = extract_all_or_custom_conditions(settings, session)
         self.cluster_type = settings.cluster_type
+        self.qualifier = "_bc" if self.settings.cluster_labels == "bombcell" else ""
         assert self.cluster_type in ["synthetic", "synthetichdir", "synthetichdirhsa", "all", "good", "mua", "noise"], "Cluster type not recognised"
 
     def load_data(self, analysis_name):
@@ -57,29 +45,26 @@ class AnalyzeEfizz:
 
         if analysis_name in ['tunED', 'PlaceCells']:
             # Load the video spike count data
-            try:
-                # it doesn't always work with .parquet
-                video_and_spike_data_path = os.path.join(self.session.base_path, self.session.processed_path, "good_video_spike_count_df.parquet")
-                self.video_and_spike_data = pl.read_parquet(video_and_spike_data_path)
-                
-            except FileNotFoundError:
-                logger.warning("Video and spike data not found. Eiter the file name is incorrect or the file does not exist (try removing .parquet?)")
-            
-            self.video_and_spike_data = self.video_and_spike_data.select([x for x in COLUMNS_TO_KEEP if x in self.video_and_spike_data.columns])
+            video_spike_count_path = (os.path.join(self.session.base_path, self.session.processed_path)
+                                        + "/"
+                                        + "spike_count_by_frame_and_"
+                                        + self.cluster_type
+                                        + "cluster" + self.qualifier
+                                        + ".csv"
+                                    )
+            self.spike_count_df = pl.read_csv(video_spike_count_path)
         
         if (analysis_name == 'Replay') & (self.settings.replay_template_match_method == 'SS_decoder'):
             # Load the spike dataframe
-            self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "good_spike_data.csv"))
+            self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, self.cluster_type + "_spike_data" + self.qualifier + ".csv"))
 
         # load video_df, frame by cluster matrix and cluster_Ids
-        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells', 'CCA']:
-            if analysis_name == 'PlaceCells':
-                if "speed" in self.video_and_spike_data.columns:
-                    # if we're doing place cell analysis, we need the speed column in the video_and_spike_data df to exclude low speed frames
-                    pass
+        if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells', 'CCA', 'tunED']:
+
             # load behavioral data
             self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
-        
+            self.video_df = add_homie_to_video_df(self.session, self.video_df, homing_type=self.settings.homings)
+            
         # load firing rate matrix
         if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'CCA']:
 
@@ -88,17 +73,17 @@ class AnalyzeEfizz:
                 pass
             
             assert os.path.isfile(
-                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix" + self.qualifier + ".npy"
             ), "Cluster matrix file not found"
             self.frame_by_cluster_matrix = np.load(
-                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix.npy"
+                os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "frame_by_" + self.cluster_type + "_cluster_matrix" + self.qualifier + ".npy"
             )
 
         # load cluster Ids
         if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells']:
             try:
                 self.cluster_Ids = np.load(
-                    str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids.npy")
+                    str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids_" + self.qualifier + ".npy")
                 )
             except FileNotFoundError:
                 logger.warning("Cluster Ids not found")
@@ -109,17 +94,8 @@ class AnalyzeEfizz:
 
         # Load the homings object
         if analysis_name in ['single_trial', 'EscapePattern', 'Replay', 'CCA']:
-            try:
-                homing_path = os.path.join(self.session.base_path, self.session.processed_path, "homings", "homings_obj.pkl")
-                with open(homing_path, "rb") as f:
-                    self.homings_object = pickle.load(f)
-
-                escape_path = os.path.join(self.session.base_path, self.session.processed_path, "escapes", "escapes_obj.pkl")
-                with open(escape_path, "rb") as f:
-                    self.escape_object = pickle.load(f)
-            except FileNotFoundError:
-                logger.warning("Homings or escapes object not found")
-            
+            self.homing_dict = load_homing_for_aefizz(self.session, homing_type = self.settings.homings)
+            self.escape_dict = load_or_extract_escapes(self.session)            
 
     def execute(self, analysis_name=None, variable=None):
         """A function to call all of the analysis models set in the settings file."""
@@ -128,6 +104,8 @@ class AnalyzeEfizz:
         # ----------------- Conduct single trial (homing) analysis ----------------------------
 
         if analysis_name == 'single_trial':
+            from behave_analysis.analyze.single_trial.single_trial_regression import SingleTrialRegression
+            from behave_analysis.analyze.single_trial.preprocess_regression import PreprocessSingleTrialRegression
             logger.info("Running single trial analysis")
             single_trial_save_path = Path(make_directory(os.path.join(self.dir, "single_trial")))
 
@@ -138,7 +116,7 @@ class AnalyzeEfizz:
 
             pp_single_trial_obj = PreprocessSingleTrialRegression(
                 video_df=self.video_df,
-                homings_obj=self.homings_object,
+                homings_obj=self.homing_dict,
                 frame_by_cluster_matrix=self.frame_by_cluster_matrix,
                 save_path=single_trial_save_path,
                 velocity_data=velocity_data,
@@ -177,18 +155,22 @@ class AnalyzeEfizz:
         #  ----------------- Compute Rayleigh, polar plots and delta hists ------------
 
         if analysis_name == 'rayleigh':
+            from behave_analysis.analyze.Rayleigh.computeRayleigh import compute_all_clusters_rayleigh
             logger.info(f"Compute Rayleigh on {self.cluster_type} data")
             all_angles = identify_angles(self.session)
             compute_all_clusters_rayleigh(aefizz = self, all_angles = all_angles)
 
         # ------------------------------ Compute TUNED --------------------------------
         if analysis_name == 'tunED':
+            from behave_analysis.analyze.TunED.model import TunEdModel
             logger.info("Running TunED analysis")
             if not os.path.isdir(self.dir + "\\" + "tunED"):
                 os.mkdir(self.dir + "\\" + "tunED")
             model_path = os.path.join(self.dir, "tunED")
+            # build the video spike count df
+            video_and_spike_data = merge_spike_df_video_df(self.spike_count_df, self.video_df)
             TunEdModel(
-                video_spike_count_df=self.video_and_spike_data,
+                video_spike_count_df=video_and_spike_data,
                 analyze_efizz_settings=self.settings,
                 save_dir=model_path,
                 session=self.session,
@@ -199,6 +181,7 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute LDA --------------------------------
         if analysis_name == 'LDA':
+            from behave_analysis.analyze.LDA.LDAmodel import LDA
             logger.info("Running LDA analysis")
 
             if (variable is None) or (variable == []):
@@ -216,10 +199,12 @@ class AnalyzeEfizz:
                 raise ValueError("No tuning variable specified for Escape Pattern Tuning analysis")
             
             if "TunED".casefold() in variable.casefold():
+                from behave_analysis.analyze.EscapePattern.escape_pattern_TunED import escape_pattern_TunED
                 # this method uses TunED to disentangle tuning to two behavioral variables recorded simultaneously
                 escape_pattern_TunED(aefizz = self, variable = variable)
     
             else:
+                from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import ComputeEscapeTuning
                 # this method computes tuning to behavioral variables (e.g. %escape, distance to shelter, speed)
                 # in different behavioral contexts (e.g. explore, homing, escape)
                 # it can also compute the residual tuning to these variables when subtracting the activity predicted by the tuning in different contexts
@@ -239,7 +224,7 @@ class AnalyzeEfizz:
 
         # ------------------------------ Find Replay --------------------------------
         if analysis_name == 'Replay':
-            
+            from behave_analysis.analyze.Replay.ReplayAnalysis import ReplayAnalysis
             logger.info("Running Replay analysis")
 
             RA = ReplayAnalysis(aefizz = self)
@@ -259,21 +244,14 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute Place Cells --------------------------------
         if analysis_name == 'PlaceCells':
+            from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
             logger.info("Running Place Cell analysis")
 
             # keep only relevant columns
-
             self.video_df = self.video_df.select([x for x in COLUMNS_TO_KEEP if x in self.video_df.columns])
 
-            if "speed" not in self.video_and_spike_data.columns:
-                if hasattr(pl.col("frames"), "apply"):
-                    self.video_df = self.video_df.select(
-                        [pl.col("frames").apply(float), pl.exclude("frames")]
-                    )  # Cast frames to float to permit join and remove old frames column with wrong type
-                else:
-                    self.video_df = self.video_df.select([self.video_df["frames"].cast(pl.Float64), pl.exclude("frames")])
-                # map speed at each frome to the video and spike data df so we can exclude low speed frames in the place cell analysis
-                self.video_and_spike_data = self.video_and_spike_data.join(self.video_df.select(["frames", "speed"]), on='frames', how='left')
+            # build the video spike count df
+            self.video_and_spike_data = merge_spike_df_video_df(self.spike_count_df, self.video_df)
 
             # YOU-RE IN DEBUGGER BECAUSE YOU WANT TO CHECK THE DATA TYPE OF FRAMES IN VIDEO_DF AND VIDEO_AND_SPIKE_DATA
             PC = PlaceCells(aefizz = self, time_period = variable)
@@ -287,6 +265,7 @@ class AnalyzeEfizz:
 
         # ------------------------------ Compute CCA --------------------------------
         if analysis_name == 'CCA':
+            from behave_analysis.analyze.CCA.CCAmodel import CCAmodel
             logger.info("Running CCA analysis")
             cca_model = CCAmodel(aefizz = self)
             if cca_model.do_analysis:
@@ -326,12 +305,17 @@ class AnalyzeEfizz:
             #     # TODO - Compute angle similarity for each hsbscnae cluster and then assign the cluster with the highest similarity to the hdir cluster
 
         # ----------------------------- Persistent Homology ----------------------------------
-        # if Settings.persistent_homology:
-        #     persistent_homology(self.frame_by_cluster_matrix, self.video_df)
+        if analysis_name == 'persistent_homology':
+            logger.info("Running Persistent Homology analysis")
+            raise NotImplementedError("Persistent homology code is being updated and is not currently available")
+        #     # from behave_analysis.analyze.manifold.Persistent_homology import persistent_homology
+        #persistent_homology(self.frame_by_cluster_matrix, self.video_df)
 
         # ------------------------------ Classify cells (hdir, hsa) --------------------------------
 
         if analysis_name == 'classify_cells':
+            from behave_analysis.analyze.classification.head_direction import classify_hdir
+            from behave_analysis.analyze.classification.head_shelter import classify_hsa
             """Call cell type specific classification functions
 
             NOTE: Work in progress"""
@@ -349,6 +333,7 @@ class AnalyzeEfizz:
         # ------------------------------ Compute LSTM --------------------------------
 
         if analysis_name == 'LSTM':
+            from behave_analysis.analyze.regression_decoders.pytorch.working_models.oneD_output_LSTM import run_LSTM
             logger.info("Running LSTM analysis")
             X = self.frame_by_cluster_matrix
             Y = self.video_df["hdir"]
@@ -389,8 +374,40 @@ class AnalyzeEfizz:
 
         # ------------------------------ Sklearn decoder models --------------------------------
         if analysis_name == 'sklearn':
+            from behave_analysis.analyze.regression_decoders.sklearn_decoders.sklearn_main import sklearn_main
             logger.info("Running Sklearn decoders")
             sklearn_main(self.session, self.video_df, self.frame_by_cluster_matrix, cluster_labels=self.cluster_Ids)
 
         logger.success("All analyses complete")
 
+def merge_spike_df_video_df(spike_count_df, video_df):
+    """
+    Merge the spike dataframe and video dataframe on the 'frames' column.
+    This function assumes that both dataframes have a 'frames' column and that
+    the 'frames' column is of the same type in both dataframes.
+
+    Parameters:
+    spike_count_df (pd.DataFrame): The spike count dataframe.
+    video_df (pd.DataFrame): The video dataframe.
+
+    Returns:
+    pd.DataFrame: A merged dataframe containing columns from both input dataframes.
+    """
+    if hasattr(pl.col("frames"), "apply"):
+        video_df = video_df.select(
+            [pl.col("frames").apply(float), pl.exclude("frames")]
+        )  # Cast frames to float to permit join and remove old frames column with wrong type
+    else:
+        video_df = video_df.select([video_df["frames"].cast(pl.Float64), pl.exclude("frames")])
+
+    # NB: this is new code for joining behaviour and spikes, 
+    # by not filling null in the cluster ID column we can keep track of which frames have spikes and which don't, 
+    # and we only fill null in the spike count column to 0
+    merged_df = (video_df
+                        .join(spike_count_df, 
+                                left_on="frames", 
+                                right_on="spike_aligned_to_frame", 
+                                how="left")
+                        .with_columns(pl.col("spike_count").fill_null(0)  # Only fill spike_count, keep cluster ID as null
+                        ))
+    return merged_df

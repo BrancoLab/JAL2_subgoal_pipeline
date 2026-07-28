@@ -31,7 +31,7 @@ class CCAmodel:
         self.fcm_z = (fcm - mean_fr) / std_fr
     
     def preprocess_session_vars(self):
-        self.session_start = max(self.aefizz.session.shelter_time[0]*60*40, 30*40) # start at shelter_time or 30s, whichever is later
+        self.session_start = self.aefizz.session.valid_time[0]*60*40
 
     def preprocess_behavioral_data(self):
         """Build behavioral matrix (time x variables) using the variables listed in settings.

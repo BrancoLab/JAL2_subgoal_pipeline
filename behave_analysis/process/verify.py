@@ -180,6 +180,8 @@ class Verifications():
         # Last pulse to check that efizz spikes are not longer than this in another module
         # LastPulse = self.Process.ttl.bonsai_sync_offsets[-1]
         LastPulse = self.Process.ttl.ephys_sync_offset[-1]
+        if (self.Process.session.mouse == "JAL004") and (self.Process.session.date == "2023_08_22"):
+            LastPulse  = self.Process.ttl.ephys_sync_offset[9496]
         firstPulse = self.Process.ttl.ephys_sync_onsets[0]
         
         return (r_value**2, slope, intercept), LastPulse, firstPulse

@@ -60,13 +60,15 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, tria
 
                 if plotting:
                     ax = fig.add_subplot(gs[row, col])
-                    Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], condition=condition, barrier_coordinates=session.barrier_location)
+                    Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], 
+                          condition=condition + ("_tiny" if "tiny" in session.experiment else ""), 
+                          barrier_coordinates=session.barrier_location)
                     # base_plotting(ax,tracking_data,condition, session = session)
                 else:
                     ax = []
                 real_x, real_y, trajectory_length_single_trial = plot_escape_trajectories(int(onset_frame),int(stimulus_duration*session.video.fps), tracking_data, settings, interp, ax)
                 trajectory_length = np.append(trajectory_length, trajectory_length_single_trial)
-                optimal_x, optimal_y = plot_optimal_trajectories(int(onset_frame), tracking_data, condition, interp, ax)
+                optimal_x, optimal_y = plot_optimal_trajectories(int(onset_frame), int(stimulus_duration*session.video.fps), tracking_data, condition, interp, ax)
 
                 # cosine similarity
                 cs = []
@@ -102,13 +104,14 @@ def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, set
     y_loc = tracking_data['head_loc'][onset_frames:onset_frames + stimulus_durations,1]
     speed = tracking_data["avg_Velocity"][onset_frames:onset_frames + stimulus_durations]
     # crop the points after the mouse has entered the shelter
-    in_shelt_y = y_loc > tracking_data['shelter_loc'][0][1]
-    in_shelt_x = np.logical_and(x_loc > tracking_data['shelter_loc'][0][0],x_loc < tracking_data['shelter_loc'][1][0])
-    in_shelt = np.where(np.logical_and(in_shelt_x, in_shelt_y))[0]
-    if len(in_shelt)>0:
-        x_loc = x_loc[:in_shelt[0]]
-        y_loc = y_loc[:in_shelt[0]]
-        speed = speed[:in_shelt[0]]
+    if len(tracking_data['shelter_loc']) > 0:
+        in_shelt_y = y_loc > tracking_data['shelter_loc'][0][1]
+        in_shelt_x = np.logical_and(x_loc > tracking_data['shelter_loc'][0][0],x_loc < tracking_data['shelter_loc'][1][0])
+        in_shelt = np.where(np.logical_and(in_shelt_x, in_shelt_y))[0]
+        if len(in_shelt)>0:
+            x_loc = x_loc[:in_shelt[0]]
+            y_loc = y_loc[:in_shelt[0]]
+            speed = speed[:in_shelt[0]]
 
     if len(x_loc) == 0: 
         print('oppsie')
@@ -134,30 +137,35 @@ def plot_escape_trajectories(onset_frames,stimulus_durations, tracking_data, set
 
     return x_loc, y_loc, np.sum(distance_travelled)
 
-def plot_optimal_trajectories(onset_frames, tracking_data, condition, interp = 100, ax = []):
+def plot_optimal_trajectories(onset_frames, stimulus_durations, tracking_data, condition, interp = 100, ax = []):
     """ Plot optimal escape path"""
     opt_x = tracking_data['head_loc'][onset_frames,0]
     opt_y = tracking_data['head_loc'][onset_frames,1]
     opt_t = [0]
     # compute and plot each optimal trajectory to barrier
     if isinstance(condition,list): condition = condition[0]
-    if not(any([condition == 'shelter_only',condition == 'pre_shelter', condition == 'barrier_removed',opt_y > 512])): # if no barrier or mouse starts in shelter zone
-        opt_t = np.append(opt_t,(interp-1)/2)
-        if condition == 'barrier_present': # double sided barrier 
-            nearest_barrier_edge = np.argmin([np.sqrt((opt_x - tracking_data["barrier_loc"][0][0])**2 +
-                                                    (opt_y - tracking_data["barrier_loc"][0][1])**2),
-                                            np.sqrt((opt_x - tracking_data["barrier_loc"][1][0])**2 +
-                                                    (opt_y - tracking_data["barrier_loc"][1][1])**2)])
-        elif condition == 'barrier_pre_flip':
-            nearest_barrier_edge = 0
-        elif condition == 'barrier_post_flip':
-            nearest_barrier_edge = 1
+    if condition == 'pre_shelter':
+        opt_x = np.append(opt_x,tracking_data['head_loc'][onset_frames + stimulus_durations - 1,0])
+        opt_y = np.append(opt_y,tracking_data['head_loc'][onset_frames + stimulus_durations - 1,1])
+    else:
+        if not(any([condition == 'shelter_only', condition == 'barrier_removed',opt_y > 512])): # if no barrier or mouse starts in shelter zone
+            opt_t = np.append(opt_t,(interp-1)/2)
+            if condition == 'barrier_present': # double sided barrier 
+                nearest_barrier_edge = np.argmin([np.sqrt((opt_x - tracking_data["barrier_loc"][0][0])**2 +
+                                                        (opt_y - tracking_data["barrier_loc"][0][1])**2),
+                                                np.sqrt((opt_x - tracking_data["barrier_loc"][1][0])**2 +
+                                                        (opt_y - tracking_data["barrier_loc"][1][1])**2)])
+            elif condition == 'barrier_pre_flip':
+                nearest_barrier_edge = 0
+            elif condition == 'barrier_post_flip':
+                nearest_barrier_edge = 1
+            
+            opt_x = np.append(opt_x,tracking_data['barrier_loc'][nearest_barrier_edge][0])
+            opt_y = np.append(opt_y,tracking_data['barrier_loc'][nearest_barrier_edge][1])
         
-        opt_x = np.append(opt_x,tracking_data['barrier_loc'][nearest_barrier_edge][0])
-        opt_y = np.append(opt_y,tracking_data['barrier_loc'][nearest_barrier_edge][1])
+        opt_x = np.append(opt_x,np.mean([tracking_data['shelter_loc'][0][0],tracking_data['shelter_loc'][1][0]]))
+        opt_y = np.append(opt_y,tracking_data['shelter_loc'][0][1])
     
-    opt_x = np.append(opt_x,np.mean([tracking_data['shelter_loc'][0][0],tracking_data['shelter_loc'][1][0]]))
-    opt_y = np.append(opt_y,tracking_data['shelter_loc'][0][1])
     opt_t = np.append(opt_t,interp-1)
 
     # interpolate optimal

@@ -12,6 +12,7 @@ Settings_ae = Settings_analyze_efizz(
     # This does not effect Tuned, this model needs linear shift to work
     redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type="good",  # 'synthetic','synthetichdir','all','good',
+    cluster_labels="bombcell",  # 'bombcell','kilosort','manual'
     show_plots=False,
     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),
@@ -24,13 +25,15 @@ Settings_ae = Settings_analyze_efizz(
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
     user_defined_conditions=True,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
-    # if 'time_conditions' it compares first vs second half
-    # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
-    # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
+        # if 'time_conditions' it compares first vs second half
+        # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings
+        # if 'homing_number_2' it defines the conditions before and after a certain number of correct homings
     compartment_split=["all"],  # ['all','threat_zone','shelter_compartment','left_arena','right_arena']
-    # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
-    # If 'by_position', it will compute LDA decoding by arena position
+        # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
+        # If 'by_position', it will compute LDA decoding by arena position
     number_of_bins=13,  # number of bin edges for angles, e.g. 13 or 19 are good numbers
+    homings = "auto",  # 'manual' or 'auto' or 'auto_curated', which homings to load to video_df,
+        # if 'manual' it will load the manually detected homings, if 'auto' it will load the automatically detected homings, if 'auto_curated' it will load the automatically detected homings that have been manually curated
     # ------------- Linear Shift stats settings --------------------------
     linshift_min_step=120,  # in frames, minimum shift to consider for linear shift stats
     linshift_step=80,  # in frames, step size for linear shift stats
@@ -54,9 +57,9 @@ Settings_ae = Settings_analyze_efizz(
     # ------------ Escape Pattern settings ----------------------
     ep_bins=25,  # number of bins for escape pattern tuning
     # ------------ Replay model settings ----------------------
-    replay_cells="all",  # 'all','hdir','escape_tuned'
-    replay_template_variable="escape",  # to make the order template of the replay sequence
-    replay_decoder_variable="escape",  # 'shelter_dist' or 'escape' or 'speed' or '2D_position
+    replay_cells="all",  # 'all','hdir','frac_route_tuned'
+    replay_template_variable="frac_route",  # to make the order template of the replay sequence
+    replay_decoder_variable="frac_route",  # 'shelter_dist' or 'frac_route' or 'speed' or '2D_position
     replay_train_condition="barrier_pre_flip",  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
     replay_test_condition="barrier_pre_flip",  # "shelter_only", "barrier_pre_flip", "barrier_post_flip"
     replay_decoder_train_time_period="correct_full_homing&escape",  # 'homing&escape', "correct_<>", "error_<>", "full_<>"

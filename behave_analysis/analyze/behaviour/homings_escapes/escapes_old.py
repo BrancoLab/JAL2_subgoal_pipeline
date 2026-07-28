@@ -13,7 +13,7 @@ from behave_analysis.analyze.behaviour.spatial_efficiency import spatial_efficie
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.behaviour.homings_escapes.homings import get_avg_homing_angle_for_first15cm_of_run, get_start_and_end_locs, get_avg_speed
 from settings.settings_analyze_behave import settings_analyze_behave as settings_a
-from behave_analysis.analyze.behaviour.utils import identify_condition_of_trial
+from behave_analysis.utils.identify_condition import identify_condition_of_trial
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 
 @dataclass(frozen=True)

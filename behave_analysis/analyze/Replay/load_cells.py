@@ -33,7 +33,7 @@ def load_escape_tuned_cells(aefizz):
     RETURNS:
         xval: boolean array of shape (num_cells, 3) indicating significant escape tuned cells for each condition"""
 
-    var = "escape"
+    var = "frac_route"
     time_period = "homing&escape"
 
     # 1. load in escape homing/escape tuning curve

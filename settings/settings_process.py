@@ -15,5 +15,6 @@ settings_process = Settings_process(
     size=(1024, 1024),  # (width, height) how big to make the renderings, in pixels
     pixels_per_cm=10,  # for the arena drawn in register.generate_rendered_arena, report here the ratio between size of arena in pixels and actual size in cm
     efizz=True,  # Are you running the pipeline with efizz data or just behaviour? False if just behaviour
+    remove_duplicate_spike_times=True, # if True, will remove duplicate spike times from the efizz data in window settings.duplicate_spikes_censored_period_ms
     radius = 460, # radius of the arena in pixels
 )

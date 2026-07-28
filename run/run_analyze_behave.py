@@ -3,7 +3,7 @@ from loguru import logger
 from databank import experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.analyze.AnalyzeBehave import AnalyzeBehave
-from settings.settings_analyze_behave import Settings
+from settings.settings_analyze_behave import settings_ab
 
 
 def analyze_behave(analysis_name = None):
@@ -11,7 +11,7 @@ def analyze_behave(analysis_name = None):
     
     logger.info("The behaviour analysis pipeline has started")
     
-    if Settings.stim_type == "None":
+    if settings_ab.escape_stim_type == "None":
         logger.warning("No stim type defined in settings - skipping behavioral analyses")
         return
     
@@ -19,10 +19,11 @@ def analyze_behave(analysis_name = None):
         session = Process(session_id).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_id))
 
-        abehave = AnalyzeBehave(session, Settings)
+        abehave = AnalyzeBehave(session, settings_ab)
         abehave.load_data(analysis_name)
         abehave.behaviour_analyses(analysis_name)
 
     logger.success("Behaviour analysis pipeline complete")
 
-analyze_behave('homings&escape')
+analyze_behave('homings&escape') # 'homings&escape', 'homings_plots', 'escape_plots', 'correlations'
+# analyze_behave('escape_plots')

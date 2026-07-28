@@ -83,7 +83,7 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
         if key == ord("q"):
             break
 
-    release_video_objects(source_video, trial_video)
+        release_video_objects(source_video, trial_video)
 
 
 # -----FIRST-LEVEL FUNCTIONS---------------------------------------------------------------------------------------
@@ -454,7 +454,7 @@ def set_up_videos(
     seconds_before = settings.__dict__["seconds_before_" + stim_type]
     seconds_after = settings.__dict__["seconds_after_" + stim_type]
     # frames_in_this_trial = range((onset_frames[-1] - int(onset_frames)) + int((seconds_before + stimulus_durations[-1] + seconds_after) * fps))
-    frames_in_this_trial = range((0) + int((seconds_before + stimulus_durations[-1] + seconds_after) * fps))
+    frames_in_this_trial = range((0) + int((seconds_before + stimulus_durations + seconds_after) * fps))
     minutes_into_session = np.round(int(onset_frames) / fps / 60)
 
     source_video.set(cv2.CAP_PROP_POS_FRAMES, int(onset_frames) - seconds_before * fps)  # set source video to trial start

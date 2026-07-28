@@ -8,7 +8,7 @@ from behave_analysis.process.electrophysiology.ttl_sync import get_TTL
 from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
-from behave_analysis.process.session import NEW_Session, get_experiment # Testing refactored dataclass structure
+from behave_analysis.process.session import NEW_Session, get_experiment, confirm_session # Testing refactored dataclass structure
 from behave_analysis.database.computer_ID import get_computer_specific_paths
 
 
@@ -40,7 +40,7 @@ class Process():
             os.makedirs(os.path.join(self.session.base_path,self.session.processed_path))
         
         if settings_p.efizz:
-            self.efizzDataLoaded = LoadEfizz(self.session)
+            self.efizzDataLoaded = LoadEfizz(self.session, settings).select_and_load_efizz_files()
             self.ttl = get_TTL(self.session, self.efizzDataLoaded.imec_sync_path)
         
         # # Retrieve Dev 3 NIDAQ signals
@@ -65,13 +65,13 @@ class Process():
             
         if settings_p.efizz:
             efizzDataProcessed = ProcessedEfizz(efizzDataLoaded = self.efizzDataLoaded, 
-                                                             slope = slope, 
-                                                             intercept = intercept,
-                                                             samplingRate = self.ttl.sampling_rate,
-                                                             filePath = os.path.join(self.session.base_path,self.session.processed_path),
-                                                             camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
-                                                             lastPulse = lastPulse,
-                                                             firstPulse = firstPulse)        
+                                                slope = slope, 
+                                                intercept = intercept,
+                                                samplingRate = self.ttl.sampling_rate,
+                                                filePath = os.path.join(self.session.base_path,self.session.processed_path),
+                                                camera_trigger = self.session.camera_trigger.frame_trigger_onsets_idx,
+                                                lastPulse = lastPulse,
+                                                firstPulse = firstPulse)        
         
         return self.session
     
@@ -114,8 +114,8 @@ class Process():
         try:
             with open(os.path.join(self.session.base_path, self.session.metadata_file), "rb") as dill_file: 
                 session = pickle.load(dill_file)
-                logger.info("All data has been moved from winstor to ceph so we always load ceph data now")
                 session.base_path, _ = get_computer_specific_paths(session.file_path, return_ceph=True)
+                session = confirm_session(session, self.session)
 
         except FileNotFoundError:
             print(f"Meta data file for path {os.path.join(self.session.base_path, self.session.metadata_file)} not found, aborting script")

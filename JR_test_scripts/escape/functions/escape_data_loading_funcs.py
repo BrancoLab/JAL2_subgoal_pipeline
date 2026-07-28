@@ -107,14 +107,14 @@ def extract_homing_and_escape_periods(
         # find times when the mouse is in the first or second leg of the escape, use this for cropping after
         # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop away the time when the mouse was in the threat zone
         if np.logical_and(
-            compression_var in ["distance_shelter", "escape_shelter"],
+            compression_var in ["distance_shelter", "frac_route_shelter"],
             bar[of] == True,
         ):
             shelter_zone = this_y > 512
             frames_to_keep = np.logical_and(frames_to_keep, shelter_zone)
         # if it's a homing in a barrier or flipped barrier condition (barrier present is true), crop away the time when the mouse was in the shelter zone
         if np.logical_and(
-            compression_var in ["distance_first_goal", "escape_first_goal"],
+            compression_var in ["distance_first_goal", "frac_route_first_goal"],
             bar[of] == True,
         ):
             threat_zone = this_y < 512

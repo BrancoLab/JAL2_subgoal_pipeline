@@ -10,10 +10,11 @@ import polars as pl
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import check_not_list
 from behave_analysis.synthetic_data.synthetic_main import generate_synthetic_dataframe
 from behave_analysis.postprocess.out_of_shelter import out_of_shelter_filter
-from behave_analysis.analyze.behaviour.homings_escapes.escapes import get_Escapes
-from behave_analysis.utils.data_loading import load_or_extract_homings
-from behave_analysis.analyze.behaviour.homings_escapes.homings import Homings
-
+from behave_analysis.analyze.behaviour.homings_escapes.homings import get_Homings
+from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df
+from behave_analysis.utils.identify_condition import build_condition_bool, build_flippedbarrier_condition_bool
+from settings.settings_overrides import settings_overrides
+from behave_analysis.analyze.behaviour.homings_escapes.homing_curation_syd_viewer import remove_manually_curated
 
 class BaseDataPostprocessor(ABC):
     """
@@ -25,11 +26,6 @@ class BaseDataPostprocessor(ABC):
         self.select_cluster_labels = cluster_labels_to_filter
         self.tracking_data = tracking_data
         self.session = session
-        (
-            self.sheltertime,
-            self.barriertime,
-            self.barrierfliptime,
-        ) = self.convert_experimental_settings_to_conditon_timings(session)
 
     # --------------- Abstract methods to be implemented by all children ---------------------------------------------
 
@@ -43,30 +39,6 @@ class BaseDataPostprocessor(ABC):
 
     # --------------- Concrete methods implemented ----------------------------------------------------------------------
 
-    def convert_experimental_settings_to_conditon_timings(self, session):
-        """
-        Take the times inserted into the experimental class and convert them to seconds
-
-        NOTE: The naming of sheltertime is not great as there is another variable called shelter_time in the session class. This is true for the other variables as well.
-        consider renaming them to something more descriptive.
-        """
-
-        # Init variables incase they are not defined
-        sheltertime = None
-        barriertime = None
-        barrierfliptime = None
-
-        if session.shelter_time:
-            sheltertime = np.array(self.session.shelter_time) * 60
-
-        if session.barrier_time:
-            barriertime = np.array(self.session.barrier_time) * 60
-
-        if session.barrier_flip_time:
-            barrierfliptime = np.array(self.session.barrier_flip_time) * 60
-
-        return sheltertime, barriertime, barrierfliptime
-
     def extract_cluster_labels(self):
         """
         Extracts the cluster labels from the spike data dataframe and returns them
@@ -78,7 +50,7 @@ class BaseDataPostprocessor(ABC):
             clu_label = self.spike_data.groupby(["spike_clusters"]).first()
         clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
         np.save(
-            str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_clusters + "_cluster_Ids"),
+            str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_clusters + "_cluster_Ids_"+ self.qualifier + ".npy"),
             clu_label["spike_clusters"].unique().to_numpy(),
         )
         return clu_label
@@ -139,37 +111,20 @@ class BaseDataPostprocessor(ABC):
         else:
             OutofShelterIdx = np.logical_not(np.zeros(len(self.tracking_data["hdir"])))
 
-        # when was the shelter in the arena?
-        if len(self.session.shelter_time) > 0:
-            start = self.session.shelter_time[0] * self.session.video.fps * 60
-            if self.session.shelter_time[1] == -1:  # shelter until the end of the session
-                end = n_frames + 1
-            else:
-                end = self.session.shelter_time[1] * self.session.video.fps * 60
-            
-            shelter = np.logical_and(frame_idx > start, frame_idx < end)
+        # what are the valid times of recording?
+        if len(self.session.valid_time) == 0:
+            valid_time = np.ones(n_frames, dtype=bool)
         else:
-            # there was never a shelter in the session, so shelter is always false
-            shelter = np.full(n_frames, False)
+            valid_time = build_condition_bool(time_list = self.session.valid_time, cond_name = 'valid', frame_idx=frame_idx, n_frames=n_frames, fps = self.session.video.fps)
+
+        # when was the shelter in the arena?
+        shelter = build_condition_bool(time_list = self.session.shelter_time, cond_name = 'shelter', frame_idx=frame_idx, n_frames=n_frames, fps = self.session.video.fps)
 
         # what period in the recording was there a barrier?
-        if len(self.session.barrier_time) > 0:
-            start = self.session.barrier_time[0] * self.session.video.fps * 60
-            if self.session.barrier_time[1] == -1:  # barrier present until the end of the session
-                end = n_frames + 1
-            else:
-                end = self.session.barrier_time[1] * self.session.video.fps * 60
-            barrier_present = np.logical_and(frame_idx > start, frame_idx < end)
-        else:
-            barrier_present = np.full(n_frames, False)
-            print("no barrier in this session")
+        barrier_present = build_condition_bool(time_list = self.session.barrier_time, cond_name = 'barrier', frame_idx=frame_idx, n_frames=n_frames, fps = self.session.video.fps)
 
         # when was the barrier flipped?
-        if self.session.barrier_flip_time:
-            barrier_flipped = frame_idx > (self.session.barrier_flip_time * self.session.video.fps * 60)
-        else:
-            barrier_flipped = np.full(n_frames, False)
-            print("barrier was not flipped in this session")
+        barrier_flipped = build_flippedbarrier_condition_bool(flip_time=self.session.barrier_flip_time, frame_idx=frame_idx, n_frames=n_frames, fps=self.session.video.fps)
 
         # find the escape periods: from stim onset to offset
         EscapePeriod = np.zeros_like(OutofShelterIdx)
@@ -187,6 +142,7 @@ class BaseDataPostprocessor(ABC):
                 "speed": self.tracking_data["avg_Velocity"],
                 "OutofshelterIdx": OutofShelterIdx,  # was the mouse in the shelter?
                 "EscapePeriod": EscapePeriod == 1,  # frames from 1 second before to 10 seconds after escape
+                "valid_time": valid_time,  # true when the mouse is in the arena, hasn't jumped off, there are no recording problems
                 "shelter": shelter,  # true when the shelter is in the arena
                 "barrier_present": barrier_present,  # true when the barrier is in the arena
                 "barrier_flipped": barrier_flipped,
@@ -204,28 +160,6 @@ class BaseDataPostprocessor(ABC):
             video_df = video_df.hstack([pl.Series("h_postflipbar_a", self.tracking_data["hdir_barrier"][:, 1])])
             video_df = video_df.hstack([pl.Series("h_bar_centre_a", self.tracking_data["hdir_barrier"][:, 2])])
 
-        # if random points were included, add the angles to video_df
-        if "hdir_randP" in self.tracking_data:
-            for i in np.arange(np.shape(self.tracking_data["hdir_randP"])[1]):
-                video_df = video_df.hstack([pl.Series(str("head_randP_" + str(i)), self.tracking_data["hdir_randP"][:, i])])
-
-        # save the video dataframe
-        video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
-
-        return video_df
-
-    def add_homie_to_video_df(self, video_df, homing_obj):
-
-        # if homing data is present, create a boolean array to indicate when homing is occuring in the session
-        number_of_frames = len(video_df)
-        homing_bool = np.zeros(number_of_frames, dtype=bool)
-        onset_frames = homing_obj.onset_frames
-        offset_frames = homing_obj.offset_frames
-        for onset, offset in zip(onset_frames, offset_frames):
-            homing_bool[onset: offset + 1] = True
-
-        video_df = video_df.hstack([pl.Series("homingPeriod", homing_bool)])
-
         # save the video dataframe
         video_df.write_csv(os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
 
@@ -240,75 +174,50 @@ class BaseDataPostprocessor(ABC):
         #NOTE - This logic seems suspciious, doesn't delete exsisting files when running the code again
         """
 
-        if regenerate:
-            logger.info("Regeneration was selected, creating a new spike count by frame and cluster dataframe")
-            logger.info("Commencing long computation to count spikes for each cluster for each frame")
-            logger.info("This can take up to 1.5 hours depending on the size of the data")
-            if hasattr(self.spike_data, "groupby"):
-                query = (
-                    self.spike_data.lazy()
-                    .groupby(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            elif hasattr(self.spike_data, "group_by"):
-                query = (
-                    self.spike_data.lazy()
-                    .group_by(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
-            spikecountbyframe_neuron = query.collect()
-            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(
-                os.path.join(self.session.base_path, self.session.processed_path)
-                + "/"
-                + "spike_count_by_frame_and_"
-                + self.select_cluster_labels
-                + "cluster.csv"
-            )
-            return spikecountbyframe_neuron
+        if self.select_cluster_labels == "synthetic" and regenerate == False:
+            try:
+                logger.info("Attempting to load a previously computed spike frame count")
+                with open(
+                    os.path.join(self.session.base_path, self.session.processed_path)
+                    + "/"
+                    + "spike_count_by_frame_and_"
+                    + self.select_cluster_labels
+                    + "cluster" + self.qualifier
+                    + ".csv",
+                    "rb",
+                ) as file:
+                    spikecountbyframe_neuron = pl.read_csv(file.read())
+                logger.success("Found spike count by frame and cluster dataframe, loading it now")
+                return spikecountbyframe_neuron
 
-        try:
-            logger.info("Attempting to load a previously computed spike frame count")
-            with open(
-                os.path.join(self.session.base_path, self.session.processed_path)
-                + "/"
-                + "spike_count_by_frame_and_"
-                + self.select_cluster_labels
-                + "cluster.csv",
-                "rb",
-            ) as file:
-                spikecountbyframe_neuron = pl.read_csv(file.read())
-            logger.success("Found spike count by frame and cluster dataframe, loading it now")
-            return spikecountbyframe_neuron
-
-        except FileNotFoundError:
-            logger.info("Could not find spike count by frame and cluster dataframe, creating it now")
-            logger.info("Commencing long computation to count spikes for each cluster for each frame")
-            logger.info("This can take up to 1.5 hours depending on the size of the data")
-            if hasattr(self.spike_data, "groupby"):
-                query = (
-                    self.spike_data.lazy()
-                    .groupby(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            elif hasattr(self.spike_data, "group_by"):
-                query = (
-                    self.spike_data.lazy()
-                    .group_by(["spike_aligned_to_frame", "spike_clusters"])
-                    .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
-                )  # Lazy query to plan computation
-            start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
-            spikecountbyframe_neuron = query.collect()
-            print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
-            spikecountbyframe_neuron.write_csv(
-                os.path.join(self.session.base_path, self.session.processed_path)
-                + "/"
-                + "spike_count_by_frame_and_"
-                + self.select_cluster_labels
-                + "cluster.csv"
-            )
-            return spikecountbyframe_neuron
+            except FileNotFoundError:
+                regenerate = True
+        
+        logger.info("Commencing long computation to count spikes for each cluster for each frame")
+        if hasattr(self.spike_data, "groupby"):
+            query = (
+                self.spike_data.lazy()
+                .groupby(["spike_aligned_to_frame", "spike_clusters"])
+                .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            )  # Lazy query to plan computation
+        elif hasattr(self.spike_data, "group_by"):
+            query = (
+                self.spike_data.lazy()
+                .group_by(["spike_aligned_to_frame", "spike_clusters"])
+                .agg([pl.count("spike_aligned_to_frame").alias("spike_count")])
+            )  # Lazy query to plan computation
+        start_time = time.time()  # Collect lazy query and time it for user as this is the longest computation in the pipeline
+        spikecountbyframe_neuron = query.collect()
+        print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
+        spikecountbyframe_neuron.write_csv(
+            os.path.join(self.session.base_path, self.session.processed_path)
+            + "/"
+            + "spike_count_by_frame_and_"
+            + self.select_cluster_labels
+            + "cluster" + self.qualifier
+            + ".csv"
+        )
+        return spikecountbyframe_neuron
 
     def merge_and_save_spike_count_df_with_frame_data(self, spikeCountByFrameAndCluster, video_df):
         """Merges the video dataframe with the spike count by frame and cluster dataframe and saves the result as a parquet file.
@@ -389,7 +298,7 @@ class BaseDataPostprocessor(ABC):
         # save the matrix
         base_path = os.path.join(self.session.base_path, self.session.processed_path)
         np.save(
-            str(base_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix"),
+            str(base_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix" + self.qualifier),
             X,
         )
 
@@ -405,6 +314,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         self.csv_path = os.path.join(session.base_path, session.processed_path, str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
+        self.qualifier = ""
         self.settings = settings
         video_df = self.track_to_polars()
         if settings.efizz:
@@ -494,16 +404,19 @@ class DataPostprocessor(BaseDataPostprocessor):
     def __init__(self, cluster_labels_to_filter, tracking_data, session, settings):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
-        self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data"))[0]
+        self.qualifier = "_bc" if settings.cluster_labels == "bombcell" else ""
+        self.csv_path = glob(os.path.join(session.base_path, session.processed_path, "Processed_efizz_data" + self.qualifier))[0]
         self.select_clusters = cluster_labels_to_filter
 
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
         video_df = self.track_to_polars()
         QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session)  # For now just log the warning and don't touch the data
         if settings.homings:
-            homings = load_or_extract_homings(session)
-            escapes = get_Escapes(settings, session, tracking_data, video_df, homings)
-            video_df = self.add_homie_to_video_df(video_df, homings)
+            from settings.settings_analyze_behave import settings_ab
+            settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
+            homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings(video_df, self.tracking_data)
+            homings = remove_manually_curated(homings)
+            video_df = add_homie_to_video_df(video_df, homings, savepath = os.path.join(self.session.base_path, self.session.processed_path) + "/" + "full_video_dataframe.csv")
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
@@ -518,17 +431,24 @@ class DataPostprocessor(BaseDataPostprocessor):
     def filter_spike_data(self, df):
         """
         Filter the spike data to only include good neurons or good + MUA
+        Matching is case-insensitive and trims surrounding whitespace.
         """
+        cluster_group_norm = (
+            pl.col("cluster_group")
+            .cast(pl.Utf8)
+            .str.strip_chars()
+            .str.to_lowercase()
+        )
+        selected_norm = str(self.select_clusters).strip().lower()
 
-        if self.select_clusters == "all":
-            filtered_spike_data = df.filter((df["cluster_group"] == "good") | (df["cluster_group"] == "mua"))
+        if selected_norm == "all":
+            filtered_spike_data = df.filter(cluster_group_norm.is_in(["good", "mua"]))
             logger.info("Loaded good and multi unit clusters")
         else:
-            filtered_spike_data = df.filter(df["cluster_group"] == self.select_clusters)
+            filtered_spike_data = df.filter(cluster_group_norm == selected_norm)
             numNeurons = len(filtered_spike_data["spike_clusters"].unique())
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
 
-        # save the filtered spike data
         filtered_spike_data.write_csv(
             os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.select_cluster_labels + "_spike_data.csv"
         )

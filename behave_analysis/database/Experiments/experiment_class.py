@@ -11,6 +11,7 @@ class Experiment(Mouse):
     experiment_date: str
     experiment_time: str
     experiment_path: str  # Just the name of the experiment folder e.g. 001_mushroom1_2023_03_10T07_15_15
+    valid_time: list  # in minutes when the data is valid (mouse in arena) e.g. [0, 30] (if until the end of session put -1 as second in list)
     shelter_time: list  # in minutes when there was a shelter present e.g. [30, -1] (if until the end of session put -1 as second in list, if barrier comes in after 30 mins. put [0, 30])
     barrier_time: list  # in minutes when the barrier was present e.g. [30, -1] (if until the end of session put -1 as second in list)
     barrier_flip_time: float  # time in minutes and seconds when the barrier was flipped e.g. 184.34 (184 minutes and 34 seconds)
