@@ -1,5 +1,7 @@
-
-from syd import make_viewer
+try:
+    from syd import make_viewer
+except ModuleNotFoundError:
+    make_viewer = None
 import numpy as np
 import polars as pl
 from pathlib import Path
@@ -13,6 +15,7 @@ from behave_analysis.utils.identify_condition import identify_condition_of_trial
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.utils.arena_plotting import Arena
 
+
 def homing_curation_syd_viewer(
     homing_dict: dict,
     settings: object,
@@ -20,50 +23,53 @@ def homing_curation_syd_viewer(
     video_df: pl.DataFrame = [],
     tracking_data: dict = [],
     include_manual_events: bool = True,
-    manual_curation = True,
+    manual_curation=True,
 ):
     """
     Create interactive Syd viewer for exploring extracted runs and manual labels.
     Optional: save removed runs to CSV.
-    
+
     Args:
         candidates: List of (onset, offset) tuples if only plotting one session, or a dict of {session_name: [(onset, offset), ...]} if plotting multiple sessions
         session_name: Filter to single session (if None, includes all), or if pasing a list of tuples give name as str
     """
-    
+
+    if make_viewer is None:
+        raise ModuleNotFoundError("Optional dependency 'syd' is required for homing_curation_syd_viewer. " "Install it to use the interactive curation viewer.")
+
     viewer = make_viewer()
-    viewer.add_integer('speed_thresh', min=0, max=20, value=settings.homings_speed_threshold)
-    conditions = list(np.unique(homing_dict['condition']))
-    viewer.add_selection('condition', value = conditions[0], options=conditions)
-    
+    viewer.add_integer("speed_thresh", min=0, max=20, value=settings.homings_speed_threshold)
+    conditions = list(np.unique(homing_dict["condition"]))
+    viewer.add_selection("condition", value=conditions[0], options=conditions)
+
     # load data
     if len(tracking_data) == 0:
         tracking_data = open_tracking_data(session)
     if len(video_df) == 0:
-        video_df_path = Path(session.base_path) / session.processed_path / 'full_video_dataframe.csv'
+        video_df_path = Path(session.base_path) / session.processed_path / "full_video_dataframe.csv"
         video_df = pl.read_csv(video_df_path)
     fps = session.video.fps
     n_frames = len(video_df["speed"])
 
     # candidates
-    cand_on = homing_dict['onset_frames']
-    cand_off = homing_dict['offset_frames']
+    cand_on = homing_dict["onset_frames"]
+    cand_off = homing_dict["offset_frames"]
     cand_idx = np.arange(len(cand_on))
     candidate_mask = np.zeros(n_frames, dtype=bool)
     for on_i, off_i in zip(cand_on, cand_off):
-        candidate_mask[on_i:off_i + 1] = True
-    
+        candidate_mask[on_i : off_i + 1] = True
+
     # load the manual
-    if os.path.isfile(session.base_path + '/' + session.processed_path + '/Borris/scored_homings.csv'):
+    if os.path.isfile(session.base_path + "/" + session.processed_path + "/Borris/scored_homings.csv"):
         man_on, _, man_off = load_manual_labels(session)
         # remove manual labels that coincide with candidates
         manual_mask = np.zeros(len(video_df), dtype=bool)
         overlapping_masks = np.zeros(len(man_on), dtype=bool)
         for i, (on, off) in enumerate(zip(man_on, man_off)):
-            if np.sum(candidate_mask[on:off + 1]) > ((off-on + 1)*.8):
+            if np.sum(candidate_mask[on : off + 1]) > ((off - on + 1) * 0.8):
                 overlapping_masks[i] = True
                 continue
-            manual_mask[on:off + 1] = True
+            manual_mask[on : off + 1] = True
         man_on = man_on[~overlapping_masks]
         man_off = man_off[~overlapping_masks]
     else:
@@ -78,10 +84,7 @@ def homing_curation_syd_viewer(
         # merge all onsets
         all_onsets = np.concatenate([cand_on, man_on]) if len(man_on) > 0 else cand_on.copy()
         all_offsets = np.concatenate([cand_off, man_off]) if len(man_off) > 0 else cand_off.copy()
-        all_source = np.concatenate([
-            np.zeros(len(cand_on), dtype=int),
-            np.ones(len(man_on), dtype=int)
-        ]) if len(man_on) > 0 else np.zeros(len(cand_on), dtype=int)
+        all_source = np.concatenate([np.zeros(len(cand_on), dtype=int), np.ones(len(man_on), dtype=int)]) if len(man_on) > 0 else np.zeros(len(cand_on), dtype=int)
         all_indices = np.concatenate([cand_idx, man_idx]) if len(man_idx) > 0 else cand_idx.copy()
     else:
         if len(cand_on) == 0:
@@ -92,10 +95,11 @@ def homing_curation_syd_viewer(
             all_source = np.zeros(len(cand_on), dtype=int)
 
     # sort the onsets
-    viewer.add_integer('trial', min=0, max=len(all_onsets)-1, value=0)
+    viewer.add_integer("trial", min=0, max=len(all_onsets) - 1, value=0)
 
     def see_next(state):
         viewer.update_integer("trial", value=state["trial"] + 1)
+
     viewer.add_button("see_next", label="See next", callback=see_next)
 
     order = np.argsort(all_onsets)
@@ -106,42 +110,44 @@ def homing_curation_syd_viewer(
 
     if manual_curation:
         removed_runs = []  # Event IDs of removed runs
+
         def remove_run(state):
-            idx = int(state['trial'])
+            idx = int(state["trial"])
             removed_runs.append(all_indices[idx])
-        viewer.add_button('remove_event', label='Remove Event', callback = remove_run, replot = False)
+
+        viewer.add_button("remove_event", label="Remove Event", callback=remove_run, replot=False)
 
     # blank figure if no events
     if len(all_onsets) == 0:
         fig, ax = plt.subplots(1, 1, figsize=(8, 3))
-        ax.axis('off')
-        mode_txt = 'candidates + manual' if include_manual_events else 'candidates only'
+        ax.axis("off")
+        mode_txt = "candidates + manual" if include_manual_events else "candidates only"
         ax.text(0.02, 0.8, f"No events in ({mode_txt})", fontsize=11)
-    
+
     x_all = video_df["mouse_x_position"].to_numpy()
     y_all = video_df["mouse_y_position"].to_numpy()
     speed_all = video_df["speed"].to_numpy()
     hdir_all = video_df["hdir"].to_numpy()
 
     def plot(state):
-        idx = int(state['trial'])
+        idx = int(state["trial"])
 
         # check if idx is out of bounds
         if idx > len(all_onsets) - 1:
             fig, ax = plt.subplots(1, 1, figsize=(8, 3))
-            ax.axis('off')
+            ax.axis("off")
             ax.text(0.02, 0.8, f"Trial index {idx} exceeds number of events ({len(all_onsets)})")
             return fig
-        
+
         # blank figure if no events
         if len(all_onsets) == 0:
             fig, ax = plt.subplots(1, 1, figsize=(8, 3))
-            ax.axis('off')
-            mode_txt = 'candidates + manual' if include_manual_events else 'candidates only'
+            ax.axis("off")
+            mode_txt = "candidates + manual" if include_manual_events else "candidates only"
             ax.text(0.02, 0.8, f"No events in ({mode_txt})", fontsize=11)
-        
+
         fig, axs = plt.subplots(2, 2, figsize=(10, 11))
-        
+
         # get the index run!
         onset = int(all_onsets[idx])
         offset = int(all_offsets[idx])
@@ -161,27 +167,35 @@ def homing_curation_syd_viewer(
         cand_win = candidate_mask[start:stop]
         man_win = manual_mask[start:stop]
 
-        axs[0, 0].plot(x, y, color='0.75', lw=1)
-        axs[0, 0].plot(x[cand_win], y[cand_win], color='tab:blue', alpha=0.8, label='candidate')
-        axs[0, 0].scatter(x[0], y[0], s=35, color='green', label='window start')
-        axs[0, 0].scatter(x[-1], y[-1], s=35, color='red', label='window end')
-        if condition != state['condition']:
-            Arena(ax = axs[0, 0], condition = condition + ("_tiny" if "tiny" in session.experiment else ""),
-                barrier_coordinates = tracking_data["barrier_loc"][:-1], 
-                shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
+        axs[0, 0].plot(x, y, color="0.75", lw=1)
+        axs[0, 0].plot(x[cand_win], y[cand_win], color="tab:blue", alpha=0.8, label="candidate")
+        axs[0, 0].scatter(x[0], y[0], s=35, color="green", label="window start")
+        axs[0, 0].scatter(x[-1], y[-1], s=35, color="red", label="window end")
+        if condition != state["condition"]:
+            Arena(
+                ax=axs[0, 0],
+                condition=condition + ("_tiny" if "tiny" in session.experiment else ""),
+                barrier_coordinates=tracking_data["barrier_loc"][:-1],
+                shelter_coordinates=tracking_data["shelter_loc"],
+                full_image=False,
+            )
 
-        axs[0, 1].plot(x, y, color='0.85', lw=1)
-        axs[0, 1].plot(x[man_win], y[man_win], color='tab:orange', alpha=0.8, label='manual')
-        
-        if condition != state['condition']:
-            Arena(ax = axs[0, 1], condition = condition + ("_tiny" if "tiny" in session.experiment else ""),
-                barrier_coordinates = tracking_data["barrier_loc"][:-1], 
-                shelter_coordinates=tracking_data["shelter_loc"], full_image = False)
-            state['condition'] = condition
+        axs[0, 1].plot(x, y, color="0.85", lw=1)
+        axs[0, 1].plot(x[man_win], y[man_win], color="tab:orange", alpha=0.8, label="manual")
 
-        src = 'candidate' if all_source[idx] == 0 else 'manual'
-        axs[0, 0].set_title(f'trial {idx} ({src})')
-        axs[0, 0].legend(loc='upper right', fontsize=8)
+        if condition != state["condition"]:
+            Arena(
+                ax=axs[0, 1],
+                condition=condition + ("_tiny" if "tiny" in session.experiment else ""),
+                barrier_coordinates=tracking_data["barrier_loc"][:-1],
+                shelter_coordinates=tracking_data["shelter_loc"],
+                full_image=False,
+            )
+            state["condition"] = condition
+
+        src = "candidate" if all_source[idx] == 0 else "manual"
+        axs[0, 0].set_title(f"trial {idx} ({src})")
+        axs[0, 0].legend(loc="upper right", fontsize=8)
 
         # # plot speed profile
         # axs[1, 0].plot(t, speed, color='black', lw=1)
@@ -212,32 +226,33 @@ def homing_curation_syd_viewer(
 
 def save_removed_runs(homings_dict: dict, removed_event_ids: list, settings: object, session) -> None:
     """Save removed runs to dict and to databse"""
-    removed_runs = np.zeros(homings_dict['onset_frames'].shape, dtype=bool)
+    removed_runs = np.zeros(homings_dict["onset_frames"].shape, dtype=bool)
     if len(removed_event_ids) > 0:
         removed_runs[removed_event_ids] = True
-    homings_dict['removed_runs'] = removed_runs
+    homings_dict["removed_runs"] = removed_runs
 
     # find the hexname and load the database
     savepath = os.path.join(session.base_path, session.processed_path, "homings")
     database, _, hexaname = check_database_for_same_run(
-                db_settings={**settings_to_check(settings, ["homing"])},
-                results_csv_name=savepath + os.sep + "Homing_database.csv",
-                settings=settings,
-            )
+        db_settings={**settings_to_check(settings, ["homing"])},
+        results_csv_name=savepath + os.sep + "Homing_database.csv",
+        settings=settings,
+    )
     # in the row of the database with "name" == hexaname, set the "curated" column to True
-    rowidx = database[database['name'] == hexaname].index[0]
+    rowidx = database[database["name"] == hexaname].index[0]
     database.loc[rowidx, ["homings_curated"]] = True
-    database.to_csv(savepath+ os.sep + "Homing_database.csv", index=False)
+    database.to_csv(savepath + os.sep + "Homing_database.csv", index=False)
 
     # save the removed runs to a CSV file
     filename = os.path.join(savepath, "homings_" + hexaname)
     print(f"Saving curated homings to {filename}_results.npy and database entry to {savepath + os.sep + 'Homing_database.csv'}")
     np.save(os.path.join(filename + "_results.npy"), homings_dict, allow_pickle=True)
 
+
 def remove_manually_curated(homings_dict: dict) -> dict:
     """Remove manually curated runs from the homings dict"""
-    if 'removed_runs' in homings_dict.keys():
-        removed_runs = homings_dict['removed_runs']
+    if "removed_runs" in homings_dict.keys():
+        removed_runs = homings_dict["removed_runs"]
         for key in homings_dict.keys():
             if isinstance(homings_dict[key], list):
                 homings_dict[key] = [v for i, v in enumerate(homings_dict[key]) if not removed_runs[i]]
