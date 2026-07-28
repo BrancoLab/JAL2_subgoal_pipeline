@@ -9,13 +9,26 @@ dependencies:
   - scipy
   - pandas
   - matplotlib
+  - seaborn
+  - plotly
   - polars
   - opencv
+  - pillow
   - h5py
   - pyarrow
+  - astropy
   - scikit-learn
   - scikit-image
   - statsmodels
+  - bottleneck
+  - hdbscan
+  - umap-learn
+  - resampy
+  - tqdm
+  - numba
+  - llvmlite
+  - pytorch
+  - autograd
   - nptdms
   - pyyaml
   - ffmpeg
