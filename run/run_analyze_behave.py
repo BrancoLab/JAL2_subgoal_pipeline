@@ -25,4 +25,5 @@ def analyze_behave(analysis_name = None):
 
     logger.success("Behaviour analysis pipeline complete")
 
-analyze_behave('homings&escape')
+analyze_behave('homings&escape') # 'homings&escape', 'homings_plots', 'escape_plots', 'correlations'
+# analyze_behave('escape_plots')

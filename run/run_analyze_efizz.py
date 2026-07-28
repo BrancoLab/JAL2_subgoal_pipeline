@@ -58,11 +58,13 @@ def analyze_efizz(analysis_name=None, variable=None, overrides=None):
 # analyze_efizz(analysis_name='CCA', overrides=desired_settings)
 
 # analyze_efizz(analysis_name='PlaceCells', variable = 'homing&escape')
-analyze_efizz(analysis_name='EscapePattern', 
-              variable='residual: escape in homing&escape - 2D_position in explore')
-analyze_efizz(analysis_name='EscapePattern', 
-              variable='residual: escape in homing&escape - bird_dist_shelter in explore') # must run because i changed the linear shift!
-analyze_efizz(analysis_name='EscapePattern', 
-              variable='residual: escape in homing&escape - speed in explore')
-analyze_efizz(analysis_name='EscapePattern', 
-              variable='residual: escape in homing&escape - distance_shelter in explore')
+analyze_efizz(analysis_name='EscapePattern', variable = 'frac_route in homing&escape')
+analyze_efizz(analysis_name='EscapePattern', variable = 'frac_route in to_subgoal_homing&escape')
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - 2D_position in explore')
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - bird_dist_shelter in explore') # must run because i changed the linear shift!
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - speed in explore')
+# analyze_efizz(analysis_name='EscapePattern', 
+#               variable='residual: escape in homing&escape - distance_shelter in explore')
