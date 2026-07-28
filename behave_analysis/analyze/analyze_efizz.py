@@ -60,7 +60,7 @@ class AnalyzeEfizz:
         if analysis_name in ['LDA', 'sklearn', 'LSTM', 'rayleigh', 'EscapePattern', 'PCA', 'UMAP', 'single_trial', 'Replay', 'PlaceCells', 'CCA', 'tunED']:
 
             # load behavioral data
-            self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
+            self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv", polars_verbose= 1)
             self.video_df = add_homie_to_video_df(self.session, self.video_df, homing_type=self.settings.homings)
             
         # load firing rate matrix
