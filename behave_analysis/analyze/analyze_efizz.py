@@ -34,7 +34,7 @@ class AnalyzeEfizz:
     def __init__(self, session, settings):
         logger.info("Initializing AnalyzeEfizz")
         self.session = session
-        self.dir = make_directory(os.path.join(session.base_path, session.processed_path, "models"))
+        self.dir = make_directory(os.path.join(session["base_path"], session["processed_path"], "models"))
         self.show_plots = settings.show_plots
         self.settings = settings
         self.all_conditions = extract_all_or_custom_conditions(settings, session)
@@ -48,19 +48,25 @@ class AnalyzeEfizz:
         if analysis_name in ["tunED", "PlaceCells"]:
             # Load the video spike count data
             video_spike_count_path = (
-                os.path.join(self.session.base_path, self.session.processed_path) + "/" + "spike_count_by_frame_and_" + self.cluster_type + "cluster" + self.qualifier + ".csv"
+                os.path.join(self.session["base_path"], self.session["processed_path"])
+                + "/"
+                + "spike_count_by_frame_and_"
+                + self.cluster_type
+                + "cluster"
+                + self.qualifier
+                + ".csv"
             )
             self.spike_count_df = pl.read_csv(video_spike_count_path)
 
         if (analysis_name == "Replay") & (self.settings.replay_template_match_method == "SS_decoder"):
             # Load the spike dataframe
-            self.spike_df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, self.cluster_type + "_spike_data" + self.qualifier + ".csv"))
+            self.spike_df = pd.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], self.cluster_type + "_spike_data" + self.qualifier + ".csv"))
 
         # load video_df, frame by cluster matrix and cluster_Ids
         if analysis_name in ["LDA", "sklearn", "LSTM", "rayleigh", "EscapePattern", "PCA", "UMAP", "single_trial", "Replay", "PlaceCells", "CCA", "tunED"]:
 
             # load behavioral data
-            video_df_path = os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv")
+            video_df_path = os.path.join(self.session["base_path"], self.session["processed_path"], "full_video_dataframe.csv")
             self.video_df = pl.read_csv(video_df_path)
             self.video_df = add_homie_to_video_df(self.session, self.video_df, homing_type=self.settings.homings)
 
@@ -72,8 +78,8 @@ class AnalyzeEfizz:
                 pass
 
             frame_by_cluster_path = os.path.join(
-                self.session.base_path,
-                self.session.processed_path,
+                self.session["base_path"],
+                self.session["processed_path"],
                 "frame_by_" + self.cluster_type + "_cluster_matrix" + self.qualifier + ".npy",
             )
             assert os.path.isfile(frame_by_cluster_path), "Cluster matrix file not found"
@@ -83,7 +89,7 @@ class AnalyzeEfizz:
         if analysis_name in ["LDA", "sklearn", "LSTM", "rayleigh", "EscapePattern", "PCA", "UMAP", "single_trial", "Replay", "PlaceCells"]:
             try:
                 self.cluster_Ids = np.load(
-                    str(os.path.join(self.session.base_path, self.session.processed_path) + "/" + self.cluster_type + "_cluster_Ids_" + self.qualifier + ".npy")
+                    str(os.path.join(self.session["base_path"], self.session["processed_path"]) + "/" + self.cluster_type + "_cluster_Ids_" + self.qualifier + ".npy")
                 )
             except FileNotFoundError:
                 logger.warning("Cluster Ids not found")
@@ -134,7 +140,7 @@ class AnalyzeEfizz:
             #     pickle.dump(pp_single_trial_obj, f)
             #     logger.success("Preprocessed single trial object saved, ready for analysis")
 
-            # path = os.path.join(self.session.base_path, self.session.processed_path, "models", "single_trial", "pp_single_trial_obj.pkl")
+            # path = os.path.join(self.session["base_path"], self.session["processed_path"], "models", "single_trial", "pp_single_trial_obj.pkl")
             # with open(path, "rb") as hf:
             #     pp_single_trial_obj = pickle.load(hf)
 

@@ -37,7 +37,7 @@ class PlaceCells:
     def __init__(self, aefizz, time_period):
         self.aefizz = aefizz
         self.time_period = time_period
-        self.savepath = os.path.join(self.aefizz.session.base_path, self.aefizz.session.processed_path, "models", "place_cells")
+        self.savepath = os.path.join(self.aefizz.session["base_path"], self.aefizz.session["processed_path"], "models", "place_cells")
         # Define spatial bins (e.g. 5cm x 5cm)
         self.bins = create_centered_bins(bin_size=self.aefizz.settings.place_cell_bin_size_pix)
         self.grid = pl.DataFrame({"xbins": pl.Series("xbins", range(len(self.bins) - 1))}).join(pl.DataFrame({"ybins": pl.Series("ybins", range(len(self.bins) - 1))}), how="cross")
@@ -121,7 +121,7 @@ class PlaceCells:
             .with_columns(pl.col("xbins").cast(pl.Int64), pl.col("ybins").cast(pl.Int64))
             .group_by(["xbins", "ybins"])
             .agg(pl.col("frames").n_unique().alias("occupancy_frames"))
-            .with_columns(pl.col("occupancy_frames") / self.aefizz.session.video.fps)
+            .with_columns(pl.col("occupancy_frames") / self.aefizz.session["video"]["fps"])
         )  # convert to seconds
         # make sure that xybin pairs that had no occupancy are included in the rate map with an occupancy of 0, while bins in which the mouse was never present (outside circular arena) will be marked as NaN
         occupancy_map = (
@@ -300,9 +300,14 @@ class PlaceCells:
             for j, c in enumerate(self.aefizz.all_conditions):
                 # Plot real data rate map
                 real_map = self.results_dict[c]["rate_map"][:, :, idx]
-                Arena(ax=axs[0, j], dim=real_map.shape[0] - 1, condition=c + ("_tiny" if "tiny" in self.aefizz.session.experiment else ""), 
-                      barrier_coordinates=self.aefizz.session.barrier_location[:-1], 
-                      shelter_coordinates=self.aefizz.tracking_data["shelter_loc"], full_image=False)
+                Arena(
+                    ax=axs[0, j],
+                    dim=real_map.shape[0] - 1,
+                    condition=c + ("_tiny" if "tiny" in self.aefizz.session["experiment"] else ""),
+                    barrier_coordinates=self.aefizz.session["barrier_location"][:-1],
+                    shelter_coordinates=self.aefizz.tracking_data["shelter_loc"],
+                    full_image=False,
+                )
                 if np.isnan(real_map).all():
                     axs[0, j].text(0.5, 0.5, "No data", ha="center", va="center")
                     axs[0, j].axis("off")
@@ -313,9 +318,14 @@ class PlaceCells:
 
                 # Plot null data rate map
                 null_map = self.results_dict[c]["rate_map_null"][:, :, idx]
-                Arena(ax=axs[1, j], dim=null_map.shape[0] - 1, condition=c + ("_tiny" if "tiny" in self.aefizz.session.experiment else ""), 
-                      barrier_coordinates=self.aefizz.session.barrier_location[:-1], 
-                      shelter_coordinates=self.aefizz.tracking_data["shelter_loc"], full_image=False)
+                Arena(
+                    ax=axs[1, j],
+                    dim=null_map.shape[0] - 1,
+                    condition=c + ("_tiny" if "tiny" in self.aefizz.session["experiment"] else ""),
+                    barrier_coordinates=self.aefizz.session["barrier_location"][:-1],
+                    shelter_coordinates=self.aefizz.tracking_data["shelter_loc"],
+                    full_image=False,
+                )
                 if np.isnan(null_map).all():
                     axs[1, j].text(0.5, 0.5, "No data", ha="center", va="center")
                     axs[1, j].axis("off")

@@ -1,7 +1,7 @@
 """All the scripts that process the LDA inputs
 - process the angles by subselecting the frames to use
 - process the neural data
- """
+"""
 
 import os
 import dill as pickle
@@ -31,12 +31,10 @@ def select_relevant_frames(aefizz):
     RETURNS: filtered_video_df - a subset of video_df with only the relevant frames
     """
 
-    if any([aefizz.condition_types == "experimental_conditions",
-                     aefizz.condition_types == "first_half",
-                     aefizz.condition_types == "second_half"]):
+    if any([aefizz.condition_types == "experimental_conditions", aefizz.condition_types == "first_half", aefizz.condition_types == "second_half"]):
         filtered_video_df = filter_video_dataframe(aefizz.video_df, aefizz.condition, speed_threshold=aefizz.settings.min_speed_threshold)
         if np.logical_or(aefizz.condition_types == "first_half", aefizz.condition_types == "second_half"):
-            filtered_video_df = filter_video_df_time(filtered_video_df, aefizz.condition_types, aefizz.session.video.fps, max_time = 20)
+            filtered_video_df = filter_video_df_time(filtered_video_df, aefizz.condition_types, aefizz.session["video"]["fps"], max_time=20)
     else:
         filtered_video_df = filter_video_dataframe(aefizz.video_df, aefizz.condition, exclude_escape=False, speed_threshold=aefizz.settings.min_speed_threshold)
         if aefizz.condition_types == "good_behavioral_conditions":
@@ -44,16 +42,12 @@ def select_relevant_frames(aefizz):
         elif aefizz.condition_types == "bad_behavioral_conditions":
             filtered_video_df = filter_video_df_mouse_behaviour(filtered_video_df, aefizz.condition, aefizz.session, good_homie=False)
         elif aefizz.condition_types == "after_" + str(aefizz.number_of_homings) + "good_homings":
-            filtered_video_df = filter_video_df_homing_number(
-                filtered_video_df, aefizz.condition, aefizz.session, good_homie=True, number_of_homings=aefizz.number_of_homings
-            )
+            filtered_video_df = filter_video_df_homing_number(filtered_video_df, aefizz.condition, aefizz.session, good_homie=True, number_of_homings=aefizz.number_of_homings)
         elif aefizz.condition_types == "before_" + str(aefizz.number_of_homings) + "good_homings":
-            filtered_video_df = filter_video_df_homing_number(
-                filtered_video_df, aefizz.condition, aefizz.session, good_homie=False, number_of_homings=aefizz.number_of_homings
-            )
+            filtered_video_df = filter_video_df_homing_number(filtered_video_df, aefizz.condition, aefizz.session, good_homie=False, number_of_homings=aefizz.number_of_homings)
 
     # subselect relevant frames based on compartment
-    if hasattr(aefizz,'compartment'):
+    if hasattr(aefizz, "compartment"):
         if aefizz.compartment == "threat_zone":
             filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_y_position"].to_numpy() < 512))
         elif aefizz.compartment == "shelter_compartment":
@@ -64,6 +58,7 @@ def select_relevant_frames(aefizz):
             filtered_video_df = filtered_video_df.filter((filtered_video_df["mouse_x_position"].to_numpy() > 512))
 
     return filtered_video_df
+
 
 def exclude_proximal_frames(video_df, variable, tracking, dist_thresh):
     """This function takes a video_df and a point as inputs.
@@ -79,6 +74,7 @@ def exclude_proximal_frames(video_df, variable, tracking, dist_thresh):
     video_df = video_df.filter(dist > dist_thresh)
 
     return video_df
+
 
 def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, centre=[]):
     """It computes the distance of the mouse to that point at every frame"""
@@ -117,6 +113,7 @@ def distance_mouse_point(video_df, variable, tracking, dist_to_centre=False, cen
 
     return dist
 
+
 def BinDfbyAngle(aefizz, variable, n_bins):
     """
     A function that bins the angles of interest extracting them from the behavioral dataframe
@@ -135,6 +132,7 @@ def BinDfbyAngle(aefizz, variable, n_bins):
 
     return binned_angles, bins, bin_centre
 
+
 def BinDfbyDistance(aefizz, variable, n_bins):
     """
     A function that bins the distances of interest extracting them from the behavioral dataframe
@@ -149,12 +147,12 @@ def BinDfbyDistance(aefizz, variable, n_bins):
     else:
         distance = np.array(aefizz.filtered_video_df[variable].to_numpy())
 
-    distance = distance / aefizz.session.video.pixels_per_cm
+    distance = distance / aefizz.session["video"]["pixels_per_cm"]
     aefizz.bins, aefizz.bin_centre = generate_bins(n_bins, np.amin(distance), 95)  # in cm 95 is the diameter of the arena
 
     # figure out what the max distance is for this point in the arena, reduce bins to max
-    if hasattr(aefizz.session.video, "radius"):  # in the future radius should always be there and we can delete this line
-        radius = aefizz.session.video.radius
+    if hasattr(aefizz.session["video"], "radius"):  # in the future radius should always be there and we can delete this line
+        radius = aefizz.session["video"]["radius"]
     else:
         radius = 460
     centre_dist = distance_mouse_point(
@@ -162,11 +160,11 @@ def BinDfbyDistance(aefizz, variable, n_bins):
         variable,
         aefizz.tracking_data,
         dist_to_centre=True,
-        centre=[aefizz.session.video.height / 2, aefizz.session.video.width / 2],
+        centre=[aefizz.session["video"]["height"] / 2, aefizz.session["video"]["width"] / 2],
     )
     # this actually uses all available distances for a given point, but that means the max distance is different for different points, so maybe not valid
-    # max_dst = (radius + centre_dist) / aefizz.session.video.pixels_per_cm
-    max_dst = (radius) / aefizz.session.video.pixels_per_cm
+    # max_dst = (radius + centre_dist) / aefizz.session["video"]["pixels_per_cm"]
+    max_dst = (radius) / aefizz.session["video"]["pixels_per_cm"]
 
     # which bin edge is closest to the max_dst? that is our new biggest allowed big
     max_bin = np.argmin(np.abs(aefizz.bins - max_dst))
@@ -177,23 +175,24 @@ def BinDfbyDistance(aefizz, variable, n_bins):
 
     return binned_dist
 
-def BinDfbyVector(aefizz, variable, dist_n_bins,angle_n_bins):
 
-    dist_n_bins = 11 # this will be chunked down to 5 bins of 10 cm anyway
-    angle_n_bins = 9 # more than this definitely doesn't give us enough data
+def BinDfbyVector(aefizz, variable, dist_n_bins, angle_n_bins):
+
+    dist_n_bins = 11  # this will be chunked down to 5 bins of 10 cm anyway
+    angle_n_bins = 9  # more than this definitely doesn't give us enough data
     binned_dist = BinDfbyDistance(aefizz, variable, dist_n_bins)
     head_var = correct_variable_name(variable)
-    binned_angles,_,bin_centre_angle = BinDfbyAngle(aefizz, head_var, angle_n_bins)
+    binned_angles, _, bin_centre_angle = BinDfbyAngle(aefizz, head_var, angle_n_bins)
 
-    vect = np.vstack((binned_angles,binned_dist))
-    uni_vect_key, uni_vect = np.unique(vect,axis=1,return_inverse=True) 
-    uni_vect = uni_vect + 1 # don't want 0 indexing!
+    vect = np.vstack((binned_angles, binned_dist))
+    uni_vect_key, uni_vect = np.unique(vect, axis=1, return_inverse=True)
+    uni_vect = uni_vect + 1  # don't want 0 indexing!
     ref_bins = np.unique(uni_vect)
     # uni_vect is a vector len(frames) in which each value indicates a unique vector bin
     # uni_vect_key tells us how to interpret the vector bins in terms of distance and angle
     # now make uni_vect an actually legible value
-    bin_centre_dist = np.hstack((aefizz.bin_centre,95))
-    bin_key = np.vstack((bin_centre_angle[uni_vect_key[0,:]-1],bin_centre_dist[uni_vect_key[1,:]-1]))
+    bin_centre_dist = np.hstack((aefizz.bin_centre, 95))
+    bin_key = np.vstack((bin_centre_angle[uni_vect_key[0, :] - 1], bin_centre_dist[uni_vect_key[1, :] - 1]))
 
     # all frames that have binned_dist > len(aefizz.bin_centre) should be set to zero so they can be eliminated later
     bad = binned_dist > len(aefizz.bin_centre)
@@ -202,19 +201,20 @@ def BinDfbyVector(aefizz, variable, dist_n_bins,angle_n_bins):
 
     return uni_vect, bin_key
 
-def BinDfbyPos(filtered_video_df, video_height, video_width, numpoints = 3, return_bin_centre = False):
+
+def BinDfbyPos(filtered_video_df, video_height, video_width, numpoints=3, return_bin_centre=False):
     """
     A function that bins the x-y position of the mouse extracting them from the behavioral dataframe
     """
     mouse_x = filtered_video_df["mouse_x_position"].to_numpy()
     mouse_y = filtered_video_df["mouse_y_position"].to_numpy()
 
-    bins, bin_x_centre = generate_bins(numpoints,(video_height/2) - 460,(video_height/2) + 460) # 3 points gives us two spatial bins and four quadrants
+    bins, bin_x_centre = generate_bins(numpoints, (video_height / 2) - 460, (video_height / 2) + 460)  # 3 points gives us two spatial bins and four quadrants
     mouse_x = np.digitize(mouse_x, bins)
     mouse_x[mouse_x > len(bin_x_centre)] = 0
     bin_mouse_x = bin_x_centre[mouse_x - 1]
 
-    bins, bin_y_centre = generate_bins(numpoints,(video_width/2) - 460,(video_width/2) + 460) # 3 points gives us two spatial bins and four quadrants
+    bins, bin_y_centre = generate_bins(numpoints, (video_width / 2) - 460, (video_width / 2) + 460)  # 3 points gives us two spatial bins and four quadrants
     mouse_y = np.digitize(mouse_y, bins)
     mouse_y[mouse_y > len(bin_y_centre)] = 0
     bin_mouse_y = bin_y_centre[mouse_y - 1]
@@ -224,8 +224,8 @@ def BinDfbyPos(filtered_video_df, video_height, video_width, numpoints = 3, retu
     bin_mouse_x[bad_frames] = 0
     bin_mouse_y[bad_frames] = 0
 
-    dist = np.sqrt(((bin_mouse_x - video_height/2)**2) + ((bin_mouse_y - video_width/2)**2))
-    outside_arena = np.where(dist>460)[0]
+    dist = np.sqrt(((bin_mouse_x - video_height / 2) ** 2) + ((bin_mouse_y - video_width / 2) ** 2))
+    outside_arena = np.where(dist > 460)[0]
 
     if len(outside_arena) > 0:
         bin_mouse_x[outside_arena] = 0
@@ -236,10 +236,11 @@ def BinDfbyPos(filtered_video_df, video_height, video_width, numpoints = 3, retu
     assert np.unique(binned_pos[bin_mouse_x == 0])[0] == 0
 
     if return_bin_centre:
-        bin_centre = bin_centre[:,np.sum(bin_centre == 0, axis = 0) == 0]
+        bin_centre = bin_centre[:, np.sum(bin_centre == 0, axis=0) == 0]
         return binned_pos, bin_centre
     else:
         return binned_pos
+
 
 def BinArenaEqualParts(filtered_video_df, numpoints, numrings, radius, video):
     """
@@ -250,28 +251,30 @@ def BinArenaEqualParts(filtered_video_df, numpoints, numrings, radius, video):
 
     radii = np.empty(numrings)
     for r in np.arange(numrings):
-        radii[r] = np.sqrt(r+1) * radius / np.sqrt(numrings)
+        radii[r] = np.sqrt(r + 1) * radius / np.sqrt(numrings)
 
     # compute distance of positions from centre of arena
-    centre=[video.height / 2, video.width / 2]
+    centre = [video.height / 2, video.width / 2]
     dist = np.sqrt(((mouse_x - centre[0]) ** 2) + ((mouse_y - centre[1]) ** 2))
-    ring_index = np.digitize(dist,radii)
+    ring_index = np.digitize(dist, radii)
 
     # compute angle of mouse positions
     theta = np.arctan2(mouse_y - centre[1], mouse_x - centre[0])
-    wedge_idx = np.digitize(theta,np.linspace(-np.pi,np.pi,numpoints+1))
+    wedge_idx = np.digitize(theta, np.linspace(-np.pi, np.pi, numpoints + 1))
 
-    bc, binned_pos = np.unique(np.vstack((ring_index,wedge_idx)), axis=1, return_inverse=True)
+    bc, binned_pos = np.unique(np.vstack((ring_index, wedge_idx)), axis=1, return_inverse=True)
 
     # remove points outside arena
     binned_pos += 1
     binned_pos[dist > radius] = 0
-    bc = bc[:,np.unique(binned_pos)-1]
-    if np.unique(binned_pos)[0] == 0: bc = bc[:,1:]
+    bc = bc[:, np.unique(binned_pos) - 1]
+    if np.unique(binned_pos)[0] == 0:
+        bc = bc[:, 1:]
 
     return binned_pos, bc
 
-def binDfbyEpoch(matrix, pos_ang, epoch_num, subsampling = False):
+
+def binDfbyEpoch(matrix, pos_ang, epoch_num, subsampling=False):
     """
     A function that splits the data into n epochs for crossvalidation.
     It also subsamples the data so that each epoch is populated by uniformly distributed data of angles and positions
@@ -327,7 +330,7 @@ def ProcessPredictors(aefizz, frames):
         X = pca.fit_transform(X)
 
     if aefizz.settings.exclude_hdir:
-        path = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "cells"))
+        path = make_directory(os.path.join(aefizz.session["base_path"], aefizz.session["processed_path"], "cells"))
         file_name = os.path.join(path, "hdir_cells.pkl")
         # TODO: write conditional that if there are no classified cells you need to classify
         with open(file_name, "rb") as dill_file:
@@ -341,6 +344,7 @@ def ProcessPredictors(aefizz, frames):
     X = np.c_[frames, X]
 
     return X
+
 
 def zscore_predictors(X):
     """This function z-scores an input matrix
@@ -357,6 +361,7 @@ def zscore_predictors(X):
     #     X[:,nanclusters] = np.zeros((np.shape(X)[0],1))
     return ZscoredX
 
+
 def prep_target_and_predictors(aefizz, variable):
 
     # extract frame numbers
@@ -367,8 +372,8 @@ def prep_target_and_predictors(aefizz, variable):
         hdir, _, _ = BinDfbyAngle(aefizz, "hdir", 5)  #  this is kind of dumb, but the order matters here because you need to overwrite aefizz.bins
         binned_target = BinDfbyDistance(aefizz, variable, aefizz.number_of_bins)
         target = np.vstack((binned_target.T, hdir))  # at each distance make sure we're sampling a somewhat even set of
-    elif 'vect' in variable:
-        binned_target, aefizz.target_key = BinDfbyVector(aefizz, variable, dist_n_bins = 6,angle_n_bins = 13)
+    elif "vect" in variable:
+        binned_target, aefizz.target_key = BinDfbyVector(aefizz, variable, dist_n_bins=6, angle_n_bins=13)
         target = np.vstack((binned_target.T, np.ones_like(binned_target.T)))  # we're taking all bins, not further equalizing them
     else:
         binned_target, aefizz.bins, aefizz.bin_centre = BinDfbyAngle(aefizz, variable, aefizz.number_of_bins)

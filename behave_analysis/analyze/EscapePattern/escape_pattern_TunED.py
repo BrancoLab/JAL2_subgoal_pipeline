@@ -103,7 +103,7 @@ def escape_pattern_TunED(aefizz, variable):
             v2_significant[c, :] = (lower_percentile < 0) & (upper_percentile < 0)
 
     """3. Save results"""
-    savepath = make_directory(os.path.join(aefizz.session.base_path, aefizz.session.processed_path, "escape_tuning", time_period1))
+    savepath = make_directory(os.path.join(aefizz.session["base_path"], aefizz.session["processed_path"], "escape_tuning", time_period1))
     filename = savepath + os.sep + "TunED_" + var1 + "_vs_" + var2 + "_" + str(aefizz.settings.ep_bins) + "bins.pkl"
     np.savez(filename, variable=variable, distance=distance, distance_bs=distance_bs, v1_significant=v1_significant, v2_significant=v2_significant, settings=tuned_settings)
 

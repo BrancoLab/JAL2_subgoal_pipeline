@@ -30,9 +30,7 @@ def filter_outside_arena_tracking_for_video_and_spike_data(video_and_spike_data:
 
     # Remove all rows that are outside of the arena circle
     video_and_spike_data = video_and_spike_data.with_columns(
-        np.sqrt(
-            ((pl.col("mouse_x_position") - session.video.height / 2) ** 2) + ((pl.col("mouse_y_position") - session.video.height / 2) ** 2)
-        ).alias("dist")
+        np.sqrt(((pl.col("mouse_x_position") - session["video"]["height"] / 2) ** 2) + ((pl.col("mouse_y_position") - session["video"]["height"] / 2) ** 2)).alias("dist")
     )
 
     # Now filter out the mouse x positions where distance is less than 460 and same for y
@@ -144,4 +142,4 @@ def add_features(ax, condition: str, tracking: dict, zero_centre=False) -> None:
                 if zero_centre:
                     bar_loc = [element - 512 for element in bar_loc]
                     bar_y = [element - 512 for element in bar_y]
-                ax.plot([bar_loc[0],bar_loc[1]], [bar_y[0],bar_y[1]], color="k")
+                ax.plot([bar_loc[0], bar_loc[1]], [bar_y[0], bar_y[1]], color="k")

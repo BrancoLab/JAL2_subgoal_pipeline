@@ -14,6 +14,7 @@ import matplotlib.cm as cm
 import matplotlib.colors as mcolors
 
 from behave_analysis.analyze.LDA.LDA_utils import BuildSavingFolder
+
 # from behave_analysis.analyze.behaviour.spatial_efficiency import base_plotting
 from behave_analysis.analyze.behaviour.utils import base_plotting
 from behave_analysis.utils.arena_plotting import Arena
@@ -34,7 +35,7 @@ def plot_LDA_model(aefizz):
     # map random points on arena:
     if len(list(filter(lambda x: "randP" in x, prediction_accuracy.keys()))) > 10:
         pa = [val for key, val in prediction_accuracy.items() if re.search("randP", key)]
-        fr = [val / (aefizz.session.video.fps * 60) for key, val in prediction_accuracy.items() if re.search("time_rP", key)]
+        fr = [val / (aefizz.session["video"]["fps"] * 60) for key, val in prediction_accuracy.items() if re.search("time_rP", key)]
         PredictionAccuracyMapped(aefizz, pa, fr=fr)
 
     # make a plot of prediction accuracy across variables with linear shift stats
@@ -63,7 +64,7 @@ def plot_LDA_by_position(aefizz, target):
 
     for var in target:
         pa = [val for key, val in prediction_accuracy.items() if re.search(var + "_pos", key)]
-        fr = [round(val / (aefizz.session.video.fps * 60), 2) for key, val in prediction_accuracy.items() if re.search(var + "_time", key)]
+        fr = [round(val / (aefizz.session["video"]["fps"] * 60), 2) for key, val in prediction_accuracy.items() if re.search(var + "_time", key)]
         PredictionAccuracy_byposition_Mapped(
             aefizz,
             pa,
@@ -137,9 +138,7 @@ def PlotLSPredictionAccuracy(aefizz, LS_compiled, title):
                 marker=dict(size=3, color=colorz[i]),
             )
         )
-        fig.add_trace(
-            go.Scatter(x=[var], y=[LS_compiled[var].real_stat], mode="markers", marker_color="rgb(255, 0, 0)", marker=dict(size=5, symbol="diamond"))
-        )
+        fig.add_trace(go.Scatter(x=[var], y=[LS_compiled[var].real_stat], mode="markers", marker_color="rgb(255, 0, 0)", marker=dict(size=5, symbol="diamond")))
         if LS_compiled[var].reject_null:
             fig.add_trace(go.Scatter(x=[var], y=[1], mode="markers", marker_color="rgb(0, 0, 0)", marker=dict(size=5, symbol="star")))
 
@@ -202,7 +201,14 @@ def PredictionAccuracyMapped(aefizz, pa, title_add="LDA", LS_thresh=None, pos=[]
         significant_points = (pa - LS_thresh) > 0
         ax.scatter(x[significant_points] + 0.5, y[significant_points] + 0.5, s=3, c="w")
 
-    Arena(dim = np.shape(heatmap)[0], ax=ax, shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=aefizz.condition, barrier_coordinates=aefizz.session.barrier_location, arena_only=False)
+    Arena(
+        dim=np.shape(heatmap)[0],
+        ax=ax,
+        shelter_coordinates=aefizz.tracking_data["shelter_loc"],
+        condition=aefizz.condition,
+        barrier_coordinates=aefizz.session["barrier_location"],
+        arena_only=False,
+    )
     # add_features_binned(ax, aefizz.condition, aefizz.tracking_data, xbins, ybins)
 
     # Remove x and y tick labels and ticks
@@ -394,7 +400,14 @@ def across_conditions_LDA_map(aefizz):
                 norm=plt.Normalize(vmin=vmin, vmax=vmax),
             )
 
-            Arena(dim = np.shape(heatmap)[0], ax=axs[ax_idx], shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=condition, barrier_coordinates=aefizz.session.barrier_location, arena_only=False)
+            Arena(
+                dim=np.shape(heatmap)[0],
+                ax=axs[ax_idx],
+                shelter_coordinates=aefizz.tracking_data["shelter_loc"],
+                condition=condition,
+                barrier_coordinates=aefizz.session["barrier_location"],
+                arena_only=False,
+            )
             # add_features_binned(axs[ax_idx], condition, aefizz.tracking_data, xbins, ybins)
 
             # Remove x and y tick labels and ticks
@@ -467,7 +480,7 @@ def PredictionAccuracyMapped_old(aefizz, prediction_accuracy):
     plt.axis("off")
     # prettify with arena features
     ax = plt.gca()
-    Arena(ax=ax, shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=aefizz.condition, barrier_coordinates=aefizz.session.barrier_location)
+    Arena(ax=ax, shelter_coordinates=aefizz.tracking_data["shelter_loc"], condition=aefizz.condition, barrier_coordinates=aefizz.session["barrier_location"])
     # base_plotting(ax, aefizz.tracking_data, aefizz.condition, session = aefizz.session)
     ax.invert_yaxis()
     ax.set_aspect("equal")

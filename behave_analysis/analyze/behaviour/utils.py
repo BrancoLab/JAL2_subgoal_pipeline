@@ -1,5 +1,5 @@
 """
-This module serves as a collection of utility functions specifically tailored to support spatial analysis and homing modules in behavioral research. 
+This module serves as a collection of utility functions specifically tailored to support spatial analysis and homing modules in behavioral research.
 It focuses on providing tools for visualizing and interpreting spatial data related to escape and homing behaviors in experimentd.
 
 Key Functions:
@@ -7,7 +7,7 @@ Key Functions:
    - Purpose: To establish the foundational layout of the experimental arena, including key elements like shelters and barriers, based on tracking data.
 
 2. identify_condition_of_trial:
-   - Purpose: To classify each trial into specific conditions (e.g., 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip') based on the combination of 
+   - Purpose: To classify each trial into specific conditions (e.g., 'shelter_only', 'barrier_pre_flip', 'barrier_post_flip') based on the combination of
    video data and session information.
 
 3. plot_trajectories:
@@ -54,7 +54,7 @@ def base_plotting(ax, tracking, condition, session=[]) -> None:
     arena_radius = 460
 
     # draw shelter
-    if not(condition == "pre_shelter"):
+    if not (condition == "pre_shelter"):
         if "shelter_loc" in tracking.keys():
             for i in [0, 1]:
                 plt.plot(
@@ -70,11 +70,11 @@ def base_plotting(ax, tracking, condition, session=[]) -> None:
 
     # draw barrier logic
     if not np.logical_or(condition == "shelter_only", condition == "pre_shelter"):
-        if len(session.barrier_location) > 0:
-            if np.logical_or(np.logical_or(condition == 'barrier_present',condition == 'all_time'),condition == 'shelter_present'):
+        if len(session["barrier_location"]) > 0:
+            if np.logical_or(np.logical_or(condition == "barrier_present", condition == "all_time"), condition == "shelter_present"):
                 # draw old two-sided barrier
                 bar_loc = [tracking["barrier_loc"][0][0], tracking["barrier_loc"][1][0]]
-                if np.diff(bar_loc) < arena_radius: # if we didn't flip the barrier and only have one side the "two sides will appear as one"
+                if np.diff(bar_loc) < arena_radius:  # if we didn't flip the barrier and only have one side the "two sides will appear as one"
                     bar_loc[0] = 512 - arena_radius
 
             if condition == "barrier_pre_flip":

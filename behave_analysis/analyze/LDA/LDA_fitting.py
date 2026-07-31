@@ -31,9 +31,8 @@ from settings.settings_analyze_efizz import Settings_ae as Settings
 
 ## --------------- MAIN LDA FUNCTION
 
-def linear_discriminant_analysis(
-    X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, aefizz=None, title=None, subsampling = False
-):
+
+def linear_discriminant_analysis(X, pos_ang, epoch_num=6, fr=40, return_coef=False, discriminant_type="linear", plotting=False, aefizz=None, title=None, subsampling=False):
     """
     A function for doing LDA on data.
     This function iterates over the crossvalidation epochs, runs the decoder, computes the confusion matrix and the average prediction accuracy
@@ -46,7 +45,7 @@ def linear_discriminant_analysis(
 
     n_bins = len(np.unique(pos_ang[0, :]))
     if aefizz == None:
-        _, bin_centre = generate_bins(n_bins+1, -np.pi, np.pi)
+        _, bin_centre = generate_bins(n_bins + 1, -np.pi, np.pi)
     else:
         bin_centre = aefizz.bin_centre
 
@@ -60,10 +59,7 @@ def linear_discriminant_analysis(
     coef_matrix = np.empty((n_bins, np.shape(X)[1] - 1, epoch_num))  # -1 on the number of clusters, because we have an extra column in X
     conf_matrix_all_train = np.empty((n_bins, n_bins, epoch_num))
     conf_matrix_all_test = np.empty((n_bins, n_bins, epoch_num))
-    all_Y = {'y_train': [],
-            'y_hat_train': [],
-            'y_test': [],
-            'y_hat_test': []}
+    all_Y = {"y_train": [], "y_hat_train": [], "y_test": [], "y_hat_test": []}
 
     # chunk into epochs
     X, Y, epochs = binDfbyEpoch(X, pos_ang, epoch_num, subsampling)  # after this Y is just the angles to predict
@@ -94,9 +90,7 @@ def linear_discriminant_analysis(
 
             if discriminant_type == "LSTM":
                 # convert y to values from -pi to pi
-                logger.warning(
-                    f"You're attempting to run the LDA pipeline with LSTM decoding - this may not work on distance or vectors. It certainly doesn't work with linshift"
-                )
+                logger.warning(f"You're attempting to run the LDA pipeline with LSTM decoding - this may not work on distance or vectors. It certainly doesn't work with linshift")
                 # run LSTM
                 model, seq_length = fit_LSTM(X1, bin_centre[y1 - 1], X2, bin_centre[y2 - 1])
                 y_hat_train = predict_LSTM(model, X1, seq_length).reshape(-1)
@@ -147,7 +141,7 @@ def linear_discriminant_analysis(
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(0, 0), colspan=4)
-                real_predicted_trace(ax, y1, y_hat_train, aefizz.session.video.fps, "train data", titleclass)
+                real_predicted_trace(ax, y1, y_hat_train, aefizz.session["video"]["fps"], "train data", titleclass)
 
             # plot confusion matrix of prediction on test data
 
@@ -168,7 +162,7 @@ def linear_discriminant_analysis(
 
                 # look at data side-by-side
                 ax = plt.subplot2grid(shape=(4, 4), loc=(1, 0), colspan=4)
-                real_predicted_trace(ax, y2, y_hat_test, aefizz.session.video.fps, "test data", titleclass)
+                real_predicted_trace(ax, y2, y_hat_test, aefizz.session["video"]["fps"], "test data", titleclass)
 
                 plt.tight_layout()
                 filename = aefizz.savepath + "/" + str(aefizz.cluster_type) + "_LDA_" + str(title) + "_epoch" + str(i) + ".png"
@@ -176,11 +170,11 @@ def linear_discriminant_analysis(
                 if aefizz.show_plots:
                     plt.show()
                 plt.close()
-            
-            all_Y['y_train'].append(y1)
-            all_Y['y_hat_train'].append(y_hat_train)
-            all_Y['y_test'].append(y2)
-            all_Y['y_hat_test'].append(y_hat_test)
+
+            all_Y["y_train"].append(y1)
+            all_Y["y_hat_train"].append(y_hat_train)
+            all_Y["y_test"].append(y2)
+            all_Y["y_hat_test"].append(y_hat_test)
 
         if plotting:
             # plot average confusion matrix

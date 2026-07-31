@@ -1,6 +1,6 @@
 """
 The point of this script is to return the class Homings, the attributes of which can
-be seen below. Escapes are not removed from homings here currently. 
+be seen below. Escapes are not removed from homings here currently.
 
 Note:
 -- Upgraded homings 08/07/2024. Seems the last tweak would be to fix when the trajectory terminmates too early
@@ -26,6 +26,7 @@ from behave_analysis.utils.identify_condition import build_condition_bool, build
 from behave_analysis.analyze.behaviour.homings_escapes.homing_load_manual_labels import load_manual_labels
 from behave_analysis.utils.creating_directories import make_directory
 
+
 class get_Homings:
     """Extract homings metrics from a session
 
@@ -38,11 +39,11 @@ class get_Homings:
     def __init__(self, settings, session):
         self.settings = settings
         self.session = session
-        self.savepath = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings"))
+        self.savepath = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"], "homings"))
         logger.info(f"checking for existing homings results")
         if self.settings.homings_use_boris:
             self.database, self.do_analysis, self.hexaname = check_database_for_same_run(
-                db_settings={"homings_use_boris": True}, # the only setting that needs to be matched!
+                db_settings={"homings_use_boris": True},  # the only setting that needs to be matched!
                 results_csv_name=self.savepath + os.sep + "Homing_database.csv",
                 settings=self.settings,
             )
@@ -53,7 +54,7 @@ class get_Homings:
                 settings=self.settings,
             )
 
-    def get_homings(self, video_df = [], tracking_data = [], return_dict = True):
+    def get_homings(self, video_df=[], tracking_data=[], return_dict=True):
 
         if not self.do_analysis:
             logger.info("Homing analysis already done with these settings, loading from database...")
@@ -62,7 +63,7 @@ class get_Homings:
             return homings
 
         if self.settings.homings_use_boris:
-            boris_path = os.path.join(self.session.base_path, self.session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv"
+            boris_path = os.path.join(self.session["base_path"], self.session["processed_path"]) + "\\" + "Borris" + "\\" + "scored_homings.csv"
             if os.path.isfile(boris_path):
                 self.use_boris = True
                 logger.info("Using manually labelled homings")
@@ -70,16 +71,16 @@ class get_Homings:
             else:
                 logger.warning("You want to use Borris homing labelling, but Borris file doesn't exist! Automatically detecting homings instead")
                 self.use_boris = False
-        
+
         if self.settings.homings_use_boris == False or self.use_boris == False:
             # Begin extracting variables for homings
             logger.info("Extracting homings automatically...")
-            self.identify_homing_runs_with_logic(video_df = video_df, tracking_data = tracking_data)
+            self.identify_homing_runs_with_logic(video_df=video_df, tracking_data=tracking_data)
 
         self.results = self.intialize_homings_results_dict()
 
         if len(self.onset_frames) > 0:
-            self.get_homing_properties(tracking_data=tracking_data, video_df = video_df)
+            self.get_homing_properties(tracking_data=tracking_data, video_df=video_df)
 
         self.save_session()
 
@@ -88,19 +89,21 @@ class get_Homings:
 
     def intialize_homings_results_dict(self):
         """Initialize a dictionary to store homings results"""
-        results_dict = {"onset_frames": self.onset_frames,
-                        "offset_frames": self.offset_frames,
-                        "stimulus_durations": self.stimulus_durations,
-                        "start_locs": [],
-                        "end_locs": [],
-                        "avg_speed": [],
-                        "head_orientation_dic": {"avg_hdir": [], "avg_hsa": [], "avg_pre_flip_head_angle": [], "avg_post_flip_head_angle": []},
-                        "hdir_at_start": [],
-                        "spatial_efficiency": [],
-                        "trajectory_length": [],
-                        "condition": []}
+        results_dict = {
+            "onset_frames": self.onset_frames,
+            "offset_frames": self.offset_frames,
+            "stimulus_durations": self.stimulus_durations,
+            "start_locs": [],
+            "end_locs": [],
+            "avg_speed": [],
+            "head_orientation_dic": {"avg_hdir": [], "avg_hsa": [], "avg_pre_flip_head_angle": [], "avg_post_flip_head_angle": []},
+            "hdir_at_start": [],
+            "spatial_efficiency": [],
+            "trajectory_length": [],
+            "condition": [],
+        }
         return results_dict
-    
+
     def save_session(self) -> None:
         """Save homings object as a pickle file within the session folder"""
         filename = os.path.join(self.savepath, "homings_" + self.hexaname)
@@ -110,24 +113,19 @@ class get_Homings:
         set_dict = {**settings_to_check(self.settings, ["homing"])}
         if self.settings.homings_use_boris and self.use_boris:
             set_dict = {**settings_to_check(self.settings, ["homing"]), "homings_curated": True}
-        add_run_to_database(self.database, 
-                            set_dict, 
-                            self.savepath + os.sep + "Homing_database.csv", 
-                            self.hexaname)
+        add_run_to_database(self.database, set_dict, self.savepath + os.sep + "Homing_database.csv", self.hexaname)
         logger.success("Homings saved")
 
     # ------------------- SELECT FEATURES OF HOMINGS ----------------------
 
-    def get_homing_properties(self, tracking_data = [], video_df = []):
+    def get_homing_properties(self, tracking_data=[], video_df=[]):
         """Extract everything we need to know about homies"""
         if len(tracking_data) == 0:
             tracking_data = open_tracking_data(self.session)
         if len(video_df) == 0:
-            video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv"))
+            video_df = pl.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], "full_video_dataframe.csv"))
 
-        self.results["start_locs"], self.results["end_locs"] = get_start_and_end_locs(
-            tracking=tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames
-        )
+        self.results["start_locs"], self.results["end_locs"] = get_start_and_end_locs(tracking=tracking_data, onset_frames=self.onset_frames, offset_frames=self.offset_frames)
         self.results["avg_speed"] = get_avg_speed(self.onset_frames, self.offset_frames, tracking_data, self.session)
         self.results["head_orientation_dic"], self.results["hdir_at_start"] = get_avg_homing_angle_for_first15cm_of_run(
             self.session, self.onset_frames, self.offset_frames, tracking_data, self.settings.homings_distance_threshold
@@ -139,17 +137,17 @@ class get_Homings:
 
     # ------------------- IDENTIFY HOMINGS --------------------------------
 
-    def identify_homing_runs_with_logic(self, video_df = [], tracking_data = []):
+    def identify_homing_runs_with_logic(self, video_df=[], tracking_data=[]):
         """All the steps needed to ID homings automatically"""
 
         if len(tracking_data) == 0:
             tracking_data = open_tracking_data(self.session)
 
         if len(video_df) == 0:
-            video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path) + "\\" "full_video_dataframe.csv")
+            video_df = pl.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"]) + "\\" "full_video_dataframe.csv")
 
         analyzer = HomingAnalyzer([], settings=self.settings)
-        analyzer.preloaded_session_data(video_df = video_df, tracking_data = tracking_data, session = self.session)
+        analyzer.preloaded_session_data(video_df=video_df, tracking_data=tracking_data, session=self.session)
         analyzer.extract_runs(speed_threshold=self.settings.homings_speed_threshold, gap_tolerance_frames=self.settings.homings_gap_tolerance)
         for run in analyzer.extracted_runs:
             analyzer._compute_run_features(run)
@@ -160,19 +158,21 @@ class get_Homings:
             candidates = analyzer.run_classification(use_learned_gates=False, manual_gates=self.settings.homings_classifiction_manual_gates)
         else:
             candidates = analyzer.run_classification(use_learned_gates=True)
-            
+
         # cadidates is list of tuple of onsets and offsets, so we can unpack it here
-        candidates = np.array(candidates, dtype = int)
+        candidates = np.array(candidates, dtype=int)
         if len(candidates) == 0:
             logger.warning("No homings found with these settings!")
             self.onset_frames, self.offset_frames = np.array([]), np.array([])
             self.stimulus_durations = np.array([])
         else:
-            self.onset_frames, self.offset_frames = candidates[:,0], candidates[:,1]
-            self.stimulus_durations = (self.offset_frames - self.onset_frames)/self.session.video.fps  # match the format of the manual labels
+            self.onset_frames, self.offset_frames = candidates[:, 0], candidates[:, 1]
+            self.stimulus_durations = (self.offset_frames - self.onset_frames) / self.session["video"]["fps"]  # match the format of the manual labels
+
 
 ##-------- HOMING FEATURE FUNCTIONS--------------
 """USED ALSO FOR ESCAPES"""
+
 
 def get_avg_speed(onsets, offsets, tracking_data, session) -> np.array:
     """For each homing, compute the average speed in cm/s
@@ -181,17 +181,18 @@ def get_avg_speed(onsets, offsets, tracking_data, session) -> np.array:
     -- avg_speed: np.array of shape (n_runs, ) with the average speed in cm/s for each homing run"""
 
     avg_speed = np.zeros(len(onsets))
-    outofshelterfilter = out_of_shelter_filter(tracking_data) if len(tracking_data['shelter_loc']) > 0 else np.ones(len(tracking_data['avg_loc']), dtype=bool)
+    outofshelterfilter = out_of_shelter_filter(tracking_data) if len(tracking_data["shelter_loc"]) > 0 else np.ones(len(tracking_data["avg_loc"]), dtype=bool)
 
     for homing, (onset, offset) in enumerate(zip(onsets, offsets)):
         in_shelt = np.where(outofshelterfilter[onset:offset] == False)[0]
         trial_speed = tracking_data["avg_Velocity"][onset:offset]
-        if len(in_shelt)>0:
-            trial_speed = trial_speed[:in_shelt[0]]
+        if len(in_shelt) > 0:
+            trial_speed = trial_speed[: in_shelt[0]]
         avg_speed[homing] = np.mean(trial_speed)
 
     assert len(avg_speed) == len(onsets), "Avg speed and number of homings are not the same length"
     return avg_speed
+
 
 def get_start_and_end_locs(tracking: object, onset_frames: np.array, offset_frames: np.array) -> tuple:
     """Return the start and end locations of each homing run
@@ -207,26 +208,41 @@ def get_start_and_end_locs(tracking: object, onset_frames: np.array, offset_fram
     assert len(start_locs) == len(onset_frames), "Start locs and number of homings are not the same length"
     return start_locs, end_locs
 
+
 def get_condition_homing(video_df, onset_frames, session) -> list:
     """Return the experimental condition that the homing happened"""
     if "shelter" not in video_df.columns:
-        shelter = build_condition_bool(time_list = session.shelter_time, cond_name = 'shelter', frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df), fps = session.video.fps)
+        shelter = build_condition_bool(
+            time_list=session["shelter_time"], cond_name="shelter", frame_idx=np.arange(len(video_df)) + 1, n_frames=len(video_df), fps=session["video"]["fps"]
+        )
         video_df = video_df.hstack([pl.Series("shelter", shelter)])
     if "barrier_present" not in video_df.columns:
-        video_df = video_df.hstack([pl.Series("barrier_present", build_condition_bool(time_list = session.barrier_time, cond_name = 'barrier', frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df), fps = session.video.fps))])
+        video_df = video_df.hstack(
+            [
+                pl.Series(
+                    "barrier_present",
+                    build_condition_bool(
+                        time_list=session["barrier_time"], cond_name="barrier", frame_idx=np.arange(len(video_df)) + 1, n_frames=len(video_df), fps=session["video"]["fps"]
+                    ),
+                )
+            ]
+        )
     if "barrier_flipped" not in video_df.columns:
-        video_df = video_df.hstack([pl.Series("barrier_flipped", build_flippedbarrier_condition_bool(session=session, frame_idx=np.arange(len(video_df))+1, n_frames=len(video_df)))])
+        video_df = video_df.hstack(
+            [pl.Series("barrier_flipped", build_flippedbarrier_condition_bool(session=session, frame_idx=np.arange(len(video_df)) + 1, n_frames=len(video_df)))]
+        )
 
     condition = []
     for onset in onset_frames:
-        condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset+1)), session))
+        condition.append(identify_condition_of_trial(video_df.filter(video_df["frames"] == int(onset + 1)), session))
     return condition
 
-def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, speed_thresh = 15) -> dict:
-    """This takes the average head angle after the mouse starts running 
+
+def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_data, speed_thresh=15) -> dict:
+    """This takes the average head angle after the mouse starts running
     Unlike get_avg_homing_angle_for_first15cm_of_run, it doesn't include the head turn at the start of the homing
     The initial running period is capped at .5 seconds
-    
+
     The speed of running is 10cm/s - this may need to be adjusted, TBD
 
         Returns:
@@ -241,25 +257,28 @@ def get_avg_homing_angle_for_start_of_run(session, onsets, offsets, tracking_dat
     avg_hdir = np.zeros(len(onsets))
     starting_hdir = np.zeros(len(onsets))
 
-    for idx, (onset,offset) in enumerate(zip(onsets,offsets)):
-        hsa = tracking_data["hdir_shelt"][onset:offset+session.video.fps]
-        hbarpre = tracking_data["hdir_barrier"][onset:offset+session.video.fps,0]
-        hbarpost = tracking_data["hdir_barrier"][onset:offset+session.video.fps,1]
-        hdir = tracking_data["hdir"][onset:offset+session.video.fps]
+    for idx, (onset, offset) in enumerate(zip(onsets, offsets)):
+        hsa = tracking_data["hdir_shelt"][onset : offset + session["video"]["fps"]]
+        hbarpre = tracking_data["hdir_barrier"][onset : offset + session["video"]["fps"], 0]
+        hbarpost = tracking_data["hdir_barrier"][onset : offset + session["video"]["fps"], 1]
+        hdir = tracking_data["hdir"][onset : offset + session["video"]["fps"]]
         starting_hdir[idx] = tracking_data["hdir"][onset]
-        when_running = tracking_data["avg_Velocity"][onset:offset+session.video.fps]>speed_thresh # this is potentially dangerous if this threshold doesn't work for other sessions
+        when_running = (
+            tracking_data["avg_Velocity"][onset : offset + session["video"]["fps"]] > speed_thresh
+        )  # this is potentially dangerous if this threshold doesn't work for other sessions
         run_start = np.where(np.diff((when_running).astype(int)) == 1)[0][0]
         run_end = np.where(np.diff((when_running).astype(int)) == -1)[0][0]
-        if (run_end - run_start) > (session.video.fps/2): # never look at more than .5 second of running
-            run_end = run_start + (session.video.fps/2)
-        avg_hdir[idx] = np.mean(hdir[run_start:int(run_end)])
-        avg_hsa[idx] = np.mean(hsa[run_start:int(run_end)])
-        avg_pre_flip_head_angle[idx] = np.mean(hbarpre[run_start:int(run_end)])
-        avg_post_flip_head_angle[idx] = np.mean(hbarpost[run_start:int(run_end)])
+        if (run_end - run_start) > (session["video"]["fps"] / 2):  # never look at more than .5 second of running
+            run_end = run_start + (session["video"]["fps"] / 2)
+        avg_hdir[idx] = np.mean(hdir[run_start : int(run_end)])
+        avg_hsa[idx] = np.mean(hsa[run_start : int(run_end)])
+        avg_pre_flip_head_angle[idx] = np.mean(hbarpre[run_start : int(run_end)])
+        avg_post_flip_head_angle[idx] = np.mean(hbarpost[run_start : int(run_end)])
 
     dic = {"avg_hdir": avg_hdir, "avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
-    
+
     return dic, starting_hdir
+
 
 def get_avg_homing_angle_for_first15cm_of_run(session, onsets, offsets, tracking_data, cum_threshold) -> dict:
     """For the first 5 to 15cm of each homing, compute the average angle to each reference locations
@@ -307,17 +326,17 @@ def get_avg_homing_angle_for_first15cm_of_run(session, onsets, offsets, tracking
         frame_coords = tracking_data["avg_loc"][onset:offset]
         # startframe = the frame after the mouse has travelled 5cm
         # frame_index = the frame when the mouse has reched the cum_threshold
-        frame_index, start_frame = cum_distance(onset, offset, frame_coords, session.video.pixels_per_cm, cum_threshold)
+        frame_index, start_frame = cum_distance(onset, offset, frame_coords, session["video"]["pixels_per_cm"], cum_threshold)
 
         if frame_index == None:
             continue
-        
+
         avg_hdir[i] = circmean(tracking_data["hdir"][start_frame:frame_index])
-        
+
         hsa = hsa_data[start_frame:frame_index]
         avg_hsa[i] = circmean(hsa)
 
-        if len(session.barrier_time) > 0:
+        if len(session["barrier_time"]) > 0:
             pre_flip_window = pre_flip_head_angle[start_frame:frame_index]
             post_flip_window = post_flip_head_angle[start_frame:frame_index]
             avg_pre_flip_head_angle[i] = circmean(pre_flip_window)
@@ -328,6 +347,7 @@ def get_avg_homing_angle_for_first15cm_of_run(session, onsets, offsets, tracking
     dic = {"avg_hdir": avg_hdir, "avg_hsa": avg_hsa, "avg_pre_flip_head_angle": avg_pre_flip_head_angle, "avg_post_flip_head_angle": avg_post_flip_head_angle}
 
     return dic, starting_hdir
+
 
 def cum_distance(onset, offset, frame_coords, pixels_per_cm, cum_threshold: int) -> int:
     """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold

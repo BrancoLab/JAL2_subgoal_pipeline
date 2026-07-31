@@ -127,7 +127,7 @@ def load_video_data(experiment):
     """Loads the video data for the experiment"""
     loaded_session = get_experiment(experiment)
     try:
-        video_df = pl.read_csv(os.path.join(loaded_session.base_path, loaded_session.processed_path) + "\\" "full_video_dataframe.csv")
+        video_df = pl.read_csv(os.path.join(loaded_session["base_path"], loaded_session["processed_path"]) + "\\" "full_video_dataframe.csv")
 
     except FileNotFoundError:
         print("One of the files was not found")
@@ -292,14 +292,14 @@ def control_for_500ms_before_homing(experiments_objects, session_names, dir):
         loaded_session = get_experiment(experiment)
 
         # Set paths
-        base_path = loaded_session.base_path
-        processed_path = loaded_session.processed_path
+        base_path = loaded_session["base_path"]
+        processed_path = loaded_session["processed_path"]
         session_path = os.path.join(base_path, processed_path)
         homing_path = os.path.join(session_path, "homings", "homings_obj.pkl")
 
         # Load homing onset and video data
         try:
-            video_df = pd.read_csv(os.path.join(loaded_session.base_path, loaded_session.processed_path, "full_video_dataframe.csv"))
+            video_df = pd.read_csv(os.path.join(loaded_session["base_path"], loaded_session["processed_path"], "full_video_dataframe.csv"))
             with open(homing_path, "rb") as hf:
                 homings_object = pickle.load(hf)
         except FileNotFoundError:
@@ -381,8 +381,8 @@ def produce_data(experiments_objects, session_names, name_of_storage, create_des
         loaded_session = get_experiment(experiment)
 
         # Set paths
-        base_path = loaded_session.base_path
-        processed_path = loaded_session.processed_path
+        base_path = loaded_session["base_path"]
+        processed_path = loaded_session["processed_path"]
         session_path = os.path.join(base_path, processed_path)
         homing_path = os.path.join(session_path, "homings", "homings_obj.pkl")
         
@@ -391,12 +391,12 @@ def produce_data(experiments_objects, session_names, name_of_storage, create_des
 
         # Load data
         try:
-            video_df = pl.read_csv(os.path.join(loaded_session.base_path, loaded_session.processed_path) + "\\" "full_video_dataframe.csv")
+            video_df = pl.read_csv(os.path.join(loaded_session["base_path"], loaded_session["processed_path"]) + "\\" "full_video_dataframe.csv")
             with open(homing_path, "rb") as hf:
                 homings_object = pickle.load(hf)
 
             frame_by_cluster_matrix = np.load(
-                os.path.join(loaded_session.base_path, loaded_session.processed_path) + "\\" + "frame_by_" + "good" + "_cluster_matrix.npy"
+                os.path.join(loaded_session["base_path"], loaded_session["processed_path"]) + "\\" + "frame_by_" + "good" + "_cluster_matrix.npy"
             )
 
             good_cluster_ids = np.load(os.path.join(session_path, "good_cluster_ids.npy"))

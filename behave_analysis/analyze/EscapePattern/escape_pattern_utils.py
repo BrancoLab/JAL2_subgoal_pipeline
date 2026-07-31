@@ -13,13 +13,7 @@ def define_bin_edges(settings, tuning_var):
     """Define bin edges based on settings.tuning_var and settings.tuning_bins."""
     # if tuning_bins is an integer, create that many bins between min and max of the variable
 
-    range_dict = {
-        "bird_dist_shelter": (0, 900),
-        "frac_route": (0, 1),
-        "distance_shelter": (0, 1200),
-        "speed": (0, 100),
-        "y_pos": (0, 1024)
-    }
+    range_dict = {"bird_dist_shelter": (0, 900), "frac_route": (0, 1), "distance_shelter": (0, 1200), "speed": (0, 100), "y_pos": (0, 1024)}
 
     if isinstance(settings.ep_bins, int):
         if tuning_var == "2D_position":
@@ -53,7 +47,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
 
     # 1. make predicted neural matrix
     if var2_t1.ndim > 1:
-        if var2_t1.shape[1] == 2: # 2D position!
+        if var2_t1.shape[1] == 2:  # 2D position!
             # var2_t1 should be zero indexed
             valid_idx = ~np.isnan(var2_t1).any(axis=1)  # only consider time points where we have non-nan values for both dimensions of position
             for n in range(n_neur):
@@ -62,13 +56,13 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
                     v = fr_var2_t2[c, :, :, n]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
                     pred = v[u[:, 0], u[:, 1]]
                     v2_predicted_matrix[n, (cond_t1 == c) & valid_idx] = pred
-        elif var2_t1.shape[1] == 1: # 1D variable!
+        elif var2_t1.shape[1] == 1:  # 1D variable!
             var2_t1 = var2_t1.ravel()  # make sure it's a 1D vector
             # identify non-nan time points in var2_t1
             valid_idx = ~np.isnan(var2_t1)
             for n in range(n_neur):
                 for c in range(n_cond):
-                    u= var2_t1[(cond_t1 == c) & valid_idx].astype(int)  # binned <var2> in <ctx1> and condition c
+                    u = var2_t1[(cond_t1 == c) & valid_idx].astype(int)  # binned <var2> in <ctx1> and condition c
                     v = fr_var2_t2[c, n, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
                     pred = v[u]
                     v2_predicted_matrix[n, (cond_t1 == c) & valid_idx] = pred
@@ -128,9 +122,13 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
             x_pos=np.array([aefizz.video_df["mouse_x_position"].to_numpy()[int(ons[idx])]]),
             y_pos=np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(ons[idx])]]),
             cond=np.array([condition[idx]]),
-            shelter_location=[np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]] if aefizz.session.shelter_location is not None else [aefizz.session.video.height/2, aefizz.session.video.height/2],
-            barrier_location1=aefizz.session.barrier_location[0] if aefizz.session.barrier_location is not None else None,
-            barrier_location2=aefizz.session.barrier_location[1] if aefizz.session.barrier_location is not None else None,
+            shelter_location=(
+                [np.mean([aefizz.session["shelter_location"][0][0], aefizz.session["shelter_location"][1][0]]), aefizz.session["shelter_location"][0][1]]
+                if aefizz.session["shelter_location"] is not None
+                else [aefizz.session["video"]["height"] / 2, aefizz.session["video"]["height"] / 2]
+            ),
+            barrier_location1=aefizz.session["barrier_location"][0] if aefizz.session["barrier_location"] is not None else None,
+            barrier_location2=aefizz.session["barrier_location"][1] if aefizz.session["barrier_location"] is not None else None,
         )
         optimal_distances[idx] = dist_to_shelter[0]
 
@@ -152,10 +150,10 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
     if "to_subgoal" in escape_pattern_time:  # homings that go to the subgoal-ish
         ends = np.array([aefizz.video_df["mouse_y_position"].to_numpy()[int(off)] for off in offs])
         keepers = keepers & (ends > 450) & (ends < 530)
-    
+
     if "not" in escape_pattern_time:
         keepers = ~keepers
-    
+
     if np.sum(keepers) < aefizz.settings.ep_min_homings:
         logger.warning(f"Only {np.sum(keepers)} homing/escapes meet the criteria for {escape_pattern_time}")
 
@@ -167,6 +165,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         "trajectory_length": trajectory_length[keepers],
         "spatial_efficiency": spatial_efficiency[keepers],
     }
+
 
 def homing_escape_filtering_vector(nframes, onset_dict, xpos, ypos, shelter_location, interpolation_mult=1):
     """This function builds two boolean vectors of length time which are True when the mouse is in homing or escape periods
@@ -210,6 +209,7 @@ def homing_escape_filtering_vector(nframes, onset_dict, xpos, ypos, shelter_loca
 
     return homing_vector, escape_vector
 
+
 def get_homings_onsets_in_filtered_time(filtering_vector):
     """This function returns the homing onsets that are within the filtered time vector
     while filtered_vector gives you the onsets in recording time, this function returns them in filtered time (e.g. to index into the escape_matrix or escape_tuning discretized var)
@@ -247,7 +247,7 @@ def homing_escape_boolean_vectors(object, n_frames):
 ###------------------------COMPUTE BEHAVIORAL VARIABLES----------------------
 
 
-def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector=[], interpolation=True, discretize = True):
+def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask_vector=[], interpolation=True, discretize=True):
     """This function returns the discretized behavioral variable of interest
     INPUTS:
         aefizz: AnalyzeEfizz object
@@ -260,11 +260,14 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
     """
     # compute distance to shelter along the shortest path (i.e. around barrier if present)
     if tuning_var in ["distance_shelter"]:
-        shelter = [np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]]
+        shelter = [np.mean([aefizz.session["shelter_location"][0][0], aefizz.session["shelter_location"][1][0]]), aefizz.session["shelter_location"][0][1]]
         var = compute_dist_shelt(
-            x, y, condition, shelter_location=shelter, 
-            barrier_location1=aefizz.session.barrier_location[0] if len(aefizz.session.barrier_location) > 0 else None,
-            barrier_location2=aefizz.session.barrier_location[1] if len(aefizz.session.barrier_location) > 1 else None
+            x,
+            y,
+            condition,
+            shelter_location=shelter,
+            barrier_location1=aefizz.session["barrier_location"][0] if len(aefizz.session["barrier_location"]) > 0 else None,
+            barrier_location2=aefizz.session["barrier_location"][1] if len(aefizz.session["barrier_location"]) > 1 else None,
         )
 
     # compute distance to first goal (either shelter or subgoal)
@@ -273,11 +276,14 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
 
     # compute bird's eye distance to shelter or first goal (i.e. through barrier if present)
     elif tuning_var in ["bird_dist_shelter"]:
-        shelter = [np.mean([aefizz.session.shelter_location[0][0], aefizz.session.shelter_location[1][0]]), aefizz.session.shelter_location[0][1]]
+        shelter = [np.mean([aefizz.session["shelter_location"][0][0], aefizz.session["shelter_location"][1][0]]), aefizz.session["shelter_location"][0][1]]
         var = compute_dist_shelt(
-            x, y, cond=np.full_like(x, "shelter_only"), shelter_location=shelter, 
-            barrier_location1=aefizz.session.barrier_location[0] if len(aefizz.session.barrier_location) > 0 else None, 
-            barrier_location2=aefizz.session.barrier_location[1] if len(aefizz.session.barrier_location) > 1 else None
+            x,
+            y,
+            cond=np.full_like(x, "shelter_only"),
+            shelter_location=shelter,
+            barrier_location1=aefizz.session["barrier_location"][0] if len(aefizz.session["barrier_location"]) > 0 else None,
+            barrier_location2=aefizz.session["barrier_location"][1] if len(aefizz.session["barrier_location"]) > 1 else None,
         )
         # cond=np.zeros_like(x) is a hack which forces bird's eye distance, ignoring barrier
 
@@ -414,22 +420,22 @@ def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural
 
 # ------------------------------------Linear Shift Stats------------------------------------
 
-def build_shift_vector(ET, full_condition_vector, settings):
 
+def build_shift_vector(ET, full_condition_vector, settings):
     """This function builds a list of shifts and a vector of where to sample the central third of each condition for linear shift statistics
     If settings.escape_pattern_time is 'homing&escape' it makes sure there are enough homings in each central third"""
 
     # --- 1. Compute condition boundaries (in interpolated frame space) ---
     mult = settings.ep_interpolation_mult
-    ttime = len(full_condition_vector) # total number of (interpolated) frames in the session
+    ttime = len(full_condition_vector)  # total number of (interpolated) frames in the session
     cond_start_end = [(np.where(full_condition_vector == i)[0][0], np.where(full_condition_vector == i)[0][-1]) for i in np.unique(full_condition_vector)]
 
     # --- 2. Define the central third of each condition ---
     # These are the "null" windows: data that won't be shifted past its own condition boundary
     shift_total_size_one_side = (
-            (settings.linshift_step * mult * (settings.linshift_step_n / 2)) + (settings.linshift_min_step * mult) + 1
-    )# total size of shifts on one side (e.g. 10s step * 3 steps = 30s)
-    shift_range = [(a+shift_total_size_one_side, b-shift_total_size_one_side) for (a,b) in cond_start_end]
+        (settings.linshift_step * mult * (settings.linshift_step_n / 2)) + (settings.linshift_min_step * mult) + 1
+    )  # total size of shifts on one side (e.g. 10s step * 3 steps = 30s)
+    shift_range = [(a + shift_total_size_one_side, b - shift_total_size_one_side) for (a, b) in cond_start_end]
 
     # --- 3. Define the shift amounts (one-sided, in interpolated frames) ---
     # e.g. min_step=3s, step=10s → shifts at 3s, 13s, 23s, ... (multiplied by interpolation factor)
@@ -469,8 +475,8 @@ def build_shift_vector(ET, full_condition_vector, settings):
 
     # --- 5. Build the boolean shift_vector marking the central chunk of each condition ---
     shift_vector = np.zeros(ttime)
-    for (a, b) in shift_range:
-        shift_vector[int(a):int(b)] = 1
+    for a, b in shift_range:
+        shift_vector[int(a) : int(b)] = 1
     shift_vector = shift_vector.astype(bool)
 
     # --- 6. Trim shifts that would go out of bounds ---
@@ -482,7 +488,9 @@ def build_shift_vector(ET, full_condition_vector, settings):
 
     return shifts, shift_vector
 
+
 # ------------------------------------Helper functions------------------------------------
+
 
 def discretize(var, bins):
     """Bin the var using bins,
@@ -550,4 +558,3 @@ def parse_side(side):
         raise ValueError("The tuning string must be of the form '<var> in <context>'")
     var, ctx = side.split(" in ", 1)
     return var.strip(), ctx.strip()
-

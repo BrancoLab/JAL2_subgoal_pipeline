@@ -29,6 +29,7 @@ from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.utils.polar_cartesian_projections import negative_radians_to_positive
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 
+
 def _wrap_to_pi(values: np.ndarray) -> np.ndarray:
     return (values + np.pi) % (2 * np.pi) - np.pi
 
@@ -44,7 +45,7 @@ class get_Homings:
 
         if self.settings.homings_use_boris == True:
             # if we want to use manula laelling chck that the data is present
-            boris_path = os.path.join(self.session.base_path, self.session.processed_path, "Borris", "scored_homings.csv")
+            boris_path = os.path.join(self.session["base_path"], self.session["processed_path"], "Borris", "scored_homings.csv")
             if os.path.isfile(boris_path):
                 self.use_boris = True
             else:
@@ -55,7 +56,7 @@ class get_Homings:
 
         if len(video_df) == 0:
             try:
-                self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv"))
+                self.video_df = pl.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], "full_video_dataframe.csv"))
             except FileNotFoundError:
                 logger.error("Video df not found, homings will not be computed")
                 self.video_df = pl.DataFrame()
@@ -90,14 +91,14 @@ class get_Homings:
         return self.homing
 
     def get_reference_variables(self):
-        if len(self.session.barrier_time) > 0:
-            self.barrier_location = self.session.barrier_location
+        if len(self.session["barrier_time"]) > 0:
+            self.barrier_location = self.session["barrier_location"]
         else:
             self.barrier_location = [[800, 512], [224, 512], [512, 512]]
 
         shelter_location = [
-            int(np.mean([self.session.shelter_location[0][0], self.session.shelter_location[1][0]])),
-            int(np.mean([self.session.shelter_location[0][1], self.session.shelter_location[1][1]])),
+            int(np.mean([self.session["shelter_location"][0][0], self.session["shelter_location"][1][0]])),
+            int(np.mean([self.session["shelter_location"][0][1], self.session["shelter_location"][1][1]])),
         ]
         self.reference_locations = shelter_location + self.barrier_location[:-1]
 
@@ -121,7 +122,7 @@ class get_Homings:
 
     def load_manual_labels(self):
         """Load manual labels from the BORIS CSV and convert to 0-based indexing."""
-        df = pd.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "Borris", "scored_homings.csv"))
+        df = pd.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], "Borris", "scored_homings.csv"))
         columns_to_keep = ["Time", "Image index", "Behavior type"]
         fdf = df[columns_to_keep]
         time = fdf["Time"].to_numpy()
@@ -138,7 +139,7 @@ class get_Homings:
         assert np.diff(onsets).all() > 0, "Onsets are not increasing"
         assert np.diff(offsets).all() > 0, "Offsets are not increasing"
         durations = offsets - onsets
-        durations = np.array([[x] for x in durations / self.session.video.fps])
+        durations = np.array([[x] for x in durations / self.session["video"]["fps"]])
         return onsets, durations, offsets
 
     def identify_homing_runs_with_logic(self):
@@ -169,15 +170,15 @@ class get_Homings:
         speed = np.asarray(self.tracking_data["avg_Velocity"])
         if len(speed) == 0:
             return speed
-        smoothed = gaussian_filter1d(speed, sigma=max(self.session.video.fps / 10, 1), mode="nearest")
+        smoothed = gaussian_filter1d(speed, sigma=max(self.session["video"]["fps"] / 10, 1), mode="nearest")
         if np.max(smoothed) > 120:
             logger.info("Homing speed is too high, check tracking data")
         return smoothed
 
     def get_speed_along_y_axis(self) -> np.ndarray:
         speed_y_pixel_per_frame = np.diff(self.tracking_data["avg_loc"][:, 1], axis=0)
-        speed_y_cm_per_sec = speed_y_pixel_per_frame * self.session.video.fps / self.session.video.pixels_per_cm
-        smoothed_speed_y_cm_per_sec = gaussian_filter1d(speed_y_cm_per_sec, sigma=max(self.session.video.fps / 10, 1), mode="nearest")
+        speed_y_cm_per_sec = speed_y_pixel_per_frame * self.session["video"]["fps"] / self.session["video"]["pixels_per_cm"]
+        smoothed_speed_y_cm_per_sec = gaussian_filter1d(speed_y_cm_per_sec, sigma=max(self.session["video"]["fps"] / 10, 1), mode="nearest")
         speed_along_y_axis = np.concatenate((np.zeros(1), smoothed_speed_y_cm_per_sec))
         return speed_along_y_axis
 
@@ -192,7 +193,7 @@ class get_Homings:
         speed_y = features["speed_y"]
         angles = features["angles"]
 
-        fps = self.session.video.fps
+        fps = self.session["video"]["fps"]
         pause_frames = max(1, int(round(self.settings.homing_max_pause_duration * fps)))
         run_min_frames = max(1, int(round(self.settings.homing_run_sustained_duration * fps)))
         lookback_frames = max(1, int(round(self.settings.homing_turn_to_run_window * fps)))
@@ -327,8 +328,8 @@ class get_Homings:
         speed_seg = speed[onset : offset + 1]
         segment_y = self.tracking_data["avg_loc"][onset : offset + 1, 1]
         segment_x = self.tracking_data["avg_loc"][onset : offset + 1, 0]
-        ppc = self.session.video.pixels_per_cm
-        fps = self.session.video.fps
+        ppc = self.session["video"]["pixels_per_cm"]
+        fps = self.session["video"]["fps"]
 
         dx_cm = (segment_x[-1] - segment_x[0]) / ppc
         dy_cm = (segment_y[-1] - segment_y[0]) / ppc
@@ -383,13 +384,13 @@ class get_Homings:
         h_bar_pre_flip_pos = np.unwrap(angular_data_frame["h_preflipbar_a"].to_numpy())
         h_bar_post_flip_pos = np.unwrap(angular_data_frame["h_postflipbar_a"].to_numpy())
 
-        hsa_turn_speed = -np.diff(hsa_pos) * self.session.video.fps
-        h_bar_preflip_a_turn_speed = -np.diff(h_bar_pre_flip_pos) * self.session.video.fps
-        h_bar_postflip_a_turn_speed = -np.diff(h_bar_post_flip_pos) * self.session.video.fps
+        hsa_turn_speed = -np.diff(hsa_pos) * self.session["video"]["fps"]
+        h_bar_preflip_a_turn_speed = -np.diff(h_bar_pre_flip_pos) * self.session["video"]["fps"]
+        h_bar_postflip_a_turn_speed = -np.diff(h_bar_post_flip_pos) * self.session["video"]["fps"]
 
-        hsa_turn_speed = gaussian_filter1d(hsa_turn_speed, sigma=max(self.session.video.fps / 10, 1), mode="nearest")
-        h_bar_preflip_a_turn_speed = gaussian_filter1d(h_bar_preflip_a_turn_speed, sigma=max(self.session.video.fps / 10, 1), mode="nearest")
-        h_bar_postflip_a_turn_speed = gaussian_filter1d(h_bar_postflip_a_turn_speed, sigma=max(self.session.video.fps / 10, 1), mode="nearest")
+        hsa_turn_speed = gaussian_filter1d(hsa_turn_speed, sigma=max(self.session["video"]["fps"] / 10, 1), mode="nearest")
+        h_bar_preflip_a_turn_speed = gaussian_filter1d(h_bar_preflip_a_turn_speed, sigma=max(self.session["video"]["fps"] / 10, 1), mode="nearest")
+        h_bar_postflip_a_turn_speed = gaussian_filter1d(h_bar_postflip_a_turn_speed, sigma=max(self.session["video"]["fps"] / 10, 1), mode="nearest")
 
         hsa_turn_speed = np.concatenate((np.zeros(1), hsa_turn_speed))
         h_bar_preflip_a_turn_speed = np.concatenate((np.zeros(1), h_bar_preflip_a_turn_speed))
@@ -418,7 +419,7 @@ class get_Homings:
         return video_df.select(["hsa", "h_preflipbar_a", "h_postflipbar_a"])
 
     def save_session(self) -> None:
-        folder = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "homings_new_logic"))
+        folder = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"], "homings_new_logic"))
         file_name = os.path.join(folder, "homings_obj.pkl")
         with open(file_name, "wb") as dill_file:
             pickle.dump(self.homing, dill_file)
@@ -431,6 +432,7 @@ class get_Homings:
 
 # -------- HOMING FEATURE FUNCTIONS --------------
 # Reused from the legacy module for downstream compatibility.
+
 
 def cum_distance(x, y, pixels_per_cm) -> float:
     """Returns the frame when the cumulative distance travelled by the mouse in cm hits the threshold

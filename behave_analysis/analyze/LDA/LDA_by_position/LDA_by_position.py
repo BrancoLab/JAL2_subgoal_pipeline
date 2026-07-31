@@ -23,6 +23,7 @@ from behave_analysis.analyze.LDA.LDA_preprocess import (
 )
 from behave_analysis.analyze.LDA.LDA_fitting import linear_discriminant_analysis
 
+
 def run_LDA_model_by_position(aefizz, target_name):
     """
     A function that iterates across all angles and runs decoder analysis and linear shift statistics based on user settings
@@ -37,40 +38,41 @@ def run_LDA_model_by_position(aefizz, target_name):
 
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(aefizz)
-    bp, bc = BinArenaEqualParts(filtered_video_df, numpoints = aefizz.num_slices, numrings = aefizz.num_circles, radius = 460, video = aefizz.session.video)
+    bp, bc = BinArenaEqualParts(filtered_video_df, numpoints=aefizz.num_slices, numrings=aefizz.num_circles, radius=460, video=aefizz.session["video"])
     filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", bp)])
-    prediction_accuracy.update({'num_slices' : aefizz.num_slices})
-    prediction_accuracy.update({'num_circles' : aefizz.num_circles})
-    prediction_accuracy.update({'bin_centre' : bc})
+    prediction_accuracy.update({"num_slices": aefizz.num_slices})
+    prediction_accuracy.update({"num_circles": aefizz.num_circles})
+    prediction_accuracy.update({"bin_centre": bc})
 
     for variable in target_name:
 
         logger.info(f"Running LDA on {variable}")
-        
+
         # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
         if np.logical_and(aefizz.settings.exclude_proximal > 0, variable != "hdir"):
-            logger.warning(
-                "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
-            )
+            logger.warning("You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions")
             aefizz.filtered_video_df_full = exclude_proximal_frames(
-                filtered_video_df, variable, aefizz.tracking_data, dist_thresh=aefizz.settings.exclude_proximal * aefizz.session.video.pixels_per_cm
+                filtered_video_df, variable, aefizz.tracking_data, dist_thresh=aefizz.settings.exclude_proximal * aefizz.session["video"]["pixels_per_cm"]
             )
         else:
             aefizz.filtered_video_df_full = filtered_video_df
 
         # now iterate over the positions!
-        for b in tqdm(np.unique(aefizz.filtered_video_df_full['binned_position'].to_numpy()), desc=f"Running LDA on position out of {len(np.unique(aefizz.filtered_video_df_full['binned_position'].to_numpy()))}"):
+        for b in tqdm(
+            np.unique(aefizz.filtered_video_df_full["binned_position"].to_numpy()),
+            desc=f"Running LDA on position out of {len(np.unique(aefizz.filtered_video_df_full['binned_position'].to_numpy()))}",
+        ):
             if b == 0:
                 continue
-            aefizz.filtered_video_df = aefizz.filtered_video_df_full.filter(aefizz.filtered_video_df_full['binned_position'] == b)
+            aefizz.filtered_video_df = aefizz.filtered_video_df_full.filter(aefizz.filtered_video_df_full["binned_position"] == b)
             # if no frames meet the criteria, make this condition blank
             if len(aefizz.filtered_video_df) == 0:
                 prediction_coef, prediction_accuracy, LDA_y_output, LS_compiled, dropout_pa = fill_dict_with_zeros(
-                    aefizz, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable + '_pos' + str(b)
+                    aefizz, prediction_coef, prediction_accuracy, LDA_y_output, dropout_pa, LS_compiled, variable + "_pos" + str(b)
                 )
             else:
                 target, X = prep_target_and_predictors(aefizz, variable)
-                savename = variable + '_pos' + str(b)
+                savename = variable + "_pos" + str(b)
 
                 # run LDA on different angles
                 if aefizz.do_LDA:
@@ -78,18 +80,18 @@ def run_LDA_model_by_position(aefizz, target_name):
                         X,
                         pos_ang=target,
                         epoch_num=aefizz.settings.epoch_num,
-                        fr=aefizz.session.video.fps,
+                        fr=aefizz.session["video"]["fps"],
                         return_coef=True,
                         discriminant_type=aefizz.settings.discriminant_type,
                         plotting=False,
                         aefizz=aefizz,
                         title=savename,
-                        subsampling = aefizz.settings.subsampling,
+                        subsampling=aefizz.settings.subsampling,
                     )
-                    prediction_accuracy.update({variable + '_pos' + str(b): pa})
-                    prediction_accuracy.update({variable + '_time' + str(b): frames})
-                    prediction_coef.update({variable + '_pos' + str(b): coef})
-                    LDA_y_output.update({variable + '_pos' + str(b): y_out})
+                    prediction_accuracy.update({variable + "_pos" + str(b): pa})
+                    prediction_accuracy.update({variable + "_time" + str(b): frames})
+                    prediction_coef.update({variable + "_pos" + str(b): coef})
+                    LDA_y_output.update({variable + "_pos" + str(b): y_out})
 
                 # run LDA with individual cell dropout
                 if aefizz.do_dropout:
@@ -112,7 +114,7 @@ def run_LDA_model_by_position(aefizz, target_name):
                         step=40,
                         size_of_central_chunk=np.round(np.shape(X)[0] * 0.9),
                     )
-                    LS_compiled.update({variable + '_pos' + str(b): LS_output})
+                    LS_compiled.update({variable + "_pos" + str(b): LS_output})
                     del LS_output
 
     logger.info(f"Finally! It's time to save LDA output on {aefizz.condition}")

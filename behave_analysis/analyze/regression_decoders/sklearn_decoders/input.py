@@ -22,7 +22,7 @@ def split_data(x, y, test_size=0.2):
 
 
 def remove_hdir_cells(session, cluster_matrix, cluster_ids):
-    path = os.path.join(session.base_path, session.processed_path, "cells", "hdir_cells.pkl")
+    path = os.path.join(session["base_path"], session["processed_path"], "cells", "hdir_cells.pkl")
 
     # Load the hdir cell ids
     with open(path, "rb") as f:

@@ -11,7 +11,7 @@ from matplotlib.lines import Line2D
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 
-matplotlib.use("Agg") # only use TkAgg in debugger
+matplotlib.use("Agg")  # only use TkAgg in debugger
 
 from settings.settings_analyze_efizz import Settings_ae
 from behave_analysis.analyze.stats.linshit import LinearShift
@@ -28,7 +28,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
     """Compute rayleigh for all angles in all desired conditions AND if Settings_analyze_efizz.multi_cluster_plots = True,
     it also plots all clusters per angle"""
     if aefizz.settings.linear_shift:
-        pool = PersistentPool(workers = 20)
+        pool = PersistentPool(workers=20)
     else:
         pool = None
     # determine condition types
@@ -38,7 +38,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
         for c in aefizz.all_conditions:
             aefizz.condition = c
             filtered_video_df = select_relevant_frames(aefizz)
-            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition, compartment = [])
+            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition, compartment=[])
             compartment = identify_which_compartment(aefizz, filtered_video_df)
             if np.logical_or(not check_if_rayleigh_exists(aefizz, all_angles), aefizz.settings.redo_compute):
                 for a in all_angles:
@@ -50,7 +50,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
                     rayleigh_vector(aefizz, this_df, X, a, data_path, compartment, pool)
         # plot all conditions in this condition types for each cluster
         if aefizz.settings.single_cluster_plots:
-            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, condition = [], compartment = [])
+            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, condition=[], compartment=[])
             plot_save_path = make_directory(os.path.join(data_path, "single_cluster_plots"))
             single_cluster_plots(aefizz, all_angles, aefizz.all_conditions, data_path, plot_save_path)
     if aefizz.settings.linear_shift:
@@ -58,6 +58,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
 
 
 # -------------------------------------------------------------------------------------------------
+
 
 def check_if_rayleigh_exists(aefizz, all_angles):
     """Check if the Rayleigh vectors have already been computed and saved"""
@@ -163,10 +164,11 @@ def extract_max_hz(clu: int, all_angles: list, all_conditions: list, base_path: 
                 max_firing_rate = max_element
     return int(max_firing_rate)
 
+
 def rayleigh_vector(
     aefizz,
     filtered_video_df: pl.DataFrame,
-    X: np.array, # (n_frames, n_clusters)
+    X: np.array,  # (n_frames, n_clusters)
     angle_filt,
     plot_save_path,
     compartment: np.array,
@@ -186,7 +188,7 @@ def rayleigh_vector(
             where 1 is the shelter side and 2 is the threat zone side
     TODO - Add more details on what each input argument is
 
-    
+
     NOTE - The first index of the multi dimensional arrays is the shelter compartment and the second is the threat zone
     Returns (Saves to the processed folder):
     -- A dataframe with the following columns:
@@ -241,7 +243,7 @@ def rayleigh_vector(
                 count=count,
                 rayleigh=arena_rayleigh,
                 X=X[:, count],
-                fps=aefizz.session.video.fps,
+                fps=aefizz.session["video"]["fps"],
                 flag="whole_arena",
             )
 
@@ -249,8 +251,8 @@ def rayleigh_vector(
             arena_sig[count] = linearshift_rayleigh_significance(X=X[:, count], binned_angles=binned_angles, pool=pool)
 
         # ---------------------- Specific compartment computations ------------------------------------------------------
-        # This should first loop through comparment 1 (shelter zone) and then compartment 2 (threat zone) 
-        
+        # This should first loop through comparment 1 (shelter zone) and then compartment 2 (threat zone)
+
         for c_count, comp in enumerate(np.unique(compartment)):
             # Check if all the spike counts across frames for this cluster are zero
             if sum(X[compartment == comp, count] == 0) == len(X[compartment == comp, count]):
@@ -278,15 +280,15 @@ def rayleigh_vector(
                     nbins=aefizz.settings.number_of_bins,
                     rayleigh=Rayleigh,
                     X=X[compartment == comp, count],
-                    fps=aefizz.session.video.fps,
+                    fps=aefizz.session["video"]["fps"],
                     compartment=compartment,
                     flag="compartments",
                 )
 
     # histogram of rayleighs
     plt.figure()
-    plt.hist(Rayleigh, np.arange(0, 1, 0.1), alpha = .5, color = ['cornflowerblue','darkorchid'])
-    plt.hist([Rayleigh[Rayleigh_sig[:,0] == 1,0],Rayleigh[Rayleigh_sig[:,1] == 1,1]], np.arange(0, 1, 0.1), alpha = .5, color = ['cornflowerblue','darkorchid'])
+    plt.hist(Rayleigh, np.arange(0, 1, 0.1), alpha=0.5, color=["cornflowerblue", "darkorchid"])
+    plt.hist([Rayleigh[Rayleigh_sig[:, 0] == 1, 0], Rayleigh[Rayleigh_sig[:, 1] == 1, 1]], np.arange(0, 1, 0.1), alpha=0.5, color=["cornflowerblue", "darkorchid"])
     # plt.hist(Rayleigh, np.arange(0, 1, 0.1), alpha = 0.5)
     # plt.hist(Rayleigh[Rayleigh_sig == 1,:], np.arange(0, 1, 0.1), alpha = 0.5)
     plt.xlabel("Rayleigh R")
@@ -298,9 +300,7 @@ def rayleigh_vector(
 
     # save rayleigh info for all cluster to csv for this angle in this condition
     if len(np.shape(angle_firing_hist)) == 3:
-        angle_firing_hist = np.reshape(
-            angle_firing_hist, [np.shape(angle_firing_hist)[0], np.shape(angle_firing_hist)[1] * np.shape(angle_firing_hist)[2]]
-        )
+        angle_firing_hist = np.reshape(angle_firing_hist, [np.shape(angle_firing_hist)[0], np.shape(angle_firing_hist)[1] * np.shape(angle_firing_hist)[2]])
 
     rayleigh_results = pl.DataFrame(
         {
@@ -327,9 +327,7 @@ def rayleigh_vector(
         all_clusters_polar_plots(rayleigh_results, folder_name, aefizz.settings.show_plots)
 
 
-def bootstrap_rayleigh_significance(
-    binned_angles, count: int, rayleigh, X, fps: int, flag: str, nbins, comp: int = None, compartment: np.array = None
-) -> int:
+def bootstrap_rayleigh_significance(binned_angles, count: int, rayleigh, X, fps: int, flag: str, nbins, comp: int = None, compartment: np.array = None) -> int:
     """A function that computes the significance of the rayleigh magnitude using bootstrapping"""
     # logger.info(f"Computing significance of Rayleigh vector using bootstrapping for neuron index {count}")
     x = 100
@@ -368,9 +366,7 @@ def linearshift_rayleigh_significance(X: np.array, binned_angles: np.array, pool
     Returns:
     -- significance: 1 if the rayleigh vector is significant, 0 if not"""
     # logger.info("starting linear shift significance test")
-    LS_output = LinearShift(
-        X, y=binned_angles, stat_computation_func=compute_rayleigh_cluster, size_of_central_chunk=np.round(np.shape(X)[0] / 3), PPool=pool
-    )
+    LS_output = LinearShift(X, y=binned_angles, stat_computation_func=compute_rayleigh_cluster, size_of_central_chunk=np.round(np.shape(X)[0] / 3), PPool=pool)
 
     significance = 0
     # significance logical
@@ -498,7 +494,7 @@ def identify_which_compartment(aefizz, filtered_video_df: pl.DataFrame) -> np.nd
     Returns:
     -- compartment: a numpy array of ones and twos of the same length as the filtered_video_df"""
     compartment = np.ones([len(filtered_video_df)])
-    if len(aefizz.session.barrier_time) > 0:
+    if len(aefizz.session["barrier_time"]) > 0:
         compartment[filtered_video_df["mouse_y_position"].to_numpy() < 512] = 2  # threat zone
     return compartment
 
@@ -506,7 +502,7 @@ def identify_which_compartment(aefizz, filtered_video_df: pl.DataFrame) -> np.nd
 ## ---------------------PLOTTING -----------------------------
 
 
-def polar_plot(df, ax, fig, pcentile = None, max_firing_rate=None, cluster_title=True, plot_type="line") -> None:
+def polar_plot(df, ax, fig, pcentile=None, max_firing_rate=None, cluster_title=True, plot_type="line") -> None:
     """Creates a polar plot for a single cluster in a single condition
 
     Visulises the firing rate at each angle (e.g. HD or HSA) for different
@@ -528,11 +524,9 @@ def polar_plot(df, ax, fig, pcentile = None, max_firing_rate=None, cluster_title
     angle_firing = df["angle_firing_hist"].to_list()
 
     if np.shape(angle_firing)[1] > np.shape(df["angles"].to_list())[1]:
-        angle_firing = np.reshape(
-            angle_firing, [int(np.shape(df["angles"].to_list())[1]), int(np.shape(angle_firing)[1] / np.shape(df["angles"].to_list())[1])]
-        )
+        angle_firing = np.reshape(angle_firing, [int(np.shape(df["angles"].to_list())[1]), int(np.shape(angle_firing)[1] / np.shape(df["angles"].to_list())[1])])
         angle_firing = angle_firing.T
-    
+
     if max_firing_rate is None:
         max_firing_rate = np.amax(angle_firing)
     for compartment in np.arange(len(df["Rayleigh"][0])):

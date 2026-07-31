@@ -1,5 +1,5 @@
 """
-This is a script for making egocentric firing maps as in 
+This is a script for making egocentric firing maps as in
 Alexander, A.S., Carstensen, L.C., Hinman, J.R., Raudies, F., Chapman, G.W., Hasselmo, M.E., 2020. Egocentric boundary vector tuning of the retrosplenial cortex. Sci Adv 6, eaaz2322. https://doi.org/10.1126/sciadv.aaz2322
 """
 
@@ -33,8 +33,8 @@ def egocentric_firing_map(spike_data, video_data, clusters, session, conditions,
     # saving path - where to save the figures
     map_path = make_directory(
         os.path.join(
-            session.base_path,
-            session.processed_path,
+            session["base_path"],
+            session["processed_path"],
             "spatial_firing",
             "egocentric_map",
             settings.cluster_type,
@@ -44,9 +44,9 @@ def egocentric_firing_map(spike_data, video_data, clusters, session, conditions,
     # make rendered arena image, add an offset for the cropping window
     # this defines the features that the firing map is built with
     x, y = generate_arena_feature_points(
-        [session.video.height, session.video.width],
-        session.shelter_location,
-        session.barrier_location,
+        [session["video"]["height"], session["video"]["width"]],
+        session["shelter_location"],
+        session["barrier_location"],
     )
 
     if isinstance(conditions, list):
@@ -70,13 +70,13 @@ def egocentric_firing_map(spike_data, video_data, clusters, session, conditions,
             video_df = video_df.select(["frames", "hdir", "mouse_x_position", "mouse_y_position"])
 
             # extract and bin hdir
-            bin_angles, bin_angle_center = generate_bins(number_of_bins=number_of_bins, start = -np.pi, stop = np.pi)
+            bin_angles, bin_angle_center = generate_bins(number_of_bins=number_of_bins, start=-np.pi, stop=np.pi)
             hdir = video_df["hdir"].to_numpy()
             hdir = np.digitize(hdir, bin_angles)
             hdir = bin_angle_center[hdir - 1]
 
             # extract and bin mouse position
-            bin_pos, bin_pos_center = generate_bins(num_pos_bins, 1, session.video.height)  # assuming asquare image of the arena
+            bin_pos, bin_pos_center = generate_bins(num_pos_bins, 1, session["video"]["height"])  # assuming asquare image of the arena
             position = np.vstack(
                 [
                     video_df["mouse_x_position"].to_numpy(),
@@ -131,9 +131,7 @@ def make_map_by_cluster_and_condition_speedy(firing, position, hdir, arena, wind
 
     # generate the map for each hdir + osition combination
     num_arena_points = len(arena[0])
-    summed_rotated = generate_map(
-        window_size, unique_pos, position_hdir_combos, num_arena_points, all_rotated_points, avg_firing, unique_hdir_pos_comb, unique_hdir
-    )
+    summed_rotated = generate_map(window_size, unique_pos, position_hdir_combos, num_arena_points, all_rotated_points, avg_firing, unique_hdir_pos_comb, unique_hdir)
 
     return summed_rotated
 

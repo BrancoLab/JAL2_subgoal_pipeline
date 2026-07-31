@@ -55,14 +55,16 @@ def LDA(aefizz):
         aefizz.condition_types = cond
         for comp in aefizz.settings.compartment_split:  # ['all','threat_zone','shelter_compartment', 'left_arena','right_arena','by_position']
             aefizz.compartment = comp
-            if comp == 'by_position':
+            if comp == "by_position":
                 # figure out which angles we want to decode
-                if np.logical_or(aefizz.variable == 'all_vectors', aefizz.variable == 'all_distance'):
-                    logger.warning("You are running LDA by position to decode vectors or distances, but this dramatically reduces the amount of available data. Run it on 'all_angles' instead")
+                if np.logical_or(aefizz.variable == "all_vectors", aefizz.variable == "all_distance"):
+                    logger.warning(
+                        "You are running LDA by position to decode vectors or distances, but this dramatically reduces the amount of available data. Run it on 'all_angles' instead"
+                    )
                 aefizz.number_of_bins = 9
                 aefizz.num_slices = 6
                 aefizz.num_circles = 3
-                target = choose_predictors(aefizz.variable, aefizz.session, include_rand_points = False)
+                target = choose_predictors(aefizz.variable, aefizz.session, include_rand_points=False)
             else:
                 aefizz.number_of_bins = aefizz.settings.number_of_bins
                 target = choose_predictors(aefizz.variable, aefizz.session)
@@ -75,24 +77,23 @@ def LDA(aefizz):
                     logger.info(
                         f"Run LDA on {aefizz.cluster_type} data with condition {aefizz.condition} in condition type {aefizz.condition_types} in compartment {aefizz.compartment}"
                     )
-                    if comp == 'by_position':
+                    if comp == "by_position":
                         run_LDA_model_by_position(aefizz, target)
                     else:
                         run_LDA_model(aefizz, target)
                 else:
-                    logger.info(
-                        f"LDA already run on this session for condition {aefizz.condition} in condition type {aefizz.condition_types} in compartment {aefizz.compartment}"
-                    )
+                    logger.info(f"LDA already run on this session for condition {aefizz.condition} in condition type {aefizz.condition_types} in compartment {aefizz.compartment}")
                 logger.info(f"Time for some overview plots")
-                if comp == 'by_position':
+                if comp == "by_position":
                     plot_LDA_by_position(aefizz, target)
                 else:
                     plot_LDA_model(aefizz)
-        if np.logical_and(comp != 'by_position', not isinstance(aefizz.variable, list)):
+        if np.logical_and(comp != "by_position", not isinstance(aefizz.variable, list)):
             across_conditions_LDA_map(aefizz)
 
     if np.logical_or(aefizz.settings.dropout, aefizz.settings.linear_shift):
         aefizz.PPool.close()
+
 
 def run_LDA_model(aefizz, target_name):
     """
@@ -109,25 +110,23 @@ def run_LDA_model(aefizz, target_name):
     # filter video_df for this condition
     filtered_video_df = select_relevant_frames(aefizz)
     if aefizz.settings.subsampling:
-        bp, _ = BinArenaEqualParts(filtered_video_df, numpoints = 4, numrings = 1, radius = 460, video = aefizz.session.video)
+        bp, _ = BinArenaEqualParts(filtered_video_df, numpoints=4, numrings=1, radius=460, video=aefizz.session["video"])
     else:
         bp = np.ones(len(filtered_video_df))
     filtered_video_df = filtered_video_df.hstack([pl.Series("binned_position", bp)])
     # remove all frames where binned position is zero as these are outside the arena!
-    filtered_video_df = filtered_video_df.filter((filtered_video_df['binned_position'] > 0))
+    filtered_video_df = filtered_video_df.filter((filtered_video_df["binned_position"] > 0))
 
     for variable in target_name:
 
-        if 'randP' not in variable:
+        if "randP" not in variable:
             logger.info(f"Running LDA on {variable}")
-            
+
             # we can run LDA only for times when the mouse is far from the point we're trying to decode the angle to
             if np.logical_and(aefizz.settings.exclude_proximal > 0, variable != "hdir"):
-                logger.warning(
-                    "You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions"
-                )
+                logger.warning("You are excluding proximal frames! This reduces the amount of data available - recommend only doing this for experimental conditions")
                 aefizz.filtered_video_df = exclude_proximal_frames(
-                    filtered_video_df, variable, aefizz.tracking_data, dist_thresh=aefizz.settings.exclude_proximal * aefizz.session.video.pixels_per_cm
+                    filtered_video_df, variable, aefizz.tracking_data, dist_thresh=aefizz.settings.exclude_proximal * aefizz.session["video"]["pixels_per_cm"]
                 )
             else:
                 aefizz.filtered_video_df = filtered_video_df
@@ -146,7 +145,7 @@ def run_LDA_model(aefizz, target_name):
                         X,
                         pos_ang=target,
                         epoch_num=aefizz.settings.epoch_num,
-                        fr=aefizz.session.video.fps,
+                        fr=aefizz.session["video"]["fps"],
                         return_coef=True,
                         discriminant_type=aefizz.settings.discriminant_type,
                         plotting=True,
@@ -155,7 +154,7 @@ def run_LDA_model(aefizz, target_name):
                         subsampling=aefizz.settings.subsampling,
                     )
                     prediction_accuracy.update({variable: pa})
-                    prediction_accuracy.update({variable + '_time': frames})
+                    prediction_accuracy.update({variable + "_time": frames})
                     prediction_coef.update({variable: coef})
                     LDA_y_output.update({variable: y_out})
 
@@ -192,16 +191,14 @@ def run_LDA_model(aefizz, target_name):
                         filtered_video_df,
                         variable + str(j),
                         aefizz.tracking_data,
-                        dist_thresh=aefizz.settings.exclude_proximal * aefizz.session.video.pixels_per_cm,
+                        dist_thresh=aefizz.settings.exclude_proximal * aefizz.session["video"]["pixels_per_cm"],
                     )
                 else:
                     aefizz.filtered_video_df = filtered_video_df
 
                 # if no frames meet the criteria, make this condition blank
                 if len(aefizz.filtered_video_df) == 0:
-                    prediction_coef, prediction_accuracy, LS_compiled = fill_dict_with_zeros(
-                        aefizz, prediction_coef, prediction_accuracy, LS_compiled, variable + str(j)
-                    )
+                    prediction_coef, prediction_accuracy, LS_compiled = fill_dict_with_zeros(aefizz, prediction_coef, prediction_accuracy, LS_compiled, variable + str(j))
 
                 else:
                     target, X = prep_target_and_predictors(aefizz, str(variable + str(j)))
@@ -212,16 +209,16 @@ def run_LDA_model(aefizz, target_name):
                             X,
                             pos_ang=target,
                             epoch_num=aefizz.settings.epoch_num,
-                            fr=aefizz.session.video.fps,
+                            fr=aefizz.session["video"]["fps"],
                             return_coef=True,
                             discriminant_type=aefizz.settings.discriminant_type,
-                            plotting=False, # TODO: needs to be false!
+                            plotting=False,  # TODO: needs to be false!
                             self=aefizz,
                             title=variable,
                             subsampling=aefizz.settings.subsampling,
                         )
                         prediction_accuracy.update({str(variable + str(j)): pa})
-                        prediction_accuracy.update({'time_rP'+str(j): frames})
+                        prediction_accuracy.update({"time_rP" + str(j): frames})
                         prediction_coef.update({str(variable + str(j)): coef})
                         LDA_y_output.update({str(variable + str(j)): y_out})
 

@@ -79,23 +79,23 @@ class Track(DLC):
             logger.error(
                 "This session has not been registered yet. Please register the video before processing tracking data. This could happen if you skip regreistation on the last process you did"
             )
-            logger.error(f"Registration details not found; and subsequently the tracking can't be processed for session: {session.number} - {session.name}")
+            logger.error(f"Registration details not found; and subsequently the tracking can't be processed for session: {session["number"]} - {session["name"]}")
             logger.info(f"The transform matrix is currently: {self.registration_transform}. This should be a matrix and not None or False.")
             assert self.registration_transform is not None, "The transform regristration details are not found, this is produced when you click on the arena during process."
 
         # Check if processing has FULLY been completed before
-        self.processingExists = os.path.isfile(os.path.join(session.base_path, session.processed_path, "fully_processed_tracking_data.pickle"))
+        self.processingExists = os.path.isfile(os.path.join(session["base_path"], session["processed_path"], "fully_processed_tracking_data.pickle"))
 
         # If processing has been done before and you don't want to redo it then log it
         if self.processingExists and not self.settings.redo_processing_step:
-            logger.info(f"Tracking data already filtered and registered for session: {session.number} - {session.name}")
+            logger.info(f"Tracking data already filtered and registered for session: {session["number"]} - {session["name"]}")
 
         # If processing has not been done before or you want to redo it then run it
         else:
             if self.settings.redo_processing_step:
                 logger.info("You have choosen to redo processing step")
 
-            logger.info(f"Processing tracking data for session: {session.number} - {session.name}")
+            logger.info(f"Processing tracking data for session: {session["number"]} - {session["name"]}")
 
             # Processing tracking data
             self.create_dlc_tracking_array(session)
@@ -121,8 +121,8 @@ class Track(DLC):
         if self.settings.inverse_fisheye_correction_file:
             inverse_fisheye_map = np.load(self.settings.inverse_fisheye_correction_file)
             self.fisheye_corrected_tracking_data_array = inverse_fisheye_map[
-                self.tracking_data_array[:, :, 1].astype(np.uint16) + session.video.y_offset, self.tracking_data_array[:, :, 0].astype(np.uint16) + session.video.x_offset, :2
-            ] - np.array([session.video.x_offset, session.video.y_offset])
+                self.tracking_data_array[:, :, 1].astype(np.uint16) + session["video"]["y_offset"], self.tracking_data_array[:, :, 0].astype(np.uint16) + session["video"]["x_offset"], :2
+            ] - np.array([session["video"]["x_offset"], session["video"]["y_offset"]])
         else:
             self.fisheye_corrected_tracking_data_array = self.tracking_data_array[:, :, :2]
 
@@ -136,12 +136,12 @@ class Track(DLC):
         registration_transform = self.registration_transform
 
         for i, bodypart in enumerate(self.tracking_data_body_parts["bodyparts"]):
-            if "affine" in session.video.registration_type:
+            if "affine" in session["video"]["registration_type"]:
                 affine_transform = np.append(registration_transform, np.zeros((1, 3)), 0)
                 self.registered_tracking_data_before_kalman[bodypart] = cv2.transform(
                     np.array([self.fisheye_corrected_tracking_data_array[:, i, 0:2].astype(np.float32)]), affine_transform
                 )[0]
-            if "homography" in session.video.registration_type:
+            if "homography" in session["video"]["registration_type"]:
                 self.registered_tracking_data_before_kalman[bodypart] = cv2.perspectiveTransform(
                     np.array([self.fisheye_corrected_tracking_data_array[:, i, 0:2].astype(np.float32)]), registration_transform
                 )[0]
@@ -159,7 +159,7 @@ class Track(DLC):
         """
 
         # Check if kalman tracking data already exists
-        if os.path.isfile(os.path.join(session.base_path, session.processed_path, "kalman_tracking_data.pickle")):
+        if os.path.isfile(os.path.join(session["base_path"], session["processed_path"], "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
 
         # Create new kalman tracking data
@@ -190,7 +190,7 @@ class Track(DLC):
         """
         Save the kalman tracking dictionary to a pickle file contained within the session folder.
         """
-        savePath = os.path.join(session.base_path, session.processed_path, "kalman_tracking_data.pickle")
+        savePath = os.path.join(session["base_path"], session["processed_path"], "kalman_tracking_data.pickle")
         with open(savePath, "wb") as dill_file:
             pickle.dump(dictionary, dill_file)
 
@@ -207,10 +207,10 @@ class Track(DLC):
             self.compute_angle_random_points(session)
         self.compute_new_average_speed(session)
         # Reincluding philips compute speed function as it has a relative to shelter var needed for homings
-        if session.shelter_location is not None:
+        if session["shelter_location"] is not None:
             shelter_location = [
-                int(np.mean([session.shelter_location[0][0], session.shelter_location[1][0]])),
-                int(np.mean([session.shelter_location[0][1], session.shelter_location[1][1]])),
+                int(np.mean([session["shelter_location"][0][0], session["shelter_location"][1][0]])),
+                int(np.mean([session["shelter_location"][0][1], session["shelter_location"][1][1]])),
             ]
         else:
             shelter_location = None
@@ -269,10 +269,10 @@ class Track(DLC):
         """
         A function to compute the angle between the heading of the mouse and the shelter.
         """
-        if len(session.shelter_time) > 0:
+        if len(session["shelter_time"]) > 0:
             # calculate body to shelter angle
             # this used to be calculated with self.region_tracking_data['avg_loc']
-            self.region_tracking_data["shelter_loc"] = session.shelter_location
+            self.region_tracking_data["shelter_loc"] = session["shelter_location"]
             xdist = -self.region_tracking_data["head_loc"][:, 0] + int(np.mean([self.region_tracking_data["shelter_loc"][0][0], self.region_tracking_data["shelter_loc"][1][0]]))
             ydist = -self.region_tracking_data["head_loc"][:, 1] + int(np.mean([self.region_tracking_data["shelter_loc"][0][1], self.region_tracking_data["shelter_loc"][1][1]]))
             # the next line gives you angles that are positive counterclockwise and negative clockwise
@@ -296,9 +296,9 @@ class Track(DLC):
         A function to compute the angle between the heading of the mouse and the barrier edges.
         """
 
-        if len(session.barrier_time) > 0:
+        if len(session["barrier_time"]) > 0:
             # initialize variables
-            self.region_tracking_data["barrier_loc"] = session.barrier_location
+            self.region_tracking_data["barrier_loc"] = session["barrier_location"]
         else:
             self.region_tracking_data["barrier_loc"] = [[800, 512], [224, 512], [512, 512]]  # for sessions with no barrier when we still want to know the angless to the barrier
 
@@ -333,7 +333,7 @@ class Track(DLC):
             cv2.destroyAllWindows()
             self.region_tracking_data["randP_loc"] = self.clicked_points
         elif self.settings.random_points == "full_arena":
-            size = session.video.height  # assuming a square image
+            size = session["video"]["height"]  # assuming a square image
             all_posX = []
             all_posY = []
             numpoints = 64
@@ -374,9 +374,9 @@ class Track(DLC):
         # # I think this produces pixesls speed pixels per frame.
         # # not smoothing  because of kalman
         # print()
-        # self.region_tracking_data['avg_Velocity'] = (pixelSpeed / session.video.pixels_per_cm)
+        # self.region_tracking_data['avg_Velocity'] = (pixelSpeed / session["video"]["pixels_per_cm"])
         # is this in seconds though?
-        # self.region_tracking_data['avg_Velocity'] = pixelSpeed * session.video.fps / session.video.pixels_per_cm
+        # self.region_tracking_data['avg_Velocity'] = pixelSpeed * session["video"]["fps"] / session["video"]["pixels_per_cm"]
 
         """Philips old working code"""
         # Here is the speed of the mouse using the average of the body parts, but not the direct kalman filter output
@@ -386,12 +386,12 @@ class Track(DLC):
 
         speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data["avg_loc"], axis=0)
         speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
-        speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
+        speed_cm_per_sec = speed_pixel_per_frame * session["video"]["fps"] / session["video"]["pixels_per_cm"]
         # interpolated to make it the same length as every other variable!!
         self.region_tracking_data["avg_Velocity"] = np.interp(
             np.arange(len(self.region_tracking_data["avg_loc"])),
             np.arange(len(speed_x_and_y_pixel_per_frame)) + 0.5,
-            gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps / 10),
+            gaussian_filter1d(speed_cm_per_sec, sigma=session["video"]["fps"] / 10),
         )
 
     # There seems to be a second component to the old function for the speed calculatuion that is not being used. Leaving as don't understand what it is doing yet.
@@ -407,8 +407,8 @@ class Track(DLC):
             ) ** 0.5
             self.region_tracking_data["distance" + reference_name] = distance_from_reference_location
             speed_pixel_per_frame = -np.diff(distance_from_reference_location)
-        speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
-        smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps / 10)
+        speed_cm_per_sec = speed_pixel_per_frame * session["video"]["fps"] / session["video"]["pixels_per_cm"]
+        smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session["video"]["fps"] / 10)
         self.region_tracking_data["speed" + reference_name] = smoothed_speed_cm_per_sec
 
     # --------UTILITY FUNCS---------------------------------------------------------------------
@@ -418,17 +418,17 @@ class Track(DLC):
         A little function for loading the first frame of the movie to point to shelter and barrier location
         """
 
-        fisheye_correction_map = load_fisheye_correction_map(session.video.fisheye_correction_file)
-        video_file = os.path.join(session.base_path, session.file_path, session.video.camFilePath)
+        fisheye_correction_map = load_fisheye_correction_map(session["video"]["fisheye_correction_file"])
+        video_file = os.path.join(session["base_path"], session["file_path"], session["video"]["camFilePath"])
         source_video = cv2.VideoCapture(video_file)
-        source_video.set(cv2.CAP_PROP_POS_FRAMES, session.video.num_frames - (2 * session.video.fps))  # read a frame 2 seconds from the end
+        source_video.set(cv2.CAP_PROP_POS_FRAMES, session["video"]["num_frames"] - (2 * session["video"]["fps"]))  # read a frame 2 seconds from the end
         _, self.arena = source_video.read()
-        self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map, regTransform=self.registration_transform)
+        self.arena = correct_and_register_frame(self.arena[:, :, 0], session["video"], fisheye_correction_map, regTransform=self.registration_transform)
 
     def load_registration_transform(self, session):
-        registration_path = os.path.join(session.base_path, session.processed_path, "registration_data.json")
+        registration_path = os.path.join(session["base_path"], session["processed_path"], "registration_data.json")
         if not os.path.isfile(registration_path):
-            logger.error(f"Registration sidecar not found for session: {session.number} - {session.name}")
+            logger.error(f"Registration sidecar not found for session: {session["number"]} - {session["name"]}")
             return None
 
         with open(registration_path, "r", encoding="utf-8") as f:
@@ -436,7 +436,7 @@ class Track(DLC):
 
         transform = payload.get("registration_transform")
         if transform is None:
-            logger.error(f"Registration transform is missing in sidecar for session: {session.number} - {session.name}")
+            logger.error(f"Registration transform is missing in sidecar for session: {session["number"]} - {session["name"]}")
             return None
         return np.array(transform)
 
@@ -445,7 +445,7 @@ class Track(DLC):
         A function to save the tracking data pickled.
         """
 
-        savePath = os.path.join(session.base_path, session.processed_path, "fully_processed_tracking_data.pickle")
+        savePath = os.path.join(session["base_path"], session["processed_path"], "fully_processed_tracking_data.pickle")
         with open(savePath, "wb") as dill_file:
             pickle.dump(self.region_tracking_data, dill_file)
 

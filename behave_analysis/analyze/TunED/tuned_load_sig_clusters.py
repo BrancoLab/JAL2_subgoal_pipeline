@@ -16,8 +16,8 @@ class ReturnSigClusters:
 
     def get_rayleigh_path(self, session) -> str:
         """Retreive the path to rayleigh test results"""
-        base = session.base_path
-        processed = session.processed_path
+        base = session["base_path"]
+        processed = session["processed_path"]
         return os.path.join(base, processed, "models", "Rayleigh")
 
 

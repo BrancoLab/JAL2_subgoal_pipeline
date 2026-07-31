@@ -13,32 +13,35 @@ from behave_analysis.analyze.filtering_data.filtering_functions import filter_vi
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.EscapePattern.escape_pattern_utils import homing_escape_onsets, homing_escape_filtering_vector
 
+
 class CCAmodel:
     def __init__(self, aefizz):
         self.aefizz = aefizz
         self.settings = aefizz.settings
-        self.savepath = make_directory(os.path.join(self.aefizz.session.base_path, self.aefizz.session.processed_path, "models", "CCA"))
-        self.database, self.do_analysis, self.hexaname = check_database_for_same_run(settings_to_check(self.settings, ["cca"]), 
-                                                                                    self.savepath + os.sep + "CCA_results.csv", 
-                                                                                    self.settings)  
-        self.n_components = min(len(self.settings.cca_behavioral_vars), self.settings.cca_n_components) # number of CCA components to keep, can't be more than number of behavioral variables
-    
+        self.savepath = make_directory(os.path.join(self.aefizz.session["base_path"], self.aefizz.session["processed_path"], "models", "CCA"))
+        self.database, self.do_analysis, self.hexaname = check_database_for_same_run(
+            settings_to_check(self.settings, ["cca"]), self.savepath + os.sep + "CCA_results.csv", self.settings
+        )
+        self.n_components = min(
+            len(self.settings.cca_behavioral_vars), self.settings.cca_n_components
+        )  # number of CCA components to keep, can't be more than number of behavioral variables
+
     def preprocess_neural_data(self):
         """This function z-scores the neural data"""
         fcm = self.aefizz.frame_by_cluster_matrix
         mean_fr = np.nanmean(fcm, axis=0)
         std_fr = np.nanstd(fcm, axis=0)
         self.fcm_z = (fcm - mean_fr) / std_fr
-    
+
     def preprocess_session_vars(self):
-        self.session_start = self.aefizz.session.valid_time[0]*60*40
+        self.session_start = self.aefizz.session["valid_time"][0] * 60 * 40
 
     def preprocess_behavioral_data(self):
         """Build behavioral matrix (time x variables) using the variables listed in settings.
-        Angles are given as sine and cosine to avoid issues with circular variables. 
+        Angles are given as sine and cosine to avoid issues with circular variables.
         Speed is log-transformed to reduce skew."""
         self.Y = np.empty((self.aefizz.video_df.shape[0], 1))
-        dt = 1 / self.aefizz.session.video.fps
+        dt = 1 / self.aefizz.session["video"]["fps"]
         self.name = np.empty((1,))
         for col in self.settings.cca_behavioral_vars:
             if "distance" in col:
@@ -71,7 +74,7 @@ class CCAmodel:
         self.Y = self.Y[:, 1:]  # remove the initial empty column
         self.name = self.name[1:]  # remove the initial empty column
 
-    def run_cca(self,train_data, test_data, condition):
+    def run_cca(self, train_data, test_data, condition):
         """Assuming X_train is (time, neurons) and Y_train is (time, behaviors)
         INPUTS:
         - train_data: a dictionary with keys "X" and "Y" for the training data
@@ -89,9 +92,9 @@ class CCAmodel:
         X_train_c, Y_train_c = cca.transform(train_data["X"], train_data["Y"])
         # get the canonical correlation
         for i in range(self.n_components):
-            self.results["train_canonical_corr"][condition,i] = safe_corrcoef(X_train_c[:,i], Y_train_c[:,i])
+            self.results["train_canonical_corr"][condition, i] = safe_corrcoef(X_train_c[:, i], Y_train_c[:, i])
         # get the loadings for the neurons
-        self.results["train_loadings"][condition,:,:] = cca.x_loadings_
+        self.results["train_loadings"][condition, :, :] = cca.x_loadings_
 
         # 4. Project the TEST data (using the same weights found during training)
         for k, key in enumerate(test_data.keys()):
@@ -100,19 +103,23 @@ class CCAmodel:
             X_test, Y_test = test_data[key]["X"], test_data[key]["Y"]
             X_test_c, Y_test_c = cca.transform(X_test, Y_test)
             # get the loadings for the neurons
-            self.results["test_loadings"][k,condition,:,:] = get_correlation_loadings(X_test, X_test_c)
+            self.results["test_loadings"][k, condition, :, :] = get_correlation_loadings(X_test, X_test_c)
             # get the canonical correlation
             for i in range(self.n_components):
-                self.results["test_canonical_corr"][k,condition,i] = safe_corrcoef(X_test_c[:,i], Y_test_c[:,i])
+                self.results["test_canonical_corr"][k, condition, i] = safe_corrcoef(X_test_c[:, i], Y_test_c[:, i])
 
     def set_up_results_dict(self):
-        self.results = {"n_components": self.n_components,
-                        "test_sets": [],
-                        "behavioral_vars": self.name,
-                        "train_loadings": np.full((len(self.aefizz.all_conditions), self.aefizz.frame_by_cluster_matrix.shape[1], self.n_components), np.nan),
-                        "test_loadings": np.full((len(self.settings.cca_test_sets)+1, len(self.aefizz.all_conditions), self.aefizz.frame_by_cluster_matrix.shape[1], self.n_components), np.nan),
-                        "train_canonical_corr": np.full((len(self.aefizz.all_conditions), self.n_components), np.nan),
-                        "test_canonical_corr": np.full((len(self.settings.cca_test_sets)+1, len(self.aefizz.all_conditions), self.n_components), np.nan)}
+        self.results = {
+            "n_components": self.n_components,
+            "test_sets": [],
+            "behavioral_vars": self.name,
+            "train_loadings": np.full((len(self.aefizz.all_conditions), self.aefizz.frame_by_cluster_matrix.shape[1], self.n_components), np.nan),
+            "test_loadings": np.full(
+                (len(self.settings.cca_test_sets) + 1, len(self.aefizz.all_conditions), self.aefizz.frame_by_cluster_matrix.shape[1], self.n_components), np.nan
+            ),
+            "train_canonical_corr": np.full((len(self.aefizz.all_conditions), self.n_components), np.nan),
+            "test_canonical_corr": np.full((len(self.settings.cca_test_sets) + 1, len(self.aefizz.all_conditions), self.n_components), np.nan),
+        }
 
     def get_train_test_indices(self, condition):
         """Get indices of frames (0-indexed!) to use for training and testing CCA.
@@ -130,13 +137,13 @@ class CCAmodel:
                     onset_dict=onset_dict,
                     xpos=self.aefizz.video_df["mouse_x_position"].to_numpy(),
                     ypos=self.aefizz.video_df["mouse_y_position"].to_numpy(),
-                    shelter_location=self.aefizz.session.shelter_location,
+                    shelter_location=self.aefizz.session["shelter_location"],
                 )
                 test_idx_dict[test] = self.aefizz.video_df["frames"].to_numpy()[h_e_vec] - 1
                 self.results["test_sets"].append(test)
             elif test == "shelter_outing":
                 condition_df = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=None, exclude_escape=True, exclude_homings=True)
-                outside_runs = find_shelter_exit_runs(condition_df, min_distance_cm = 20.0)
+                outside_runs = find_shelter_exit_runs(condition_df, min_distance_cm=20.0)
                 test_idx_dict[test] = condition_df["frames"].to_numpy()[outside_runs] - 1
                 self.results["test_sets"].append(test)
             elif test == "bout_runs":
@@ -144,7 +151,7 @@ class CCAmodel:
                 bout_runs = find_bout_runs(condition_df, min_distance_cm=40, remove_shelter_outings=True)
                 test_idx_dict[test] = condition_df["frames"].to_numpy()[bout_runs] - 1
                 self.results["test_sets"].append(test)
-            elif test == "explore": # this needs to be the last condition because it uses the remaining indices that aren't in the other test sets
+            elif test == "explore":  # this needs to be the last condition because it uses the remaining indices that aren't in the other test sets
                 exp_idx = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=True, exclude_escape=True, exclude_homings=True)["frames"].to_numpy() - 1
                 # confirm that explore test set doesn't include indices from any other test sets
                 for other_test in test_idx_dict.keys():
@@ -153,10 +160,10 @@ class CCAmodel:
                 self.results["test_sets"].append(test)
             else:
                 raise ValueError(f"Test set {test} not recognized as a valid test set")
-        
+
         if self.settings.cca_train_set in self.settings.cca_test_sets:
             raise ValueError("Train set cannot be the same as any of the test sets")
-        
+
         if self.settings.cca_train_set == "explore":
             train_idx = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=True, exclude_escape=True, exclude_homings=True)["frames"].to_numpy() - 1
             # make sure no train indices are in the test datasets
@@ -169,12 +176,12 @@ class CCAmodel:
                 onset_dict=onset_dict,
                 xpos=self.aefizz.video_df["mouse_x_position"].to_numpy(),
                 ypos=self.aefizz.video_df["mouse_y_position"].to_numpy(),
-                shelter_location=self.aefizz.session.shelter_location,
+                shelter_location=self.aefizz.session["shelter_location"],
             )
             train_idx = self.aefizz.video_df["frames"].to_numpy()[h_e_vec] - 1
         elif self.settings.cca_train_set == "shelter_outing":
             condition_df = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=None, exclude_escape=True, exclude_homings=True)
-            outside_runs = find_shelter_exit_runs(condition_df, min_distance_cm = 20.0)
+            outside_runs = find_shelter_exit_runs(condition_df, min_distance_cm=20.0)
             train_idx = condition_df["frames"].to_numpy()[outside_runs] - 1
         elif self.settings.cca_train_set == "bout_runs":
             condition_df = filter_video_dataframe(self.aefizz.video_df, condition=condition, outofshelter=None, exclude_escape=True, exclude_homings=True)
@@ -182,7 +189,7 @@ class CCAmodel:
             train_idx = condition_df["frames"].to_numpy()[bout_runs] - 1
         else:
             raise ValueError(f"Train set {self.settings.cca_train_set} not recognized as a valid train set")
-        
+
         # if explore in test, make sure there is no overlap between train and explore
         if "explore" in test_idx_dict.keys():
             test_idx_dict["explore"] = np.array([idx for idx in test_idx_dict["explore"] if idx not in train_idx])
@@ -192,10 +199,12 @@ class CCAmodel:
             overlap = np.intersect1d(train_idx, test_idx_dict[test])
             if len(overlap) > 0:
                 raise ValueError(f"Overlap between train and test indices for test set {test}: {overlap}")
-        
+
         # split the train indices into train and validation sets using method specified in settings
         if (self.settings.cca_train_set == "homing&escape") | (self.settings.cca_train_set == "shelter_outing"):
-            assert (self.settings.cca_xval_method == "random_split") | (self.settings.cca_xval_method == "half"), "Currently only random split and half methods are implemented for homing&escape and shelter_outing train set xval"
+            assert (self.settings.cca_xval_method == "random_split") | (
+                self.settings.cca_xval_method == "half"
+            ), "Currently only random split and half methods are implemented for homing&escape and shelter_outing train set xval"
         comparison_idx = []
         if "match" in self.settings.cca_xval_method:
             if "homings" in self.settings.cca_xval_method:
@@ -219,7 +228,9 @@ class CCAmodel:
         self.set_up_results_dict()
 
         # run CCA for each condition
-        logger.info(f"Running CCA with the following settings: n_components={self.n_components}, train set={self.settings.cca_train_set}, xval method={self.settings.cca_xval_method}, test sets={self.settings.cca_test_sets}")
+        logger.info(
+            f"Running CCA with the following settings: n_components={self.n_components}, train set={self.settings.cca_train_set}, xval method={self.settings.cca_xval_method}, test sets={self.settings.cca_test_sets}"
+        )
         for c, cond in enumerate(self.aefizz.all_conditions):
             train_idx, test_idx_dict = self.get_train_test_indices(condition=cond)
             if len(train_idx) == 0:
@@ -230,22 +241,17 @@ class CCAmodel:
             for key in self.results["test_sets"]:
                 test_data[key] = {"X": self.fcm_z[test_idx_dict[key], :], "Y": self.Y[test_idx_dict[key], :]}
             self.run_cca(train_data, test_data, condition=c)
-        
+
         self.save()
 
-    def save(self, return_dict = False):
+    def save(self, return_dict=False):
         """This function saves the results of the CCA analysis to a file."""
         logger.info("Saving CCA results to file and database")
         filename = os.path.join(self.savepath, "CCA_" + self.hexaname)
-        np.savez(os.path.join(filename + "_results.npz"), 
-                             **self.results,
-                             allow_pickle=True)
-        settings=asdict(self.settings)
+        np.savez(os.path.join(filename + "_results.npz"), **self.results, allow_pickle=True)
+        settings = asdict(self.settings)
         np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
         # add results to database
-        add_run_to_database(self.database, 
-                            settings_to_check(self.settings, ["cca"]),  
-                            self.savepath + os.sep + "CCA_results.csv", 
-                            self.hexaname)
+        add_run_to_database(self.database, settings_to_check(self.settings, ["cca"]), self.savepath + os.sep + "CCA_results.csv", self.hexaname)
         if return_dict:
             return self.results_dict

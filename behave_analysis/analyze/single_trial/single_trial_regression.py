@@ -153,9 +153,7 @@ class SingleTrialRegression:
         if explore_coeffs_with_other_predictors:
 
             make_directory(self.save_path / "coefficients")
-            run_these_vars = [
-                "random"
-            ]  # NOTE hard code these values cant be circular for now as the library does not support multi output regression values
+            run_these_vars = ["random"]  # NOTE hard code these values cant be circular for now as the library does not support multi output regression values
 
             for var in run_these_vars:
                 file_name = str(self.session_name) + "_" + var + "_coefficients.pickle"
@@ -164,9 +162,7 @@ class SingleTrialRegression:
                 print(f"Running the model for the dependent variable: {var}")
 
                 # Where og is the original gangster and comp is the comparison model
-                sig_idx_in_both_models_north_index, _ = self.run_model_comparison_of_just_neural_vs_other_predictors(
-                    dependent_var_name=var, file_name=full_path
-                )
+                sig_idx_in_both_models_north_index, _ = self.run_model_comparison_of_just_neural_vs_other_predictors(dependent_var_name=var, file_name=full_path)
 
             if 0:  # if you want to plot neural activity onto homings
                 # Plot the escape trajectories with the neural activity
@@ -218,9 +214,7 @@ class SingleTrialRegression:
 
         comparison_design_matrix = self.add_other_predictors_to_design_matrix(self.design_matrix, dependent_var_names)
         print(f"The following vars are in the comparison model: {dependent_var_names}")
-        comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(
-            dependent_var_name, comparison_design_matrix
-        )
+        comp_r2_score, comp_predictors_coeffs, comp_predictors_p_value = self.run_just_one_dependent_variable(dependent_var_name, comparison_design_matrix)
 
         # Check that all pvalues arent zero
         assert np.any(og_p_values), "All p values are zero in the original model"
@@ -242,9 +236,7 @@ class SingleTrialRegression:
 
         # Plot the proportion of coefficients that remain significant between the two models
         assert len(og_p_values) == len(comp_predictors_p_value), "The p values are not the same length, they must match one to one"
-        self.plotter.plot_proportion_of_coeffs_that_remain_significant(
-            og_p_values, comp_predictors_p_value, dependent_var_name=dependent_var_name, file_name=file_name
-        )
+        self.plotter.plot_proportion_of_coeffs_that_remain_significant(og_p_values, comp_predictors_p_value, dependent_var_name=dependent_var_name, file_name=file_name)
 
         # Check whether the significant coefficients change significantly between the two models
         x1 = np.ones(len(og_coefficients))
@@ -515,9 +507,7 @@ class SingleTrialRegression:
             left_index = "post_flip_index"
 
         # What indexes of the design matrix are the north and south homings
-        left_idx, right_idx = self.return_the_design_matrix_idxs_of_homing_directions(
-            self.design_matrix, left_edge_ids=left_edge_ids, right_edge_ids=right_edge_ids
-        )
+        left_idx, right_idx = self.return_the_design_matrix_idxs_of_homing_directions(self.design_matrix, left_edge_ids=left_edge_ids, right_edge_ids=right_edge_ids)
 
         directions = {"trainX_dir": "left", "testX_dir": "right", "trainY_dir": "left", "testY_dir": "right"}
         # Train on left edge homings with left index, test on right homings with right index
@@ -724,9 +714,7 @@ class SingleTrialRegression:
         plt.legend()
         string = f"Training on X: {directions['trainX_dir']} and Y: {directions['trainY_dir']} and testing on X: {directions['testX_dir']} and Y: {directions['testY_dir']}"
         plt.suptitle(string)
-        file_name = (
-            f"trx_{directions['trainX_dir']}_tex_{directions['testX_dir']}_try_{directions['trainY_dir']}_tey{directions['testY_dir']}" + ".png"
-        )
+        file_name = f"trx_{directions['trainX_dir']}_tex_{directions['testX_dir']}_try_{directions['trainY_dir']}_tey{directions['testY_dir']}" + ".png"
         plt.savefig(self.save_path / "train_test_different_directions" / file_name)
         plt.close()
 
@@ -826,16 +814,12 @@ class SingleTrialRegression:
             X_train, X_test = X_train.to_numpy(), X_test.to_numpy()
 
             if multi_dependent:
-                ols_fold_results[fold] = self.multi_output_ols_regression(
-                    X_train, y_train, fold, save_path, X_test, y_test, name_of_dependent=dependent_var_name, ax=axs[fold]
-                )
+                ols_fold_results[fold] = self.multi_output_ols_regression(X_train, y_train, fold, save_path, X_test, y_test, name_of_dependent=dependent_var_name, ax=axs[fold])
                 if plot:
                     # convert back to sclar
                     y_train = np.arctan2(y_train[:, 0], y_train[:, 1])
                     y_test = np.arctan2(y_test[:, 0], y_test[:, 1])
-                    self.plotter.overlay_test_and_train_targets(
-                        ax=axs[fold], train_tar=y_train, test_tar=y_test, train_yl="whole arena", test_yl="whole arena", fold=fold
-                    )
+                    self.plotter.overlay_test_and_train_targets(ax=axs[fold], train_tar=y_train, test_tar=y_test, train_yl="whole arena", test_yl="whole arena", fold=fold)
 
             if not multi_dependent:
                 ols_fold_results[fold] = self.ols_regression_statsmodel(X_train, y_train, fold, X_test, y_test, ax=axs[fold])
@@ -873,9 +857,7 @@ class SingleTrialRegression:
 
     # ------------------- Statistical functions -------------------
 
-    def repeat_observation_ttest(
-        self, indices_of_sig_coeffs: np.ndarray, original_model_coeffs: np.ndarray, comparison_model_coeffs: np.ndarray
-    ) -> tuple:
+    def repeat_observation_ttest(self, indices_of_sig_coeffs: np.ndarray, original_model_coeffs: np.ndarray, comparison_model_coeffs: np.ndarray) -> tuple:
         """Perform a paired t test to see if the coefficients between the original model and the comparison model are significantly different
 
         The null hypothesis is that the coefficients are the same between the two models.
@@ -1146,9 +1128,7 @@ class RegressionPlotting:
     def __init__(self, save_path: Path):
         self.save_path = save_path
 
-    def plot_clustered_heatmap(
-        self, design_matrix: np.ndarray, dependents_df: pd.DataFrame, significant_neuron_ids, og_coefficients, index_label: str
-    ) -> None:
+    def plot_clustered_heatmap(self, design_matrix: np.ndarray, dependents_df: pd.DataFrame, significant_neuron_ids, og_coefficients, index_label: str) -> None:
         """Creates a heatmap of the design matrix ranked by coefficients from largest to smallest along side the index dependent variable
 
         Args:
@@ -1269,9 +1249,7 @@ class RegressionPlotting:
         for i in iterator:
             ax.plot([x1[i], x2[i]], [original_model_coeffs[i], comparison_model_coeffs[i]], color="gray", linestyle="--", linewidth=0.5)
 
-    def plot_coefficients_between_models(
-        self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func, dependent_var_name
-    ):
+    def plot_coefficients_between_models(self, x1, x2, original_model_coeffs, comparison_model_coeffs, sig_og_model_coeffs_indices, ttest_func, dependent_var_name):
         """Plot all and only the significant coefficients between the two models in separate plots"""
 
         # Make coefficients absolute
@@ -1302,9 +1280,7 @@ class RegressionPlotting:
         are_results_significant = "significant" if p_value < 0.05 else "not significant"
         formatted_p_value = format(p_value, ".4f")
         rounded_p_value = round(p_value, 4)
-        fig.suptitle(
-            f"Sig coeff (absolute) p-value: {rounded_p_value}. \n Difference is {are_results_significant} between models for {dependent_var_name}"
-        )
+        fig.suptitle(f"Sig coeff (absolute) p-value: {rounded_p_value}. \n Difference is {are_results_significant} between models for {dependent_var_name}")
         file_name = dependent_var_name + "_coefficients_between_models.png"
         plt.savefig(self.save_path / file_name)
         plt.close()
@@ -1333,9 +1309,7 @@ class RegressionPlotting:
 
         # Check the numebr of cells that remain sig after adding all predictors
         num_sig = 0
-        num_sig = np.sum(
-            [num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05]
-        )
+        num_sig = np.sum([num_sig + 1 for i in range(len(original_model_pvalues)) if original_model_pvalues[i] < 0.05 and comparison_model_pvalues[i] < 0.05])
 
         # would need to comment for random perhaps
         # assert og_moel_significant_coeffs != all_predictors_significant, "The number of significant coefficients is the same for both models"
@@ -1383,9 +1357,7 @@ class RegressionPlotting:
     # ------------------- Plotting functions take from spatial efficienty + mine -------------------
     # refactor potential to make these shared components
 
-    def plot_all_homings_with_neural_activity(
-        self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing, cluster_ids, sig_clu_ids
-    ):
+    def plot_all_homings_with_neural_activity(self, homing_list, spike_data_per_homing, tracking_data, condition_per_homing, cluster_ids, sig_clu_ids):
         """Plot all homings with neural activity by neuron
 
         Args:
@@ -1429,8 +1401,8 @@ class RegressionPlotting:
                     if not b3:
                         axy = ax3
                         b3 = True
-                
-                Arena(ax=axy, shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=self.session.barrier_location)
+
+                Arena(ax=axy, shelter_coordinates=tracking_data["shelter_loc"], condition=con, barrier_coordinates=self.session["barrier_location"])
                 self.plot_escape_trajectories_with_neural_activity(neural_data=neuron_filter, behavioural_data=homing, ax=ax3)
 
             # Add a title to the plot

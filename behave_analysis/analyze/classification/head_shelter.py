@@ -91,7 +91,7 @@ def check_both_compartments_significant(sig: tuple) -> bool:
 
 def save_cell_ids(session, cell_ids) -> None:
     """Saves the cell ids to a pickle file to a within a folder called cells"""
-    path = make_directory(os.path.join(session.base_path, session.processed_path, "cells"))
+    path = make_directory(os.path.join(session["base_path"], session["processed_path"], "cells"))
     file_name = os.path.join(path, "hsa_cells.pkl")
     with open(file_name, "wb") as dill_file:
         pickle.dump(cell_ids, dill_file)

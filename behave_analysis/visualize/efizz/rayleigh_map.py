@@ -23,8 +23,8 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
     # saving path - where to save the figures
     map_path = make_directory(
         os.path.join(
-            session.base_path,
-            session.processed_path,
+            session["base_path"],
+            session["processed_path"],
             "spatial_firing",
             "rayleigh_map",
             settings.cluster_type,
@@ -57,14 +57,14 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
             video_df = video_df.select(["frames", "hdir", "mouse_x_position", "mouse_y_position"])
 
             # extract and bin hdir
-            bin_angles, bin_angle_center = generate_bins(number_of_bins=number_of_bins, start = -np.pi, stop = np.pi)
+            bin_angles, bin_angle_center = generate_bins(number_of_bins=number_of_bins, start=-np.pi, stop=np.pi)
             hdir = video_df["hdir"].to_numpy()
             hdir = np.digitize(hdir, bin_angles)
             hdir = bin_angle_center[hdir - 1]
 
             # extract and bin mouse position
             # assuming asquare image of the arena
-            bin_pos, bin_pos_center = generate_bins(num_pos_bins, 1, session.video.height)  # assuming asquare image of the arena
+            bin_pos, bin_pos_center = generate_bins(num_pos_bins, 1, session["video"]["height"])  # assuming asquare image of the arena
             position = np.vstack(
                 [
                     video_df["mouse_x_position"].to_numpy(),
@@ -95,9 +95,12 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
             full_pos = np.logical_not(empty_pos)
 
             # plot at each position that has a rayleigh an arrow/line with length and orientation given by rayleigh
-            Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], 
-                  condition=c + ("_tiny" if "tiny" in session.experiment else ""), 
-                  barrier_coordinates=session.barrier_location)
+            Arena(
+                ax=ax,
+                shelter_coordinates=tracking_data["shelter_loc"],
+                condition=c + ("_tiny" if "tiny" in session["experiment"] else ""),
+                barrier_coordinates=session["barrier_location"],
+            )
             # base_plotting(ax, tracking_data, condition = c, session = session)
             ax.scatter(this_pos[empty_pos, 0], this_pos[empty_pos, 1], 5, "k")
             ax.quiver(

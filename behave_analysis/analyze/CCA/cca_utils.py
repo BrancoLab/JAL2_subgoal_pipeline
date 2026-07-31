@@ -6,14 +6,16 @@ from behave_analysis.analyze.filtering_data.filtering_functions import filter_vi
 from behave_analysis.analyze.PlaceCells.place_cell_utils import create_centered_bins, assign_positional_bins_to_frames
 from behave_analysis.analyze.filtering_data.filtering_functions import generate_bins
 
+
 def compute_distance_object(df, variable, session):
     if "shelter" in variable:
-        shelter_location = [np.mean([session.shelter_location[0][0], session.shelter_location[1][0]]), session.shelter_location[0][1]]
-        return np.sqrt((df["mouse_x_position"] - shelter_location[0])**2 + (df["mouse_y_position"] - shelter_location[1])**2)
+        shelter_location = [np.mean([session["shelter_location"][0][0], session["shelter_location"][1][0]]), session["shelter_location"][0][1]]
+        return np.sqrt((df["mouse_x_position"] - shelter_location[0]) ** 2 + (df["mouse_y_position"] - shelter_location[1]) ** 2)
     if "barrier1" in variable:
-        return np.sqrt((df["mouse_x_position"] - session.barrier_location[0][0])**2 + (df["mouse_y_position"] - session.barrier_location[0][1])**2)
+        return np.sqrt((df["mouse_x_position"] - session["barrier_location"][0][0]) ** 2 + (df["mouse_y_position"] - session["barrier_location"][0][1]) ** 2)
     if "barrier2" in variable:
-        return np.sqrt((df["mouse_x_position"] - session.barrier_location[1][0])**2 + (df["mouse_y_position"] - session.barrier_location[1][1])**2)
+        return np.sqrt((df["mouse_x_position"] - session["barrier_location"][1][0]) ** 2 + (df["mouse_y_position"] - session["barrier_location"][1][1]) ** 2)
+
 
 def select_xval_frames(video_df, frames, method, comparison_indices):
     """Method can be 'random split' or 'balanced_bins' (for behaviour)
@@ -21,7 +23,7 @@ def select_xval_frames(video_df, frames, method, comparison_indices):
 
     if "random_split" in method:
         explore_indices = frames
-        
+
         if method == "random_split":
             n_items = int(len(explore_indices) // 2)
         elif method == "random_split h_match":

@@ -1,11 +1,13 @@
 import numpy as np
 import pandas as pd
 from loguru import logger
+from behave_analysis.process.camera_trigger import load_camera_trigger
 
 sampling_rate = 30000  # Hz
 
+
 def prepare_state_space_decoder_data(spike_df, clusters, time_mask, session, bin_width, validate_alignment=False):
-    
+
     # cluster selection
     all_clusters = np.sort(spike_df["spike_clusters"].unique())
     selected_clusters = all_clusters[clusters]
@@ -16,7 +18,7 @@ def prepare_state_space_decoder_data(spike_df, clusters, time_mask, session, bin
     spike_df2["time_bin"] = np.floor((spike_df2["aligned_spike_times"].to_numpy() + eps) / bin_width).astype(np.int64)
 
     # build global bin range from recording duration
-    frame_onsets = session.camera_trigger.frame_trigger_onsets_idx.astype(np.int64)  # samples @30kHz
+    frame_onsets = load_camera_trigger(session).frame_trigger_onsets_idx.astype(np.int64)  # samples @30kHz
     bin_samples = int(round(bin_width * sampling_rate))
     max_sample = int(frame_onsets[-1])  # or a better end-of-recording sample if available
     all_bin_starts_samples = np.arange(0, max_sample + 1, bin_samples, dtype=np.int64)
@@ -35,10 +37,7 @@ def prepare_state_space_decoder_data(spike_df, clusters, time_mask, session, bin
     spike_df2 = spike_df2[spike_df2["time_bin"].isin(keep_bins)]
 
     # count matrix and force full kept-bin coverage (zeros where no spikes)
-    count_matrix = pd.pivot_table(
-        spike_df2, index="spike_clusters", columns="time_bin",
-        values="aligned_spike_times", aggfunc="count", fill_value=0
-    )
+    count_matrix = pd.pivot_table(spike_df2, index="spike_clusters", columns="time_bin", values="aligned_spike_times", aggfunc="count", fill_value=0)
     count_matrix = count_matrix.reindex(selected_clusters, fill_value=0)
     count_matrix = count_matrix.reindex(columns=keep_bins, fill_value=0)
 
@@ -48,8 +47,8 @@ def prepare_state_space_decoder_data(spike_df, clusters, time_mask, session, bin
 
     # build a vector of length n_time_bins that tracks the segments of time from time_mask
     segments_mask = time_segment_vector(keep_bins)
-    segments_in_bins = np.array([np.sum(segments_mask == s)/(1/bin_width) for s in np.unique(segments_mask)])
-    segments_in_behave_time = (np.where(np.diff(time_mask.astype(int)) < 0)[0] - np.where(np.diff(time_mask.astype(int)) > 0)[0])/session.video.fps
+    segments_in_bins = np.array([np.sum(segments_mask == s) / (1 / bin_width) for s in np.unique(segments_mask)])
+    segments_in_behave_time = (np.where(np.diff(time_mask.astype(int)) < 0)[0] - np.where(np.diff(time_mask.astype(int)) > 0)[0]) / session["video"]["fps"]
     assert np.array_equal(segments_in_bins, segments_in_behave_time), "Segments in bins and segments in behave time don't match, check time_segment_vector function!"
 
     # Validate frame_for_bin against spike data
@@ -57,6 +56,7 @@ def prepare_state_space_decoder_data(spike_df, clusters, time_mask, session, bin
         validate_frame_to_bin_alignment(spike_df2, frame_for_bin)
 
     return spikes, time, frame_for_bin, segments_mask
+
 
 def validate_frame_to_bin_alignment(spike_df_filt, frame_for_bin):
     """Helper function to validate the alignment between spike frames and searchsorted frames.
@@ -74,7 +74,7 @@ def validate_frame_to_bin_alignment(spike_df_filt, frame_for_bin):
             searchsorted_frame = frame_for_bin[bin_idx]
             if abs(spike_frame_computed - searchsorted_frame) > 1:
                 mismatches.append((bin_idx, spike_frame_computed, searchsorted_frame))
-    
+
     if mismatches:
         logger.warning(f"Found {len(mismatches)} frame mismatches between spike data and searchsorted:")
         for bin_idx, spike_frame, search_frame in mismatches[:10]:  # show first 10
@@ -84,19 +84,21 @@ def validate_frame_to_bin_alignment(spike_df_filt, frame_for_bin):
 
     return True
 
+
 def time_segment_vector(keep_bins):
     gap_idx = np.where(np.diff(keep_bins) > 1)[0]
 
     # indices into concatenated output arrays (spikes/time/frame_for_bin)
     segment_starts = np.r_[0, gap_idx + 1]
-    segment_ends = np.r_[gap_idx + 1, len(keep_bins)]   # exclusive
+    segment_ends = np.r_[gap_idx + 1, len(keep_bins)]  # exclusive
 
     # optional: period label per bin in concatenated timeline
     segments_mask = np.zeros(len(keep_bins), dtype=np.int32)
     for k, (s, e) in enumerate(zip(segment_starts, segment_ends), start=1):
         segments_mask[s:e] = k
 
-    return segments_mask    
+    return segments_mask
+
 
 # -------------- DEPRECATED/OLD CODE BELOW, KEEP FOR REFERENCE BUT NOT USED ANYMORE --------------
 
@@ -125,11 +127,11 @@ def time_segment_vector(keep_bins):
 #     all_clusters = np.sort(spike_df["spike_clusters"].unique())
 #     selected_clusters = all_clusters[clusters]
 #     spike_df_filt = spike_df_filt[spike_df_filt['spike_clusters'].isin(selected_clusters)]
-    
+
 #     # Create a new column for the time bin index
 #     eps = 1e-9 # this should make bin index computation more robust?!
 #     spike_df_filt["time_bin"] = np.floor((spike_df_filt["aligned_spike_times"] + eps) / bin_width).astype(int)
-    
+
 #     # Convert the filtered DataFrame to a count matrix of shape (num_clusters, num_time_bins)
 #     count_matrix = df_to_count_array(spike_df_filt, selected_clusters, "time_bin", fill_time=10)
 
@@ -153,7 +155,7 @@ def time_segment_vector(keep_bins):
 #     # Validate frame_for_bin against spike data
 #     if validate_alignment:
 #         validate_frame_to_bin_alignment(spike_df_filt, frame_for_bin)
-        
+
 #     return spikes, time, frame_for_bin
 
 # def df_to_count_array(df, all_clusters, columns, fill_time=[]):

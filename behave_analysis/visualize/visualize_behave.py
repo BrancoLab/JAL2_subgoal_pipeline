@@ -23,6 +23,7 @@ from behave_analysis.analyze.filtering_data.filtering_functions import extract_a
 from settings.settings_visualize import defined_settings_visualize as settings_v
 from settings.settings_overrides import settings_overrides
 
+
 class Visualize_behave:
     """
     A class for some sanity check behavior plots
@@ -31,10 +32,10 @@ class Visualize_behave:
 
     def __init__(self, session):
         self.session = session
-        self.behave_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "behaviour"))
+        self.behave_path = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"], "behaviour"))
         self.tracking_data = open_tracking_data(session)
-        self.kalman = open_kalman_tracking_data(os.path.join(self.session.base_path, self.session.processed_path))
-        self.video_df = pl.read_csv(os.path.join(self.session.base_path, self.session.processed_path, "full_video_dataframe.csv"))
+        self.kalman = open_kalman_tracking_data(os.path.join(self.session["base_path"], self.session["processed_path"]))
+        self.video_df = pl.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], "full_video_dataframe.csv"))
 
     ##---------PLOT BEHAVIORAL STATS
     def plot_behavioral_stats(self):
@@ -42,7 +43,7 @@ class Visualize_behave:
 
         logger.info("Making plots summarizing the exploratory behavior of the mouse ")
 
-        if len(self.session.shelter_time) > 0:
+        if len(self.session["shelter_time"]) > 0:
             shelter_occupancy(
                 video_df=self.video_df,
                 session=self.session,
@@ -65,14 +66,12 @@ class Visualize_behave:
             trackingData=self.tracking_data,
             video_data=self.video_df,
             conditions=extract_all_or_custom_conditions(settings_v, self.session),
-            sessionHeight=self.session.video.height,
+            sessionHeight=self.session["video"]["height"],
             save_path=self.behave_path,
         )
 
         # Circular rho depends on angle distributions
-        plot_the_circular_rho(
-            self.session, settings_v, self.video_df, conditions=extract_all_or_custom_conditions(settings_v, self.session), save_path=self.behave_path
-        )
+        plot_the_circular_rho(self.session, settings_v, self.video_df, conditions=extract_all_or_custom_conditions(settings_v, self.session), save_path=self.behave_path)
 
         plot_heat_map_of_position(
             session=self.session,
@@ -80,7 +79,7 @@ class Visualize_behave:
             video_data_frame=self.video_df,
             conditions=extract_all_or_custom_conditions(settings_v, self.session),
             save_path=self.behave_path,
-            session_height=self.session.video.height,
+            session_height=self.session["video"]["height"],
         )
 
         CoverageStatistics(video_data_frame=self.video_df, settings=settings_v, behave_path=self.behave_path)
@@ -89,7 +88,7 @@ class Visualize_behave:
     def escape_plotting(self, stim_type):
         logger.info("Making plots of mouse escape trajectories")
         escape_trajectory_and_shelter_exits(
-            tracking_data=self.tracking_data, video_df=self.video_df, stim_type = stim_type, session=self.session, settings=settings_v, save_path=self.behave_path
+            tracking_data=self.tracking_data, video_df=self.video_df, stim_type=stim_type, session=self.session, settings=settings_v, save_path=self.behave_path
         )
 
     ##--------MAKE MOVIS OF ESCAPE WITH DLC TRACKING
@@ -98,12 +97,13 @@ class Visualize_behave:
         logger.info(f"Starting to make behaviour movies for trials")
 
         if stim_type == "audio":
-            onsets = np.array(self.session.__dict__[stim_type].onset_frames)
-            stimulus_durations = np.array(self.session.__dict__[stim_type].stimulus_durations)
+            onsets = np.array(self.session[__dict__[stim_type]]["onset_frames"])
+            stimulus_durations = np.array(self.session[__dict__[stim_type]]["stimulus_durations"])
 
         if stim_type == "homing":
             logger.info("Making movies for homing trials")
             from settings.settings_analyze_behave import settings_ab
+
             settings_ab = settings_overrides(settings_ab, {"redo_compute": False, "homings_curated": True})
             homings = get_Homings(settings_ab, self.session).get_homings(self.video_df, self.tracking_data)
             # homings = remove_manually_curated(homings)

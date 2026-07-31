@@ -1,4 +1,4 @@
-'''A set of functions for visualizing the escape trajectories of a mouse in a given session'''
+"""A set of functions for visualizing the escape trajectories of a mouse in a given session"""
 
 # set up
 import os
@@ -13,6 +13,7 @@ from behave_analysis.analyze.behaviour.utils import base_plotting
 from behave_analysis.utils.identify_condition import identify_condition_of_trial
 from behave_analysis.utils.arena_plotting import Arena
 
+
 def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, session, settings, save_path):
     """
     Plot escape trajectories as well as the path by which the mouse last left the shelter
@@ -21,22 +22,25 @@ def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, sess
     # set up figure and number of rows and calculate number of columns
     plt.figure(figsize=(20, 16))
     plt.subplots_adjust(hspace=0.3)
-    ntrial = len(session.__dict__[stim_type].onset_frames)
+    ntrial = len(session[__dict__[stim_type]]["onset_frames"])
     nrows = 3
     ncols = ntrial // nrows + (ntrial % nrows > 0)
 
     for trial_num, (onset_frames, stimulus_durations) in enumerate(
         zip(
-            session.__dict__[stim_type].onset_frames,
-            session.__dict__[stim_type].stimulus_durations,
+            session[__dict__[stim_type]]["onset_frames"],
+            session[__dict__[stim_type]]["stimulus_durations"],
         )
     ):
         ax = plt.subplot(nrows, ncols, trial_num + 1)
         # set up axes with shelt and barrier locations
         condition = identify_condition_of_trial(video_df.filter(video_df["frames"] == onset_frames), session)
-        Arena(ax=ax, shelter_coordinates=tracking_data["shelter_loc"], 
-              condition=condition + ("_tiny" if "tiny" in session.experiment else ""), 
-              barrier_coordinates=session.barrier_location)
+        Arena(
+            ax=ax,
+            shelter_coordinates=tracking_data["shelter_loc"],
+            condition=condition + ("_tiny" if "tiny" in session["experiment"] else ""),
+            barrier_coordinates=session["barrier_location"],
+        )
         # base_plotting(ax, tracking_data, condition, session = session)
         # plot escape trajectory
         plot_trajectories(
@@ -52,7 +56,7 @@ def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, sess
         plot_trajectories(
             tracking_data["head_loc"],
             tracking_data["avg_Velocity"],
-            exits[-1] - session.video.fps,
+            exits[-1] - session["video"]["fps"],
             3,
             ax,
             colors="Blues",
@@ -63,6 +67,7 @@ def escape_trajectory_and_shelter_exits(tracking_data, video_df, stim_type, sess
     if settings.show_plots:
         plt.show()
     plt.close()
+
 
 def plot_trajectories(head_loc, velocity, onset_frames, stimulus_durations, ax, colors="Reds"):
     """

@@ -1,15 +1,15 @@
 """
 The point of this script to observe how well we have sampled all of the angles of interest.
 It does this by plotting the sampled angles as probability distribution functions (PDFs)
-and comparing them to the optimal PDFs. The optimal distributions are what would be observed if 
-the mouse was sampling all of the angles of interest uniformly. This is done by binning the 
-arena up into a grid and then spinning an artifical mouse around in each bin and calculating 
+and comparing them to the optimal PDFs. The optimal distributions are what would be observed if
+the mouse was sampling all of the angles of interest uniformly. This is done by binning the
+arena up into a grid and then spinning an artifical mouse around in each bin and calculating
 the angle between the head and the point of interest.
 
 NOTE:
-- Discovered negative x and y coordinates for the min head direction points which is not possible. 
-Leaving this here as a reminder that we need more tests and quality checks in the pipeline as the 
-pipeline is untested and unreliable in it's current state 
+- Discovered negative x and y coordinates for the min head direction points which is not possible.
+Leaving this here as a reminder that we need more tests and quality checks in the pipeline as the
+pipeline is untested and unreliable in it's current state
 
 TODO:
 - The logic is not robust in the sense that it does not prevent the synthetic mouse from walking through the barrier
@@ -33,13 +33,15 @@ from behave_analysis.analyze.filtering_data.filtering_functions import (
 
 # ---------------------------------------Main Functions-----------------------------------------------
 
+
 def plot_condition_titles(conditions, nrows, columns) -> None:
-    """Plot titles and remove the axes from the first 
+    """Plot titles and remove the axes from the first
     column of subplots that act as sub titles"""
     for c_counter, c in enumerate(conditions):
         ax = plt.subplot(nrows, columns, c_counter * columns + 1)
         ax.text(0.5, 0.4, c, rotation="horizontal", va="center", ha="center", fontsize=20)
         ax.set_axis_off()
+
 
 def plot_angle_distributions(session, settings, trackingData, video_data, conditions, sessionHeight, save_path) -> None:
     """
@@ -51,11 +53,11 @@ def plot_angle_distributions(session, settings, trackingData, video_data, condit
     interest in the arena.
 
     """
-        
+
     angles = identify_angles(session)
-    optimal_dic, hdir_df = create_optimal_distributions(trackingData, sessionHeight, session.barrier_time)
+    optimal_dic, hdir_df = create_optimal_distributions(trackingData, sessionHeight, session["barrier_time"])
     save_optimal_as_csv(optimal_dic, hdir_df, save_path)
-    
+
     # Plotting
     fig, axs = plt.subplots(nrows=len(conditions), ncols=len(angles) + 1, figsize=(24, 6), sharey=False, sharex=True)
     plot_condition_titles(conditions, len(conditions), len(angles) + 1)
@@ -63,7 +65,7 @@ def plot_angle_distributions(session, settings, trackingData, video_data, condit
     colors = ["dimgrey", "lightgreen"]
     legend_elements = [Line2D([0], [0], color=color, lw=4, label=label) for color, label in zip(colors, labels)]
     fig.legend(handles=legend_elements, loc="upper right", fontsize=16)
-    
+
     for con_i, con in enumerate(conditions):
         videoDf = filter_video_dataframe(video_data, con)
 
@@ -86,11 +88,10 @@ def plot_angle_distributions(session, settings, trackingData, video_data, condit
             ax.set_yticks(np.arange(0, 0.5, 0.1))
 
         axs[con_i, 1].set_ylabel("Probability Density", fontsize=16)
-    
 
     if settings.show_plots:
         plt.show()
-    
+
     for ax in axs[:, 1].flat:
         plt.setp(ax.get_xticklabels(), visible=True)
 
@@ -202,9 +203,7 @@ def remove_points_away_from_center_of_circle(x, y, session_height) -> tuple:
     + Make the radius of the arena a variable not hard coded
     """
 
-    dist = np.sqrt(
-        ((x - session_height / 2) ** 2) + ((y - session_height / 2) ** 2)
-    )  # Use the euclidean distance formula to find the distance from the center of the arena
+    dist = np.sqrt(((x - session_height / 2) ** 2) + ((y - session_height / 2) ** 2))  # Use the euclidean distance formula to find the distance from the center of the arena
     filtX = x[dist < 460]  # 460 is size of arena circle radius, see register
     filtY = y[dist < 460]
     return filtX, filtY
@@ -223,7 +222,7 @@ def compute_the_angle_between_the_head_and_a_point(headPositionDf, pointOfIntere
 
     Logic:
     - xLen and yLen are the x and y components of the triangle formed by the head and the point of interest
-    - Inverse of Tan is used to obtain the angle in radians between the x and y components, arcTan2 is used to ensure 
+    - Inverse of Tan is used to obtain the angle in radians between the x and y components, arcTan2 is used to ensure
     the correct quadrant is returned (Unsure why negative is needed)
     - The pos and negative logic is to covert a 270 degree turn into a -90 degree turn
     - Rotate the coordinate plane by 90 degrees to ensure it is in the same coordinate system as the head direction
@@ -242,12 +241,8 @@ def compute_the_angle_between_the_head_and_a_point(headPositionDf, pointOfIntere
     angleOFInterest[isAngleOFInterestPositive] -= np.pi
 
     # Ensure angle generated is (from pi to -pi)
-    adjustedAngleOfInterest = np.pi + (
-        angleOFInterest - headPositionDf["hDir"]
-    )  # brackets for order of operations its not atuple
-    adjustedAngleOfInterest[adjustedAngleOfInterest > np.pi] = adjustedAngleOfInterest[
-        adjustedAngleOfInterest > np.pi
-    ] - (2 * np.pi)
+    adjustedAngleOfInterest = np.pi + (angleOFInterest - headPositionDf["hDir"])  # brackets for order of operations its not atuple
+    adjustedAngleOfInterest[adjustedAngleOfInterest > np.pi] = adjustedAngleOfInterest[adjustedAngleOfInterest > np.pi] - (2 * np.pi)
 
     return adjustedAngleOfInterest
 
@@ -266,7 +261,7 @@ def save_optimal_as_csv(dict, hdir_df, save_path) -> None:
         return
 
     # large = df.with_column(pl.Series("hDir", arr).alias("hdir")).to_pandas() # with_column deprecated in newer polars versions
-    large = df.hstack([pl.Series("hdir",arr)]).to_pandas()
+    large = df.hstack([pl.Series("hdir", arr)]).to_pandas()
     path = os.path.join(save_path, "optimal_distributions.csv")
     large.to_csv(path)
     return None

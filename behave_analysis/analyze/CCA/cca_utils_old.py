@@ -6,15 +6,17 @@ from behave_analysis.analyze.filtering_data.filtering_functions import filter_vi
 from behave_analysis.analyze.PlaceCells.place_cell_utils import create_centered_bins, assign_positional_bins_to_frames
 from behave_analysis.analyze.filtering_data.filtering_functions import generate_bins
 
+
 def compute_distance_object(df, variable, session):
     if "shelter" in variable:
-        shelter_location = [np.mean([session.shelter_location[0][0], session.shelter_location[1][0]]), session.shelter_location[0][1]]
-        return np.sqrt((df["mouse_x_position"] - shelter_location[0])**2 + (df["mouse_y_position"] - shelter_location[1])**2)
+        shelter_location = [np.mean([session["shelter_location"][0][0], session["shelter_location"][1][0]]), session["shelter_location"][0][1]]
+        return np.sqrt((df["mouse_x_position"] - shelter_location[0]) ** 2 + (df["mouse_y_position"] - shelter_location[1]) ** 2)
     if "barrier1" in variable:
-        return np.sqrt((df["mouse_x_position"] - session.barrier_location[0][0])**2 + (df["mouse_y_position"] - session.barrier_location[0][1])**2)
+        return np.sqrt((df["mouse_x_position"] - session["barrier_location"][0][0]) ** 2 + (df["mouse_y_position"] - session["barrier_location"][0][1]) ** 2)
     if "barrier2" in variable:
-        return np.sqrt((df["mouse_x_position"] - session.barrier_location[1][0])**2 + (df["mouse_y_position"] - session.barrier_location[1][1])**2)
-    
+        return np.sqrt((df["mouse_x_position"] - session["barrier_location"][1][0]) ** 2 + (df["mouse_y_position"] - session["barrier_location"][1][1]) ** 2)
+
+
 def preprocess_behavioral_data(df, columns_to_keep):
     Y = np.empty((df.shape[0], 1))
     dt = 0.025
@@ -56,7 +58,7 @@ def select_train_test_frames(video_df, condition, method):
 
     if "random split" in method:
         explore_indices = frames_by_condition_explore
-        
+
         if method == "random split":
             n_items = int(len(explore_indices) // 2)
         elif method == "random split h_match":

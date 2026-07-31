@@ -1,4 +1,4 @@
-"""""A module to host filtering functions for polars dataframes"""
+""" ""A module to host filtering functions for polars dataframes"""
 
 # import third party libaries
 import numpy as np
@@ -34,7 +34,7 @@ def discover_condition_based_on_video_df(dataframe):
     return condition
 
 
-def filter_video_dataframe(dataframe, condition = "", outofshelter=True, exclude_escape=True, exclude_homings=False, select_homings=False, select_escape = False, speed_threshold = 0):
+def filter_video_dataframe(dataframe, condition="", outofshelter=True, exclude_escape=True, exclude_homings=False, select_homings=False, select_escape=False, speed_threshold=0):
     """
     A function that filters the video dataframe (the behavioural data) and finds the periods of time in each condition (defined by object presence (whether the barrier or shelter is present or not))
     Time in shelter is removed
@@ -44,7 +44,7 @@ def filter_video_dataframe(dataframe, condition = "", outofshelter=True, exclude
     assert type(dataframe) == pl.DataFrame, "dataframe must be a polars dataframe else filtering will not work"
 
     filtered_video_df = dataframe.filter((dataframe["valid_time"] == True))  # only keep valid times of recording
-    
+
     filtered_video_df = filtered_video_df.filter((filtered_video_df["speed"] >= speed_threshold))
 
     if not outofshelter is None:
@@ -61,7 +61,7 @@ def filter_video_dataframe(dataframe, condition = "", outofshelter=True, exclude
     if exclude_escape:
         assert select_escape == False, "You can't exclude and select escape at the same time"
         filtered_video_df = filtered_video_df.filter((filtered_video_df["EscapePeriod"] == False))
-    
+
     if select_escape & (not select_homings):
         assert exclude_escape == False, "You can't exclude and select escapes at the same time"
         filtered_video_df = filtered_video_df.filter((filtered_video_df["EscapePeriod"] == True))
@@ -101,22 +101,23 @@ def filter_video_dataframe(dataframe, condition = "", outofshelter=True, exclude
 
     return filtered_video_df
 
-def filter_video_df_time(dataframe, condition, fr, max_time = 20):
+
+def filter_video_df_time(dataframe, condition, fr, max_time=20):
     """
     A function that filters the video dataframe (the behavioural data) based on time in condition.
     It either returns the first or second half of the condition. If the condition is longer than 2x max time
     max time is used as the window length for the beginning and end of the session.
     Max time is in minutes!
     """
-    time_in_cond = len(dataframe)/(fr*60)
-    if time_in_cond <= (max_time *2):
-        chunk = np.floor(len(dataframe)/2)
+    time_in_cond = len(dataframe) / (fr * 60)
+    if time_in_cond <= (max_time * 2):
+        chunk = np.floor(len(dataframe) / 2)
     else:
-        chunk = max_time*fr*60
+        chunk = max_time * fr * 60
 
-    if condition == 'first_half':
+    if condition == "first_half":
         dataframe = dataframe.head(int(chunk))
-    elif condition == 'second_half':
+    elif condition == "second_half":
         dataframe = dataframe.tail(int(chunk))
 
     return dataframe
@@ -132,6 +133,7 @@ def filter_video_df_mouse_behaviour(dataframe, condition, session, good_homie):
     """
     # get homings
     from settings.settings_analyze_behave import settings_ab
+
     settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
     homings = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings()
     homings = remove_manually_curated(homings)
@@ -186,6 +188,7 @@ def filter_video_df_homing_number(dataframe, condition, session, good_homie, num
     """
     # get homings
     from settings.settings_analyze_behave import settings_ab
+
     settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
     homings = get_Homings({**settings_ab, "homings_curated": True}, session).get_homings()
     # single out the homings in this condition
@@ -230,19 +233,19 @@ def identify_conditions(session) -> list:
 
     condition = ["all_time"]
 
-    if len(session.shelter_time) > 0:
+    if len(session["shelter_time"]) > 0:
         condition.append("shelter_present")
-        if session.shelter_time[0] > 0:
+        if session["shelter_time"][0] > 0:
             condition.append("pre_shelter")
-        if len(session.barrier_time) > 0:
+        if len(session["barrier_time"]) > 0:
             condition.append("shelter_only")
 
-    if len(session.barrier_time) > 0:
+    if len(session["barrier_time"]) > 0:
         condition.append("barrier_present")
-        if session.barrier_flip_time:
+        if session["barrier_flip_time"]:
             condition.append("barrier_pre_flip")
             condition.append("barrier_post_flip")
-        if session.barrier_time[1] != -1:
+        if session["barrier_time"][1] != -1:
             condition.append("barrier_removed")
 
 
@@ -262,14 +265,14 @@ def identify_epoch_conditions(session) -> list:
     compute_dist_shelt() ("barrier_pre_flip" / "barrier_post_flip").
     """
     conditions = []
-    has_pre_shelter = len(session.shelter_time) > 0 and session.shelter_time[0] > 0
-    has_shelter = len(session.shelter_time) > 0
-    has_barrier = len(session.barrier_time) > 0
-    has_barflip = bool(session.barrier_flip_time)
+    has_pre_shelter = len(session["shelter_time"]) > 0 and session["shelter_time"][0] > 0
+    has_shelter = len(session["shelter_time"]) > 0
+    has_barrier = len(session["barrier_time"]) > 0
+    has_barflip = bool(session["barrier_flip_time"])
 
     if has_pre_shelter:
         conditions.append("pre_shelter")
-    if has_shelter and (session.shelter_time[0] < session.barrier_time[0] if has_barrier else True):
+    if has_shelter and (session["shelter_time"][0] < session["barrier_time"][0] if has_barrier else True):
         conditions.append("shelter_only")
     if has_barrier:
         if has_barflip:
@@ -277,12 +280,12 @@ def identify_epoch_conditions(session) -> list:
             conditions.append("barrier_post_flip")
         else:
             conditions.append("barrier_pre_flip")
-    if has_barrier and session.barrier_time[1] != -1:
+    if has_barrier and session["barrier_time"][1] != -1:
         conditions.append("barrier_removed")
 
     if len(conditions) == 0:
         conditions.append("habituation")
-        
+
     return conditions
 
 
@@ -310,21 +313,21 @@ def identify_conditions_based_on_behave(session):
     """
     condition = []
 
-    if len(session.shelter_time) > 0:
-        if session.shelter_time[0] > 0:
+    if len(session["shelter_time"]) > 0:
+        if session["shelter_time"][0] > 0:
             condition.append("pre_shelter")
-        if len(session.barrier_time) > 0:
+        if len(session["barrier_time"]) > 0:
             condition.append("shelter_only")  # if there was a barrier put in at some point
         else:
             condition.append("shelter_present")  # if there was no barrier
 
-    if len(session.barrier_time) > 0:
-        if session.barrier_flip_time:
+    if len(session["barrier_time"]) > 0:
+        if session["barrier_flip_time"]:
             condition.append("barrier_pre_flip")
             condition.append("barrier_post_flip")
         else:  # there was no flip, so we only have a barrier present time
             condition.append("barrier_present")
-        if session.barrier_time[1] != -1:
+        if session["barrier_time"][1] != -1:
             condition.append("barrier_removed")
 
     return condition
@@ -337,10 +340,10 @@ def identify_angles(session, include_rand_points=False):
     """
     angles = ["hdir"]
 
-    if len(session.shelter_time) > 0:
+    if len(session["shelter_time"]) > 0:
         angles.append("hsa")
 
-    if len(session.barrier_time) > 0:
+    if len(session["barrier_time"]) > 0:
         angles.append("h_preflipbar_a")
         angles.append("h_postflipbar_a")
         angles.append("h_bar_centre_a")
@@ -358,13 +361,13 @@ def identify_dist(session, add):
     """
     dist = []
 
-    if len(session.shelter_time) > 0:
+    if len(session["shelter_time"]) > 0:
         dist.append("shelt_" + add)
 
-    if len(session.barrier_time) > 0:
-        dist.append("bar_preflip_"+add)
-        dist.append("bar_postflip_"+add)
-        dist.append("bar_centre_"+add)
+    if len(session["barrier_time"]) > 0:
+        dist.append("bar_preflip_" + add)
+        dist.append("bar_postflip_" + add)
+        dist.append("bar_centre_" + add)
 
     dist.append("randP_" + add)
 

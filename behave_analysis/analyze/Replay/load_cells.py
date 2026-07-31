@@ -12,7 +12,7 @@ def load_hdir_cells(session):
     RETURNS:
         hdir: list of which good clusters are hdir cells 
     """
-    file_name = os.path.join(session.base_path, session.processed_path, "cells", "hdir_cells.pkl")
+    file_name = os.path.join(session["base_path"], session["processed_path"], "cells", "hdir_cells.pkl")
     
     # assert os.path.exists(file_name), "No hdir_cells.pkl file found. Please run the head direction classification first."
     try:

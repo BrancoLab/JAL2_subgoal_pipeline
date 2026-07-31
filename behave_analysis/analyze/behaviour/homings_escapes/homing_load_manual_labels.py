@@ -5,10 +5,11 @@ import numpy as np
 
 # ------------------- Use manual labels -------------------------------
 
+
 def load_manual_labels(session) -> tuple:
     """Load manual labels from a csv file.
     NB: Assumes image frames are 1 indexed and converts to 0 based indexing here."""
-    df = pd.read_csv(os.path.join(session.base_path, session.processed_path) + "\\" + "Borris" + "\\" + "scored_homings.csv")
+    df = pd.read_csv(os.path.join(session["base_path"], session["processed_path"]) + "\\" + "Borris" + "\\" + "scored_homings.csv")
     columns_to_keep = ["Time", "Image index", "Behavior type"]
     fdf = df[columns_to_keep]
     time = fdf["Time"].to_numpy()
@@ -25,5 +26,5 @@ def load_manual_labels(session) -> tuple:
     assert np.diff(onsets).all() > 0, "Onsets are not increasing"
     assert np.diff(offsets).all() > 0, "Offsets are not increasing"
     durations = offsets - onsets
-    durations = np.array([[x] for x in (durations) / session.video.fps])  # match the format of the automatic labels
+    durations = np.array([[x] for x in (durations) / session["video"]["fps"]])  # match the format of the automatic labels
     return onsets, durations, offsets

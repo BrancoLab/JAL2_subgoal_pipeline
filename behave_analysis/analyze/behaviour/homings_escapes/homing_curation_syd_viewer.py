@@ -46,9 +46,9 @@ def homing_curation_syd_viewer(
     if len(tracking_data) == 0:
         tracking_data = open_tracking_data(session)
     if len(video_df) == 0:
-        video_df_path = Path(session.base_path) / session.processed_path / "full_video_dataframe.csv"
+        video_df_path = Path(session["base_path"]) / session["processed_path"] / "full_video_dataframe.csv"
         video_df = pl.read_csv(video_df_path)
-    fps = session.video.fps
+    fps = session["video"]["fps"]
     n_frames = len(video_df["speed"])
 
     # candidates
@@ -60,7 +60,7 @@ def homing_curation_syd_viewer(
         candidate_mask[on_i : off_i + 1] = True
 
     # load the manual
-    if os.path.isfile(session.base_path + "/" + session.processed_path + "/Borris/scored_homings.csv"):
+    if os.path.isfile(session["base_path"] + "/" + session["processed_path"] + "/Borris/scored_homings.csv"):
         man_on, _, man_off = load_manual_labels(session)
         # remove manual labels that coincide with candidates
         manual_mask = np.zeros(len(video_df), dtype=bool)
@@ -174,7 +174,7 @@ def homing_curation_syd_viewer(
         if condition != state["condition"]:
             Arena(
                 ax=axs[0, 0],
-                condition=condition + ("_tiny" if "tiny" in session.experiment else ""),
+                condition=condition + ("_tiny" if "tiny" in session["experiment"] else ""),
                 barrier_coordinates=tracking_data["barrier_loc"][:-1],
                 shelter_coordinates=tracking_data["shelter_loc"],
                 full_image=False,
@@ -186,7 +186,7 @@ def homing_curation_syd_viewer(
         if condition != state["condition"]:
             Arena(
                 ax=axs[0, 1],
-                condition=condition + ("_tiny" if "tiny" in session.experiment else ""),
+                condition=condition + ("_tiny" if "tiny" in session["experiment"] else ""),
                 barrier_coordinates=tracking_data["barrier_loc"][:-1],
                 shelter_coordinates=tracking_data["shelter_loc"],
                 full_image=False,
@@ -232,7 +232,7 @@ def save_removed_runs(homings_dict: dict, removed_event_ids: list, settings: obj
     homings_dict["removed_runs"] = removed_runs
 
     # find the hexname and load the database
-    savepath = os.path.join(session.base_path, session.processed_path, "homings")
+    savepath = os.path.join(session["base_path"], session["processed_path"], "homings")
     database, _, hexaname = check_database_for_same_run(
         db_settings={**settings_to_check(settings, ["homing"])},
         results_csv_name=savepath + os.sep + "Homing_database.csv",

@@ -24,14 +24,14 @@ def open_tracking_data(session):
     It is not really the responsibility of the postprocessing class to open the tracking data.
     """
     
-    file = os.path.join(session.base_path, session.processed_path, "fully_processed_tracking_data.pickle")
+    file = os.path.join(session["base_path"], session["processed_path"], "fully_processed_tracking_data.pickle")
     
     try:
         with open(file, "rb") as dill_file:
             tracking_data = pickle.load(dill_file)
     
     except FileNotFoundError:
-        logger.error(f"Tracking data not found for session: {session.name}")
+        logger.error(f"Tracking data not found for session: {session["name"]}")
         raise FileNotFoundError
     
     return tracking_data
@@ -39,7 +39,7 @@ def open_tracking_data(session):
 def open_postprocess_object(session, cluster_type) -> object:
     try:
         fileObj = open(
-            os.path.join(session.base_path, session.processed_path)
+            os.path.join(session["base_path"], session["processed_path"])
             + "\\"
             + "postprocessclass"
             + "_"
@@ -52,6 +52,6 @@ def open_postprocess_object(session, cluster_type) -> object:
 
     except FileNotFoundError:
         logger.error(
-            f"Data not found for session: {session.name} - Check databank and whether you have actually run this configuration of postprocess. "
+            f"Data not found for session: {session["name"]} - Check databank and whether you have actually run this configuration of postprocess. "
         )
         raise FileNotFoundError

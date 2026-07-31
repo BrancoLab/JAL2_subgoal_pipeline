@@ -31,7 +31,7 @@ class Visualize_efizz:
 
     def __init__(self, session):
         self.session = session
-        self.base_path = os.path.join(self.session.base_path, self.session.processed_path)
+        self.base_path = os.path.join(self.session["base_path"], self.session["processed_path"])
         logger.info("Visualize_efizz class initialized - Time to plot some efizz!")
 
     def load_data(self, visualization_name):
@@ -46,7 +46,7 @@ class Visualize_efizz:
         if visualization_name in ["single_unit_heatmaps", "spatial_position_firing", "spatial_position_firing_hdir"]:
             self.video_df = pl.read_csv(os.path.join(self.base_path, "full_video_dataframe.csv"))
         if visualization_name in ["single_unit_heatmaps", "spatial_position_firing"]:
-            video_spike_count_path = (os.path.join(self.session.base_path, self.session.processed_path)
+            video_spike_count_path = (os.path.join(self.session["base_path"], self.session["processed_path"])
                                         + "/"
                                         + "spike_count_by_frame_and_"
                                         + self.cluster_type
@@ -70,8 +70,8 @@ class Visualize_efizz:
 
         Save the resulting plots to a spatial_firing or stim_resp directory in the processed folder
         """
-        spatial_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "spatial_firing"))
-        stim_resp_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path, "stim_resp"))
+        spatial_path = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"], "spatial_firing"))
+        stim_resp_path = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"], "stim_resp"))
 
         if visualization_name == "single_unit_heatmaps":
             # Make single unit heatmaps per condition

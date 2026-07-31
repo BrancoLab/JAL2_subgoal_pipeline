@@ -24,8 +24,8 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
     registration_transform = load_registration_transform(session)
     metadata = zip(onsets, stimulus_durations)
     for trial_num, (onset_frames, stimulus_duration) in enumerate(metadata):
-        fisheye_correction_map = load_fisheye_correction_map(session.video.fisheye_correction_file)
-        delay_between_frames = int(1000 / session.video.fps * (not settings.rapid) + settings.rapid)
+        fisheye_correction_map = load_fisheye_correction_map(session["video"]["fisheye_correction_file"])
+        delay_between_frames = int(1000 / session["video"]["fps"] * (not settings.rapid) + settings.rapid)
         source_video, frames_in_this_trial, stim_status, trial_video = set_up_videos(session, settings, stim_type, trial_num, onset_frames, stimulus_duration)
         trail = []
         trail_colors = []
@@ -106,9 +106,9 @@ def read_frame(onset_frames, source_video):
 
 
 def load_registration_transform(session):
-    registration_path = os.path.join(session.base_path, session.processed_path, "registration_data.json")
+    registration_path = os.path.join(session["base_path"], session["processed_path"], "registration_data.json")
     if not os.path.isfile(registration_path):
-        logger.error(f"Registration sidecar not found for session: {session.number} - {session.name}")
+        logger.error(f"Registration sidecar not found for session: {session["number"]} - {session["name"]}")
         return None
 
     with open(registration_path, "r", encoding="utf-8") as f:
@@ -119,7 +119,7 @@ def load_registration_transform(session):
 
 
 def pass_correct_and_register_frame(actual_frame, settings, session, fisheye_correction_map, registration_transform):
-    actual_frame = correct_and_register_frame(actual_frame[:, :, 0], session.video, fisheye_correction_map, regTransform=registration_transform)
+    actual_frame = correct_and_register_frame(actual_frame[:, :, 0], session["video"], fisheye_correction_map, regTransform=registration_transform)
     if settings.display_tracking or settings.display_trail:
         actual_frame = cv2.cvtColor(actual_frame, cv2.COLOR_GRAY2RGB)
     return actual_frame
@@ -459,9 +459,9 @@ def set_up_videos(
     """
     A function that does a lot of shit
     """
-    video_file = os.path.join(session.base_path, session.file_path, session.video.camFilePath)
+    video_file = os.path.join(session["base_path"], session["file_path"], session["video"]["camFilePath"])
     source_video = cv2.VideoCapture(video_file)  # Read the video file into a cv2 video object
-    fps = session.video.fps
+    fps = session["video"]["fps"]
 
     seconds_before = settings.__dict__["seconds_before_" + stim_type]
     seconds_after = settings.__dict__["seconds_after_" + stim_type]
@@ -474,18 +474,18 @@ def set_up_videos(
     # self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 
     trial_video_path = Directory(
-        os.path.join(session.base_path, session.processed_path),
-        experiment=session.experiment,
+        os.path.join(session["base_path"], session["processed_path"]),
+        experiment=session["experiment"],
         stim_type=stim_type,
         tracking_video=settings.display_tracking,
         media_type="video",
-    ).file_name(session.mouse, trial_num, minutes_into_session)
+    ).file_name(session["mouse"], trial_num, minutes_into_session)
 
     trial_video = cv2.VideoWriter(
         trial_video_path,
         cv2.VideoWriter_fourcc(*"mp4v"),
-        session.video.fps,
-        (session.video.width, session.video.height),
+        session["video"]["fps"],
+        (session["video"]["width"], session["video"]["height"]),
         settings.display_tracking or settings.display_trail,
     )
     return source_video, frames_in_this_trial, stim_status, trial_video

@@ -23,7 +23,7 @@ class Dev_3_signal_nidaq:
 def get_dev3_signals(session: NEW_Session):
     """Get all the things"""
 
-    AI_file = list(session.file_path.glob("*analog_dev4.bin"))[0]  # need lst and idx as its a generator
+    AI_file = list(session["file_path"].glob("*analog_dev4.bin"))[0]  # need lst and idx as its a generator
 
     if ".bin" in str(AI_file):
         AI_data = np.fromfile(AI_file)
@@ -48,12 +48,13 @@ def get_dev3_signals(session: NEW_Session):
 
     return laser_object
 
+
 def plot_laser_sync_test_in_process(laser_signal, laser_onsets):
     # import polars as pl
     import matplotlib.pyplot as plt
+
     fig, axs = plt.subplots(1)
     axs.plot(laser_signal)
     for onset in laser_onsets:
         axs.axvline(x=onset, color="r", linestyle="--")
     plt.show()
-        

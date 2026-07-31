@@ -24,6 +24,7 @@ from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_epoch_conditions
 
+
 class ComputeEscapeTuning:
     """A class for computing the tuning to escape-related variables and storing them in the EscapeTuning dataclass
     1. Extract the data: this either concatenates all homings+escapes or exploration periods
@@ -54,8 +55,8 @@ class ComputeEscapeTuning:
         # build save path to dump data in
         self.ET.savepath = make_directory(
             os.path.join(
-                self.aefizz.session.base_path,
-                self.aefizz.session.processed_path,
+                self.aefizz.session["base_path"],
+                self.aefizz.session["processed_path"],
                 "models",
                 "escape_tuning",
             )
@@ -81,12 +82,12 @@ class ComputeEscapeTuning:
                 self.insufficient_data = True
                 return
             self.insufficient_data = False
-        
+
         if self.ET.escape_pattern_time == "shelter_outing":
             from behave_analysis.analyze.CCA.find_shelter_exit_and_runs import find_shelter_exit_runs
+
             shelter_outing_vector = find_shelter_exit_runs(self.aefizz.video_df, min_speed_cm_s=3.0, min_distance_cm=20.0)
-            self.onset_dict = {"ons": np.where(np.diff(shelter_outing_vector.astype(int)) > 0)[0] + 1,
-                               "offs": np.where(np.diff(shelter_outing_vector.astype(int)) < 0)[0] + 1}
+            self.onset_dict = {"ons": np.where(np.diff(shelter_outing_vector.astype(int)) > 0)[0] + 1, "offs": np.where(np.diff(shelter_outing_vector.astype(int)) < 0)[0] + 1}
 
     def filter_data_and_compute_tuning(self):
         """This is a function that builds a matrix of neurons x time of activity in escape+homings or exploration
@@ -156,13 +157,15 @@ class ComputeEscapeTuning:
         3. The shift vector is shifted and the shifted vector is applied to the neural data"""
 
         # build shift vector to subselect central 1/3 of each condition
-        self.ET.shifts, shift_vector = build_shift_vector(ET = self.ET, full_condition_vector = self.condition, settings = self.aefizz.settings)
+        self.ET.shifts, shift_vector = build_shift_vector(ET=self.ET, full_condition_vector=self.condition, settings=self.aefizz.settings)
 
         # select which onsets and offsets to keep based on shift vector
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time or self.ET.escape_pattern_time == "shelter_outing":
-            filtering_vector = select_onset_offsets_in_shift_vector(shift_vector,
-                                                ons = (self.onset_dict["ons"] * self.settings.ep_interpolation_mult).astype(int),  # homing onsets
-                                                offs = (self.onset_dict["offs"] * self.settings.ep_interpolation_mult).astype(int))  # homing offsets)
+            filtering_vector = select_onset_offsets_in_shift_vector(
+                shift_vector,
+                ons=(self.onset_dict["ons"] * self.settings.ep_interpolation_mult).astype(int),  # homing onsets
+                offs=(self.onset_dict["offs"] * self.settings.ep_interpolation_mult).astype(int),
+            )  # homing offsets)
         elif self.ET.escape_pattern_time == "explore":
             filtering_vector = np.logical_and(self.ET.explore_vector, shift_vector)
 
@@ -176,7 +179,9 @@ class ComputeEscapeTuning:
 
         # compute behavioral variable
         named_conditions = np.array(self.ET.all_conditions)[condition.astype(int)]
-        self.discretized_var_shift = create_discretized_behave_var(self.aefizz, x, y, named_conditions, self.ET.tuning_var, time_mask_vector=filtering_vector, interpolation=True if self.ET.tuning_var == "speed" else False)
+        self.discretized_var_shift = create_discretized_behave_var(
+            self.aefizz, x, y, named_conditions, self.ET.tuning_var, time_mask_vector=filtering_vector, interpolation=True if self.ET.tuning_var == "speed" else False
+        )
 
         # initialize variables for output
         step_n, n_cond, n_neur, Nbins = len(self.ET.shifts), len(self.ET.all_conditions), self.ET.neural_matrix.shape[0], self.settings.ep_bins
@@ -203,11 +208,12 @@ class ComputeEscapeTuning:
             if "residual" not in self.ET.name:
                 neural_matrix = self.fcm[shifted_vec, :].T
             elif "residual" in self.ET.name:
-                neural_matrix = residual_neural_matrix(neural_matrix_t1=self.fcm[shifted_vec, :].T, 
-                                                       cond_t1=condition, 
-                                                       var2_t1= self.ET.residual_var2_all_time[shifted_vec], # self.ET.residual_shift0_var2_t1, 
-                                                       fr_var2_t2=self.ET.residual_fr_shift0_var2_t2)
-                
+                neural_matrix = residual_neural_matrix(
+                    neural_matrix_t1=self.fcm[shifted_vec, :].T,
+                    cond_t1=condition,
+                    var2_t1=self.ET.residual_var2_all_time[shifted_vec],  # self.ET.residual_shift0_var2_t1,
+                    fr_var2_t2=self.ET.residual_fr_shift0_var2_t2,
+                )
 
             # compute the tuning curve on the unshifted, subselected data
             if ("homing" in self.ET.escape_pattern_time) or ("escape" in self.ET.escape_pattern_time) or (self.ET.escape_pattern_time == "shelter_outing"):
@@ -247,13 +253,8 @@ class ComputeEscapeTuning:
         settings = asdict(self.settings)
         np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
         # add results to database
-        db_settings = {"variable": variable, 
-                       "insufficient_data": self.insufficient_data,
-                       **settings_to_check(self.settings, ["ep_", "linshift"])}
-        add_run_to_database(self.database, 
-                            db_settings, 
-                            self.ET.savepath + os.sep + "EscapePattern_results.csv", 
-                            self.hexaname)
+        db_settings = {"variable": variable, "insufficient_data": self.insufficient_data, **settings_to_check(self.settings, ["ep_", "linshift"])}
+        add_run_to_database(self.database, db_settings, self.ET.savepath + os.sep + "EscapePattern_results.csv", self.hexaname)
 
         if return_dict:
             return results_dict
@@ -276,12 +277,14 @@ class ComputeEscapeTuning:
             escape_period = self.aefizz.video_df["EscapePeriod"].to_numpy()
 
         # not in homing, not in escape
-        explore_vector = np.logical_and(explore_vector,
+        explore_vector = np.logical_and(
+            explore_vector,
             np.logical_and(homing_period == False, escape_period == False),
         )
 
         # out of shelter
-        explore_vector = np.logical_and(explore_vector,
+        explore_vector = np.logical_and(
+            explore_vector,
             self.aefizz.video_df["OutofshelterIdx"].to_numpy() == True,
         )
 
@@ -300,7 +303,14 @@ class ComputeEscapeTuning:
 
         # create time filtering vector
         if "homing" in self.ET.escape_pattern_time or "escape" in self.ET.escape_pattern_time:
-            self.ET.homing_vector, self.ET.escape_vector = homing_escape_filtering_vector(nframes=len(self.condition), onset_dict=self.onset_dict, xpos=self.x, ypos=self.y, shelter_location=self.aefizz.session.shelter_location, interpolation_mult=self.aefizz.settings.ep_interpolation_mult)
+            self.ET.homing_vector, self.ET.escape_vector = homing_escape_filtering_vector(
+                nframes=len(self.condition),
+                onset_dict=self.onset_dict,
+                xpos=self.x,
+                ypos=self.y,
+                shelter_location=self.aefizz.session["shelter_location"],
+                interpolation_mult=self.aefizz.settings.ep_interpolation_mult,
+            )
             valid_time_vector = self.aefizz.video_df["valid_time"].to_numpy().astype(bool)
             if self.settings.ep_interpolation_mult > 1:
                 valid_time_vector = np.repeat(valid_time_vector, self.settings.ep_interpolation_mult)
@@ -330,10 +340,12 @@ class ComputeEscapeTuning:
 
         # create the residual neural matrix if that's what we need
         elif "residual" in self.ET.name:
-            self.ET.neural_matrix = residual_neural_matrix(neural_matrix_t1=self.fcm[filtering_vector, :].T, 
-                                                           cond_t1=self.ET.condition_vector, 
-                                                           var2_t1=self.ET.residual_var2_all_time[filtering_vector], 
-                                                           fr_var2_t2=self.ET.residual_fr_var2_t2)
+            self.ET.neural_matrix = residual_neural_matrix(
+                neural_matrix_t1=self.fcm[filtering_vector, :].T,
+                cond_t1=self.ET.condition_vector,
+                var2_t1=self.ET.residual_var2_all_time[filtering_vector],
+                fr_var2_t2=self.ET.residual_fr_var2_t2,
+            )
 
         return filtering_vector, x, y
 
@@ -342,16 +354,33 @@ class ComputeEscapeTuning:
         # gaussian filter
         if not hasattr(self.aefizz, "frame_by_cluster_matrix"):
             self.aefizz.frame_by_cluster_matrix = np.load(
-                os.path.join(self.aefizz.session.base_path, self.aefizz.session.processed_path) + "\\" + "frame_by_" + self.aefizz.cluster_type + "_cluster_matrix.npy"
+                os.path.join(self.aefizz.session["base_path"], self.aefizz.session["processed_path"]) + "\\" + "frame_by_" + self.aefizz.cluster_type + "_cluster_matrix.npy"
             )
         fcm = gaussian_filter1d(self.aefizz.frame_by_cluster_matrix, 2, axis=0)
 
         # load behavioral data
         self.y = self.aefizz.video_df["mouse_y_position"].to_numpy()
         self.x = self.aefizz.video_df["mouse_x_position"].to_numpy()
-        bar = build_condition_bool(time_list = self.aefizz.session.barrier_time, cond_name = 'barrier', frame_idx=np.arange(len(self.aefizz.video_df)) + 1, n_frames=len(self.aefizz.video_df), fps = self.aefizz.session.video.fps)
-        barflip = build_flippedbarrier_condition_bool(flip_time=self.aefizz.session.barrier_flip_time, frame_idx=np.arange(len(self.aefizz.video_df)) + 1, n_frames=len(self.aefizz.video_df), fps=self.aefizz.session.video.fps)
-        shelter = build_condition_bool(time_list = self.aefizz.session.shelter_time, cond_name = 'shelter', frame_idx=np.arange(len(self.aefizz.video_df)) + 1, n_frames=len(self.aefizz.video_df), fps = self.aefizz.session.video.fps)
+        bar = build_condition_bool(
+            time_list=self.aefizz.session["barrier_time"],
+            cond_name="barrier",
+            frame_idx=np.arange(len(self.aefizz.video_df)) + 1,
+            n_frames=len(self.aefizz.video_df),
+            fps=self.aefizz.session["video"]["fps"],
+        )
+        barflip = build_flippedbarrier_condition_bool(
+            flip_time=self.aefizz.session["barrier_flip_time"],
+            frame_idx=np.arange(len(self.aefizz.video_df)) + 1,
+            n_frames=len(self.aefizz.video_df),
+            fps=self.aefizz.session["video"]["fps"],
+        )
+        shelter = build_condition_bool(
+            time_list=self.aefizz.session["shelter_time"],
+            cond_name="shelter",
+            frame_idx=np.arange(len(self.aefizz.video_df)) + 1,
+            n_frames=len(self.aefizz.video_df),
+            fps=self.aefizz.session["video"]["fps"],
+        )
 
         # interpolate time
         if self.settings.ep_interpolation_mult > 1:
@@ -373,14 +402,14 @@ class ComputeEscapeTuning:
             gc.collect()
 
         # experimental condition vector
-        self.condition = np.zeros(len(bar)) # nothing there
-        if 'pre_shelter' in self.ET.all_conditions:
-            self.condition[shelter == True] += 1 # shelter present
-        self.condition[bar == True] += 1 # barrier is present
-        self.condition[(bar == True) & (barflip == True)] += 1 # barrier is present and flipped
+        self.condition = np.zeros(len(bar))  # nothing there
+        if "pre_shelter" in self.ET.all_conditions:
+            self.condition[shelter == True] += 1  # shelter present
+        self.condition[bar == True] += 1  # barrier is present
+        self.condition[(bar == True) & (barflip == True)] += 1  # barrier is present and flipped
         if (np.sum(bar == True) > 0) & (bar[-1] == False):
             bar_removed = np.where(np.diff(bar.astype(int)) < 0)[0][0] + 1
-            self.condition[bar_removed:] = np.amax(self.condition)+1 # barrier was removed
+            self.condition[bar_removed:] = np.amax(self.condition) + 1  # barrier was removed
         assert np.unique(self.condition).size == len(self.ET.all_conditions), "Condition vector does not match expected conditions"
 
     def load_data_for_residual(self):
@@ -392,17 +421,14 @@ class ComputeEscapeTuning:
 
         _, time_period1, tuning_var2, time_period2 = parse_residual_string(self.ET.name)
 
-                # this is the discretized behavioral variable for tuning_var2 in time_period1
-        assert tuning_var2 != 'escape', "Residual tuning cannot subtract activity explained by escape in periods outside homing/escape"
+        # this is the discretized behavioral variable for tuning_var2 in time_period1
+        assert tuning_var2 != "escape", "Residual tuning cannot subtract activity explained by escape in periods outside homing/escape"
         named_conditions = np.array(self.ET.all_conditions)[self.condition.astype(int)]
-        self.ET.residual_var2_all_time = create_discretized_behave_var(self.aefizz,
-                                                                        self.x, 
-                                                                        self.y, 
-                                                                        named_conditions, 
-                                                                        interpolation=True if tuning_var2 == "speed" else False,
-                                                                        tuning_var=tuning_var2)
+        self.ET.residual_var2_all_time = create_discretized_behave_var(
+            self.aefizz, self.x, self.y, named_conditions, interpolation=True if tuning_var2 == "speed" else False, tuning_var=tuning_var2
+        )
         print("the residual var2 all time vector has length " + str(len(self.ET.residual_var2_all_time)))
-        
+
         if tuning_var2 == "2D_position":
             # in this case, run and/or load data from PlaceCells pipeline instead of ComputeTuning pipeline
             PC_dict = load_or_compute_2d_position_tuning(self.aefizz, time_period2)
@@ -421,22 +447,22 @@ class ComputeEscapeTuning:
             # this is the firing rate in the tuning curve to var2 in time_period2
             CT_var2_t2 = load_or_compute_escape_tuning(self.aefizz, tuning_var2 + " in " + time_period2)
 
-            self.ET.residual_fr_var2_t2 = CT_var2_t2['fr_full']
-            if 'shifts' in CT_var2_t2.keys():
-                mid = np.where(CT_var2_t2['shifts'] == 0)[0][0]
+            self.ET.residual_fr_var2_t2 = CT_var2_t2["fr_full"]
+            if "shifts" in CT_var2_t2.keys():
+                mid = np.where(CT_var2_t2["shifts"] == 0)[0][0]
             else:
-                mid = int(np.shape(CT_var2_t2['y_fitted_shift'])[0] / 2)
-            self.ET.residual_fr_shift0_var2_t2 = CT_var2_t2['fr_shift'][mid, :, :, :]
+                mid = int(np.shape(CT_var2_t2["y_fitted_shift"])[0] / 2)
+            self.ET.residual_fr_shift0_var2_t2 = CT_var2_t2["fr_shift"][mid, :, :, :]
+
 
 # -----------------------------Helper functions for loading or running computation ----------------------------
+
 
 def check_bin_match(residual_var2_all_time, residual_fr_var2_t2):
     """Validate that visited 2D bins are within the loaded place-field map bounds.
     This is robust to partial spatial coverage (mouse may not visit all bins)."""
     if residual_var2_all_time.ndim != 2 or residual_var2_all_time.shape[1] != 2:
-        raise ValueError(
-            f"Expected residual_var2_all_time to have shape (time, 2), got {residual_var2_all_time.shape}"
-        )
+        raise ValueError(f"Expected residual_var2_all_time to have shape (time, 2), got {residual_var2_all_time.shape}")
 
     xy = residual_var2_all_time
     valid = ~np.isnan(xy).any(axis=1)
@@ -463,6 +489,7 @@ def check_bin_match(residual_var2_all_time, residual_fr_var2_t2):
     else:
         logger.warning("No valid 2D bins found in residual_var2_all_time (all NaN).")
 
+
 def load_or_compute_escape_tuning(aefizz, variable):
     """
     This function loads in or computes the escape tuning curves for a given variable
@@ -472,26 +499,26 @@ def load_or_compute_escape_tuning(aefizz, variable):
     """
     savepath = make_directory(
         os.path.join(
-            aefizz.session.base_path,
-            aefizz.session.processed_path,
+            aefizz.session["base_path"],
+            aefizz.session["processed_path"],
             "models",
             "escape_tuning",
         )
     )
     logger.info(f"Checking for existing results to {variable} in EP tuning database...")
-    
+
     _, do_analysis, hexaname = check_database_for_same_run(
         db_settings={"variable": variable, **settings_to_check(aefizz.settings, ["ep_", "linshift"])},
         results_csv_name=savepath + os.sep + "EscapePattern_results.csv",
         settings=aefizz.settings,
     )
-    
+
     # check file exists
     if do_analysis == False:
         EP_dict = np.load(savepath + os.sep + "EPtuning_" + hexaname + "_results.npz", allow_pickle=True)
     else:
         logger.warning(f"Tuning to {variable} file not found, computing now...")
-        check_aefizz_completeness(aefizz, attrlist = ["frame_by_cluster_matrix", "video_df", "cluster_Ids", "homing_dict", "escape_dict"])
+        check_aefizz_completeness(aefizz, attrlist=["frame_by_cluster_matrix", "video_df", "cluster_Ids", "homing_dict", "escape_dict"])
         computeET = ComputeEscapeTuning(variable, aefizz)
         computeET.prepare_data()
         if computeET.insufficient_data:
@@ -504,30 +531,34 @@ def load_or_compute_escape_tuning(aefizz, variable):
 
     return EP_dict
 
+
 def load_or_compute_2d_position_tuning(aefizz, time_period):
     savepath = make_directory(
         os.path.join(
-            aefizz.session.base_path,
-            aefizz.session.processed_path,
+            aefizz.session["base_path"],
+            aefizz.session["processed_path"],
             "models",
             "place_cells",
         )
     )
     logger.info(f"Checking for existing place cell results in {time_period} in place cell database...")
-    _, do_analysis, hexaname = check_database_for_same_run(db_settings = {'time_period': time_period, **settings_to_check(aefizz.settings, ["linshift", "place_cell"])}, 
-                                    results_csv_name = savepath + os.sep + "place_cell_results.csv", 
-                                    settings = aefizz.settings) 
+    _, do_analysis, hexaname = check_database_for_same_run(
+        db_settings={"time_period": time_period, **settings_to_check(aefizz.settings, ["linshift", "place_cell"])},
+        results_csv_name=savepath + os.sep + "place_cell_results.csv",
+        settings=aefizz.settings,
+    )
     if do_analysis == False:
         PC_dict = np.load(savepath + os.sep + "PC_" + hexaname + "_results.npz", allow_pickle=True)
     else:
         from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
+
         logger.warning(f"PlaceCell info for {time_period} not found, computing now!")
-        check_aefizz_completeness(aefizz, attrlist = ["video_and_spike_data", "Cluster_Ids"])
-        PC = PlaceCells(aefizz = aefizz, time_period = time_period)
+        check_aefizz_completeness(aefizz, attrlist=["video_and_spike_data", "Cluster_Ids"])
+        PC = PlaceCells(aefizz=aefizz, time_period=time_period)
         PC.preprocess_data()
         PC.compute_place_fields_conditions()
         PC.plot_place_fields_conditions()
-        PC_dict = PC.save(return_dict = True)
+        PC_dict = PC.save(return_dict=True)
 
     return PC_dict
 
@@ -538,34 +569,37 @@ def check_aefizz_completeness(aefizz, attrlist):
 
     if (not hasattr(aefizz, "frame_by_cluster_matrix")) & ("frame_by_cluster_matrix" in attrlist):
         aefizz.frame_by_cluster_matrix = np.load(
-            os.path.join(aefizz.session.base_path, aefizz.session.processed_path) + "\\" + "frame_by_" + aefizz.cluster_type + "_cluster_matrix.npy"
+            os.path.join(aefizz.session["base_path"], aefizz.session["processed_path"]) + "\\" + "frame_by_" + aefizz.cluster_type + "_cluster_matrix.npy"
         )
     if (not hasattr(aefizz, "video_df")) & ("video_df" in attrlist):
-        aefizz.video_df = pl.read_csv(os.path.join(aefizz.session.base_path, aefizz.session.processed_path) + "\\" + "full_video_dataframe.csv")
+        aefizz.video_df = pl.read_csv(os.path.join(aefizz.session["base_path"], aefizz.session["processed_path"]) + "\\" + "full_video_dataframe.csv")
 
     if (not hasattr(aefizz, "cluster_Ids")) & ("cluster_Ids" in attrlist):
-        aefizz.cluster_Ids = np.load(str(os.path.join(aefizz.session.base_path, aefizz.session.processed_path) + "/" + aefizz.cluster_type + "_cluster_Ids.npy"))
+        aefizz.cluster_Ids = np.load(str(os.path.join(aefizz.session["base_path"], aefizz.session["processed_path"]) + "/" + aefizz.cluster_type + "_cluster_Ids.npy"))
 
     if (not hasattr(aefizz, "homing_dict")) & ("homing_dict" in attrlist):
         from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import load_homing_for_aefizz
-        aefizz.homing_dict = load_homing_for_aefizz(aefizz.session, homing_type = aefizz.settings.homings)
+
+        aefizz.homing_dict = load_homing_for_aefizz(aefizz.session, homing_type=aefizz.settings.homings)
 
     if (not hasattr(aefizz, "escape_dict")) & ("escape_dict" in attrlist):
         from behave_analysis.utils.data_loading import load_or_extract_escapes
+
         aefizz.escape_dict = load_or_extract_escapes(aefizz.session)
 
     if (not hasattr(aefizz, "video_and_spike_data")) & ("video_and_spike_data" in attrlist):
         from behave_analysis.analyze.PlaceCells.PlaceCells import COLUMNS_TO_KEEP
         from behave_analysis.analyze.analyze_efizz import merge_spike_df_video_df
+
         video_df = aefizz.video_df.select([x for x in COLUMNS_TO_KEEP if x in aefizz.video_df.columns])
-        video_spike_count_path = (os.path.join(aefizz.session.base_path, aefizz.session.processed_path)
-                                        + "/"
-                                        + "spike_count_by_frame_and_"
-                                        + aefizz.cluster_type
-                                        + "cluster" + aefizz.qualifier
-                                        + ".csv"
-                                    )
+        video_spike_count_path = (
+            os.path.join(aefizz.session["base_path"], aefizz.session["processed_path"])
+            + "/"
+            + "spike_count_by_frame_and_"
+            + aefizz.cluster_type
+            + "cluster"
+            + aefizz.qualifier
+            + ".csv"
+        )
         spike_count_df = pl.read_csv(video_spike_count_path)
         aefizz.video_and_spike_data = merge_spike_df_video_df(spike_count_df, video_df)
-
-

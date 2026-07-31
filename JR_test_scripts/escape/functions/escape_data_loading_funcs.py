@@ -11,7 +11,22 @@ from JR_test_scripts.escape.functions.escape_utils import (
 
 
 def extract_homing_and_escape_periods(
-    session, frame_by_cluster_matrix, behave, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, no_stationary=False, return_escape=False, zscore=True, bins=[]
+    session,
+    frame_by_cluster_matrix,
+    behave,
+    y_pos,
+    x_pos,
+    bar,
+    barflip,
+    compression_var,
+    ons,
+    offs,
+    shifted_vec=[],
+    interpolation=True,
+    no_stationary=False,
+    return_escape=False,
+    zscore=True,
+    bins=[],
 ):
     """For a given session, extract the time around escapes and homing periods in neural data and a behavioral variable of interest (compression_var)
     INPUTS:
@@ -91,10 +106,10 @@ def extract_homing_and_escape_periods(
             )
 
         # find actual length of time until mouse is in shelter
-        in_shelt_y = this_y > session.shelter_location[0][1]
+        in_shelt_y = this_y > session["shelter_location"][0][1]
         in_shelt_x = np.logical_and(
-            this_x > session.shelter_location[0][0],
-            this_x < session.shelter_location[1][0],
+            this_x > session["shelter_location"][0][0],
+            this_x < session["shelter_location"][1][0],
         )
         in_shelt = np.logical_and(in_shelt_x, in_shelt_y)
 
@@ -186,8 +201,7 @@ def extract_homing_and_escape_periods(
         )
 
 
-def extract_homing_behave_var(
-    session, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, bins=[]):
+def extract_homing_behave_var(session, y_pos, x_pos, bar, barflip, compression_var, ons, offs, shifted_vec=[], interpolation=True, bins=[]):
     """For a given session, extract the time around escapes and homing periods in neural data and a behavioral variable of interest (compression_var)
     INPUTS:
         session: session object, used to get the escape onsets and offsets
@@ -260,10 +274,10 @@ def extract_homing_behave_var(
             this_x = np.interp(new_time, current_time, this_x)
 
         # find actual length of time until mouse is in shelter
-        in_shelt_y = this_y > session.shelter_location[0][1]
+        in_shelt_y = this_y > session["shelter_location"][0][1]
         in_shelt_x = np.logical_and(
-            this_x > session.shelter_location[0][0],
-            this_x < session.shelter_location[1][0],
+            this_x > session["shelter_location"][0][0],
+            this_x < session["shelter_location"][1][0],
         )
         in_shelt = np.logical_and(in_shelt_x, in_shelt_y)
 
@@ -328,7 +342,24 @@ def extract_homing_behave_var(
 
     return esc_var, cond, h_start[:-1]
 
-def extract_explore_periods(session,frame_by_cluster_matrix,behave,y_pos,x_pos,bar,barflip,compression_var,homie,escape,outofshelter,bins=[],interpolation=True,no_stationary=False,zscore=False):
+
+def extract_explore_periods(
+    session,
+    frame_by_cluster_matrix,
+    behave,
+    y_pos,
+    x_pos,
+    bar,
+    barflip,
+    compression_var,
+    homie,
+    escape,
+    outofshelter,
+    bins=[],
+    interpolation=True,
+    no_stationary=False,
+    zscore=False,
+):
     """A functon to extract the neural data and discretized behavioral variable for all exploration periods
     These are times when the mouse is out of the shelter, not in a homing or escape period.
     INPUTS:
@@ -366,7 +397,7 @@ def extract_explore_periods(session,frame_by_cluster_matrix,behave,y_pos,x_pos,b
     cond[barflip == True] += 1
 
     # create discretized behavioral varable
-    disc_var = create_discretized_behave_var(session, compression_var, this_x, this_y, this_speed, cond, bins = bins)
+    disc_var = create_discretized_behave_var(session, compression_var, this_x, this_y, this_speed, cond, bins=bins)
 
     # remove data when mouse is in shelter or in homing/escape
     frames_to_remove = np.logical_or(
@@ -461,8 +492,8 @@ def homing_escape_onsets(session, ons, offs):
         offs: vector of offset times in frames for homing and escape periods
         esc_ons: vector of onset times in frames for escape periods
     """
-    esc_ons = check_not_list(session.audio.onset_frames)
-    st = [x * 40 for x in check_not_list(session.audio.stimulus_durations)]
+    esc_ons = check_not_list(session["audio"]["onset_frames"])
+    st = [x * 40 for x in check_not_list(session["audio"]["stimulus_durations"])]
     esc_offs = (np.add(esc_ons, st)).astype(int)
 
     ons = np.sort(np.append(check_not_list(ons), esc_ons))
@@ -520,7 +551,7 @@ def create_discretized_behave_var(
         dd = compute_escape_trajectory(this_x, this_y, start, stop)
         var = dd / np.amax(dd)
         if isinstance(bins, list):
-            if (not bins):
+            if not bins:
                 bins = np.arange(0, 1, 0.01)  # .01
     elif compression_var == "speed":
         var = this_speed

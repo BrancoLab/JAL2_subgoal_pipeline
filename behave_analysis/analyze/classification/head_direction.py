@@ -51,7 +51,7 @@ def classify_hdir(session: object, cluster_type: str = "good") -> list:
 
     logger.info(f"Found {len(head_direction_cells)} head direction cells")
 
-    path = make_directory(os.path.join(session.base_path, session.processed_path, "cells"))
+    path = make_directory(os.path.join(session["base_path"], session["processed_path"], "cells"))
 
     plot_hdir_tuning(data, head_direction_cells, path)
 
