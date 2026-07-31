@@ -1,5 +1,5 @@
-""" 
-This module contains the Track class that is used to process the tracking data. Below is a set of 
+"""
+This module contains the Track class that is used to process the tracking data. Below is a set of
 points to aid in understanding the logic of the code.
 
 Tracking Logic:
@@ -13,14 +13,16 @@ Tracking Logic:
 Open questions:
 - Why is negative archtan2 used? Rather than positive archtan2?
 
-TODO: 
+TODO:
 + Write tests for this module, especially for the compute metrics function
 + Can the old head direction calculation be removed?
 + Revisit Kalman and figure out why velocity and acceleration are not working
 + Do we need the compute body direction function?
 
 """
+
 import os, sys
+import json
 
 from scipy.ndimage import gaussian_filter1d
 from loguru import logger
@@ -39,72 +41,77 @@ from behave_analysis.track.dlcHelp import DLC
 from behave_analysis.track.kalmanFilter import kalmann
 from behave_analysis.track.register import load_fisheye_correction_map, correct_and_register_frame
 
+
 class Track(DLC):
     """
-    A tracking class that checks if DLC has been run yet on the session upon 
+    A tracking class that checks if DLC has been run yet on the session upon
     initialization. If not, it runs DLC. Then it processes the tracking data by removing
     any bad tracking data, correcting for fisheye distortion, and computing metrics
-    for the tracking. The prior before metric computation step is to apply a kalman filter to the tracking data. And 
+    for the tracking. The prior before metric computation step is to apply a kalman filter to the tracking data. And
     then this is saved into a dictionary.
-    
-    For each body part tracked by DLC, the keys will be: 
+
+    For each body part tracked by DLC, the keys will be:
     + dict_keys(['x', 'y', 'likelihood', 'xVelocity', 'yVelocity', 'xAccel', 'yAccel'])
     + Such that it is a dictionary of dictionaries.
 
     Args:
         DLC (object): A class to handle DLC related data and functions.
     """
+
     def __init__(self, settings, session):
         self.settings = settings
         self.video_file = []
+        self.registration_transform = self.load_registration_transform(session)
         self.run_deeplabcut_tracking(session)
         self.process_tracking_data(session)
-    
+
     def process_tracking_data(self, session):
         """Check if the tracking data has been processed before, if not run this function.
         There is a flag in the settings_track option to skip or redo the processing step if needed.
-        If set to False (not False = True) it will skip processing if it has already been done. 
+        If set to False (not False = True) it will skip processing if it has already been done.
 
         Args:
             session (object): session dataclass
         """
-        
+
         # If no arena regristration details have been found then log it and kill session and rerun process
-        if isinstance(session.video.registration_transform, type(None)):
-            logger.error("This session has not been registered yet. Please register the video before processing tracking data. This could happen if you skip regreistation on the last process you did")
+        if isinstance(self.registration_transform, type(None)):
+            logger.error(
+                "This session has not been registered yet. Please register the video before processing tracking data. This could happen if you skip regreistation on the last process you did"
+            )
             logger.error(f"Registration details not found; and subsequently the tracking can't be processed for session: {session.number} - {session.name}")
-            logger.info(f"The transform matrix is currently: {session.video.registration_transform}. This should be a matrix and not None or False.")
-            assert session.video.registration_transform, "The transform regristration details are not found, this is produced when you click on the arena during process."
+            logger.info(f"The transform matrix is currently: {self.registration_transform}. This should be a matrix and not None or False.")
+            assert self.registration_transform is not None, "The transform regristration details are not found, this is produced when you click on the arena during process."
 
         # Check if processing has FULLY been completed before
-        self.processingExists = os.path.isfile(os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle"))
+        self.processingExists = os.path.isfile(os.path.join(session.base_path, session.processed_path, "fully_processed_tracking_data.pickle"))
 
         # If processing has been done before and you don't want to redo it then log it
-        if self.processingExists and not self.settings.redo_processing_step: 
+        if self.processingExists and not self.settings.redo_processing_step:
             logger.info(f"Tracking data already filtered and registered for session: {session.number} - {session.name}")
-        
+
         # If processing has not been done before or you want to redo it then run it
         else:
-            if self.settings.redo_processing_step: 
+            if self.settings.redo_processing_step:
                 logger.info("You have choosen to redo processing step")
-                
+
             logger.info(f"Processing tracking data for session: {session.number} - {session.name}")
-            
+
             # Processing tracking data
             self.create_dlc_tracking_array(session)
             self.remove_bad_tracking_data(session)
             self.correct_and_register(session)
-            
+
             # New linear dynamical system logic
             self.apply_kalman(session)
-            self.save_kalman(self.lds_tracking_data, session) # Linear dynamical system tracking data generated by kalman filter
-            
+            self.save_kalman(self.lds_tracking_data, session)  # Linear dynamical system tracking data generated by kalman filter
+
             # Metric computation
             self.compute_metrics(session)
             self.save_tracking_data(session)
             # self.plot_tracking()
-            
-# -----REGISTERING CAMERA FUNCS--------------------------------------------------------------
+
+    # -----REGISTERING CAMERA FUNCS--------------------------------------------------------------
 
     def correct_and_register(self, session):
         self.fisheye_correct_tracking_data(session)
@@ -113,32 +120,35 @@ class Track(DLC):
     def fisheye_correct_tracking_data(self, session):
         if self.settings.inverse_fisheye_correction_file:
             inverse_fisheye_map = np.load(self.settings.inverse_fisheye_correction_file)
-            self.fisheye_corrected_tracking_data_array = \
-                    inverse_fisheye_map[self.tracking_data_array[:,:,1].astype(np.uint16) + session.video.y_offset,     \
-                                        self.tracking_data_array[:,:,0].astype(np.uint16) + session.video.x_offset, :2] \
-                                            - np.array([session.video.x_offset, session.video.y_offset])
-        else: 
-            self.fisheye_corrected_tracking_data_array = self.tracking_data_array[:,:,:2]
+            self.fisheye_corrected_tracking_data_array = inverse_fisheye_map[
+                self.tracking_data_array[:, :, 1].astype(np.uint16) + session.video.y_offset, self.tracking_data_array[:, :, 0].astype(np.uint16) + session.video.x_offset, :2
+            ] - np.array([session.video.x_offset, session.video.y_offset])
+        else:
+            self.fisheye_corrected_tracking_data_array = self.tracking_data_array[:, :, :2]
 
     def register_tracking_data(self, session):
         """
-            Register the tracking data to the video. This is done by applying the registration transform. NOTE, that in this
-            function the tracking data now takes the form of registered_tracking_data_before_kalman. 
+        Register the tracking data to the video. This is done by applying the registration transform. NOTE, that in this
+        function the tracking data now takes the form of registered_tracking_data_before_kalman.
         """
-        
+
         self.registered_tracking_data_before_kalman = {}
-        
-        for i, bodypart in enumerate(self.tracking_data_body_parts['bodyparts']):
-            if 'affine' in session.video.registration_type:
-                registration_transform = np.append(session.video.registration_transform, np.zeros((1, 3)), 0)
-                self.registered_tracking_data_before_kalman[bodypart] = cv2.transform(np.array([self.fisheye_corrected_tracking_data_array[:, i, 0:2].astype(np.float32)]), registration_transform)[0]
-            if 'homography' in session.video.registration_type:
-                registration_transform = session.video.registration_transform
-                self.registered_tracking_data_before_kalman[bodypart] = cv2.perspectiveTransform(np.array([self.fisheye_corrected_tracking_data_array[:, i, 0:2].astype(np.float32)]), registration_transform)[0]
-          
-            self.registered_tracking_data_before_kalman[bodypart][self.registered_tracking_data_before_kalman[bodypart]<0] = 0
-              
-# -----KALMAN FILTER FUNCS--------------------------------------------------------------
+        registration_transform = self.registration_transform
+
+        for i, bodypart in enumerate(self.tracking_data_body_parts["bodyparts"]):
+            if "affine" in session.video.registration_type:
+                affine_transform = np.append(registration_transform, np.zeros((1, 3)), 0)
+                self.registered_tracking_data_before_kalman[bodypart] = cv2.transform(
+                    np.array([self.fisheye_corrected_tracking_data_array[:, i, 0:2].astype(np.float32)]), affine_transform
+                )[0]
+            if "homography" in session.video.registration_type:
+                self.registered_tracking_data_before_kalman[bodypart] = cv2.perspectiveTransform(
+                    np.array([self.fisheye_corrected_tracking_data_array[:, i, 0:2].astype(np.float32)]), registration_transform
+                )[0]
+
+            self.registered_tracking_data_before_kalman[bodypart][self.registered_tracking_data_before_kalman[bodypart] < 0] = 0
+
+    # -----KALMAN FILTER FUNCS--------------------------------------------------------------
 
     def apply_kalman(self, session) -> None:
         """
@@ -147,111 +157,114 @@ class Track(DLC):
         + (2, frames)
         The algorithm works on a single body part and thus needs to be called in a recursive manner.
         """
-        
+
         # Check if kalman tracking data already exists
-        if os.path.isfile(os.path.join(session.base_path,session.processed_path, "kalman_tracking_data.pickle")):
+        if os.path.isfile(os.path.join(session.base_path, session.processed_path, "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
-        
+
         # Create new kalman tracking data
         logger.info("Creating new kalman tracking data.")
         ldsResults = {}
-        
-        for i, bodypart in enumerate(self.tracking_data_body_parts['bodyparts']):
+
+        for i, bodypart in enumerate(self.tracking_data_body_parts["bodyparts"]):
             x = self.registered_tracking_data_before_kalman[bodypart][:, 0]
             y = self.registered_tracking_data_before_kalman[bodypart][:, 1]
             xy = np.vstack((x, y))
-            
+
             results = kalmann(xy)
-            ldsResults[bodypart] = {"x": results["x"], 
-                                    "y": results["y"], 
-                                    "likelihood": self.tracking_data_array[:, i, 2],
-                                    "xVelocity": results["xVelocity"],
-                                    "yVelocity": results["yVelocity"],
-                                    "xAccel": results["xAccel"],
-                                    "yAccel": results["yAccel"],
-                                    }
-            
+            ldsResults[bodypart] = {
+                "x": results["x"],
+                "y": results["y"],
+                "likelihood": self.tracking_data_array[:, i, 2],
+                "xVelocity": results["xVelocity"],
+                "yVelocity": results["yVelocity"],
+                "xAccel": results["xAccel"],
+                "yAccel": results["yAccel"],
+            }
+
         self.lds_tracking_data = ldsResults
         self.save_kalman(self.lds_tracking_data, session)
         return None
-        
+
     def save_kalman(self, dictionary, session) -> None:
         """
-        Save the kalman tracking dictionary to a pickle file contained within the session folder. 
+        Save the kalman tracking dictionary to a pickle file contained within the session folder.
         """
-        savePath = os.path.join(session.base_path,session.processed_path, "kalman_tracking_data.pickle")
-        with open(savePath, "wb") as dill_file: 
+        savePath = os.path.join(session.base_path, session.processed_path, "kalman_tracking_data.pickle")
+        with open(savePath, "wb") as dill_file:
             pickle.dump(dictionary, dill_file)
 
-# -----METRIC COMPUTATION FUNCS--------------------------------------------------------------
+    # -----METRIC COMPUTATION FUNCS--------------------------------------------------------------
 
     def compute_metrics(self, session):
         # Leaving in session as you in this reference location speed computation
         regionsOI = self.map_regions_of_interest()
         self.compute_avg_mouse_location(regionsOI)
-        self.region_tracking_data['hdir'] = self.compute_head_direction()
+        self.region_tracking_data["hdir"] = self.compute_head_direction()
         self.compute_angle_shelter(session)
         self.compute_angle_barrier(session)
-        if self.settings.random_points is not None: self.compute_angle_random_points(session)
+        if self.settings.random_points is not None:
+            self.compute_angle_random_points(session)
         self.compute_new_average_speed(session)
         # Reincluding philips compute speed function as it has a relative to shelter var needed for homings
         if session.shelter_location is not None:
-            shelter_location = [int(np.mean([session.shelter_location[0][0],session.shelter_location[1][0]])),
-                                int(np.mean([session.shelter_location[0][1],session.shelter_location[1][1]]))]
+            shelter_location = [
+                int(np.mean([session.shelter_location[0][0], session.shelter_location[1][0]])),
+                int(np.mean([session.shelter_location[0][1], session.shelter_location[1][1]])),
+            ]
         else:
             shelter_location = None
-        self.compute_speed(session, reference_location = shelter_location, reference_name=' rel. to shelter')
-        self.region_tracking_data['bodyparts'] = self.tracking_data_body_parts['bodyparts'] # Needed for visualization
-        
+        self.compute_speed(session, reference_location=shelter_location, reference_name=" rel. to shelter")
+        self.region_tracking_data["bodyparts"] = self.tracking_data_body_parts["bodyparts"]  # Needed for visualization
+
     def map_regions_of_interest(self) -> dict:
         """
-        Map regions of body to individual body parts. This function needs to be changed if the list of 
+        Map regions of body to individual body parts. This function needs to be changed if the list of
         body parts change in deep lab cut. These are hardcoded regions of interest that need to be mannually mapped to the body parts.
         """
         regionsOI = {
-                     'avg_loc': self.tracking_data_body_parts['bodyparts'],
-                     'neck_loc': ['left_ear', 'upper_back', 'right_ear'],
-                     'upper_body_loc': ['left_shoulder', 'upper_back', 'right_shoulder'],
-                     'lower_body_loc': ['left_hind_limb', 'lower_back', 'right_hind_limb', 'tail_base'],
-                     'head_loc': ['left_ear', 'right_ear'],
-                     'body_loc': ['upper_back', 'lower_back']
-                     }
+            "avg_loc": self.tracking_data_body_parts["bodyparts"],
+            "neck_loc": ["left_ear", "upper_back", "right_ear"],
+            "upper_body_loc": ["left_shoulder", "upper_back", "right_shoulder"],
+            "lower_body_loc": ["left_hind_limb", "lower_back", "right_hind_limb", "tail_base"],
+            "head_loc": ["left_ear", "right_ear"],
+            "body_loc": ["upper_back", "lower_back"],
+        }
         return regionsOI
-            
+
     def compute_avg_mouse_location(self, regionsOI):
         """
-        Compute the average location of the body parts in a region of interest into a dictionary called 
+        Compute the average location of the body parts in a region of interest into a dictionary called
         region tracking data. This is done by taking the mean of the x and y coordinates of the body parts"
         """
-        
+
         self.region_tracking_data = {}
-        
+
         for region in regionsOI.keys():
-            x = np.mean([self.lds_tracking_data[bodypart]['x'] for bodypart in regionsOI[region]], axis=0)
-            y = np.mean([self.lds_tracking_data[bodypart]['y'] for bodypart in regionsOI[region]], axis=0)
+            x = np.mean([self.lds_tracking_data[bodypart]["x"] for bodypart in regionsOI[region]], axis=0)
+            y = np.mean([self.lds_tracking_data[bodypart]["y"] for bodypart in regionsOI[region]], axis=0)
             self.region_tracking_data[region] = np.array([[x, y] for x, y in zip(x, y)])
-        
+
         logger.info("Body points averaged and their positions have been averaged and mapped to regions of interest.")
-        
-        
+
     def compute_head_direction(self) -> np.ndarray:
         """
         This function computes the head direction of the mouse. It does this by:
         - taking the difference between the ears
         - taking the archtan2 to compute the angle of the slope
-        - rotating that vector such that 0 degrees is pointing towards the door of the rig OR because the line connecting the ears is orthogonal to headirection? 
+        - rotating that vector such that 0 degrees is pointing towards the door of the rig OR because the line connecting the ears is orthogonal to headirection?
         - the negative arctan2 is unknown, potentially to do with the origin of the coordinate system?
         - then normalizing the angle so that it stays within the range (-π, π]. As the rotation creates angles less than -π.
         """
-        
+
         # New head direction calculation -----------------------------------------------------------------------------
-        hedDelta_x = self.lds_tracking_data['left_ear']['x'] - self.lds_tracking_data['right_ear']['x']
-        hedDelta_y = self.lds_tracking_data['left_ear']['y'] - self.lds_tracking_data['right_ear']['y']
-        headDirection = - (np.arctan2(hedDelta_y, hedDelta_x) + (np.pi/2)) # Radians
-        mask = headDirection < -np.pi # A boolean mask to find all the values less than -pi
-        headDirection[mask] = headDirection[mask] + (2*np.pi)
+        hedDelta_x = self.lds_tracking_data["left_ear"]["x"] - self.lds_tracking_data["right_ear"]["x"]
+        hedDelta_y = self.lds_tracking_data["left_ear"]["y"] - self.lds_tracking_data["right_ear"]["y"]
+        headDirection = -(np.arctan2(hedDelta_y, hedDelta_x) + (np.pi / 2))  # Radians
+        mask = headDirection < -np.pi  # A boolean mask to find all the values less than -pi
+        headDirection[mask] = headDirection[mask] + (2 * np.pi)
         return headDirection
-    
+
     def compute_angle_shelter(self, session):
         """
         A function to compute the angle between the heading of the mouse and the shelter.
@@ -259,21 +272,23 @@ class Track(DLC):
         if len(session.shelter_time) > 0:
             # calculate body to shelter angle
             # this used to be calculated with self.region_tracking_data['avg_loc']
-            self.region_tracking_data['shelter_loc'] = session.shelter_location
-            xdist = -self.region_tracking_data['head_loc'][:, 0]+int(np.mean([self.region_tracking_data['shelter_loc'][0][0],self.region_tracking_data['shelter_loc'][1][0]]))
-            ydist = -self.region_tracking_data['head_loc'][:, 1]+int(np.mean([self.region_tracking_data['shelter_loc'][0][1],self.region_tracking_data['shelter_loc'][1][1]]))
+            self.region_tracking_data["shelter_loc"] = session.shelter_location
+            xdist = -self.region_tracking_data["head_loc"][:, 0] + int(np.mean([self.region_tracking_data["shelter_loc"][0][0], self.region_tracking_data["shelter_loc"][1][0]]))
+            ydist = -self.region_tracking_data["head_loc"][:, 1] + int(np.mean([self.region_tracking_data["shelter_loc"][0][1], self.region_tracking_data["shelter_loc"][1][1]]))
             # the next line gives you angles that are positive counterclockwise and negative clockwise
-            self.region_tracking_data['bod_shelt_dir'] = - np.arctan2(ydist, xdist) # Radians
-            bod_shelt_dir = - np.arctan2(ydist, xdist)
+            self.region_tracking_data["bod_shelt_dir"] = -np.arctan2(ydist, xdist)  # Radians
+            bod_shelt_dir = -np.arctan2(ydist, xdist)
             # the next two lines ensure that 0deg is to the right and that 0 to pi is clockwise and 0 to pi is counterclockwise
-            self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir<0] + np.pi
-            self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] = self.region_tracking_data['bod_shelt_dir'][bod_shelt_dir>0] - np.pi
+            self.region_tracking_data["bod_shelt_dir"][bod_shelt_dir < 0] = self.region_tracking_data["bod_shelt_dir"][bod_shelt_dir < 0] + np.pi
+            self.region_tracking_data["bod_shelt_dir"][bod_shelt_dir > 0] = self.region_tracking_data["bod_shelt_dir"][bod_shelt_dir > 0] - np.pi
             # now add the hdir to get the head shelter angle (from pi to -pi)
-            self.region_tracking_data['hdir_shelt'] = np.pi + (-self.region_tracking_data['hdir'] + self.region_tracking_data['bod_shelt_dir'])
-            self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] = self.region_tracking_data['hdir_shelt'][self.region_tracking_data['hdir_shelt']>np.pi] - (2*np.pi)
+            self.region_tracking_data["hdir_shelt"] = np.pi + (-self.region_tracking_data["hdir"] + self.region_tracking_data["bod_shelt_dir"])
+            self.region_tracking_data["hdir_shelt"][self.region_tracking_data["hdir_shelt"] > np.pi] = self.region_tracking_data["hdir_shelt"][
+                self.region_tracking_data["hdir_shelt"] > np.pi
+            ] - (2 * np.pi)
         else:
-            self.region_tracking_data['shelter_loc'] = []
-            self.region_tracking_data['hdir_shelt'] = np.full((len(self.region_tracking_data['avg_loc']),1), np.nan)
+            self.region_tracking_data["shelter_loc"] = []
+            self.region_tracking_data["hdir_shelt"] = np.full((len(self.region_tracking_data["avg_loc"]), 1), np.nan)
         logger.info("Shelter angle computed")
 
     def compute_angle_barrier(self, session):
@@ -283,178 +298,200 @@ class Track(DLC):
 
         if len(session.barrier_time) > 0:
             # initialize variables
-            self.region_tracking_data['barrier_loc'] = session.barrier_location
+            self.region_tracking_data["barrier_loc"] = session.barrier_location
         else:
-            self.region_tracking_data['barrier_loc'] = [[800,512],[224,512],[512,512]] # for sessions with no barrier when we still want to know the angless to the barrier
-            
-        self.region_tracking_data['hdir_barrier'] = np.full((len(self.region_tracking_data['avg_loc']),len(self.region_tracking_data['barrier_loc'])), np.nan)
+            self.region_tracking_data["barrier_loc"] = [[800, 512], [224, 512], [512, 512]]  # for sessions with no barrier when we still want to know the angless to the barrier
 
-        for i in np.arange(len(self.region_tracking_data['barrier_loc'])): # calculate body to barrier angle for each edge of barrier
-            self.region_tracking_data['hdir_barrier'][:,i] = compute_angle_head_point(self,'barrier_loc',i)
+        self.region_tracking_data["hdir_barrier"] = np.full((len(self.region_tracking_data["avg_loc"]), len(self.region_tracking_data["barrier_loc"])), np.nan)
+
+        for i in np.arange(len(self.region_tracking_data["barrier_loc"])):  # calculate body to barrier angle for each edge of barrier
+            self.region_tracking_data["hdir_barrier"][:, i] = compute_angle_head_point(self, "barrier_loc", i)
 
         logger.info("Subgoal angles computed")
-    
-    def compute_angle_random_points(self,session):
+
+    def compute_angle_random_points(self, session):
         """
         A function to compute the angle between the heading of the mouse and the barrier edges.
         If settings.random_points == 'manual' it will ask you to define random points in the arena
         """
 
         # ask user to select some extra 'random' points in arena
-        if self.settings.random_points == 'manual':
+        if self.settings.random_points == "manual":
             self.load_arena(session)
             print("Click as many random points as wanted, then space bar when satisfied")
-            cv2.namedWindow('where are random points')
+            cv2.namedWindow("where are random points")
             self.clicked_points = []
-            cv2.setMouseCallback('where are random points', self.click_click_targets)
+            cv2.setMouseCallback("where are random points", self.click_click_targets)
             while True:
-                cv2.imshow('where are random points', self.arena)
+                cv2.imshow("where are random points", self.arena)
                 key = cv2.waitKey(10)
-                if key==ord(' '): break # once both points are clicked
-                if key == ord('q'): print('quit.'); sys.exit()
+                if key == ord(" "):
+                    break  # once both points are clicked
+                if key == ord("q"):
+                    print("quit.")
+                    sys.exit()
             cv2.destroyAllWindows()
-            self.region_tracking_data['randP_loc'] = self.clicked_points
-        elif self.settings.random_points == 'full_arena':
-            size = session.video.height # assuming a square image
+            self.region_tracking_data["randP_loc"] = self.clicked_points
+        elif self.settings.random_points == "full_arena":
+            size = session.video.height  # assuming a square image
             all_posX = []
             all_posY = []
             numpoints = 64
-            for i in np.arange(numpoints/2,size,numpoints):
-                all_posX = np.append(all_posX,np.arange(numpoints/2,size,numpoints))
-                all_posY = np.append(all_posY,np.ones(len(np.arange(numpoints/2,size,numpoints)))*i)
-            dist = np.sqrt(((all_posX - size/2)**2) + ((all_posY - size/2)**2))
-            all_posX = all_posX[dist<460] # size of arena circle, see register
-            all_posY = all_posY[dist<460]
-            self.region_tracking_data['randP_loc'] = np.vstack([all_posX,all_posY]).T
-        
-        # initialize variables
-        self.region_tracking_data['hdir_randP'] = np.empty((len(self.region_tracking_data['avg_loc']),len(self.region_tracking_data['randP_loc'])))
+            for i in np.arange(numpoints / 2, size, numpoints):
+                all_posX = np.append(all_posX, np.arange(numpoints / 2, size, numpoints))
+                all_posY = np.append(all_posY, np.ones(len(np.arange(numpoints / 2, size, numpoints))) * i)
+            dist = np.sqrt(((all_posX - size / 2) ** 2) + ((all_posY - size / 2) ** 2))
+            all_posX = all_posX[dist < 460]  # size of arena circle, see register
+            all_posY = all_posY[dist < 460]
+            self.region_tracking_data["randP_loc"] = np.vstack([all_posX, all_posY]).T
 
-        for i in np.arange(len(self.region_tracking_data['randP_loc'])): # calculate body to barrier angle for each edge of barrier
-            self.region_tracking_data['hdir_randP'][:,i] = compute_angle_head_point(self,'randP_loc',i)
+        # initialize variables
+        self.region_tracking_data["hdir_randP"] = np.empty((len(self.region_tracking_data["avg_loc"]), len(self.region_tracking_data["randP_loc"])))
+
+        for i in np.arange(len(self.region_tracking_data["randP_loc"])):  # calculate body to barrier angle for each edge of barrier
+            self.region_tracking_data["hdir_randP"][:, i] = compute_angle_head_point(self, "randP_loc", i)
 
         logger.info("Random point angles computed")
-   
-    def click_click_targets(self, event,x,y):
+
+    def click_click_targets(self, event, x, y):
         if event == cv2.EVENT_LBUTTONDOWN:
             self.arena = cv2.circle(self.arena, (x, y), 3, 255, -1)
-            self.clicked_points.append([x,y])
+            self.clicked_points.append([x, y])
 
     def compute_new_average_speed(self, session):
         """
         Calculate the velocity of the mouse. The velocity is the average of the x and y velocities of the body parts.
         Then do |V| = sqrt(Vx^2 + Vy^2) to compute the magnitude of the velocity.
         """
-        
+
         """Here is my attempt of using the direct kalman filter output. However, this is not working well."""
-        
+
         # avgX = np.mean([self.lds_tracking_data[bodypart]['xVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
         # avgY = np.mean([self.lds_tracking_data[bodypart]['yVelocity'] for bodypart in self.tracking_data_body_parts['bodyparts']], axis=0)
         # data = np.array([[x, y] for x, y in zip(avgX, avgY)])
         # pixelSpeed = np.sqrt(data[:, 0]**2 + data[:, 1]**2)
-        
+
         # # I think this produces pixesls speed pixels per frame.
         # # not smoothing  because of kalman
         # print()
         # self.region_tracking_data['avg_Velocity'] = (pixelSpeed / session.video.pixels_per_cm)
         # is this in seconds though?
         # self.region_tracking_data['avg_Velocity'] = pixelSpeed * session.video.fps / session.video.pixels_per_cm
-        
+
         """Philips old working code"""
         # Here is the speed of the mouse using the average of the body parts, but not the direct kalman filter output
         # THis is philips old logic but works well
         # Still uses kalman filter positioning
         from scipy.ndimage import gaussian_filter1d
-        speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data['avg_loc'], axis=0) 
-        speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0]**2 + speed_x_and_y_pixel_per_frame[:, 1]**2)**.5
+
+        speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data["avg_loc"], axis=0)
+        speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
         speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
         # interpolated to make it the same length as every other variable!!
-        self.region_tracking_data['avg_Velocity'] = np.interp(np.arange(len(self.region_tracking_data['avg_loc'])),
-                                                              np.arange(len(speed_x_and_y_pixel_per_frame))+.5,
-                                                              gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10))
-        
+        self.region_tracking_data["avg_Velocity"] = np.interp(
+            np.arange(len(self.region_tracking_data["avg_loc"])),
+            np.arange(len(speed_x_and_y_pixel_per_frame)) + 0.5,
+            gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps / 10),
+        )
+
     # There seems to be a second component to the old function for the speed calculatuion that is not being used. Leaving as don't understand what it is doing yet.
-    # What is the refernece component? 
-    
-    def compute_speed(self, session, reference_location: tuple = None, reference_name: str=''):
+    # What is the refernece component?
+
+    def compute_speed(self, session, reference_location: tuple = None, reference_name: str = ""):
         if not reference_location:
-            speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data['avg_loc'], axis=0) 
-            speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0]**2 + speed_x_and_y_pixel_per_frame[:, 1]**2)**.5
+            speed_x_and_y_pixel_per_frame = np.diff(self.region_tracking_data["avg_loc"], axis=0)
+            speed_pixel_per_frame = (speed_x_and_y_pixel_per_frame[:, 0] ** 2 + speed_x_and_y_pixel_per_frame[:, 1] ** 2) ** 0.5
         else:
-            distance_from_reference_location = ((self.region_tracking_data['avg_loc'][:,0] - reference_location[0])**2 + \
-                                                (self.region_tracking_data['avg_loc'][:,1] - reference_location[1])**2)**.5
-            self.region_tracking_data['distance' + reference_name] = distance_from_reference_location
+            distance_from_reference_location = (
+                (self.region_tracking_data["avg_loc"][:, 0] - reference_location[0]) ** 2 + (self.region_tracking_data["avg_loc"][:, 1] - reference_location[1]) ** 2
+            ) ** 0.5
+            self.region_tracking_data["distance" + reference_name] = distance_from_reference_location
             speed_pixel_per_frame = -np.diff(distance_from_reference_location)
         speed_cm_per_sec = speed_pixel_per_frame * session.video.fps / session.video.pixels_per_cm
-        smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps/10)
-        self.region_tracking_data['speed' + reference_name] = smoothed_speed_cm_per_sec
+        smoothed_speed_cm_per_sec = gaussian_filter1d(speed_cm_per_sec, sigma=session.video.fps / 10)
+        self.region_tracking_data["speed" + reference_name] = smoothed_speed_cm_per_sec
 
-# --------UTILITY FUNCS---------------------------------------------------------------------
+    # --------UTILITY FUNCS---------------------------------------------------------------------
 
-    def load_arena(self,session):
+    def load_arena(self, session):
         """
         A little function for loading the first frame of the movie to point to shelter and barrier location
         """
-        
+
         fisheye_correction_map = load_fisheye_correction_map(session.video.fisheye_correction_file)
-        video_file = os.path.join(session.base_path,session.file_path,session.video.camFilePath)
+        video_file = os.path.join(session.base_path, session.file_path, session.video.camFilePath)
         source_video = cv2.VideoCapture(video_file)
-        source_video.set(cv2.CAP_PROP_POS_FRAMES, session.video.num_frames-(2*session.video.fps)) # read a frame 2 seconds from the end
+        source_video.set(cv2.CAP_PROP_POS_FRAMES, session.video.num_frames - (2 * session.video.fps))  # read a frame 2 seconds from the end
         _, self.arena = source_video.read()
-        self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map)
+        self.arena = correct_and_register_frame(self.arena[:, :, 0], session.video, fisheye_correction_map, regTransform=self.registration_transform)
+
+    def load_registration_transform(self, session):
+        registration_path = os.path.join(session.base_path, session.processed_path, "registration_data.json")
+        if not os.path.isfile(registration_path):
+            logger.error(f"Registration sidecar not found for session: {session.number} - {session.name}")
+            return None
+
+        with open(registration_path, "r", encoding="utf-8") as f:
+            payload = json.load(f)
+
+        transform = payload.get("registration_transform")
+        if transform is None:
+            logger.error(f"Registration transform is missing in sidecar for session: {session.number} - {session.name}")
+            return None
+        return np.array(transform)
 
     def save_tracking_data(self, session) -> None:
         """
         A function to save the tracking data pickled.
         """
-        
-        savePath = os.path.join(session.base_path,session.processed_path, "fully_processed_tracking_data.pickle")
-        with open(savePath, "wb") as dill_file: 
+
+        savePath = os.path.join(session.base_path, session.processed_path, "fully_processed_tracking_data.pickle")
+        with open(savePath, "wb") as dill_file:
             pickle.dump(self.region_tracking_data, dill_file)
-        
+
         logger.info("Tracking data saved to {}".format(savePath))
 
-# -----METRIC PLOTTING FUNCS--------------------------------------------------------------
+    # -----METRIC PLOTTING FUNCS--------------------------------------------------------------
 
     def plot_tracking(self):
         if self.settings.display_tracking_output:
-            for axis in [0,1]:
+            for axis in [0, 1]:
                 plt.figure()
-                plt.title('Example of 10,000 time-points of tracking data - axis {}'.format(axis))
-                for bodypart in self.tracking_data['bodyparts']:
+                plt.title("Example of 10,000 time-points of tracking data - axis {}".format(axis))
+                for bodypart in self.tracking_data["bodyparts"]:
                     plt.plot(self.tracking_data[bodypart][10000:20000, axis])
-                plt.legend(self.tracking_data['bodyparts'])
-            plt.figure(figsize=(12,6))
-            plt.title('Histogram of confidence in tracking data')
-            plt.hist(self.tracking_data_array[:,:,2], 20, density=True)
+                plt.legend(self.tracking_data["bodyparts"])
+            plt.figure(figsize=(12, 6))
+            plt.title("Histogram of confidence in tracking data")
+            plt.hist(self.tracking_data_array[:, :, 2], 20, density=True)
             plt.show()
+
 
 def compute_angle_head_point(self, point_name, idx):
     """
     Generates the angle between the head direction and a point of interest. The point of interest is defined by the user.
-    
+
     Input:
     + pointname: the column name of the point you want to compute the angle to in the tracking data e.g barrier location, etc#
     + idx: Some of the columns have multiple index points e.g barrier location has many points so you need to index which one you want e.g
     left edge, center point, right edge
-    
+
     TODO: Figure out why negative archtan2 is used? Rather than positive archtan2?
     """
-    
+
     # Calculate the lengths between the points and then compute the angle of the slope
-    xDist = -self.region_tracking_data['head_loc'][:, 0]+self.region_tracking_data[point_name][idx][0]
-    yDist = -self.region_tracking_data['head_loc'][:, 1]+self.region_tracking_data[point_name][idx][1]
-    angleOfSlope = - np.arctan2(yDist, xDist)
-    
+    xDist = -self.region_tracking_data["head_loc"][:, 0] + self.region_tracking_data[point_name][idx][0]
+    yDist = -self.region_tracking_data["head_loc"][:, 1] + self.region_tracking_data[point_name][idx][1]
+    angleOfSlope = -np.arctan2(yDist, xDist)
+
     # Project the coordinate system to be between -pi and pi (90 degree turn counter clockwise and -90 degree turn clockwise)
-    isAnglePositive = angleOfSlope>0
-    isAngleNegative = angleOfSlope<0
+    isAnglePositive = angleOfSlope > 0
+    isAngleNegative = angleOfSlope < 0
     angleOfSlope[isAngleNegative] += np.pi
     angleOfSlope[isAnglePositive] -= np.pi
-    
+
     # Rotate the coordinate system by 90degrees and ensure the resutling angles wrap from (from -pi to pi)
-    angleOfInterest = np.pi + (-self.region_tracking_data['hdir'] + angleOfSlope)
+    angleOfInterest = np.pi + (-self.region_tracking_data["hdir"] + angleOfSlope)
     mask = angleOfInterest > np.pi
-    angleOfInterest[mask] = (angleOfInterest[mask] - (2*np.pi))
+    angleOfInterest[mask] = angleOfInterest[mask] - (2 * np.pi)
     return angleOfInterest
-    

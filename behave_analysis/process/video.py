@@ -11,6 +11,7 @@ import cv2
 import os
 from pathlib import Path
 
+
 @dataclass(frozen=True)
 class Video:
     num_frames: int
@@ -19,33 +20,33 @@ class Video:
     height: int
     width: int
     fisheye_correction_file: str
-    registration_transform: object
     registration_type: str
     registration_size: tuple
     pixels_per_cm: int
     radius: int
-    
-    #! replace these values with your own parameters
-    x_offset: int=128 # if the video frame is cropped, how far from the top left edge is it
-    y_offset: int=0   # (this is for the fisheye correction step)
 
-def get_Video(session: NEW_Session, settings: object, registration_transform: object = None) -> Video:
+    #! replace these values with your own parameters
+    x_offset: int = 128  # if the video frame is cropped, how far from the top left edge is it
+    y_offset: int = 0  # (this is for the fisheye correction step)
+
+
+def get_Video(session: NEW_Session, settings: object, registration_transform: object = None) -> tuple:
     """A function that searchs through the directory for a camera avi file and returns a Video object."""
-    
+
     try:
-        full_file_path = Path(os.path.join(session.base_path,session.file_path))
+        full_file_path = Path(os.path.join(session.base_path, session.file_path))
         # video_file = str(list(full_file_path.glob("*cam.avi"))[0]) # need lst and idx as its a generator
         datapath_parts = (full_file_path / full_file_path.name).parts
         camFilePath = datapath_parts[-1] + "_cam.avi"
-    
+
     except IndexError:
         raise IndexError(f"No camera video file found with expected name in {session.file_path}")
-    
-    video_file = os.path.join(session.base_path,session.file_path,camFilePath)
+
+    video_file = os.path.join(session.base_path, session.file_path, camFilePath)
     video_object = cv2.VideoCapture(video_file)
     num_frames = int(video_object.get(cv2.CAP_PROP_FRAME_COUNT))
     logger.info(f"Number of recorded camera frames : {num_frames}")
-    
+
     fps = int(video_object.get(cv2.CAP_PROP_FPS))
     height = int(video_object.get(cv2.CAP_PROP_FRAME_HEIGHT))
     width = int(video_object.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -53,39 +54,16 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
     registration_size = settings.size
     registration_type = settings.registration
     pixels_per_cm = settings.pixels_per_cm
-    
-    video = Video(num_frames, 
-                  camFilePath, 
-                  fps, 
-                  height, 
-                  width, 
-                  fisheye_correction_file, 
-                  registration_transform, 
-                  registration_type, 
-                  registration_size, 
-                  pixels_per_cm,
-                  settings.radius)
-    
-    if isinstance(registration_transform, np.ndarray): 
-        logger.info('Registration already exists and you chose not to redo it')
-        return video
 
-    # registration_transform = Register(session, video, video_object).transform
+    video = Video(num_frames, camFilePath, fps, height, width, fisheye_correction_file, registration_type, registration_size, pixels_per_cm, settings.radius)
+
+    if isinstance(registration_transform, np.ndarray):
+        logger.info("Registration already exists and you chose not to redo it")
+        return video, registration_transform
+
     registration_transform = Register(session, video, video_object).user_input_registration()
 
     # Log the registration transform as if this is None it causing issues downstream at track
     logger.debug(f"Registration transform: {registration_transform.transform}")
-    
-    video = Video(num_frames, 
-                  camFilePath, 
-                  fps, 
-                  height, 
-                  width, 
-                  fisheye_correction_file, 
-                  registration_transform.transform, 
-                  registration_type, 
-                  registration_size, 
-                  pixels_per_cm,
-                  settings.radius)
-    
-    return video
+
+    return video, registration_transform.transform

@@ -36,6 +36,7 @@ import os
 import numpy as np
 from glob import glob
 import dill as pickle
+import json
 from loguru import logger
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -112,10 +113,18 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
         ephys_sync_offset=ephys_sync_offsets,
     )
 
-    # save photoresistor
-    meta_file = os.path.join(session.base_path,session.processed_path,'TTL_file')
-    with open(meta_file, "wb") as dill_file:
-        pickle.dump(ttl_object, dill_file)
+    # Save as JSON to avoid pickle-based serialization.
+    # Don't save the full TTL signals because they are large and would just be duplicates in the folder.
+    ttl_dict = {
+        "sampling_rate": int(ttl_object.sampling_rate),
+        "bonsai_sync_onsets": np.asarray(ttl_object.bonsai_sync_onsets).tolist(),
+        "bonsai_sync_offsets": np.asarray(ttl_object.bonsai_sync_offsets).tolist(),
+        "ephys_sync_onsets": np.asarray(ttl_object.ephys_sync_onsets).tolist(),
+        "ephys_sync_offset": np.asarray(ttl_object.ephys_sync_offset).tolist(),
+    }
+    meta_file = os.path.join(session.base_path,session.processed_path,'TTL_file.json')
+    with open(meta_file, "w", encoding="utf-8") as json_file:
+        json.dump(ttl_dict, json_file)
 
     return ttl_object
 

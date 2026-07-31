@@ -1,6 +1,7 @@
 """All the functions needed to make movies of all the mouse escapes in one session"""
 
 import os
+import json
 import cv2
 import numpy as np
 from loguru import logger
@@ -20,13 +21,12 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
     """
 
     print("\nPress 'q' to quit and 'n' to move to the next video")
+    registration_transform = load_registration_transform(session)
     metadata = zip(onsets, stimulus_durations)
     for trial_num, (onset_frames, stimulus_duration) in enumerate(metadata):
         fisheye_correction_map = load_fisheye_correction_map(session.video.fisheye_correction_file)
         delay_between_frames = int(1000 / session.video.fps * (not settings.rapid) + settings.rapid)
-        source_video, frames_in_this_trial, stim_status, trial_video = set_up_videos(
-            session, settings, stim_type, trial_num, onset_frames, stimulus_duration
-        )
+        source_video, frames_in_this_trial, stim_status, trial_video = set_up_videos(session, settings, stim_type, trial_num, onset_frames, stimulus_duration)
         trail = []
         trail_colors = []
         trail_thicknesses = []
@@ -34,7 +34,7 @@ def trial_movies(tracking_data, kalman, session, settings, stim_type, onsets, st
         # Loop through the frames in this trial
         for i in frames_in_this_trial:
             frame_num, actual_frame, num_frames_past_stim = read_frame(onset_frames, source_video)
-            actual_frame = pass_correct_and_register_frame(actual_frame, settings, session, fisheye_correction_map)
+            actual_frame = pass_correct_and_register_frame(actual_frame, settings, session, fisheye_correction_map, registration_transform)
             (
                 hdir_shelt,
                 bod_shelt_dir,
@@ -105,8 +105,21 @@ def read_frame(onset_frames, source_video):
     return frame_num, actual_frame, num_frames_past_stim
 
 
-def pass_correct_and_register_frame(actual_frame, settings, session, fisheye_correction_map):
-    actual_frame = correct_and_register_frame(actual_frame[:, :, 0], session.video, fisheye_correction_map)
+def load_registration_transform(session):
+    registration_path = os.path.join(session.base_path, session.processed_path, "registration_data.json")
+    if not os.path.isfile(registration_path):
+        logger.error(f"Registration sidecar not found for session: {session.number} - {session.name}")
+        return None
+
+    with open(registration_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    transform = payload.get("registration_transform")
+    return np.array(transform) if transform is not None else None
+
+
+def pass_correct_and_register_frame(actual_frame, settings, session, fisheye_correction_map, registration_transform):
+    actual_frame = correct_and_register_frame(actual_frame[:, :, 0], session.video, fisheye_correction_map, regTransform=registration_transform)
     if settings.display_tracking or settings.display_trail:
         actual_frame = cv2.cvtColor(actual_frame, cv2.COLOR_GRAY2RGB)
     return actual_frame
@@ -418,8 +431,7 @@ def get_new_trail_segment(
     stim_status,
 ):
     time_to_get_new_trail_segment = num_frames_past_stim % 10 and (
-        (stim_type in ["audio", "homing", "threshold_crossing"] and stim_status == 0)
-        or (stim_type == "laser" and stim_status > -1 and stim_status < 3)
+        (stim_type in ["audio", "homing", "threshold_crossing"] and stim_status == 0) or (stim_type == "laser" and stim_status > -1 and stim_status < 3)
     )
 
     if time_to_get_new_trail_segment:
