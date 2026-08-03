@@ -1,5 +1,5 @@
 import numpy as np
-from typing import Tuple
+import os
 from behave_analysis.process.camera_trigger import load_camera_trigger
 
 # Os Libary
@@ -33,7 +33,8 @@ def get_onset_and_duration(data_on: object, session: object, stim_type: str, min
 
     if data_type == "samples":
         # find the camera frame that the onsets were on (divide by fps to get seconds)
-        frame_trigger_onsets_idx = load_camera_trigger(session).frame_trigger_onsets_idx
+        trigger_file_path = os.path.join(session.base_path, session.processed_path, "camera_trigger.json")
+        frame_trigger_onsets_idx = load_camera_trigger(session, trigger_file_path).frame_trigger_onsets_idx
         data_onset_frames = np.array([np.argmin(abs(x - frame_trigger_onsets_idx)) for x in data_onset_idx])
         data_offset_frames = np.array([np.argmin(abs(x - frame_trigger_onsets_idx)) for x in data_offset_idx])
     if data_type == "frames":

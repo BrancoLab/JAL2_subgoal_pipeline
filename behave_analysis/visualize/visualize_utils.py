@@ -31,7 +31,7 @@ def open_tracking_data(session):
             tracking_data = pickle.load(dill_file)
     
     except FileNotFoundError:
-        logger.error(f"Tracking data not found for session: {session["name"]}")
+        logger.error(f"Tracking data not found for session: {session['name']}")
         raise FileNotFoundError
     
     return tracking_data
@@ -52,6 +52,6 @@ def open_postprocess_object(session, cluster_type) -> object:
 
     except FileNotFoundError:
         logger.error(
-            f"Data not found for session: {session["name"]} - Check databank and whether you have actually run this configuration of postprocess. "
+            f"Data not found for session: {session['name']} - Check databank and whether you have actually run this configuration of postprocess. "
         )
         raise FileNotFoundError

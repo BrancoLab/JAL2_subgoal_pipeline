@@ -33,7 +33,7 @@ class Process:
     def __init__(self, session_id):
         self.session = get_experiment(session_id)  # Retrieve experimental data
         self.sesion_id = session_id
-        self.processed_path = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"]))
+        self.processed_path = make_directory(os.path.join(self.session.base_path, self.session.processed_path))
 
     def _session_metadata_path(self) -> str:
         return os.path.join(self.processed_path, "metadata.json")
@@ -59,42 +59,41 @@ class Process:
     def _serialize_session_payload(self, session: NEW_Session) -> dict:
         """Serialize only fields that are not already reconstructed by get_experiment."""
         return {
-            "shelter_location": session["shelter_location"],
-            "barrier_location": session["barrier_location"],
-            "audio": session["audio"],
-            "video": session["video"],
+            "shelter_location": session.shelter_location,
+            "barrier_location": session.barrier_location,
+            "audio": session.audio,
+            "video": session.video,
         }
 
     def _apply_session_payload(self, session: NEW_Session, payload: dict) -> None:
         """Apply JSON metadata fields onto a freshly reconstructed session object."""
-        session["shelter_location"] = payload.get("shelter_location", session["shelter_location"])
-        session["barrier_location"] = payload.get("barrier_location", session["barrier_location"])
-        session.daq_sampling_rate = payload.get("daq_sampling_rate", session.daq_sampling_rate)
+        session.shelter_location = payload.get("shelter_location")
+        session.barrier_location = payload.get("barrier_location")
 
         audio_payload = payload.get("audio")
         if isinstance(audio_payload, dict):
-            session["audio"] = Audio(
-                int(audio_payload.get("num_samples", 0)),
-                np.asarray(audio_payload.get("onset_frames", [])),
-                np.asarray(audio_payload.get("stimulus_durations", [])),
+            session.audio = Audio(
+                num_samples = int(audio_payload.get("num_samples", 0)),
+                onset_frames = np.asarray(audio_payload.get("onset_frames", [])),
+                stimulus_durations = np.asarray(audio_payload.get("stimulus_durations", [])),
             )
 
         video_payload = payload.get("video")
         if isinstance(video_payload, dict):
             registration_size = video_payload.get("registration_size")
-            session["video"] = Video(
-                int(video_payload.get("num_frames", 0)),
-                video_payload.get("camFilePath"),
-                int(video_payload.get("fps", 0)),
-                int(video_payload.get("height", 0)),
-                int(video_payload.get("width", 0)),
-                video_payload.get("fisheye_correction_file"),
-                video_payload.get("registration_type"),
-                tuple(registration_size) if registration_size is not None else tuple(),
-                int(video_payload.get("pixels_per_cm", 0)),
-                int(video_payload.get("radius", 0)),
-                int(video_payload.get("x_offset", 128)),
-                int(video_payload.get("y_offset", 0)),
+            session.video = Video(
+                num_frames = int(video_payload.get("num_frames", 0)),
+                camFilePath = video_payload.get("camFilePath"),
+                fps = int(video_payload.get("fps", 0)),
+                height = int(video_payload.get("height", 0)),
+                width = int(video_payload.get("width", 0)),
+                fisheye_correction_file = video_payload.get("fisheye_correction_file"),
+                registration_type = video_payload.get("registration_type"),
+                registration_size = tuple(registration_size) if registration_size is not None else tuple(),
+                pixels_per_cm = int(video_payload.get("pixels_per_cm", 0)),
+                radius = int(video_payload.get("radius", 0)),
+                x_offset = int(video_payload.get("x_offset", 128)),
+                y_offset = int(video_payload.get("y_offset", 0)),
             )
 
         return session
@@ -120,10 +119,6 @@ class Process:
         if not settings.create_new_registration:
             self.loaded_registration_transform, self.session.shelter_location, self.session.barrier_location = self.load_registration_transform()
 
-
-        if settings.create_new_registration or self.loaded_registration_transform is None:
-            logger.info("Registration will be performed!")
-            self.loaded_registration_transform = None
         self.session.video, registration_transform = get_Video(self.session, settings, self.loaded_registration_transform)
         self.save_registration_transform(registration_transform, self.session)
 
@@ -134,7 +129,7 @@ class Process:
             self.quality_check_new_sessions()
 
         logger.info("Saving session metadata - building polars df next")
-        self.save_session()
+        self.save_session(self.session)
 
         if settings_p.efizz:
             ProcessedEfizz(
@@ -197,20 +192,25 @@ class Process:
                 with open(legacy_meta_path, "rb") as dill_file:
                     legacy_session = pickle.load(dill_file)
 
+                legacy_transform = getattr(getattr(legacy_session, "video", None), "registration_transform", None)
+                if isinstance(legacy_transform, np.ndarray):
+                    self.save_registration_transform(legacy_transform, session=legacy_session)
+
                 # turn legacy session obj into a dict
                 legacy_payload = self._json_compatible(self._serialize_session_payload(legacy_session))
                 # use the dict to fill a new session object
                 legacy_session = self._apply_session_payload(self.session, legacy_payload)
 
-                legacy_transform = getattr(getattr(legacy_session, "video", None), "registration_transform", None)
-                if isinstance(legacy_transform, np.ndarray):
-                    self.save_registration_transform(legacy_transform, session=legacy_session)
-
                 # save the session object as a JSON dict
                 self.save_session(session=legacy_session, overwrite=True)
 
+                # delete legacy files
+                # os.unlink(os.path.join(self.processed_path, "metadata.pkl"))
+                # os.unlink(os.path.join(self.processed_path, "photoresistor.pkl"))
+                # os.unlink(os.path.join(self.processed_path, "TTL_file.pkl"))
+
             # merge session and session dict json
-            session = asdict(session)
+            session = asdict(self.session)
             with open(meta_json_path, "r", encoding="utf-8") as json_file:
                 session_dict = json.load(json_file)
             for key, val in session_dict.items():
@@ -266,6 +266,7 @@ class Process:
     def load_registration_transform(self):
         """
         Load registration sidecar and return transform + manual arena locations.
+        Returns none if failed to load registration
         """
 
         registration_path = self._registration_metadata_path()

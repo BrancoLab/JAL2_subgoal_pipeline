@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from loguru import logger
+import os
 from behave_analysis.process.camera_trigger import load_camera_trigger
 
 sampling_rate = 30000  # Hz
@@ -18,7 +19,8 @@ def prepare_state_space_decoder_data(spike_df, clusters, time_mask, session, bin
     spike_df2["time_bin"] = np.floor((spike_df2["aligned_spike_times"].to_numpy() + eps) / bin_width).astype(np.int64)
 
     # build global bin range from recording duration
-    frame_onsets = load_camera_trigger(session).frame_trigger_onsets_idx.astype(np.int64)  # samples @30kHz
+    trigger_file_path = os.path.join(session["base_path"], session["processed_path"], "camera_trigger.json")
+    frame_onsets = load_camera_trigger(session, trigger_file_path).frame_trigger_onsets_idx.astype(np.int64)  # samples @30kHz
     bin_samples = int(round(bin_width * sampling_rate))
     max_sample = int(frame_onsets[-1])  # or a better end-of-recording sample if available
     all_bin_starts_samples = np.arange(0, max_sample + 1, bin_samples, dtype=np.int64)

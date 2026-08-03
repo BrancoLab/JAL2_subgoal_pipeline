@@ -48,16 +48,18 @@ def get_Camera_trigger(session: NEW_Session, drop_frames=False):
     return camera_trigger, camera_trigger_data
 
 
-def load_camera_trigger(session: dict) -> Camera_trigger:
+def load_camera_trigger(session: dict, trig_file_path) -> Camera_trigger:
     """Load camera trigger data from JSON, with fallback to legacy session attribute."""
-    if hasattr(session, "camera_trigger") and session["camera_trigger"] is not None:
+    if isinstance(session, dict):
+        if "camera_trigger" in session and session["camera_trigger"] is not None:
+            return session["camera_trigger"]
+    elif hasattr(session, "camera_trigger") and session.camera_trigger is not None:
         return session.camera_trigger
 
-    meta_file = os.path.join(session["base_path"], session["processed_path"], "camera_trigger.json")
-    if not os.path.isfile(meta_file):
-        raise FileNotFoundError(f"Camera trigger data not found at {meta_file}. Run process step first.")
+    if not os.path.isfile(trig_file_path):
+        raise FileNotFoundError(f"Camera trigger data not found at {trig_file_path}. Run process step first.")
 
-    with open(meta_file, "r", encoding="utf-8") as json_file:
+    with open(trig_file_path, "r", encoding="utf-8") as json_file:
         data = json.load(json_file)
 
     return Camera_trigger(

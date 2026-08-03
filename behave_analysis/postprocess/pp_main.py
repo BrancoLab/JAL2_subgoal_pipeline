@@ -46,7 +46,7 @@ class Postprocessor:
                 tracking_data = dill_pickle.load(dill_file)
 
         except FileNotFoundError:
-            logger.error(f"Tracking data not found for session: {self.session["name"]}")
+            logger.error(f"Tracking data not found for session: {self.session['name']}")
             raise FileNotFoundError
 
         return tracking_data

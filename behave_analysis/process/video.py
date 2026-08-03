@@ -57,13 +57,11 @@ def get_Video(session: NEW_Session, settings: object, registration_transform: ob
 
     video = Video(num_frames, camFilePath, fps, height, width, fisheye_correction_file, registration_type, registration_size, pixels_per_cm, settings.radius)
 
-    if isinstance(registration_transform, np.ndarray):
-        logger.info("Registration already exists and you chose not to redo it")
-        return video, registration_transform
+    if settings.create_new_registration or registration_transform is None:
+        logger.info("Registration will be performed!")
+        registration_transform = Register(session, video, video_object).user_input_registration()
+        registration_transform = registration_transform.transform
 
-    registration_transform = Register(session, video, video_object).user_input_registration()
+    assert registration_transform is not None, "Registration transform is None. Please check the registration process."
 
-    # Log the registration transform as if this is None it causing issues downstream at track
-    logger.debug(f"Registration transform: {registration_transform.transform}")
-
-    return video, registration_transform.transform
+    return video, registration_transform
