@@ -1,4 +1,4 @@
-#Custom libs
+# Custom libs
 from behave_analysis.process.session import NEW_Session
 from behave_analysis.utils.get_onset_and_duration import get_onset_and_duration
 from behave_analysis.utils.AI_dataClass_objects import photoresistor_trigger
@@ -11,23 +11,27 @@ import dill as pickle
 import json
 from pathlib import Path
 
+
 def get_Photoresistor(session: NEW_Session) -> photoresistor_trigger:
     """AI data is a 4 channel interleaved signal. The photoresistor voltage is the third signal.
-    AI stands for analog input. This is the voltage recording of the photoresistor. """
-    
-    full_file_path = Path(os.path.join(session.base_path,session.file_path))
-    AI_file = list(full_file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+    AI stands for analog input. This is the voltage recording of the photoresistor."""
 
-    if '.bin' in str(AI_file): 
-            AI_data = np.fromfile(AI_file)
-    else: 
-        with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file) 
-        
-    resistor_data = AI_data[np.arange(2, len(AI_data), 4)] # four interleaved time series
-    
+    full_file_path = Path(os.path.join(session.base_path, session.file_path))
+    AI_file = list(full_file_path.glob("*analog.bin"))[0]  # need lst and idx as its a generator
+
+    if ".bin" in str(AI_file):
+        AI_data = np.fromfile(AI_file)
+    else:
+        with open(AI_file, "rb") as dill_file:
+            AI_data = pickle.load(dill_file)
+
+    resistor_data = AI_data[np.arange(2, len(AI_data), 4)]  # four interleaved time series
+
     num_samples = len(resistor_data)
     resistor_on = resistor_data < 4.8
-    resistor_onset_frames, stimulus_durations, _ = get_onset_and_duration(resistor_on, session, stim_type='resistor', min_frames_between_trials=session.daq_sampling_rate * 30, data_type='samples')
+    resistor_onset_frames, stimulus_durations, _ = get_onset_and_duration(
+        resistor_on, session, stim_type="resistor", min_frames_between_trials=session.daq_sampling_rate * 30, data_type="samples"
+    )
     photoresistor = photoresistor_trigger(num_samples, resistor_onset_frames, stimulus_durations)
 
     # Save as JSON to avoid pickle-based serialization.
@@ -36,8 +40,8 @@ def get_Photoresistor(session: NEW_Session) -> photoresistor_trigger:
         "onset_frames": np.asarray(photoresistor.onset_frames).tolist(),
         "stimulus_durations": np.asarray(photoresistor.stimulus_durations).tolist(),
     }
-    meta_file = os.path.join(session.base_path,session.processed_path,'photoresistor.json')
+    meta_file = os.path.join(session.base_path, session.processed_path, "photoresistor.json")
     with open(meta_file, "w", encoding="utf-8") as json_file:
         json.dump(photoresistor_dict, json_file)
-    
-    return (photoresistor)
+
+    return photoresistor

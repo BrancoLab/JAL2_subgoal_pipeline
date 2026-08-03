@@ -10,10 +10,11 @@ from glob import glob
 import dill as pickle
 from pathlib import Path
 
+
 def get_Audio(session: NEW_Session) -> Audio:
     """AI data is a 4 channel interleaved signal. The audio signal is the second channel.
-    AI stands for analog input. The audio signal is an offshot of the signal sent to the speaker and 
-    equals a voltage recording. 
+    AI stands for analog input. The audio signal is an offshot of the signal sent to the speaker and
+    equals a voltage recording.
 
     Args:
         session (Session): _description_
@@ -23,23 +24,22 @@ def get_Audio(session: NEW_Session) -> Audio:
     Returns:
         _type_: _description_
     """
-    full_file_path = Path(os.path.join(session.base_path,session.file_path))
-    AI_file = list(full_file_path.glob("*analog.bin"))[0] # need lst and idx as its a generator
+    full_file_path = Path(os.path.join(session.base_path, session.file_path))
+    AI_file = list(full_file_path.glob("*analog.bin"))[0]  # need lst and idx as its a generator
 
-    if '.bin' in str(AI_file): 
+    if ".bin" in str(AI_file):
         AI_data = np.fromfile(AI_file)
-        
-    else: 
-        with open(AI_file, "rb") as dill_file: AI_data = pickle.load(dill_file)        
-    
-    audio_data = AI_data[np.arange(1, len(AI_data), 4)] # four interleaved time series
+
+    else:
+        with open(AI_file, "rb") as dill_file:
+            AI_data = pickle.load(dill_file)
+
+    audio_data = AI_data[np.arange(1, len(AI_data), 4)]  # four interleaved time series
     audio_num_samples = len(audio_data)
-    audio_on = abs(audio_data)>3
-    audio_onset_frames, stimulus_durations, _ = get_onset_and_duration(audio_on, 
-                                                                       session, 
-                                                                       stim_type='audio', 
-                                                                       min_frames_between_trials = session.daq_sampling_rate * 5, 
-                                                                       data_type='samples')
-    
+    audio_on = abs(audio_data) > 3
+    audio_onset_frames, stimulus_durations, _ = get_onset_and_duration(
+        audio_on, session, stim_type="audio", min_frames_between_trials=session.daq_sampling_rate * 5, data_type="samples"
+    )
+
     audio = Audio(audio_num_samples, audio_onset_frames, stimulus_durations)
     return audio

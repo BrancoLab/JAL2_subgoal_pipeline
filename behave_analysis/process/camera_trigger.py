@@ -10,7 +10,6 @@ import dill as pickle
 import json
 import pandas as pd
 from loguru import logger
-import matplotlib.pyplot as plt
 import datetime as datetime
 from pathlib import Path
 
@@ -49,12 +48,12 @@ def get_Camera_trigger(session: NEW_Session, drop_frames=False):
     return camera_trigger, camera_trigger_data
 
 
-def load_camera_trigger(session: NEW_Session) -> Camera_trigger:
+def load_camera_trigger(session: dict) -> Camera_trigger:
     """Load camera trigger data from JSON, with fallback to legacy session attribute."""
-    if hasattr(session, "camera_trigger") and session.camera_trigger is not None:
+    if hasattr(session, "camera_trigger") and session["camera_trigger"] is not None:
         return session.camera_trigger
 
-    meta_file = os.path.join(session.base_path, session.processed_path, "camera_trigger.json")
+    meta_file = os.path.join(session["base_path"], session["processed_path"], "camera_trigger.json")
     if not os.path.isfile(meta_file):
         raise FileNotFoundError(f"Camera trigger data not found at {meta_file}. Run process step first.")
 
@@ -73,7 +72,7 @@ def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, d
     """Find the onset of the frame triggers. And count the onset of pulses as expected number of frames in the camera.
 
     Args:
-        session (Session): _description_
+        session (Session): session object, used in process dataclass
         camera_trigger_data (object): _description_
         drop_frames (bool, optional): _description_. Defaults to False.
 
@@ -107,7 +106,7 @@ def find_drop_frames(session: NEW_Session, frame_trigger_onsets_idx, for_video_r
     """Find any dropped frames in the video.
 
     Args:
-        session (Session): _description_
+        session (Session): session object, used in process dataclass
         frame_trigger_onsets_idx (_type_): _description_
         for_video_reader (bool, optional): _description_. Defaults to False.
 

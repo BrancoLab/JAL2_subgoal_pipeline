@@ -1,5 +1,5 @@
 """A script to return the onset of TTL pulses for both the imec and bonsai machine.
-This is to align the behavioural data collected on the big rig with the efizz data collected on 
+This is to align the behavioural data collected on the big rig with the efizz data collected on
 the imec machine.
 
 ---------------------------------------------
@@ -44,6 +44,7 @@ from pathlib import Path
 # Globals
 sampling_rate = 30000
 
+
 def get_TTL(session: NEW_Session, TTL_bin_path: str):
     """Returns the TTL_sync dataclass.
 
@@ -54,9 +55,9 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     Returns:
         TTL_Sync: data class
     """
-    
+
     bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path)
-    
+
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
     # assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be - the session likely crashed or disconnected"
     imec_TTL, bonsai_ttl = check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate)
@@ -78,17 +79,17 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
         ephys_sync_offsets,
         sampling_rate,
     )
-    
+
     if (session.mouse == "JAL006") and (session.date == "2024_04_01"):
         # Hacky logic for JAL6 April 1st session
         # Step 1: Remove the assertion to ensure imec is longer
         # Step 2: Select the same number of onsets for both
         diff = len(bonsai_sync_onsets) - len(ephys_sync_onsets)
-        bonsai_sync_onsets = bonsai_sync_onsets[diff:] # chop the beginning?
+        bonsai_sync_onsets = bonsai_sync_onsets[diff:]  # chop the beginning?
     if (session.mouse == "JAL007") and (session.date == "2024_04_04"):
         # for JAL7 4april, disconnected, chop the end
-        bonsai_sync_onsets = bonsai_sync_onsets[:len(ephys_sync_onsets)]
-        bonsai_sync_offsets = bonsai_sync_offsets[:len(ephys_sync_onsets)]
+        bonsai_sync_onsets = bonsai_sync_onsets[: len(ephys_sync_onsets)]
+        bonsai_sync_offsets = bonsai_sync_offsets[: len(ephys_sync_onsets)]
     # visualize alignment
     # i = 0
     # plt.plot(imec_TTL[ephys_sync_onsets[i]-10000:ephys_sync_onsets[i]+150000])
@@ -98,8 +99,10 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
     # plt.plot(imec_TTL[ephys_sync_onsets[i]-150000:ephys_sync_onsets[i]+150000])
     # plt.plot(bonsai_ttl[bonsai_sync_onsets[i]-150000:bonsai_sync_onsets[i]+150000])
     # plt.show()
-    
-    assert len(bonsai_sync_onsets) == len(ephys_sync_onsets), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
+
+    assert len(bonsai_sync_onsets) == len(
+        ephys_sync_onsets
+    ), f"The number of efizz pulses {len(ephys_sync_onsets)} onsets should match the number of bonsai pulses {len(bonsai_sync_onsets)} onsets."
     logger.success("The number of efizz pulses onsets match the number of bonsai pulses onsets")
 
     # define the TTL object
@@ -122,7 +125,7 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
         "ephys_sync_onsets": np.asarray(ttl_object.ephys_sync_onsets).tolist(),
         "ephys_sync_offset": np.asarray(ttl_object.ephys_sync_offset).tolist(),
     }
-    meta_file = os.path.join(session.base_path,session.processed_path,'TTL_file.json')
+    meta_file = os.path.join(session.base_path, session.processed_path, "TTL_file.json")
     with open(meta_file, "w", encoding="utf-8") as json_file:
         json.dump(ttl_dict, json_file)
 
@@ -156,11 +159,11 @@ def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str):
     bonsai_ttl = AI_data[np.arange(3, len(AI_data), 4)]  # From the 4 index until the end select every 4th sample
 
     # Retrieve sync pulse from imec spikeglx file -----------------------------------------------
-    if 'exported' in TTL_bin_path:
+    if "exported" in TTL_bin_path:
         imec_TTL = unpackbits(np.fromfile(Path(TTL_bin_path), dtype=np.int16), bit_filter=6)
     else:
         logger.warning("The TTL sync channel is not in an exported .bin file! Using the old method of extracting from ap.bin!")
-        # for NPX1 or other weird cases - the old way to load the sync channel  
+        # for NPX1 or other weird cases - the old way to load the sync channel
         imec_TTL = get_TTL_from_imec(TTL_bin_path)
 
     return bonsai_ttl, imec_TTL
@@ -253,7 +256,7 @@ def check_for_abberant_signals(bonsai_ttl, imec_TTL, sampling_rate):
     # Threshold for acceptable number of abberant signals
     threshold = len(bonsai_ttl) * 0.1  # this seems arbitrary
 
-    # check for signal differences, they should not differ by 30 seconds. Unless there has been a mannual delay between stopping both systems. 
+    # check for signal differences, they should not differ by 30 seconds. Unless there has been a mannual delay between stopping both systems.
     if abs(len(bonsai_ttl) - len(imec_TTL)) > 30 * sampling_rate:
         logger.warning("The sync signals are more than 30 seconds different. Either there has been a mannual delay between stopping both systems or there is an error in the data.")
 
@@ -306,8 +309,8 @@ def check_for_abberant_pulses(
         ephys_sync_offsets (_type_): _description_
         sampling_rate (_type_): _description_
         delete (bool): If True, remove the pulse onsets that are too brief, this is likely a result of a bad sync signal. This will hopefully fix alignment issues.
-            if False, just log the error. 
-            
+            if False, just log the error.
+
             If syncing not working, FIRST SET TO FALSE, then check the onsets and offsets to see if they are correct.
     """
 
@@ -323,7 +326,7 @@ def check_for_abberant_pulses(
         counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
         logger.warning(f"There are {len(bonsai_pulse_len_under_errors)} bonsai pulses that are less than 1hz duration")
         logger.warning(f"Bonsai pulse less than 1hz duration: {counts}")
-        
+
         if delete:
             logger.warning("Removing bonsai pulses onsets that are too brief, this is likely a result of a bad sync signal. This will hopefully fix alignment issues.")
             bonsai_sync_onsets = np.delete(bonsai_sync_onsets, bonsai_pulse_len_under_errors)
@@ -338,27 +341,29 @@ def check_for_abberant_pulses(
 
     if imec_pulse_len_over_errors.any():
         logger.warning("Bonsai pulse greater than 1hz duration")
-        
+
     if imec_pulse_len_under_errors.any():
         onsets_delta = np.diff(ephys_sync_onsets)
         counts = {k: len(onsets_delta[onsets_delta == k]) for k in set(onsets_delta)}
         logger.warning(f"There are {len(imec_pulse_len_under_errors)} imec pulses that are less than 1hz duration")
         logger.warning(f"Imec pulses less than 1hz duration: {counts}")
-        
+
         if delete:
             logger.warning("Removing imec pulses onsets that are too brief, this is likely a result of a bad sync signal. This will hopefully fix alignment issues.")
             ephys_sync_onsets = np.delete(ephys_sync_onsets, imec_pulse_len_under_errors)
             ephys_sync_offsets = np.delete(ephys_sync_offsets, imec_pulse_len_under_errors)
-    
+
     logger.info("Pulse checks complete. Onsets and offsets were filtered together where needed.")
 
     return bonsai_sync_onsets, bonsai_sync_offsets, ephys_sync_onsets, ephys_sync_offsets
+
 
 # ====================================================================================================================================================================
 
 # Test old functions
 
-#Load imec bin file
+# Load imec bin file
+
 
 # NOTE - This is an old function that is not used in the current pipeline.
 # I brought it back here to test syncing of a broken session and it worked so leaving it here in case it is needed in the future.
@@ -369,6 +374,4 @@ def get_TTL_from_imec(filename: str):
         filename (str): File name of .bin imec file produced by spikeGLX
     """
     data = load_or_open(filename, "int16", order="F", dtype="int16")
-    return(data)
-
-
+    return data

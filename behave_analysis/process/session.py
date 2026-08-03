@@ -24,7 +24,6 @@ class NEW_Session:
     file_path: str
     base_path: str
     processed_path: str
-    metadata_file: str
     shelter_location: int = None
     barrier_location: int = None
     daq_sampling_rate: int = 15000
@@ -41,7 +40,6 @@ def get_experiment(experiment_data_class):
     experiment_description = f"Mouse: {mouse}, Experiment: {experiment_type}, Run number: {experiment_repeat}"
     base_path, _ = get_computer_specific_paths(os.path.join(experiment_data_class.root_path, experiment_data_class.experiment_path), return_ceph=True)
     file_path = os.path.join(experiment_data_class.root_path, experiment_data_class.experiment_path)
-    metadata_file = os.path.join(file_path, "processed_data", "metadata")
 
     return NEW_Session(
         name=experiment_description,
@@ -56,5 +54,4 @@ def get_experiment(experiment_data_class):
         base_path=base_path,
         file_path=file_path,
         processed_path=os.path.join(file_path, "processed_data"),
-        metadata_file=metadata_file,
     )

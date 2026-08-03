@@ -11,7 +11,7 @@ def get_onset_and_duration(data_on: object, session: object, stim_type: str, min
 
     Args:
         data_on (object): _description_
-        session (object): _description_
+        session (object): session object
         stim_type (str): _description_
         min_frames_between_trials (int): _description_
         data_type (str): _description_
