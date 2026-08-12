@@ -8,21 +8,11 @@ import pandas as pd
 
 from behave_analysis.analyze.PlaceCells.PlaceCells import COLUMNS_TO_KEEP
 from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df, load_homing_for_aefizz
-
-# from behave_analysis.analyze.decoders.LSTM.LSTM_model import preprocess_data_and_set_up, main, bin_polars_dataframes
-# from behave_analysis.analyze.single_trial.predict_future import select_neural_activity_chunk, explore_neural_activity_over_time
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
-
-# from behave_analysis.analyze.dimentionality_reduction.preprocessing_dim_reduce import Preprocess_for_DimReduction
-# from behave_analysis.analyze.dimentionality_reduction.PCA.visulisation_pca import run_pca_kmeans_plot
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_tracking_data
-
-# from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
-# from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 from behave_analysis.utils.data_loading import load_or_extract_escapes
-
 
 class AnalyzeEfizz:
     """
@@ -290,6 +280,11 @@ class AnalyzeEfizz:
         if analysis_name == "PCA" or analysis_name == "UMAP":
 
             raise NotImplementedError("Dimensionality reduction code is being updated and is not currently available")
+            # from behave_analysis.analyze.Rayleigh.analyze_rayleighs import plot_rayleigh_deltas
+            # from behave_analysis.analyze.dimentionality_reduction.UMAP.umap_main import run_umap_then_hdbscan
+            # from behave_analysis.analyze.dimentionality_reduction.PCA.visulisation_pca import run_pca_kmeans_plot
+            # from behave_analysis.analyze.dimentionality_reduction.preprocessing_dim_reduce import Preprocess_for_DimReduction
+
             # TODO: Dim red needs to either run or load rayleigh to compute mangitiude deltas
             # logger.info("Running Dimensionality Reduction analysis")
             # path_to_save = os.path.join(self.dir, "dimensionality_reduction")

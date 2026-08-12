@@ -12,7 +12,6 @@ from databank import cluster_experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.postprocess.pp_main import Postprocessor
 from settings.settings_process import settings_process
-from run.run_analyze_efizz import analyze_efizz
 
 assert len(cluster_experiments_objects) != 0, "Session list should not be empty"
 

@@ -31,10 +31,6 @@ class BaseDataPostprocessor(ABC):
     # --------------- Abstract methods to be implemented by all children ---------------------------------------------
 
     @abstractmethod
-    def merge_and_save_spike_count_df_with_frame_data(self):
-        pass
-
-    @abstractmethod
     def load_spike_data(self):
         pass
 
@@ -220,7 +216,7 @@ class BaseDataPostprocessor(ABC):
         )
         return spikecountbyframe_neuron
 
-    def merge_and_save_spike_count_df_with_frame_data(self, spikeCountByFrameAndCluster, video_df):
+    def merge_spike_count_df_with_frame_data(self, spikeCountByFrameAndCluster, video_df):
         """Merges the video dataframe with the spike count by frame and cluster dataframe and saves the result as a parquet file.
 
         Dataframe output:
@@ -238,10 +234,6 @@ class BaseDataPostprocessor(ABC):
         large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left").with_columns(
             pl.col("spike_count").fill_null(0)  # Only fill spike_count, keep cluster ID as null
         )
-
-        # old code! This will assign frames with 0 spike count to cluster_ID 0
-        # large_dataFrame = video_df.join(spikeCountByFrameAndCluster, left_on="frames", right_on="spike_aligned_to_frame", how="left")
-        # large_dataFrame = large_dataFrame.fill_null(strategy="zero")  # this assigns some cluster IDs zero which is invalid!
 
         # save the big ass dataframe
         large_dataFrame.write_parquet(os.path.join(self.session["base_path"], self.session["processed_path"] + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet"))
@@ -316,7 +308,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
             self.clu_label = self.extract_cluster_labels()
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames(regenerate=settings.regenerate_synthetic_data)
             if settings.save_spike_video_parquet:
-                self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
+                self.video_spike_count_df = self.merge_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
             self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)
 
     def check_synthetic_data_exists_if_not_generate_it(self, video_df) -> None:
@@ -404,7 +396,6 @@ class DataPostprocessor(BaseDataPostprocessor):
         QcPreProcessedData._check_for_vals_outside_arena(video_df, self.session)  # For now just log the warning and don't touch the data
         if settings.homings:
             from settings.settings_analyze_behave import settings_ab
-
             settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
             homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings(video_df, self.tracking_data)
             homings = remove_manually_curated(homings)
@@ -415,7 +406,7 @@ class DataPostprocessor(BaseDataPostprocessor):
             self.clu_label = self.extract_cluster_labels()
             spikeCountByFrameAndCluster = self.count_spikes_and_units_to_frames()
             if settings.save_spike_video_parquet:
-                self.video_spike_count_df = self.merge_and_save_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
+                self.video_spike_count_df = self.merge_spike_count_df_with_frame_data(spikeCountByFrameAndCluster, video_df)
             self.frame_by_cluster_matrix = self.export_large_df_to_frame_by_cluster_matrix(spikeCountByFrameAndCluster, video_df)  # This is slow can we speed it up?
 
     def filter_spike_data(self, df):
@@ -546,90 +537,3 @@ class QcPreProcessedData:
             logger.success("The tracking data is within the bounds of the arena")
             return video_df
 
-    # def _qc_video_data_is_populated(self) -> None:
-    #     """
-    #     A function that checks the video dataframe for any invalid values or states that could cause problems later in the pipeline.
-    #     """
-
-    #     assert False == any(self.preprocessed_data.video_df.null_count().to_numpy()[0] > 0), "The video dataframe contains null values."
-    #     assert False == self.preprocessed_data.video_df.is_empty(), "The video dataframe is empty."
-    #     testOfzeros = self.preprocessed_data.video_df.select(["frames", "hdir", "hsa", "mouse_x_position", "mouse_y_position"])
-    #     assert False == any(testOfzeros.to_numpy()[0] == 0), "The video dataframe contains values that are equal to zero."
-
-    # def qc_video_data_frame_schema_is_correct(dataframe: pl.DataFrame, session: object) -> None:
-    #     if "mush" in session["name"]:
-    #         assert dataframe.schema == {
-    #             "frames": pl.Int64,
-    #             "hdir": pl.Float64,
-    #             "hsa": pl.Float64,
-    #             "mouse_x_position": pl.Float64,
-    #             "mouse_y_position": pl.Float64,
-    #             "OutofshelterIdx": pl.Boolean,
-    #             "EscapePeriod": pl.Boolean,
-    #             "shelter_only": pl.Boolean,
-    #             "barrier_present": pl.Boolean,
-    #         }, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
-    #     elif "seq" in session["name"]:
-    #         assert dataframe.schema == {
-    #             "frames": pl.Int64,
-    #             "hdir": pl.Float64,
-    #             "hsa": pl.Float64,
-    #             "mouse_x_position": pl.Float64,
-    #             "mouse_y_position": pl.Float64,
-    #             "OutofshelterIdx": pl.Boolean,
-    #             "EscapePeriod": pl.Boolean,
-    #             "shelter_only": pl.Boolean,
-    #             "barrier_present": pl.Boolean,
-    #             "h_preflipbar_a": pl.Float64,
-    #             "h_postflipbar_a": pl.Float64,
-    #         }, "The video dataframe schema does match the expected schema, this could have unexpected consequences later in the pipeline."
-
-    # def qc_angular_velocity_is_logically_possible(dataframe: pl.DataFrame, session: object) -> None:
-    #     """
-
-    #     Rough logic - The time it takes me to start a milisecond stop watch and stop it is 0.17 seconds. A frame is 0.025 seconds. It should
-    #     be impossible for any angular change of a mouse to be 3 radians (171 degrees) in 0.025 seconds, this is a full spin.
-
-    #     Emperical logic from .describe() - The mean across hdir, hsa, h_preflipbar_a and h_postflipbar_a is ┆ 0.012057 ┆ 0.014083 ┆ 0.012175 ┆ 0.012256
-    #     highlighting that a delta of 3 radians would be a 300x increase in the mean and thus is unlikely to be a valid value.
-
-    #     Angular velocity logic - The formula for angular velocity which is measured in radians per second is: delta radians / delta time
-    #         + Δ3 radians / Δ0.025 seconds = 120 radians per second
-    #         + Δ2 radians / Δ0.025 seconds = 80 radians per second
-    #         + Δ1 radians / Δ0.025 seconds = 40 radians per second
-    #         + Δ0.5 radians / Δ0.025 seconds = 20 radians per second
-    #     Given 20 radians per second, that would mean the mouse would spin 10x in a second, which is not possible. So the maximum radial change
-    #     proposed should be 0.5 radians per frame which is 50x the mean and thus is likely to be a unconvservative upper bound in error checking.
-
-    #     """
-
-    #     if "mush" in session["name"]:
-    #         angular_columns = dataframe.select("hdir", "hsa")
-
-    #     elif "seq" in session["name"]:
-    #         angular_columns = dataframe.select("hdir", "hsa", "h_preflipbar_a", "h_postflipbar_a")
-
-    #     # A function to calculate the circular distance between two angles - https://gamedev.stackexchange.com/questions/4467/comparing-angles-and-working-out-the-difference
-    #     f = lambda circular_angle_delta: np.pi - abs(abs(circular_angle_delta) - np.pi)
-
-    #     # For all columns calculate the delta between each frame
-    #     angular_delta = angular_columns.with_columns(pl.all().diff())
-    #     circular_dist_delta = angular_delta.with_columns(pl.all().apply(f))
-    #     logger.info(circular_dist_delta.describe())
-
-    #     # Create expectation masks for each column
-    #     failed_qc_hdir = np.where(circular_dist_delta["hdir"] > 0.5)[0]
-    #     failed_qc_hsa = np.where(circular_dist_delta["hsa"] > 0.5)[0]
-    #     failed_qc_preflip_barrier_edge = np.where(circular_dist_delta["h_preflipbar_a"] > 0.5)[0]
-    #     failed_qc_postflip_barrier_edge = np.where(circular_dist_delta["h_postflipbar_a"] > 0.5)[0]
-
-    #     if np.any(failed_qc_hdir) or np.any(failed_qc_hsa) or np.any(failed_qc_preflip_barrier_edge) or np.any(failed_qc_postflip_barrier_edge):
-    #         logger.error(
-    #             f"There are {len(failed_qc_hdir) + len(failed_qc_hsa) + len(failed_qc_preflip_barrier_edge) + len(failed_qc_postflip_barrier_edge)} frames that have a radial delta greater than 0.5 radians per 0.025 milliseconds"
-    #         )
-
-    #     # assert len(sum(np.where(delta_mask == True))) == 0, "The angular delta  of the mouse is greater than 3 radians in 0.025 seconds."
-    #     # plt.hist(hdir_dif.to_numpy(), bins=100, log = True)
-    #     # plt.title("Log hist showing the delta in hdir in radians from frame to frame")
-
-    #     raise NotImplementedError
