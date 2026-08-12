@@ -111,7 +111,7 @@ class ComputeEscapeTuning:
         if trial_based:
 
             # how many trials are in each condition?
-            trial_start_cond = self.condition[np.where(np.diff(filtering_vector) > 0)[0]]
+            trial_start_cond = self.condition[np.where(np.diff(filtering_vector.astype(int)) > 0)[0]]
             trial_n_cond = np.bincount(trial_start_cond.astype(int), minlength=len(self.ET.all_conditions))
             for i, t in enumerate(trial_n_cond):
                 if t == 0:
