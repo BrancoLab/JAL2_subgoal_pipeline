@@ -128,9 +128,6 @@ class Process:
         elif settings_p.efizz == False:
             self.quality_check_new_sessions()
 
-        logger.info("Saving session metadata - building polars df next")
-        self.save_session(self.session)
-
         if settings_p.efizz:
             ProcessedEfizz(
                 efizzDataLoaded=self.efizzDataLoaded,
@@ -142,6 +139,10 @@ class Process:
                 lastPulse=lastPulse,
                 firstPulse=firstPulse,
             )
+
+        
+        self.save_session(self.session)
+        logger.info(f"Session metadata saved, processing complete for session: {self.session.name} on {self.session.date} for experiment: {self.session.experiment}")
 
         return self.session
 

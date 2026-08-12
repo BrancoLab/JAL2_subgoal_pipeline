@@ -11,7 +11,7 @@ def postprocess(experiments_objects):
     logger.info("The post processing of the data has started")
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
-        logger.info("Loaded a session with the following details: {}".format(session_id))
+        logger.info(f"Post-processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
         Postprocessor(session)
     logger.success("The post processing of the data has finished and the postprocessed object has been saved to a pickle file")
     

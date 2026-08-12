@@ -26,7 +26,6 @@ class ProcessedEfizz:
         print(alignedDataFrame)  # Print the dataframe to check it is correct
 
         self.save_processed_efizz()
-        logger.success("Efizz data loaded and processed")
 
     def generate_polar_dataframe(self) -> object:
         """

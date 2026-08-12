@@ -34,7 +34,8 @@ def visualize(visualization_name=None):
         return
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
-        logger.info("Loaded a session with the following details: {}".format(session_id))
+        logger.info(f"Making visualizations for session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+        
         #Visualize_behave(session).plot_behavioral_stats()
 
         # # ------ BEHAVIORAL VISUALIZATION ------
