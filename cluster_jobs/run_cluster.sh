@@ -25,3 +25,7 @@ cd "$REPO_ROOT"
 mkdir -p logs
 
 python cluster_jobs/run_process_postprocess_cluster.py
+
+email="j.reggiani@ucl.ac.uk"
+subject="Pipeline processing Job Complete"
+echo "Your job named: ${SLURM_JOB_NAME} is complete" | mail -s "$subject" "$email"
