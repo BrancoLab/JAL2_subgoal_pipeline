@@ -82,6 +82,7 @@ def homing_escape_onsets(aefizz, escape_pattern_time, spatial_efficiency_thresho
         ons: vector of onset times in frames for homing and escape periods
         offs: vector of offset times in frames for homing and escape periods
         esc_ons: vector of onset times in frames for escape periods
+    NB: homing_dict likely contains escapes too! so the returned dict might have duplicate runs!
     """
 
     ons = []
@@ -171,7 +172,8 @@ def homing_escape_filtering_vector(nframes, onset_dict, xpos, ypos, shelter_loca
     """This function builds two boolean vectors of length time which are True when the mouse is in homing or escape periods
     It removes any time after shelter entry within each homing
     It uses the array of onsets and offsets created in homing_escape_onsets function
-    (this could be only homings, homings+escapes, long homings, etc. depending on context in tuning passed to ComputeEscapeTuning)"""
+    (this could be only homings, homings+escapes, long homings, etc. depending on context in tuning passed to ComputeEscapeTuning)
+    NB! onset_dict could contain duplicates for escape and homing onsets, here they will be merged because they will overlap in their behaviour!"""
 
     homing_vector = np.zeros(nframes, dtype=bool)
     escape_vector = np.zeros(nframes, dtype=bool)
