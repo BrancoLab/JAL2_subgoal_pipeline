@@ -15,17 +15,17 @@ from settings.settings_process import settings_process
 
 assert len(cluster_experiments_objects) != 0, "Session list should not be empty"
 
-for session_id in cluster_experiments_objects:
-	logger.info(f"Processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
-	process_object = Process(session_id)
-	process_object.create_session(settings_process)
-logger.success("Processing complete")
+# for session_id in cluster_experiments_objects:
+# 	logger.info(f"Processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+# 	process_object = Process(session_id)
+# 	process_object.create_session(settings_process)
+# logger.success("Processing complete")
 
-for session_id in cluster_experiments_objects:
-	session = Process(session_id).load_session()
-	logger.info(f"Post-processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
-	Postprocessor(session)
-logger.success("Postprocessing complete")
+# for session_id in cluster_experiments_objects:
+# 	session = Process(session_id).load_session()
+# 	logger.info(f"Post-processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+# 	Postprocessor(session)
+# logger.success("Postprocessing complete")
 
 
 # analyze efizz data
