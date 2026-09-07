@@ -61,7 +61,7 @@ def main():
 	variable = None
 
 	for a in analysis_name:
-		analyze_efizz(analysis_name, variable)
+		analyze_efizz(a, variable)
 
 if __name__ == "__main__":
 	main()
