@@ -40,8 +40,11 @@ def analyze_efizz(analysis_name = None, variable = None):
 
 		aefizz = AnalyzeEfizz(session, Settings_ae)
 		aefizz.load_data(analysis_name)
-		for var in variable:
-			aefizz.execute(analysis_name, var)
+		if variable is None:
+			aefizz.execute(analysis_name)
+		else:
+			for var in variable:
+				aefizz.execute(analysis_name, var)
 
 	logger.success("Efizz analysis pipeline complete")
 
