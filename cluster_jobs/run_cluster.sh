@@ -24,7 +24,7 @@ REPO_ROOT="$HOME/repos/JAL2_subgoal_pipeline"
 cd "$REPO_ROOT"
 mkdir -p logs
 
-python cluster_jobs/run_process_postprocess_cluster.py
+python cluster_jobs/run_cluster.py
 
 email="j.reggiani@ucl.ac.uk"
 subject="Pipeline processing Job Complete"
