@@ -22,6 +22,7 @@ class PersistentPool:
         with self._mp_pool_lock:
             if self._pool:
                 self._pool.close()
+                self._pool.join()
                 self._pool = None
 
     def __del__(self):
