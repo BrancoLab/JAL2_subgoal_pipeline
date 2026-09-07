@@ -68,7 +68,11 @@ def check_if_rayleigh_exists(aefizz, all_angles):
             continue
         else:
             return False
-    logger.info("Rayleigh vectors exist, either recompute or move on to plotting")
+    if aefizz.settings.redo_compute:
+        action = "but we are recomputing"
+    if not aefizz.settings.redo_compute and aefizz.settings.single_cluster_plots:
+        action = "and we are moving on to plotting"
+    logger.info("Rayleigh vectors exist, " + action)
     return True
 
 
