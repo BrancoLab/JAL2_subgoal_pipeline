@@ -28,7 +28,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
     """Compute rayleigh for all angles in all desired conditions AND if Settings_analyze_efizz.multi_cluster_plots = True,
     it also plots all clusters per angle"""
     if aefizz.settings.linear_shift:
-        pool = PersistentPool(workers=20)
+        pool = PersistentPool(workers=12)
     else:
         pool = None
     # determine condition types
@@ -38,7 +38,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
         for c in aefizz.all_conditions:
             aefizz.condition = c
             filtered_video_df = select_relevant_frames(aefizz)
-            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition, compartment=[])
+            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition, compartment=[], rayleigh = True)
             compartment = identify_which_compartment(aefizz, filtered_video_df)
             if np.logical_or(not check_if_rayleigh_exists(aefizz, all_angles), aefizz.settings.redo_compute):
                 for a in all_angles:
@@ -50,7 +50,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
                     rayleigh_vector(aefizz, this_df, X, a, data_path, compartment, pool)
         # plot all conditions in this condition types for each cluster
         if aefizz.settings.single_cluster_plots:
-            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, condition=[], compartment=[])
+            data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, condition=[], compartment=[], rayleigh = True)
             plot_save_path = make_directory(os.path.join(data_path, "single_cluster_plots"))
             single_cluster_plots(aefizz, all_angles, aefizz.all_conditions, data_path, plot_save_path)
     if aefizz.settings.linear_shift:
@@ -62,7 +62,7 @@ def compute_all_clusters_rayleigh(aefizz, all_angles: list) -> None:
 
 def check_if_rayleigh_exists(aefizz, all_angles):
     """Check if the Rayleigh vectors have already been computed and saved"""
-    data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition)
+    data_path = BuildSavingFolder(aefizz.dir, aefizz.settings, [], aefizz.cluster_type, aefizz.condition_types, aefizz.condition, rayleigh = True)
     for a in all_angles:
         if os.path.isfile(data_path + "/" + str(a) + "_Rayleigh.arrow"):
             continue
@@ -319,7 +319,9 @@ def rayleigh_vector(
     # Save the rayleigh results to a file. This is the main output of this function
     rayleigh_results.write_ipc(plot_save_path + "/" + str(angle_filt) + "_Rayleigh.arrow")
 
-    logger.info("Finished calculating Rayleigh vectors, moving on to polar plots")
+
+
+    logger.info("Finished calculating Rayleigh vectors" + ", moving on to polar plots" if aefizz.settings.multi_cluster_plots else " ")
     if aefizz.settings.multi_cluster_plots:
         folder_name = os.path.join(plot_save_path, str(angle_filt) + "_cluster_tuning_plots")
         if not (os.path.exists(folder_name)):
@@ -494,8 +496,8 @@ def identify_which_compartment(aefizz, filtered_video_df: pl.DataFrame) -> np.nd
     Returns:
     -- compartment: a numpy array of ones and twos of the same length as the filtered_video_df"""
     compartment = np.ones([len(filtered_video_df)])
-    if len(aefizz.session["barrier_time"]) > 0:
-        compartment[filtered_video_df["mouse_y_position"].to_numpy() < 512] = 2  # threat zone
+    # we split the arena in two regardless of whether there was a barrier
+    compartment[filtered_video_df["mouse_y_position"].to_numpy() < 512] = 2  # threat zone
     return compartment
 
 

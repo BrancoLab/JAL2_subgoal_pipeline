@@ -17,7 +17,6 @@ import os
 
 import numpy as np
 from loguru import logger
-import dill as pickle
 import matplotlib.pyplot as plt
 
 from behave_analysis.utils.rayleigh.load_rayleigh import extract_rayleigh_path, load_rayleigh_data
@@ -29,12 +28,24 @@ RAYLEIGH_THRESHOLD = 0.5
 SIMILAR_ANGLE_THRESHOLD = 0.8
 
 
-def classify_hdir(session: object, cluster_type: str = "good") -> list:
+def classify_hdir(session: object, cluster_type: str = "good", conditions = ["shelter_only"]) -> list:
     """Label cells as head direction based on a set of criteria
 
     Returns:
     -- cell ids (list) that are head direction cells"""
-    path = extract_rayleigh_path(session, cluster_type, condition="all_time", file_name="hdir_Rayleigh.arrow")
+    if len(conditions) == 0:
+        logger.warning("No conditions provided for head direction classification. Returning empty list.")
+        return []
+    if len(conditions) == 1:
+        used_condition = conditions[0]
+    else:
+        if "shelter_only" in conditions: # this is usually a condition in barrier experiments
+            used_condition = "shelter_only"
+        if "pre_shelter" in conditions: # preferrably we use a condition with an empty arena?!
+            used_condition = "pre_shelter"
+        
+
+    path = extract_rayleigh_path(session, cluster_type, condition=used_condition, file_name="hdir_Rayleigh.arrow")
     data = load_rayleigh_data(path)
 
     angles = extract_compartment_values(data, "Rayleigh_theta")
@@ -53,9 +64,9 @@ def classify_hdir(session: object, cluster_type: str = "good") -> list:
 
     path = make_directory(os.path.join(session["base_path"], session["processed_path"], "cells"))
 
-    plot_hdir_tuning(data, head_direction_cells, path)
+    plot_hdir_tuning(data, head_direction_cells, path, used_condition)
 
-    save_cell_ids(path, head_direction_cells)
+    save_cell_ids(path, head_direction_cells, used_condition)
 
     return head_direction_cells
 
@@ -97,7 +108,7 @@ def angle_similarity(theta1: float, theta2: float) -> float:
     return similarity_score
 
 
-def plot_hdir_tuning(data, head_direction_cells, path):
+def plot_hdir_tuning(data, head_direction_cells, path, condition):
     """
     Takes the tuning curves for hdir and not hdir and plots them to show similarity across compartments - just a visual check of the classification
     """
@@ -140,13 +151,11 @@ def plot_hdir_tuning(data, head_direction_cells, path):
 
     # save figure
     plt.tight_layout()
-    file_name = os.path.join(path, "hdir_cells.png")
+    file_name = os.path.join(path, f"{condition}_hdir_cells.png")
     fig.savefig(file_name)
 
-
-def save_cell_ids(path, cell_ids) -> None:
-    """Saves the cell ids to a pickle file to a within a folder called cells"""
-    file_name = os.path.join(path, "hdir_cells.pkl")
-    with open(file_name, "wb") as dill_file:
-        pickle.dump(cell_ids, dill_file)
+def save_cell_ids(path, cell_ids, condition) -> None:
+    """Saves the cell ids to a numpy file to a within a folder called cells"""
+    file_name = os.path.join(path, f"{condition}_hdir_cells.npy")
+    np.save(file_name, np.array(cell_ids))
     logger.success("Head direction cell ids saved")

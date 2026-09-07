@@ -58,7 +58,9 @@ class AnalyzeEfizz:
             # load behavioral data
             video_df_path = os.path.join(self.session["base_path"], self.session["processed_path"], "full_video_dataframe.csv")
             self.video_df = pl.read_csv(video_df_path)
-            self.video_df = add_homie_to_video_df(self.session, self.video_df, homing_type=self.settings.homings)
+            if analysis_name in ["EscapePattern", "Replay", "PlaceCells"]:
+                # add homing information to video_df
+                self.video_df = add_homie_to_video_df(self.session, self.video_df, homing_type=self.settings.homings)
 
         # load firing rate matrix
         if analysis_name in ["LDA", "sklearn", "LSTM", "rayleigh", "EscapePattern", "PCA", "UMAP", "single_trial", "Replay", "CCA"]:
@@ -329,7 +331,7 @@ class AnalyzeEfizz:
             """Call cell type specific classification functions
 
             NOTE: Work in progress"""
-            hdir_cell_ids = classify_hdir(session=self.session, cluster_type=self.cluster_type)
+            hdir_cell_ids = classify_hdir(session=self.session, cluster_type=self.cluster_type, conditions=self.all_conditions)
             logger.debug(f"The hdir cell ids are: {hdir_cell_ids}")
 
             logger.warning(f"hsa classification code for hsa is commented out and needs to be tested")

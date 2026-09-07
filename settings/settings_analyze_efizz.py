@@ -23,7 +23,7 @@ Settings_ae = Settings_analyze_efizz(
     #                                         'barrier_post_flip',
     #                                         "barrier_removed"
     conditions=["shelter_only", "barrier_pre_flip", "barrier_post_flip"],
-    user_defined_conditions=True,  # False if you want automatically identified conditions
+    user_defined_conditions=False,  # False if you want automatically identified conditions
     condition_types="experimental_conditions",  # if 'experimental_conditions' it uses conditions listed above that start with user
         # if 'time_conditions' it compares first vs second half
         # if 'behavioral_conditions' it defines the conditions based on homing/escape behaviour of mousie - it will overrule other condition settings

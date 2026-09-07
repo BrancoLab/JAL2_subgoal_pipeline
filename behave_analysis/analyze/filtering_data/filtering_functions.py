@@ -248,6 +248,7 @@ def identify_conditions(session) -> list:
         if session["barrier_time"][1] != -1:
             condition.append("barrier_removed")
 
+    return condition
 
 def identify_epoch_conditions(session) -> list:
     """Return the ordered list of mutually-exclusive epoch condition names used as

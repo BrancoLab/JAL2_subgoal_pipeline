@@ -40,7 +40,7 @@ def list_conditions(settings):
         condition_types = ["before_" + str(number_of_homings) + "good_homings", "after_" + str(number_of_homings) + "good_homings"]
     return number_of_homings, condition_types
 
-def BuildSavingFolder(basepath, settings, variable, cluster_type, condition_types, condition=[], compartment=[]):
+def BuildSavingFolder(basepath, settings, variable, cluster_type, condition_types, condition=[], compartment=[], rayleigh = False):
     """
     This function builds a folder structure for where the decoder results and plots will be saved
     under processed_data > models
@@ -88,7 +88,7 @@ def BuildSavingFolder(basepath, settings, variable, cluster_type, condition_type
             pathh = str(pathh) + "_excl_stationary"
 
 
-    elif settings.run_rayleigh:
+    elif rayleigh:
         pathh = str(basepath) + "/" + "Rayleigh" + "/"
 
     # add subfolder for cluster type
