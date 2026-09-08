@@ -16,6 +16,13 @@ from behave_analysis.analyze.PlaceCells.place_cell_utils import assign_positiona
 from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check, check_database_for_matched_results, generate_run_id
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.utils.arena_plotting import Arena
+from behave_analysis.analyze.persistence_utils import (
+    load_results_with_fallback,
+    convert_npz_to_hdf5,
+    save_hdf5,
+    save_json,
+    save_npz,
+)
 
 COLUMNS_TO_KEEP = [
     "frames",
@@ -304,8 +311,8 @@ class PlaceCells:
                     ax=axs[0, j],
                     dim=real_map.shape[0] - 1,
                     condition=c + ("_tiny" if "tiny" in self.aefizz.session["experiment"] else ""),
-                    barrier_coordinates=self.aefizz.session["barrier_location"][:-1],
-                    shelter_coordinates=self.aefizz.tracking_data["shelter_loc"],
+                    barrier_coordinates=self.aefizz.session["barrier_location"][:-1] if self.aefizz.session["barrier_location"] is not None else None,
+                    shelter_coordinates=self.aefizz.session["shelter_location"] if self.aefizz.session["shelter_location"] is not None else None,
                     full_image=False,
                 )
                 if np.isnan(real_map).all():
@@ -322,8 +329,8 @@ class PlaceCells:
                     ax=axs[1, j],
                     dim=null_map.shape[0] - 1,
                     condition=c + ("_tiny" if "tiny" in self.aefizz.session["experiment"] else ""),
-                    barrier_coordinates=self.aefizz.session["barrier_location"][:-1],
-                    shelter_coordinates=self.aefizz.tracking_data["shelter_loc"],
+                    barrier_coordinates=self.aefizz.session["barrier_location"][:-1] if self.aefizz.session["barrier_location"] is not None else None,
+                    shelter_coordinates=self.aefizz.session["shelter_location"] if self.aefizz.session["shelter_location"] is not None else None,
                     full_image=False,
                 )
                 if np.isnan(null_map).all():
@@ -350,13 +357,51 @@ class PlaceCells:
             plt.savefig(os.path.join(plot_folder, f"place_fields_cluster{str(Id)}.png"))
             plt.close()
 
+# -------- SAVING AND LOADING FUNCTIONS-------------
+    def _results_npz_path(self):
+        return os.path.join(self.savepath, "PC_" + self.hexaname + "_results.npz")
+
+    def _results_h5_path(self):
+        return os.path.join(self.savepath, "PC_" + self.hexaname + "_results.h5")
+
+    def save_results_hdf5(self, results_dict=None, overwrite=True):
+        """
+        Save nested place-cell results to HDF5 as true hierarchy:
+        condition -> result_key -> dataset.
+        """
+        if results_dict is None:
+            results_dict = self.results_dict
+        return save_hdf5(self._results_h5_path(), data_dict=results_dict, overwrite=overwrite)
+
+    def load_results(self, prefer_hdf5=True):
+        """
+        Load results and always return dict of dicts.
+        Backward compatible:
+        - New HDF5 files
+        - Legacy NPZ files that required .item()
+        """
+        return load_results_with_fallback(self._results_h5_path(), self._results_npz_path(), prefer_hdf5=prefer_hdf5)
+
+    def convert_legacy_npz_to_hdf5(self, overwrite=False):
+        """
+        One-shot converter for existing legacy NPZ results to HDF5.
+        Returns loaded dict-of-dicts.
+        """
+        return convert_npz_to_hdf5(self._results_npz_path(), self._results_h5_path(), overwrite=overwrite)
+
     def save(self, return_dict=False):
         """This function saves the results of the place cell analysis to a file."""
         logger.info("Saving place cell results to file and database")
+
+        # save results to file
         filename = os.path.join(self.savepath, "PC_" + self.hexaname)
-        np.savez(os.path.join(filename + "_results.npz"), **self.results_dict, allow_pickle=True)
+        self.save_results_hdf5(results_dict=self.results_dict, overwrite=True)
+        save_npz(self._results_npz_path(), self.results_dict)
+        
+        # save settings
         settings = asdict(self.aefizz.settings)
-        np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
+        save_json(filename + "_settings.json", settings)
+
         # add results to database
         add_run_to_database(
             self.database,

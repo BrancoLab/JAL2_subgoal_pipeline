@@ -31,6 +31,7 @@ from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.Replay.Replay import Replay
 from behave_analysis.analyze.Replay.StateSpaceDecoderDataFormatter import prepare_state_space_decoder_data
 from behave_analysis.analyze.results_database_utils import settings_to_check, check_database_for_matched_results, generate_run_id, check_database_for_same_run
+from behave_analysis.analyze.persistence_utils import save_hdf5, save_json, save_npz, load_results_with_fallback
 
 
 class ReplayAnalysis:
@@ -522,7 +523,7 @@ class ReplayAnalysis:
         filename = os.path.join(self.replay.savepath, "SSdecoder_" + self.hexaname)
 
         self.saved_vars = list(save_dict.keys())
-        np.savez(filename + "_data.npz", **save_dict, allow_pickle=True)
+        save_hdf5(filename + "_data.h5", save_dict, overwrite=True)
 
         settings = asdict(self.aefizz.settings)
         if settings["replay_train_condition"] == "barrier_pre_flip":
@@ -533,8 +534,15 @@ class ReplayAnalysis:
             settings["barrier_test_location"] = self.aefizz.session["barrier_location"][0]
         elif settings["replay_test_condition"] == "barrier_post_flip":
             settings["barrier_test_location"] = self.aefizz.session["barrier_location"][1]
-        np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
+        save_json(filename + "_settings.json", settings)
 
         logger.warning(
-            "State space decoder data saved to " + filename + "_data.npz" + " . Now run the state space decoder in behave_analysis > analyze > replay > SSdecoder.ipynb."
+            "State space decoder data saved to "
+            + filename
+            + "_data.h5. Now run the state space decoder in behave_analysis > analyze > replay > SSdecoder.ipynb."
         )
+
+    def load_SS_data(self, prefer_hdf5=True):
+        """Load saved state-space decoder input data with HDF5->NPZ fallback."""
+        filename = os.path.join(self.replay.savepath, "SSdecoder_" + self.hexaname)
+        return load_results_with_fallback(filename + "_data.h5", filename + "_data.npz", prefer_hdf5=prefer_hdf5)

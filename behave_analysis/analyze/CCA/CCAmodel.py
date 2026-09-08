@@ -248,9 +248,9 @@ class CCAmodel:
         """This function saves the results of the CCA analysis to a file."""
         logger.info("Saving CCA results to file and database")
         filename = os.path.join(self.savepath, "CCA_" + self.hexaname)
-        np.savez(os.path.join(filename + "_results.npz"), **self.results, allow_pickle=True)
+        np.savez(os.path.join(filename + "_results.npz"), **self.results)
         settings = asdict(self.settings)
-        np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
+        np.savez(filename + "_settings.npz", **settings)
         # add results to database
         add_run_to_database(self.database, settings_to_check(self.settings, ["cca"]), self.savepath + os.sep + "CCA_results.csv", self.hexaname)
         if return_dict:

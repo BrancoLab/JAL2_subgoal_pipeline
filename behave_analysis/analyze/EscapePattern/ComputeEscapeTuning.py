@@ -23,7 +23,12 @@ from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tunin
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check
 from behave_analysis.analyze.filtering_data.filtering_functions import identify_epoch_conditions
-
+from behave_analysis.analyze.persistence_utils import (
+    load_results_with_fallback,
+    convert_npz_to_hdf5,
+    save_hdf5,
+    save_json,
+)
 
 class ComputeEscapeTuning:
     """A class for computing the tuning to escape-related variables and storing them in the EscapeTuning dataclass
@@ -244,14 +249,16 @@ class ComputeEscapeTuning:
             if self.settings.ep_gaussian_fitting:
                 self.ET.R_shift[s_idx, :, :] = gf
 
+# --------------- DICTIONARY SAVING AND LOADING FUNCTIONS ----------------
     def save_escape_tuning(self, variable, return_dict=False):
         """Save EscapeTuning dataclass to file"""
         filename = os.path.join(self.ET.savepath, "EPtuning_" + self.hexaname)
         # build results dict and save
         results_dict = asdict(self.ET)
-        np.savez(os.path.join(filename + "_results.npz"), **results_dict, allow_pickle=True)
+        self.save_results_hdf5(results_dict=results_dict, overwrite=True)
+        # save settings
         settings = asdict(self.settings)
-        np.savez(filename + "_settings.npz", **settings, allow_pickle=True)
+        save_json(filename + "_settings.json", settings)
         # add results to database
         db_settings = {"variable": variable, "insufficient_data": self.insufficient_data, **settings_to_check(self.settings, ["ep_", "linshift"])}
         add_run_to_database(self.database, db_settings, self.ET.savepath + os.sep + "EscapePattern_results.csv", self.hexaname)
@@ -259,6 +266,27 @@ class ComputeEscapeTuning:
         if return_dict:
             return results_dict
 
+    def _results_npz_path(self):
+        return os.path.join(self.ET.savepath, "EPtuning_" + self.hexaname + "_results.npz")
+
+    def _results_h5_path(self):
+        return os.path.join(self.ET.savepath, "EPtuning_" + self.hexaname + "_results.h5")
+
+    def save_results_hdf5(self, results_dict=None, overwrite=True):
+        """Save nested EP results to HDF5 hierarchy."""
+        if results_dict is None:
+            results_dict = asdict(self.ET)
+        return save_hdf5(self._results_h5_path(), data_dict=results_dict, overwrite=overwrite)
+
+    def load_results(self, prefer_hdf5=True):
+        """
+        Return dict-of-results, backward compatible with old npz files.
+        """
+        return load_results_with_fallback(self._results_h5_path(), self._results_npz_path(), prefer_hdf5=prefer_hdf5)
+
+    def convert_legacy_npz_to_hdf5(self, overwrite=False):
+        """Convert existing legacy npz file to hdf5 and return dict."""
+        return convert_npz_to_hdf5(self._results_npz_path(), self._results_h5_path(), overwrite=overwrite)
     # ----------------------------Data loading and processing functions----------------------------
 
     def filtering_vector_exploration(self):
@@ -432,15 +460,10 @@ class ComputeEscapeTuning:
         if tuning_var2 == "2D_position":
             # in this case, run and/or load data from PlaceCells pipeline instead of ComputeTuning pipeline
             PC_dict = load_or_compute_2d_position_tuning(self.aefizz, time_period2)
-            if isinstance(PC_dict["shelter_only"], dict):
-                self.ET.residual_fr_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-                logger.warning("Using full rate map for residual tuning in linear shift as well!")
-                # self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-            elif isinstance(PC_dict["shelter_only"], object):
-                self.ET.residual_fr_var2_t2 = np.array([PC_dict[c].item()["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-                logger.warning("Using full rate map for residual tuning in linear shift as well!")
-                self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c].item()["rate_map"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+            self.ET.residual_fr_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in list(PC_dict.keys())])
+            logger.warning("Using full rate map for residual tuning in linear shift as well!")
+            # self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
+            self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in list(PC_dict.keys())])
             check_bin_match(self.ET.residual_var2_all_time, self.ET.residual_fr_var2_t2)
         else:
             # load tuning data for var2 in exploration from ComputeTuning object
@@ -491,35 +514,13 @@ def check_bin_match(residual_var2_all_time, residual_fr_var2_t2):
 
 
 def load_or_compute_escape_tuning(aefizz, variable):
-    """
-    This function loads in or computes the escape tuning curves for a given variable
-    INPUTS:
-        aefizz: AnalyzeEfizz object
-        tuning_var: string of the variable to compute the tuning curve for
-    """
-    savepath = make_directory(
-        os.path.join(
-            aefizz.session["base_path"],
-            aefizz.session["processed_path"],
-            "models",
-            "escape_tuning",
-        )
-    )
-    logger.info(f"Checking for existing results to {variable} in EP tuning database...")
+    computeET = ComputeEscapeTuning(variable, aefizz)
 
-    _, do_analysis, hexaname = check_database_for_same_run(
-        db_settings={"variable": variable, **settings_to_check(aefizz.settings, ["ep_", "linshift"])},
-        results_csv_name=savepath + os.sep + "EscapePattern_results.csv",
-        settings=aefizz.settings,
-    )
-
-    # check file exists
-    if do_analysis == False:
-        EP_dict = np.load(savepath + os.sep + "EPtuning_" + hexaname + "_results.npz", allow_pickle=True)
+    if computeET.do_analysis is False:
+        EP_dict = computeET.load_results(prefer_hdf5=True)
     else:
         logger.warning(f"Tuning to {variable} file not found, computing now...")
         check_aefizz_completeness(aefizz, attrlist=["frame_by_cluster_matrix", "video_df", "cluster_Ids", "homing_dict", "escape_dict"])
-        computeET = ComputeEscapeTuning(variable, aefizz)
         computeET.prepare_data()
         if computeET.insufficient_data:
             logger.warning(f"Insufficient data for {variable}, saving empty results")
@@ -531,7 +532,6 @@ def load_or_compute_escape_tuning(aefizz, variable):
 
     return EP_dict
 
-
 def load_or_compute_2d_position_tuning(aefizz, time_period):
     savepath = make_directory(
         os.path.join(
@@ -542,19 +542,15 @@ def load_or_compute_2d_position_tuning(aefizz, time_period):
         )
     )
     logger.info(f"Checking for existing place cell results in {time_period} in place cell database...")
-    _, do_analysis, hexaname = check_database_for_same_run(
-        db_settings={"time_period": time_period, **settings_to_check(aefizz.settings, ["linshift", "place_cell"])},
-        results_csv_name=savepath + os.sep + "place_cell_results.csv",
-        settings=aefizz.settings,
-    )
-    if do_analysis == False:
-        PC_dict = np.load(savepath + os.sep + "PC_" + hexaname + "_results.npz", allow_pickle=True)
-    else:
-        from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
 
+    from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
+    PC = PlaceCells(aefizz=aefizz, time_period=time_period)
+
+    if PC.do_analysis == False:
+        PC_dict = PC.load_results(prefer_hdf5=True)
+    else:
         logger.warning(f"PlaceCell info for {time_period} not found, computing now!")
         check_aefizz_completeness(aefizz, attrlist=["video_and_spike_data", "Cluster_Ids"])
-        PC = PlaceCells(aefizz=aefizz, time_period=time_period)
         PC.preprocess_data()
         PC.compute_place_fields_conditions()
         PC.plot_place_fields_conditions()
