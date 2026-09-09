@@ -9,7 +9,6 @@ class EscapeTuning:
     name: str
     nbins: int
     tuning_var: str
-    settings: object
     escape_pattern_time: str
     all_conditions: list = None
     bin_edges: float = None
@@ -49,7 +48,6 @@ def init_escape_tuning(settings, tuning):
 
     return EscapeTuning(
         name=tuning,
-        settings=settings,  # TODO: maybe we only want to save the EscapeTuning settings, not all the aefizz ones too about other methods
         tuning_var=tuning_var,
         escape_pattern_time=escape_pattern_time,
         nbins=settings.ep_bins,
