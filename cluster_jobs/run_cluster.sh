@@ -3,7 +3,7 @@
 #SBATCH --output=logs/JALpipeline_%j.out
 #SBATCH --error=logs/JALpipeline_%j.err
 #SBATCH --time=12:00:00
-#SBATCH --cpus-per-task=4
+#SBATCH --cpus-per-task=10
 #SBATCH --mem=200G
 
 set -euo pipefail
