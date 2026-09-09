@@ -30,7 +30,7 @@ def load_or_extract_homings(session):
     - AssertionError: If the homing data file does not exist at the expected path.
     """
     logger.warning("This homing loading function is deprecated! Use getHomings class with redo_compute set to False!")
-    # homie_path = os.path.join(session["base_path"], session["processed_path"], "homings", "homings_obj.pkl")
+    # homie_path = os.path.join(session['base_path'], session['processed_path'], "homings", "homings_obj.pkl")
     # if np.logical_and(os.path.exists(homie_path), not(settings.redo_homings)):
     #     logger.info("Homings object found. Loading...")
     #     with open(homie_path, "rb") as dill_file:
@@ -60,7 +60,7 @@ def load_or_extract_escapes(session):
     Raises:
     - AssertionError: If the homing data file does not exist at the expected path.
     """
-    esc_path = os.path.join(session["base_path"], session["processed_path"], "escapes", "escapes.npy")
+    esc_path = os.path.join(session['base_path'], session['processed_path'], "escapes", "escapes.npy")
     if os.path.exists(esc_path):
         logger.info("Escape dict found. Loading...")
         escapes = np.load(esc_path, allow_pickle=True).item()

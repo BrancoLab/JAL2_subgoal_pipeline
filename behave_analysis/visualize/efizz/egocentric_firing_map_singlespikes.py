@@ -26,7 +26,7 @@ def egocentric_firing_map(spike_data, video_data, session):
     For each cluster it will make a figure of egocentric firing maps in each condition"""
 
     # saving path
-    map_path = os.path.join(session["base_path"], session["processed_path"], "spatial_firing", "egocentric_map", settings_v.cluster_type)
+    map_path = os.path.join(session['base_path'], session['processed_path'], "spatial_firing", "egocentric_map", settings_v.cluster_type)
     if not (os.path.exists(map_path)):
         os.makedirs(map_path)
 

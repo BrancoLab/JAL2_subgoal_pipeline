@@ -191,7 +191,7 @@ def plot_rayleigh_deltas(session, cluster_type):
 
 def save_rayleigh_deltas_plots(session, cluster_type) -> None:
     """Save the rayleigh delta plots to the processed data folder"""
-    file_path = os.path.join(session["base_path"], session["processed_path"], "models", "Rayleigh", cluster_type)
+    file_path = os.path.join(session['base_path'], session['processed_path'], "models", "Rayleigh", cluster_type)
     file_name = f"{cluster_type}_rayleigh_delta_magnitudes.png"
     join = os.path.join(file_path, file_name)
     plt.savefig(join)

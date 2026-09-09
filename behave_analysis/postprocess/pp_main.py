@@ -39,7 +39,7 @@ class Postprocessor:
         It is not really the responsibility of the postprocessing class to open the tracking data.
         """
 
-        file = os.path.join(self.session["base_path"], self.session["processed_path"], "fully_processed_tracking_data.pickle")
+        file = os.path.join(self.session['base_path'], self.session['processed_path'], "fully_processed_tracking_data.pickle")
 
         try:
             with open(file, "rb") as dill_file:
@@ -75,7 +75,7 @@ class Postprocessor:
 
         try:
             fileObj = open(
-                os.path.join(self.session["base_path"], self.session["processed_path"]) + "\\" + "postprocessclass" + "_" + str(settings.cluster_type), "wb"
+                os.path.join(self.session['base_path'], self.session['processed_path']) + "\\" + "postprocessclass" + "_" + str(settings.cluster_type), "wb"
             )
             pickle.dump(postprocessObject, fileObj)
             fileObj.close()

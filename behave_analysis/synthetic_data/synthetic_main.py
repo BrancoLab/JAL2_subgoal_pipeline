@@ -164,14 +164,14 @@ def load_tracking_data():
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         break
-    file = os.path.join(session["base_path"], session["processed_path"], "fully_processed_tracking_data.pickle")
+    file = os.path.join(session['base_path'], session['processed_path'], "fully_processed_tracking_data.pickle")
     with open(file, "rb") as dill_file:
         tracking = pickle.load(dill_file)
     return session, tracking
 
 
 def efizz_stats(session):
-    csv_path = glob(os.path.join(session["base_path"], session["processed_path"], "Processed_efizz_data"))[0]
+    csv_path = glob(os.path.join(session['base_path'], session['processed_path'], "Processed_efizz_data"))[0]
     spike_data = pl.read_csv(csv_path)
     if len(spike_data.filter(spike_data["spike_clusters"] == 0)) > 0:
         spike_data = spike_data.with_columns(spike_data["spike_clusters"] + 1)

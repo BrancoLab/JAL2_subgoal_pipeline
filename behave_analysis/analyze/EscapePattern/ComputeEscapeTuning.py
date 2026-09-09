@@ -12,6 +12,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     select_onset_offsets_in_shift_vector,
     homing_escape_onsets,
     create_discretized_behave_var,
+    define_bin_edges,
     build_shift_vector,
     residual_neural_matrix,
     parse_residual_string,
@@ -22,13 +23,14 @@ from behave_analysis.utils.identify_condition import build_condition_bool, build
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check
-from behave_analysis.analyze.filtering_data.filtering_functions import identify_epoch_conditions
+from behave_analysis.analyze.filtering_data.filtering_functions import identify_conditions
 from behave_analysis.analyze.persistence_utils import (
     load_results_with_fallback,
     convert_npz_to_hdf5,
     save_hdf5,
     save_json,
 )
+
 
 class ComputeEscapeTuning:
     """A class for computing the tuning to escape-related variables and storing them in the EscapeTuning dataclass
@@ -47,7 +49,8 @@ class ComputeEscapeTuning:
         self.aefizz = aefizz
         self.insufficient_data = False
         self.settings = aefizz.settings
-        self.ET.all_conditions = identify_epoch_conditions(aefizz.session)
+        self.ET.all_conditions = self.simplify_condition()
+
         print(f"computing tuning in conditions: {self.ET.all_conditions}")
 
         # check that we're not trying to compute %escape tuning during explore periods
@@ -72,6 +75,19 @@ class ComputeEscapeTuning:
             results_csv_name=self.ET.savepath + os.sep + "EscapePattern_results.csv",
             settings=self.settings,
         )
+
+    def simplify_condition(self):
+        # ensures we have the minimum list of conditions, with
+        all_conditions = self.aefizz.all_conditions
+        # Simplify the conditions if needed
+        # 1. always remove all_time
+        if "all_time" in all_conditions:
+            all_conditions.remove("all_time")
+        if "barrier_present" in all_conditions and "barrier_pre_flip" in all_conditions:
+            all_conditions.remove("barrier_present")
+        if "shelter_only" in all_conditions and "shelter_present" in all_conditions:
+            all_conditions.remove("shelter_present")
+        return all_conditions
 
     def prepare_data(self):
         # get raw neural and behavioral data from aefizz
@@ -249,7 +265,7 @@ class ComputeEscapeTuning:
             if self.settings.ep_gaussian_fitting:
                 self.ET.R_shift[s_idx, :, :] = gf
 
-# --------------- DICTIONARY SAVING AND LOADING FUNCTIONS ----------------
+    # --------------- DICTIONARY SAVING AND LOADING FUNCTIONS ----------------
     def save_escape_tuning(self, variable, return_dict=False):
         """Save EscapeTuning dataclass to file"""
         filename = os.path.join(self.ET.savepath, "EPtuning_" + self.hexaname)
@@ -287,6 +303,7 @@ class ComputeEscapeTuning:
     def convert_legacy_npz_to_hdf5(self, overwrite=False):
         """Convert existing legacy npz file to hdf5 and return dict."""
         return convert_npz_to_hdf5(self._results_npz_path(), self._results_h5_path(), overwrite=overwrite)
+
     # ----------------------------Data loading and processing functions----------------------------
 
     def filtering_vector_exploration(self):
@@ -460,11 +477,20 @@ class ComputeEscapeTuning:
         if tuning_var2 == "2D_position":
             # in this case, run and/or load data from PlaceCells pipeline instead of ComputeTuning pipeline
             PC_dict = load_or_compute_2d_position_tuning(self.aefizz, time_period2)
-            self.ET.residual_fr_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in list(PC_dict.keys())])
+            cond_keys = [c for c in self.ET.all_conditions if c in PC_dict]
+            if len(cond_keys) != len(self.ET.all_conditions):
+                raise KeyError(f"PlaceCells results are missing one or more expected conditions: {self.ET.all_conditions}")
+
+            self.ET.residual_fr_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in cond_keys])
             logger.warning("Using full rate map for residual tuning in linear shift as well!")
             # self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map_null"] for c in ["shelter_only", "barrier_pre_flip", "barrier_post_flip"]])
-            self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in list(PC_dict.keys())])
-            check_bin_match(self.ET.residual_var2_all_time, self.ET.residual_fr_var2_t2)
+            self.ET.residual_fr_shift0_var2_t2 = np.array([PC_dict[c]["rate_map"] for c in cond_keys])
+            check_position_grid_consistency(
+                residual_var2_all_time=self.ET.residual_var2_all_time,
+                pc_dict=PC_dict,
+                settings=self.settings,
+                residual_fr_var2_t2=self.ET.residual_fr_var2_t2,
+            )
         else:
             # load tuning data for var2 in exploration from ComputeTuning object
             # this is the firing rate in the tuning curve to var2 in time_period2
@@ -481,9 +507,8 @@ class ComputeEscapeTuning:
 # -----------------------------Helper functions for loading or running computation ----------------------------
 
 
-def check_bin_match(residual_var2_all_time, residual_fr_var2_t2):
-    """Validate that visited 2D bins are within the loaded place-field map bounds.
-    This is robust to partial spatial coverage (mouse may not visit all bins)."""
+def _check_discretized_bins_in_bounds(residual_var2_all_time, residual_fr_var2_t2):
+    """Validate visited 2D bins are within the loaded place-field map bounds."""
     if residual_var2_all_time.ndim != 2 or residual_var2_all_time.shape[1] != 2:
         raise ValueError(f"Expected residual_var2_all_time to have shape (time, 2), got {residual_var2_all_time.shape}")
 
@@ -513,6 +538,52 @@ def check_bin_match(residual_var2_all_time, residual_fr_var2_t2):
         logger.warning("No valid 2D bins found in residual_var2_all_time (all NaN).")
 
 
+def check_position_grid_consistency(residual_var2_all_time, pc_dict, settings, residual_fr_var2_t2):
+    """Validate 2D-position discretization against PlaceCells metadata when available, otherwise fall back to map bounds."""
+
+    key = "position_bin_lookup_xy"
+    saved_lookups = [v[key] for v in pc_dict.values() if isinstance(v, dict) and key in v]
+    if len(saved_lookups) == 0:
+        logger.warning("PlaceCells result does not contain 'position_bin_lookup_xy'; falling back to bounds-only bin check.")
+        _check_discretized_bins_in_bounds(residual_var2_all_time, residual_fr_var2_t2)
+        return
+
+    ref_lookup = np.asarray(saved_lookups[0], dtype=float)
+    for arr in saved_lookups[1:]:
+        cur = np.asarray(arr, dtype=float)
+        if cur.shape != ref_lookup.shape or not np.allclose(cur, ref_lookup, atol=1e-8, equal_nan=True):
+            raise AssertionError("Inconsistent 'position_bin_lookup_xy' across PlaceCells conditions.")
+
+    # Rebuild the expected lookup using the exact 2D_position bin edges from current settings.
+    edges = define_bin_edges(settings, "2D_position")
+    centers = (edges[:-1] + edges[1:]) / 2.0
+    x_idx, y_idx = np.meshgrid(np.arange(len(centers)), np.arange(len(centers)), indexing="ij")
+    x_ctr, y_ctr = np.meshgrid(centers, centers, indexing="ij")
+    expected_lookup = np.column_stack([x_idx.ravel(), y_idx.ravel(), x_ctr.ravel(), y_ctr.ravel()]).astype(float)
+
+    if ref_lookup.shape != expected_lookup.shape or not np.allclose(ref_lookup, expected_lookup, atol=1e-8, equal_nan=True):
+        raise AssertionError(
+            "Saved PlaceCells position-bin lookup does not match the current 2D_position discretization grid. "
+            "This suggests place-cell binning settings (or defaults) differ between runs."
+        )
+
+    # Verify every discretized (x_bin, y_bin) in residual_var2_all_time exists in the saved lookup.
+    if residual_var2_all_time.ndim != 2 or residual_var2_all_time.shape[1] != 2:
+        raise ValueError(f"Expected residual_var2_all_time to have shape (time, 2), got {residual_var2_all_time.shape}")
+
+    valid = ~np.isnan(residual_var2_all_time).any(axis=1)
+    if np.any(valid):
+        visited_pairs = np.unique(residual_var2_all_time[valid].astype(int), axis=0)
+        available_pairs = ref_lookup[:, :2].astype(int)
+        available_set = {tuple(x) for x in available_pairs}
+        missing = [tuple(x) for x in visited_pairs if tuple(x) not in available_set]
+        if len(missing) > 0:
+            raise AssertionError("Discretized residual 2D position bins are not present in PlaceCells position-bin lookup. " f"Examples (up to 10): {missing[:10]}")
+
+    # Also keep bounds-based validation because it catches malformed rate-map shapes early.
+    _check_discretized_bins_in_bounds(residual_var2_all_time, residual_fr_var2_t2)
+
+
 def load_or_compute_escape_tuning(aefizz, variable):
     computeET = ComputeEscapeTuning(variable, aefizz)
 
@@ -532,6 +603,7 @@ def load_or_compute_escape_tuning(aefizz, variable):
 
     return EP_dict
 
+
 def load_or_compute_2d_position_tuning(aefizz, time_period):
     savepath = make_directory(
         os.path.join(
@@ -544,6 +616,7 @@ def load_or_compute_2d_position_tuning(aefizz, time_period):
     logger.info(f"Checking for existing place cell results in {time_period} in place cell database...")
 
     from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
+
     PC = PlaceCells(aefizz=aefizz, time_period=time_period)
 
     if PC.do_analysis == False:

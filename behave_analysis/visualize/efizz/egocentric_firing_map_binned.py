@@ -33,8 +33,8 @@ def egocentric_firing_map(spike_data, video_data, clusters, session, conditions,
     # saving path - where to save the figures
     map_path = make_directory(
         os.path.join(
-            session["base_path"],
-            session["processed_path"],
+            session['base_path'],
+            session['processed_path'],
             "spatial_firing",
             "egocentric_map",
             settings.cluster_type,

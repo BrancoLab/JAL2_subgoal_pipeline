@@ -44,15 +44,23 @@ class PlaceCells:
     def __init__(self, aefizz, time_period):
         self.aefizz = aefizz
         self.time_period = time_period
-        self.savepath = os.path.join(self.aefizz.session["base_path"], self.aefizz.session["processed_path"], "models", "place_cells")
+        self.savepath = os.path.join(self.aefizz.session['base_path'], self.aefizz.session['processed_path'], "models", "place_cells")
         # Define spatial bins (e.g. 5cm x 5cm)
         self.bins = create_centered_bins(bin_size=self.aefizz.settings.place_cell_bin_size_pix)
+        self.position_bin_lookup_xy = self._build_position_bin_lookup_xy()
         self.grid = pl.DataFrame({"xbins": pl.Series("xbins", range(len(self.bins) - 1))}).join(pl.DataFrame({"ybins": pl.Series("ybins", range(len(self.bins) - 1))}), how="cross")
         self.database, self.do_analysis, self.hexaname = check_database_for_same_run(
             {"time_period": self.time_period, **settings_to_check(aefizz.settings, ["linshift", "place_cell"])},
             self.savepath + os.sep + "place_cell_results.csv",
             self.aefizz.settings,
         )
+
+    def _build_position_bin_lookup_xy(self):
+        """Return [x_bin, y_bin, x_center, y_center] for the exact bins used in occupancy/rate maps."""
+        centers = (self.bins[:-1] + self.bins[1:]) / 2.0
+        x_idx, y_idx = np.meshgrid(np.arange(len(centers)), np.arange(len(centers)), indexing="ij")
+        x_ctr, y_ctr = np.meshgrid(centers, centers, indexing="ij")
+        return np.column_stack([x_idx.ravel(), y_idx.ravel(), x_ctr.ravel(), y_ctr.ravel()]).astype(float)
 
     def preprocess_data(self):
         """This function preprocesses the video and spike data for place cell analysis.
@@ -284,6 +292,9 @@ class PlaceCells:
                     )
                 i += 1
 
+        # Save the exact spatial-bin lookup used by this PlaceCells run.
+        results["position_bin_lookup_xy"] = self.position_bin_lookup_xy
+
         return results
 
     def plot_place_fields_conditions(self):
@@ -357,7 +368,7 @@ class PlaceCells:
             plt.savefig(os.path.join(plot_folder, f"place_fields_cluster{str(Id)}.png"))
             plt.close()
 
-# -------- SAVING AND LOADING FUNCTIONS-------------
+    # -------- SAVING AND LOADING FUNCTIONS-------------
     def _results_npz_path(self):
         return os.path.join(self.savepath, "PC_" + self.hexaname + "_results.npz")
 
@@ -397,7 +408,7 @@ class PlaceCells:
         filename = os.path.join(self.savepath, "PC_" + self.hexaname)
         self.save_results_hdf5(results_dict=self.results_dict, overwrite=True)
         save_npz(self._results_npz_path(), self.results_dict)
-        
+
         # save settings
         settings = asdict(self.aefizz.settings)
         save_json(filename + "_settings.json", settings)

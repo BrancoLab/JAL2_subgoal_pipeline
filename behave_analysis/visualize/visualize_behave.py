@@ -32,10 +32,10 @@ class Visualize_behave:
 
     def __init__(self, session):
         self.session = session
-        self.behave_path = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"], "behaviour"))
+        self.behave_path = make_directory(os.path.join(self.session['base_path'], self.session['processed_path'], "behaviour"))
         self.tracking_data = open_tracking_data(session)
-        self.kalman = open_kalman_tracking_data(os.path.join(self.session["base_path"], self.session["processed_path"]))
-        self.video_df = pl.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], "full_video_dataframe.csv"))
+        self.kalman = open_kalman_tracking_data(os.path.join(self.session['base_path'], self.session['processed_path']))
+        self.video_df = pl.read_csv(os.path.join(self.session['base_path'], self.session['processed_path'], "full_video_dataframe.csv"))
 
     ##---------PLOT BEHAVIORAL STATS
     def plot_behavioral_stats(self):

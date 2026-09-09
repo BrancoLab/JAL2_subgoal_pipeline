@@ -23,8 +23,8 @@ def rayleigh_map(spike_data, video_data, clusters, session, conditions, cluster_
     # saving path - where to save the figures
     map_path = make_directory(
         os.path.join(
-            session["base_path"],
-            session["processed_path"],
+            session['base_path'],
+            session['processed_path'],
             "spatial_firing",
             "rayleigh_map",
             settings.cluster_type,

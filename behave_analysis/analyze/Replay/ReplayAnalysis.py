@@ -42,8 +42,8 @@ class ReplayAnalysis:
         self.check_settings_compatibility()
         self.replay.savepath = make_directory(
             os.path.join(
-                self.aefizz.session["base_path"],
-                self.aefizz.session["processed_path"],
+                self.aefizz.session['base_path'],
+                self.aefizz.session['processed_path'],
                 "models",
                 "replay",
                 "replay_" + self.aefizz.settings.replay_template_match_method,

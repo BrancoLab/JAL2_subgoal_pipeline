@@ -91,11 +91,11 @@ class PhaseOneAnalyzer:
                 session = Process(exp_obj).load_session()
                 tracking_data = open_tracking_data(session)
 
-                video_df_path = os.path.join(session["base_path"], session["processed_path"], "full_video_dataframe.csv")
+                video_df_path = os.path.join(session['base_path'], session['processed_path'], "full_video_dataframe.csv")
                 video_df = pl.read_csv(video_df_path)
 
                 # load escape_obj
-                esc_path = os.path.join(session["base_path"], session["processed_path"], "escapes", "escapes_obj.pkl")
+                esc_path = os.path.join(session['base_path'], session['processed_path'], "escapes", "escapes_obj.pkl")
                 if os.path.exists(esc_path):
                     logger.info("Escape object found. Loading...")
                     with open(esc_path, "rb") as dill_file:
@@ -125,7 +125,7 @@ class PhaseOneAnalyzer:
 
     def _load_manual_labels(self, session):
         """Load manual labels from BORIS CSV."""
-        boris_path = os.path.join(session["base_path"], session["processed_path"], "Borris", "scored_homings.csv")
+        boris_path = os.path.join(session['base_path'], session['processed_path'], "Borris", "scored_homings.csv")
         if not os.path.exists(boris_path):
             logger.warning(f"  No manual labels found at {boris_path}")
             return (np.array([], dtype=int), np.array([], dtype=int))

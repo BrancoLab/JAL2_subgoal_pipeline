@@ -35,6 +35,19 @@ def save_json(path: str, data: Dict[str, Any]) -> None:
         json.dump(data, f, indent=2, default=_to_jsonable)
 
 
+def _write_string_dataset(h5_group: h5py.Group, key: str, arr: np.ndarray, is_scalar: bool) -> None:
+    """Write scalar or array string data using an explicit UTF-8 HDF5 dtype."""
+    string_dtype = h5py.string_dtype("utf-8")
+    if is_scalar:
+        ds = h5_group.create_dataset(key, data=np.array(arr.item(), dtype=string_dtype))
+        ds.attrs["is_str"] = True
+        return
+
+    string_data = np.asarray(arr, dtype=object)
+    ds = h5_group.create_dataset(key, data=string_data, dtype=string_dtype)
+    ds.attrs["is_str_array"] = True
+
+
 def _write_hdf5_group(h5_group: h5py.Group, data_dict: Dict[str, Any]) -> None:
     for key, val in data_dict.items():
         key = str(key)
@@ -55,6 +68,10 @@ def _write_hdf5_group(h5_group: h5py.Group, data_dict: Dict[str, Any]) -> None:
             continue
 
         arr = np.asarray(val)
+
+        if arr.dtype.kind in {"U", "S"}:
+            _write_string_dataset(h5_group, key, arr, is_scalar=arr.ndim == 0)
+            continue
 
         if arr.dtype == object:
             # Object arrays cannot be stored natively in HDF5 in a portable way.
@@ -95,6 +112,10 @@ def _read_hdf5_group(h5_group: h5py.Group) -> Dict[str, Any]:
             if isinstance(val, bytes):
                 val = val.decode("utf-8")
             out[key] = json.loads(val)
+            continue
+
+        if obj.attrs.get("is_str_array", False):
+            out[key] = np.asarray(val).astype(str)
             continue
 
         if isinstance(val, bytes):

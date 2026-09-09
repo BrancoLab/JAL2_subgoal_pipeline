@@ -28,7 +28,7 @@ RAYLEIGH_THRESHOLD = 0.5
 SIMILAR_ANGLE_THRESHOLD = 0.8
 
 
-def classify_hdir(session: object, cluster_type: str = "good", conditions = ["shelter_only"]) -> list:
+def classify_hdir(session: object, cluster_type: str = "good", conditions=["shelter_only"]) -> list:
     """Label cells as head direction based on a set of criteria
 
     Returns:
@@ -39,11 +39,10 @@ def classify_hdir(session: object, cluster_type: str = "good", conditions = ["sh
     if len(conditions) == 1:
         used_condition = conditions[0]
     else:
-        if "shelter_only" in conditions: # this is usually a condition in barrier experiments
+        if "shelter_only" in conditions:  # this is usually a condition in barrier experiments
             used_condition = "shelter_only"
-        if "pre_shelter" in conditions: # preferrably we use a condition with an empty arena?!
+        if "pre_shelter" in conditions:  # preferrably we use a condition with an empty arena?!
             used_condition = "pre_shelter"
-        
 
     path = extract_rayleigh_path(session, cluster_type, condition=used_condition, file_name="hdir_Rayleigh.arrow")
     data = load_rayleigh_data(path)
@@ -153,6 +152,7 @@ def plot_hdir_tuning(data, head_direction_cells, path, condition):
     plt.tight_layout()
     file_name = os.path.join(path, f"{condition}_hdir_cells.png")
     fig.savefig(file_name)
+
 
 def save_cell_ids(path, cell_ids, condition) -> None:
     """Saves the cell ids to a numpy file to a within a folder called cells"""

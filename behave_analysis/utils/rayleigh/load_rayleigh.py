@@ -23,8 +23,8 @@ def extract_rayleigh_path(session: object, cluster_type: str, condition: str, fi
     con_dir = settings.condition_types
 
     path = os.path.join(
-        session["base_path"],
-        session["processed_path"],
+        session['base_path'],
+        session['processed_path'],
         "models",
         "Rayleigh",
         cluster_type,
@@ -82,8 +82,8 @@ def collect_all_rayleigh_paths(session, cluster_type, conditions) -> dict:
     for condition in conditions:
         # Get path to each condition
         path = os.path.join(
-            session["base_path"],
-            session["processed_path"],
+            session['base_path'],
+            session['processed_path'],
             "models",
             "Rayleigh",
             cluster_type,

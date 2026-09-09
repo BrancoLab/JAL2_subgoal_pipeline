@@ -84,7 +84,7 @@ class Track(DLC):
             assert self.registration_transform is not None, "The transform regristration details are not found, this is produced when you click on the arena during process."
 
         # Check if processing has FULLY been completed before
-        self.processingExists = os.path.isfile(os.path.join(session["base_path"], session["processed_path"], "fully_processed_tracking_data.pickle"))
+        self.processingExists = os.path.isfile(os.path.join(session['base_path'], session['processed_path'], "fully_processed_tracking_data.pickle"))
 
         # If processing has been done before and you don't want to redo it then log it
         if self.processingExists and not self.settings.redo_processing_step:
@@ -159,7 +159,7 @@ class Track(DLC):
         """
 
         # Check if kalman tracking data already exists
-        if os.path.isfile(os.path.join(session["base_path"], session["processed_path"], "kalman_tracking_data.pickle")):
+        if os.path.isfile(os.path.join(session['base_path'], session['processed_path'], "kalman_tracking_data.pickle")):
             logger.warning("Kalman tracking exists but you've chosen to redo processing")
 
         # Create new kalman tracking data
@@ -190,7 +190,7 @@ class Track(DLC):
         """
         Save the kalman tracking dictionary to a pickle file contained within the session folder.
         """
-        savePath = os.path.join(session["base_path"], session["processed_path"], "kalman_tracking_data.pickle")
+        savePath = os.path.join(session['base_path'], session['processed_path'], "kalman_tracking_data.pickle")
         with open(savePath, "wb") as dill_file:
             pickle.dump(dictionary, dill_file)
 
@@ -419,14 +419,14 @@ class Track(DLC):
         """
 
         fisheye_correction_map = load_fisheye_correction_map(session["video"]["fisheye_correction_file"])
-        video_file = os.path.join(session["base_path"], session["file_path"], session["video"]["camFilePath"])
+        video_file = os.path.join(session['base_path'], session["file_path"], session["video"]["camFilePath"])
         source_video = cv2.VideoCapture(video_file)
         source_video.set(cv2.CAP_PROP_POS_FRAMES, session["video"]["num_frames"] - (2 * session["video"]["fps"]))  # read a frame 2 seconds from the end
         _, self.arena = source_video.read()
         self.arena = correct_and_register_frame(self.arena[:, :, 0], session["video"], fisheye_correction_map, regTransform=self.registration_transform)
 
     def load_registration_transform(self, session):
-        registration_path = os.path.join(session["base_path"], session["processed_path"], "registration_data.json")
+        registration_path = os.path.join(session['base_path'], session['processed_path'], "registration_data.json")
         if not os.path.isfile(registration_path):
             logger.error(f"Registration sidecar not found for session: {session["number"]} - {session["name"]}")
             return None
@@ -445,7 +445,7 @@ class Track(DLC):
         A function to save the tracking data pickled.
         """
 
-        savePath = os.path.join(session["base_path"], session["processed_path"], "fully_processed_tracking_data.pickle")
+        savePath = os.path.join(session['base_path'], session['processed_path'], "fully_processed_tracking_data.pickle")
         with open(savePath, "wb") as dill_file:
             pickle.dump(self.region_tracking_data, dill_file)
 

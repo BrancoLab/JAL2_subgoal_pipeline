@@ -53,7 +53,7 @@ def tracking_to_features(tracking_data):
 def load_prediction_accuracy(session, settings, cond, time_cond):
 
     coef = []
-    coef_path = os.path.join(session["base_path"], session["processed_path"], "models", "LDA", settings, r"good", time_cond, "all", cond, str("good_" + cond + "_LDA_pa.pkl"))
+    coef_path = os.path.join(session['base_path'], session['processed_path'], "models", "LDA", settings, r"good", time_cond, "all", cond, str("good_" + cond + "_LDA_pa.pkl"))
     if not os.path.exists(coef_path):
         print("skipping condition! Path still doesn't exist: " + coef_path)
         return coef
@@ -83,7 +83,7 @@ def extract_pa_across_sesh(all_angles, experiments_objects, conditions, all_feat
         session = get_experiment(sesh)
 
         # load tracking
-        track_path = os.path.join(session["base_path"], session["processed_path"], r"fully_processed_tracking_data.pickle")
+        track_path = os.path.join(session['base_path'], session['processed_path'], r"fully_processed_tracking_data.pickle")
         with open(track_path, "rb") as dill_file:
             tracking_data = pickle.load(dill_file)
         features = tracking_to_features(tracking_data)

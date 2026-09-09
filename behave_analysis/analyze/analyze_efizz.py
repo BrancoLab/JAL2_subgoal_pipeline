@@ -14,6 +14,7 @@ from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 from behave_analysis.utils.data_loading import load_or_extract_escapes
 
+
 class AnalyzeEfizz:
     """
     A class that loads already processed efizz data and then runs all of the models on it set in the settings file.
@@ -132,7 +133,7 @@ class AnalyzeEfizz:
             #     pickle.dump(pp_single_trial_obj, f)
             #     logger.success("Preprocessed single trial object saved, ready for analysis")
 
-            # path = os.path.join(self.session["base_path"], self.session["processed_path"], "models", "single_trial", "pp_single_trial_obj.pkl")
+            # path = os.path.join(self.session['base_path'], self.session['processed_path'], "models", "single_trial", "pp_single_trial_obj.pkl")
             # with open(path, "rb") as hf:
             #     pp_single_trial_obj = pickle.load(hf)
 

@@ -338,9 +338,7 @@ def control_for_500ms_before_homing(experiments_objects, session_names, dir):
         plt.close()
 
 
-def good_vs_bad_trajectories_plotted_to_arena(
-    barrier_location, tracking_data, homings_above_the_barrier, classes, homing_conditions, dir, session_name
-):
+def good_vs_bad_trajectories_plotted_to_arena(barrier_location, tracking_data, homings_above_the_barrier, classes, homing_conditions, dir, session_name):
     fig, (ax_pre_flip, ax_post_flip) = plt.subplots(1, 2, figsize=(20, 16))
     Arena(ax=ax_pre_flip, shelter_coordinates=tracking_data["shelter_loc"], condition="barrier_pre_flip", barrier_coordinates=barrier_location)
     Arena(ax=ax_post_flip, shelter_coordinates=tracking_data["shelter_loc"], condition="barrier_post_flip", barrier_coordinates=barrier_location)
@@ -385,7 +383,7 @@ def produce_data(experiments_objects, session_names, name_of_storage, create_des
         processed_path = loaded_session["processed_path"]
         session_path = os.path.join(base_path, processed_path)
         homing_path = os.path.join(session_path, "homings", "homings_obj.pkl")
-        
+
         if session_name == "JAL6_flip5_25mar":
             continue
 
@@ -395,9 +393,7 @@ def produce_data(experiments_objects, session_names, name_of_storage, create_des
             with open(homing_path, "rb") as hf:
                 homings_object = pickle.load(hf)
 
-            frame_by_cluster_matrix = np.load(
-                os.path.join(loaded_session["base_path"], loaded_session["processed_path"]) + "\\" + "frame_by_" + "good" + "_cluster_matrix.npy"
-            )
+            frame_by_cluster_matrix = np.load(os.path.join(loaded_session["base_path"], loaded_session["processed_path"]) + "\\" + "frame_by_" + "good" + "_cluster_matrix.npy")
 
             good_cluster_ids = np.load(os.path.join(session_path, "good_cluster_ids.npy"))
 
@@ -426,14 +422,10 @@ def produce_data(experiments_objects, session_names, name_of_storage, create_des
         # Only keep the homings above the barrier
         homings_above_the_barrier = [homing for i, homing in enumerate(homing_info1) if homing["mouse_y_position"][0] < barrier_location[0][1]]
         classes2 = [classes1[i] for i, homing in enumerate(homing_info1) if homing["mouse_y_position"][0] < barrier_location[0][1]]
-        homing_conditions2 = [
-            homing_conditions1[i] for i, homing in enumerate(homing_info1) if homing["mouse_y_position"][0] < barrier_location[0][1]
-        ]
+        homing_conditions2 = [homing_conditions1[i] for i, homing in enumerate(homing_info1) if homing["mouse_y_position"][0] < barrier_location[0][1]]
 
         # Plot the trajectories of good and bad homings
-        good_vs_bad_trajectories_plotted_to_arena(
-            barrier_location, tracking_data, homings_above_the_barrier, classes2, homing_conditions2, dir, session_name
-        )
+        good_vs_bad_trajectories_plotted_to_arena(barrier_location, tracking_data, homings_above_the_barrier, classes2, homing_conditions2, dir, session_name)
 
         # Create design matrix
         design_matrix, classes_extended, homing_ids = create_design_matrix(homings_above_the_barrier, frame_by_cluster_matrix, classes2)

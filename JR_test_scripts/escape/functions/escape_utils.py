@@ -23,13 +23,13 @@ def load(exp):
     session object, frame by cluster matrix of neural data and behavioral variables"""
     # load session
     session = Process(exp).load_session()
-    base_path = os.path.join(session["base_path"], session["processed_path"])
+    base_path = os.path.join(session['base_path'], session['processed_path'])
 
     # spikeys
     # spike_data = pl.read_csv(os.path.join(base_path, "good_spike_data.csv"))
 
     # matrix
-    frame_by_cluster_matrix = np.load(os.path.join(session["base_path"], session["processed_path"]) + "\\" + "frame_by_good_cluster_matrix.npy")
+    frame_by_cluster_matrix = np.load(os.path.join(session['base_path'], session['processed_path']) + "\\" + "frame_by_good_cluster_matrix.npy")
 
     # behavior
     video_df = pl.read_csv(os.path.join(base_path, "full_video_dataframe.csv"))
@@ -79,7 +79,7 @@ def load_hdir_cells(experiments_objects, session_names):
 
     for idx, exp in enumerate(experiments_objects):
         session = Process(exp).load_session()
-        clu_Ids = np.load(os.path.join(session["base_path"], session["processed_path"]) + "\\" + "good_cluster_Ids.npy")
+        clu_Ids = np.load(os.path.join(session['base_path'], session['processed_path']) + "\\" + "good_cluster_Ids.npy")
 
         hdir_n = hdir[session_names[idx]]
         hdir_sesh.append([int(np.where(clu_Ids == int(h))[0][0]) for h in hdir_n])

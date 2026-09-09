@@ -62,7 +62,7 @@ def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
     ), "Homings object must have 'onset_frames' and 'stimulus_durations'."
 
     try:
-        escape_path = os.path.join(session["base_path"], session["processed_path"], "escapes", "escapes_obj.pkl")
+        escape_path = os.path.join(session['base_path'], session["processed_path"], "escapes", "escapes_obj.pkl")
         with open(escape_path, "rb") as f:
             escape_object = pickle.load(f)
         homings_obj = remove_escapes_from_homings_object(homings_obj, escape_object)
@@ -114,7 +114,7 @@ def plot_homings(session, tracking_data, homings_obj, show_plots=False) -> None:
                 trial_counter += 1
 
         # Save figure
-        fig.savefig(os.path.join(session["base_path"], session["processed_path"], "analyze_behave", f"homings_figure_{figure}.png"))
+        fig.savefig(os.path.join(session['base_path'], session["processed_path"], "analyze_behave", f"homings_figure_{figure}.png"))
         if show_plots:
             plt.show()
         plt.close()
@@ -172,7 +172,7 @@ def plot_the_start_of_each_run(session, onsets, hdir_at_start, all_conditions, t
         ax[i].set_title(f"{con} (n={sum_homings})")
 
     # save figure in session dir
-    plt.savefig(os.path.join(session["base_path"], session["processed_path"], "analyze_behave", str("start_of_"+title+".png")))
+    plt.savefig(os.path.join(session['base_path'], session["processed_path"], "analyze_behave", str("start_of_"+title+".png")))
     # save in summary dir
     filename = session["mouse"] + '_' + date_str + '_' + str("start_of_"+title+".png")
     plt.savefig(overall_path + '/' + filename)
@@ -266,7 +266,7 @@ def plot_the_probability_of_start_locations(session, onset_frames, all_condition
 
     if show_plots: plt.show()
     # save figure in session dir
-    plt.savefig(os.path.join(session["base_path"], session["processed_path"], "analyze_behave", str("start_of_"+title+"_loc_probability.png")))
+    plt.savefig(os.path.join(session['base_path'], session["processed_path"], "analyze_behave", str("start_of_"+title+"_loc_probability.png")))
     # save in summary dir
     filename = session["mouse"] + '_' + date_str + '_' + str("start_of_"+title+"_loc_probability.png")
     plt.savefig(overall_path + '/' + filename)
@@ -346,7 +346,7 @@ def hist_initial_heading_angle(session, onsets, offsets, head_angle, all_conditi
     if plotting:
         plt.tight_layout()
         # save figure in session dir
-        plt.savefig(os.path.join(session["base_path"], session["processed_path"], "analyze_behave", str("hist_"+title+"_heading_angle.png")))
+        plt.savefig(os.path.join(session['base_path'], session["processed_path"], "analyze_behave", str("hist_"+title+"_heading_angle.png")))
         # save in summary dir
         filename = session["mouse"] + '_' + date_str + '_' + str("hist_"+title+"_heading_angle.png")
         plt.savefig(overall_path + '/' + filename)
@@ -446,7 +446,7 @@ def trial_initial_heading_angle(session, onsets, offsets, head_angle, hdir_at_st
     ax[len(conditions)].set_ylim([0, 1024])
 
     # save figure in session dir
-    plt.savefig(os.path.join(session["base_path"], session["processed_path"], "analyze_behave", str(title+"_heading_angle.png")))
+    plt.savefig(os.path.join(session['base_path'], session["processed_path"], "analyze_behave", str(title+"_heading_angle.png")))
     # save in summary dir
     filename = session["mouse"] + '_' + date_str + '_' + str(title+"_heading_angle.png")
     plt.savefig(overall_path + '/' + filename)
@@ -511,7 +511,7 @@ def trajectory_by_target(session, onsets, offsets, head_angle, all_conditions, t
         ax[i].set_title(f"{con} (n={sum_homings})")
 
     # save figure in session dir
-    plt.savefig(os.path.join(session["base_path"], session["processed_path"], "analyze_behave", str(title+"_trajectory_by_target.png")))
+    plt.savefig(os.path.join(session['base_path'], session["processed_path"], "analyze_behave", str(title+"_trajectory_by_target.png")))
     # save in summary dir
     filename = session["mouse"] + '_' + date_str + '_' + str(title+"_trajectory_by_target.png")
     plt.savefig(overall_path + '/' + filename)
@@ -535,7 +535,7 @@ def trial_speed_hist(session, avg_speed, title, show_plots=False):
     ax.set_ylabel('number of homings')
 
     # save figure in session dir
-    plt.savefig(os.path.join(session["base_path"], session["processed_path"], "analyze_behave", str("hist_speed_of_"+title+".png")))
+    plt.savefig(os.path.join(session['base_path'], session["processed_path"], "analyze_behave", str("hist_speed_of_"+title+".png")))
     # save in summary dir
     filename = session["mouse"] + '_' + date_str + '_' + str("hist_speed_of_"+title+".png")
     plt.savefig(overall_path + '/' + filename)

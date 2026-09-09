@@ -57,7 +57,7 @@ def main():
 	# analysis_name='EscapePattern'
 	# variable = ['frac_route in homing&escape', 'frac_route in to_subgoal_homing&escape', 'frac_route in correct_full_homing&escape']
 
-	analysis_name = ['rayleigh']#, 'classify_cells']
+	analysis_name = ['classify_cells']
 	variable = None
 
 	for a in analysis_name:

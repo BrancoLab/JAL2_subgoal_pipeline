@@ -224,7 +224,7 @@ def filter_video_df_homing_number(dataframe, condition, session, good_homie, num
     return filtered_video_df
 
 
-def identify_conditions(session) -> list:
+def identify_conditions_deprecated(session) -> list:
     """
     Determine which conditions are available in this session
 
@@ -250,7 +250,7 @@ def identify_conditions(session) -> list:
 
     return condition
 
-def identify_epoch_conditions(session) -> list:
+def identify_conditions(session) -> list:
     """Return the ordered list of mutually-exclusive epoch condition names used as
     integer-index labels (0, 1, 2, ...) in ComputeEscapeTuning.preprocess_data().
 
@@ -273,9 +273,11 @@ def identify_epoch_conditions(session) -> list:
 
     if has_pre_shelter:
         conditions.append("pre_shelter")
-    if has_shelter and (session["shelter_time"][0] < session["barrier_time"][0] if has_barrier else True):
+        conditions.append("shelter_present")
+    if has_shelter and (session["shelter_time"][0] < session["barrier_time"][0] if has_barrier else False):
         conditions.append("shelter_only")
     if has_barrier:
+        conditions.append("barrier_present")
         if has_barflip:
             conditions.append("barrier_pre_flip")
             conditions.append("barrier_post_flip")
@@ -286,6 +288,8 @@ def identify_epoch_conditions(session) -> list:
 
     if len(conditions) == 0:
         conditions.append("habituation")
+
+    conditions.append("all_time")  # always include all_time as the last condition
 
     return conditions
 

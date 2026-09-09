@@ -45,7 +45,7 @@ class get_Homings:
 
         if self.settings.homings_use_boris == True:
             # if we want to use manula laelling chck that the data is present
-            boris_path = os.path.join(self.session["base_path"], self.session["processed_path"], "Borris", "scored_homings.csv")
+            boris_path = os.path.join(self.session['base_path'], self.session['processed_path'], "Borris", "scored_homings.csv")
             if os.path.isfile(boris_path):
                 self.use_boris = True
             else:
@@ -56,7 +56,7 @@ class get_Homings:
 
         if len(video_df) == 0:
             try:
-                self.video_df = pl.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], "full_video_dataframe.csv"))
+                self.video_df = pl.read_csv(os.path.join(self.session['base_path'], self.session['processed_path'], "full_video_dataframe.csv"))
             except FileNotFoundError:
                 logger.error("Video df not found, homings will not be computed")
                 self.video_df = pl.DataFrame()
@@ -122,7 +122,7 @@ class get_Homings:
 
     def load_manual_labels(self):
         """Load manual labels from the BORIS CSV and convert to 0-based indexing."""
-        df = pd.read_csv(os.path.join(self.session["base_path"], self.session["processed_path"], "Borris", "scored_homings.csv"))
+        df = pd.read_csv(os.path.join(self.session['base_path'], self.session['processed_path'], "Borris", "scored_homings.csv"))
         columns_to_keep = ["Time", "Image index", "Behavior type"]
         fdf = df[columns_to_keep]
         time = fdf["Time"].to_numpy()
@@ -419,7 +419,7 @@ class get_Homings:
         return video_df.select(["hsa", "h_preflipbar_a", "h_postflipbar_a"])
 
     def save_session(self) -> None:
-        folder = make_directory(os.path.join(self.session["base_path"], self.session["processed_path"], "homings_new_logic"))
+        folder = make_directory(os.path.join(self.session['base_path'], self.session['processed_path'], "homings_new_logic"))
         file_name = os.path.join(folder, "homings_obj.pkl")
         with open(file_name, "wb") as dill_file:
             pickle.dump(self.homing, dill_file)

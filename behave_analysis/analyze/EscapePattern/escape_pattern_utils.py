@@ -359,13 +359,16 @@ def compute_dist_shelt(x_pos, y_pos, cond, shelter_location, barrier_location1, 
     dist = np.zeros((len(x_pos)))
 
     # for times when the mouse is in the top half of the arena and the barrier is inserted,
-    # compute path around barrier: mouse → barrier_edge → shelter
-    top_barrier = np.logical_and(cond == "barrier_pre_flip", y_pos < 512)
+    # compute path around barrier: mouse → barrier_edge1 → shelter
+    first_barrier = np.logical_or(cond == "barrier_pre_flip", cond == "barrier_present")
+    top_barrier = np.logical_and(first_barrier, y_pos < 512)
     if np.sum(top_barrier.astype(int)) > 0:
         dist[top_barrier] = np.sqrt(((x_pos[top_barrier] - barrier_location1[0]) ** 2) + ((y_pos[top_barrier] - barrier_location1[1]) ** 2)) + np.sqrt(
             ((barrier_location1[0] - shelter_location[0]) ** 2) + ((barrier_location1[1] - shelter_location[1]) ** 2)
         )
 
+    # for times when the mouse is in the top half of the arena and the barrier is flipped,
+    # compute path around barrier: mouse → barrier_edge2 → shelter
     top_barrierflip = np.logical_and(cond == "barrier_post_flip", y_pos < 512)
     if np.sum(top_barrierflip.astype(int)) > 0:
         dist[top_barrierflip] = np.sqrt(((x_pos[top_barrierflip] - barrier_location2[0]) ** 2) + ((y_pos[top_barrierflip] - barrier_location2[1]) ** 2)) + np.sqrt(

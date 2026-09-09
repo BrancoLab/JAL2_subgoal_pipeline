@@ -47,7 +47,7 @@ class BaseDataPostprocessor(ABC):
             clu_label = self.spike_data.groupby(["spike_clusters"]).first()
         clu_label = clu_label.drop(["spike_aligned_to_frame", "spike_times", "aligned_spike_times", "aligned_spike_times_in_samples"])
         np.save(
-            str(os.path.join(self.session["base_path"], self.session["processed_path"]) + "/" + self.select_clusters + "_cluster_Ids_" + self.qualifier + ".npy"),
+            str(os.path.join(self.session['base_path'], self.session['processed_path']) + "/" + self.select_clusters + "_cluster_Ids_" + self.qualifier + ".npy"),
             clu_label["spike_clusters"].unique().to_numpy(),
         )
         return clu_label
@@ -160,7 +160,7 @@ class BaseDataPostprocessor(ABC):
             video_df = video_df.hstack([pl.Series("h_bar_centre_a", self.tracking_data["hdir_barrier"][:, 2])])
 
         # save the video dataframe
-        video_df.write_csv(os.path.join(self.session["base_path"], self.session["processed_path"]) + "/" + "full_video_dataframe.csv")
+        video_df.write_csv(os.path.join(self.session['base_path'], self.session['processed_path']) + "/" + "full_video_dataframe.csv")
 
         return video_df
 
@@ -177,7 +177,7 @@ class BaseDataPostprocessor(ABC):
             try:
                 logger.info("Attempting to load a previously computed spike frame count")
                 with open(
-                    os.path.join(self.session["base_path"], self.session["processed_path"])
+                    os.path.join(self.session['base_path'], self.session['processed_path'])
                     + "/"
                     + "spike_count_by_frame_and_"
                     + self.select_cluster_labels
@@ -206,7 +206,7 @@ class BaseDataPostprocessor(ABC):
         spikecountbyframe_neuron = query.collect()
         print("Time to query data and create spike count by frame and unit dataframe: ", time.time() - start_time)
         spikecountbyframe_neuron.write_csv(
-            os.path.join(self.session["base_path"], self.session["processed_path"])
+            os.path.join(self.session['base_path'], self.session['processed_path'])
             + "/"
             + "spike_count_by_frame_and_"
             + self.select_cluster_labels
@@ -236,7 +236,7 @@ class BaseDataPostprocessor(ABC):
         )
 
         # save the big ass dataframe
-        large_dataFrame.write_parquet(os.path.join(self.session["base_path"], self.session["processed_path"] + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet"))
+        large_dataFrame.write_parquet(os.path.join(self.session['base_path'], self.session['processed_path'] + "/" + str(self.select_clusters) + "_video_spike_count_df.parquet"))
 
         return large_dataFrame
 
@@ -281,7 +281,7 @@ class BaseDataPostprocessor(ABC):
             X[:, i] = np.convolve(X[:, i], np.ones(int(sampling_rate / nbins), dtype=int), "same") * nbins
 
         # save the matrix
-        base_path = os.path.join(self.session["base_path"], self.session["processed_path"])
+        base_path = os.path.join(self.session['base_path'], self.session['processed_path'])
         np.save(
             str(base_path + "/" + "frame_by_" + self.select_cluster_labels + "_cluster_matrix" + self.qualifier),
             X,
@@ -297,7 +297,7 @@ class SyntheticDataPostprocessor(BaseDataPostprocessor):
 
     def __init__(self, cluster_labels_to_filter, tracking_data, session, settings):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
-        self.csv_path = os.path.join(session["base_path"], session["processed_path"], str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
+        self.csv_path = os.path.join(session['base_path'], session['processed_path'], str(str(cluster_labels_to_filter) + "_efizz_data.csv"))
         self.select_clusters = cluster_labels_to_filter
         self.qualifier = ""
         self.settings = settings
@@ -388,7 +388,7 @@ class DataPostprocessor(BaseDataPostprocessor):
         super().__init__(cluster_labels_to_filter, tracking_data, session, settings)
         assert cluster_labels_to_filter != "synthetic", "Synthetic data is not supported by this class."
         self.qualifier = "_bc" if settings.cluster_labels == "bombcell" else ""
-        self.csv_path = glob(os.path.join(session["base_path"], session["processed_path"], "Processed_efizz_data" + self.qualifier))[0]
+        self.csv_path = glob(os.path.join(session['base_path'], session['processed_path'], "Processed_efizz_data" + self.qualifier))[0]
         self.select_clusters = cluster_labels_to_filter
 
         # Create a video dataframe and then check if the tracking data is within the bounds of the arena
@@ -399,7 +399,7 @@ class DataPostprocessor(BaseDataPostprocessor):
             settings_ab = settings_overrides(settings_ab, {"redo_compute": False})
             homings = get_Homings({**settings_ab, "homings_curated": True}, self.session).get_homings(video_df, self.tracking_data)
             homings = remove_manually_curated(homings)
-            video_df = add_homie_to_video_df(video_df, homings, savepath=os.path.join(self.session["base_path"], self.session["processed_path"]) + "/" + "full_video_dataframe.csv")
+            video_df = add_homie_to_video_df(video_df, homings, savepath=os.path.join(self.session['base_path'], self.session['processed_path']) + "/" + "full_video_dataframe.csv")
         if settings.efizz:
             unfiltered_spike_data = self.load_spike_data()
             self.spike_data = self.filter_spike_data(unfiltered_spike_data)
@@ -425,7 +425,7 @@ class DataPostprocessor(BaseDataPostprocessor):
             numNeurons = len(filtered_spike_data["spike_clusters"].unique())
             logger.info(f"Loaded {numNeurons} {self.select_clusters} clusters")
 
-        filtered_spike_data.write_csv(os.path.join(self.session["base_path"], self.session["processed_path"]) + "/" + self.select_cluster_labels + "_spike_data.csv")
+        filtered_spike_data.write_csv(os.path.join(self.session['base_path'], self.session['processed_path']) + "/" + self.select_cluster_labels + "_spike_data.csv")
 
         return filtered_spike_data
 
@@ -530,7 +530,7 @@ class QcPreProcessedData:
             video_df = video_df.with_columns(pl.Series("frames", frames))
 
             logger.warning("some datapoints were outside the arena - so we're saving a new version of video_df")
-            video_df.write_csv(os.path.join(session["base_path"], session["processed_path"]) + "/" + "full_video_dataframe.csv")
+            video_df.write_csv(os.path.join(session['base_path'], session['processed_path']) + "/" + "full_video_dataframe.csv")
             return video_df
 
         else:

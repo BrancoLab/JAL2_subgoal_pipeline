@@ -106,7 +106,7 @@ def read_frame(onset_frames, source_video):
 
 
 def load_registration_transform(session):
-    registration_path = os.path.join(session["base_path"], session["processed_path"], "registration_data.json")
+    registration_path = os.path.join(session['base_path'], session['processed_path'], "registration_data.json")
     if not os.path.isfile(registration_path):
         logger.error(f"Registration sidecar not found for session: {session["number"]} - {session["name"]}")
         return None
@@ -459,7 +459,7 @@ def set_up_videos(
     """
     A function that does a lot of shit
     """
-    video_file = os.path.join(session["base_path"], session["file_path"], session["video"]["camFilePath"])
+    video_file = os.path.join(session['base_path'], session["file_path"], session["video"]["camFilePath"])
     source_video = cv2.VideoCapture(video_file)  # Read the video file into a cv2 video object
     fps = session["video"]["fps"]
 
@@ -474,7 +474,7 @@ def set_up_videos(
     # self.stim_status: 0~stimulus on, negative~pre stimulus, positive~post-stimulus
 
     trial_video_path = Directory(
-        os.path.join(session["base_path"], session["processed_path"]),
+        os.path.join(session['base_path'], session['processed_path']),
         experiment=session["experiment"],
         stim_type=stim_type,
         tracking_video=settings.display_tracking,

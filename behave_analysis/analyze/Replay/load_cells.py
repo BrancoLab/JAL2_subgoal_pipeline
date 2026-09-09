@@ -5,15 +5,16 @@ import os
 
 from behave_analysis.analyze.EscapePattern.ComputeEscapeTuning import load_or_compute_escape_tuning
 
+
 def load_hdir_cells(session):
     """Loads in the pickle with all the hdir cells and the good cluster Ids from the sessions in the experiments_objects list.
     INPUTS:
         session: session for which to load hdir cells
     RETURNS:
-        hdir: list of which good clusters are hdir cells 
+        hdir: list of which good clusters are hdir cells
     """
     file_name = os.path.join(session["base_path"], session["processed_path"], "cells", "hdir_cells.pkl")
-    
+
     # assert os.path.exists(file_name), "No hdir_cells.pkl file found. Please run the head direction classification first."
     try:
         with open(file_name, "rb") as dill_file:
@@ -37,7 +38,7 @@ def load_escape_tuned_cells(aefizz):
     time_period = "homing&escape"
 
     # 1. load in escape homing/escape tuning curve
-    CT = load_or_compute_escape_tuning(aefizz, var + ' in ' + time_period)
+    CT = load_or_compute_escape_tuning(aefizz, var + " in " + time_period)
     # identify cells that are sig tuned to %escape in homing/escape
     shift0 = int(np.shape(CT.y_fitted_shift)[0] / 2)
     sig_escape = CT.params_shifts[shift0, :, :, 0] > np.nanpercentile(CT.params_shifts[:, :, :, 0], 95, axis=0)
