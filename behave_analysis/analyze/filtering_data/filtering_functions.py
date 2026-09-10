@@ -286,7 +286,7 @@ def identify_conditions(session) -> list:
     if has_barrier and session["barrier_time"][1] != -1:
         conditions.append("barrier_removed")
 
-    if len(conditions) == 0:
+    if not has_pre_shelter and not has_shelter and not has_barrier:
         conditions.append("habituation")
 
     conditions.append("all_time")  # always include all_time as the last condition
