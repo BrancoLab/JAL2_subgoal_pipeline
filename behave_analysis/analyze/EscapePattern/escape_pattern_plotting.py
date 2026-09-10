@@ -7,24 +7,26 @@ from behave_analysis.utils.creating_directories import make_directory
 import matplotlib.pyplot as plt
 import numpy as np
 
-def plot_escape_tuning(ET, variable, session, cluster_type, Ids, video_df, var1ET = None):
+
+def plot_escape_tuning(ET, variable, session, cluster_type, Ids, video_df, var1ET=None):
     """The parent function that will deploy the plotting functions based on the variable being analyzed."""
-    plot_path = make_directory(os.path.join(
-                                session["base_path"],
-                                session["processed_path"],
-                                "models",
-                                "escape_tuning",
-                                "plots",
-                                cluster_type,
-                                variable.replace(" ", "_").replace(":", "_").replace("&", "_").replace("-", "_")))
+    plot_path = make_directory(
+        os.path.join(
+            session["base_path"],
+            session["processed_path"],
+            "models",
+            "escape_tuning",
+            "plots",
+            cluster_type,
+            variable.replace(" ", "_").replace(":", "_").replace("&", "_").replace("-", "_"),
+        )
+    )
 
     # compute signficance of tuning curves
-    stat = 'zscore_peak'
-    real_stat, shift_stat = compute_tuning_stat(stat=stat, 
-                                                shifted_matrix=ET['fr_shift'], 
-                                                shift0=int(np.shape(ET['fr_shift'])[0] / 2), 
-                                                neural_matrix=ET['neural_matrix'], 
-                                                condition=ET['condition_vector'])
+    stat = "zscore_peak"
+    real_stat, shift_stat = compute_tuning_stat(
+        stat=stat, shifted_matrix=ET["fr_shift"], shift0=int(np.shape(ET["fr_shift"])[0] / 2), neural_matrix=ET["neural_matrix"], condition=ET["condition_vector"]
+    )
     sig_cells = real_stat > np.nanpercentile(shift_stat, 95, axis=0)
 
     if "residual" in variable:
@@ -39,10 +41,10 @@ def plot_residual_tuning_results(data, plot_path, Ids, sig_cells, var2, session,
     """Residual tuning is computed as 'residual: <var1> in <time_period1> - <var2> in <time_period2>',
     where var1 is the variable of interest and var2 is the variable being regressed out.
     This function will make a figure for each cluster, with three columns of subplots:
-    1. the tuning to the variable that is being regressed out (e.g. 2D position) in time_period2 (e.g. explore)
-    2. the tuning to the variable that is being regressed out (e.g. 2D position) in time_period1 (e.g. homing&escape)
-    3. an overlay of the tuning to the variable of interest (e.g. frac_route) in time_period1 (e.g. homing&escape)
+    1. an overlay of the tuning to the variable of interest (e.g. frac_route) in time_period1 (e.g. homing&escape)
         and the residual tuning.
+    2. the tuning to the variable that is being regressed out (e.g. 2D position) in time_period2 (e.g. explore)
+    3. the tuning to the variable that is being regressed out (e.g. 2D position) in time_period1 (e.g. homing&escape)
     Each row will have these plots for each condition."""
 
     n_cond = data["fr_full"].shape[0]
@@ -69,16 +71,33 @@ def plot_residual_tuning_results(data, plot_path, Ids, sig_cells, var2, session,
             return vmin_local, vmax_local
 
         for c in range(n_cond):
-            # plot the tuning curve for var2 (the variable that is being regressed out) in time_period2
+            # plot the overlay of the tuning to the variable of interest and the residual tuning
+            vmin = min(np.nanmin(var1ET["fr_full"][:, n, :]), np.nanmin(data["fr_full"][:, n, :]))
+            vmax = max(np.nanmax(var1ET["fr_full"][:, n, :]), np.nanmax(data["fr_full"][:, n, :]))
             ax = axs[c, 0] if n_cond > 1 else axs[0]
+            bin_centers = (data["bin_edges"][:-1] + data["bin_edges"][1:]) / 2
+            ax.plot(bin_centers, var1ET["fr_full"][c, n, :], label="Original Tuning Curve", color="blue")
+            ax.plot(bin_centers, data["fr_full"][c, n, :], label="Residual Tuning Curve", color="orange")
+            ax.set_xlabel(data["tuning_var"])
+            ax.set_ylabel(f"Firing Rate (Hz) + \n in {data['all_conditions'][c]}")
+            ax.set_ylim(vmin, vmax + 2)
+            ax.legend()
+            if sig_cells[c, n]:
+                ax.set_title(f"Cluster {Ids[n]} in {data['all_conditions'][c]}: Significant Tuning")
+
+            # plot the tuning curve for var2 (the variable that is being regressed out) in time_period2
+            ax = axs[c, 1] if n_cond > 1 else axs[1]
             if var2 == "2D_position":
                 mapmin, mapmax = _safe_limits(data["residual_fr_var2_t2"][:, :, :, n])
                 rate_map = data["residual_fr_var2_t2"][c, :, :, n]  # shape: (bins, bins)
-                Arena(ax=ax, dim=rate_map.shape[0] - 1,
-                      condition=data['all_conditions'][c] + ("_tiny" if "tiny" in session["experiment"] else ""),
-                        barrier_coordinates=session["barrier_location"][:-1] if session["barrier_location"] is not None else None,
-                        shelter_coordinates=session["shelter_location"] if session["shelter_location"] is not None else None,
-                        full_image=False )
+                Arena(
+                    ax=ax,
+                    dim=rate_map.shape[0] - 1,
+                    condition=data["all_conditions"][c] + ("_tiny" if "tiny" in session["experiment"] else ""),
+                    barrier_coordinates=session["barrier_location"][:-1] if session["barrier_location"] is not None else None,
+                    shelter_coordinates=session["shelter_location"] if session["shelter_location"] is not None else None,
+                    full_image=False,
+                )
                 if np.isnan(rate_map).all():
                     ax.text(0.5, 0.5, "No data", ha="center", va="center")
                     ax.axis("off")
@@ -97,37 +116,23 @@ def plot_residual_tuning_results(data, plot_path, Ids, sig_cells, var2, session,
                 ax.set_xticklabels(RANGE_DICT[var2])
 
             # plot the tuning curve for the variable that is being regressed out in time_period1
-            ax = axs[c, 1] if n_cond > 1 else axs[1]
+            ax = axs[c, 2] if n_cond > 1 else axs[2]
             if var2 == "2D_position":
-                mapmin, mapmax = _safe_limits(data["mat_num_cond"][:, n, :, :])
-                neural = data["mat_num_cond"][c, n, :, :]   # shape: (trials, bins)
-                sc = plot_2D_position_tuning(x_matrix[c,:,:], y_matrix[c,:,:], neural, ax, data['all_conditions'][c], session, mapmin, mapmax)
+                mapmin, mapmax = _safe_limits(var1ET["mat_num_cond"][:, n, :, :])
+                neural = var1ET["mat_num_cond"][c, n, :, :]  # shape: (trials, bins)
+                sc = plot_2D_position_tuning(x_matrix[c, :, :], y_matrix[c, :, :], neural, ax, var1ET["all_conditions"][c], session, mapmin, mapmax)
                 if trial_pos_mappable is None and sc is not None:
                     trial_pos_mappable = sc
             else:
                 # TODO: not implemented...
                 bla = 2
 
-            # plot the overlay of the tuning to the variable of interest and the residual tuning
-            vmin = min(np.nanmin(var1ET["fr_full"][:, n, :]), np.nanmin(data["fr_full"][:, n, :]))
-            vmax = max(np.nanmax(var1ET["fr_full"][:, n, :]), np.nanmax(data["fr_full"][:, n, :]))
-            ax = axs[c, 2] if n_cond > 1 else axs[2]
-            bin_centers = (data["bin_edges"][:-1] + data["bin_edges"][1:]) / 2
-            ax.plot(bin_centers, var1ET["fr_full"][c, n, :], label="Original Tuning Curve", color = "blue")
-            ax.plot(bin_centers, data["fr_full"][c, n, :], label="Residual Tuning Curve", color = "orange")
-            ax.set_xlabel(data["tuning_var"])
-            ax.set_ylabel(f"Firing Rate (Hz) + \n in {data['all_conditions'][c]}")
-            ax.set_ylim(vmin, vmax + 2)
-            ax.legend()
-            if sig_cells[c, n]:
-                ax.set_title(f"Cluster {Ids[n]} in {data['all_conditions'][c]}: Significant Tuning")
-
         if var2 == "2D_position":
             if rate_map_mappable is not None:
-                cbar0 = fig.colorbar(rate_map_mappable, ax=axs[:, 0] if n_cond > 1 else axs[0], fraction=0.025, pad=0.02, shrink=0.8)
+                cbar0 = fig.colorbar(rate_map_mappable, ax=axs[:, 1] if n_cond > 1 else axs[1], fraction=0.025, pad=0.02, shrink=0.8)
                 cbar0.set_label("Rate")
             if trial_pos_mappable is not None:
-                cbar1 = fig.colorbar(trial_pos_mappable, ax=axs[:, 1] if n_cond > 1 else axs[1], fraction=0.025, pad=0.02, shrink=0.8)
+                cbar1 = fig.colorbar(trial_pos_mappable, ax=axs[:, 2] if n_cond > 1 else axs[2], fraction=0.025, pad=0.02, shrink=0.8)
                 cbar1.set_label("Rate")
 
         fig.savefig(os.path.join(plot_path, f"cluster_{Ids[n]}_residual_tuning.png"))
@@ -167,23 +172,28 @@ def plot_tuning_results(data, plot_path, Ids, sig_cells):
             nan_trials = np.where(np.sum(np.isnan(single_trial), axis=1) == data["mat_num_cond"].shape[3])[0]
             if len(nan_trials) > 0:
                 single_trial = np.delete(single_trial, nan_trials, axis=0)
-            ax.imshow(single_trial, 
-                    aspect='auto',
-                    cmap='gray_r', vmin = vmin, vmax = vmax, 
-                    interpolation='none')
+            ax.imshow(single_trial, aspect="auto", cmap="gray_r", vmin=vmin, vmax=vmax, interpolation="none")
             ax.set_ylabel(f"Trials in {data['all_conditions'][c]}")
             # set x ticks to be the first bin center, the last bin center and two evenly spaced ticks in between
-            ax.set_xticks([0, len(data["bin_edges"])-1, len(data["bin_edges"])//3, 2*len(data["bin_edges"])//3])
+            ax.set_xticks([0, len(data["bin_edges"]) - 1, len(data["bin_edges"]) // 3, 2 * len(data["bin_edges"]) // 3])
             # round appearance to two numbers after the comma
-            ax.set_xticklabels([f"{data['bin_edges'][0]:.2f}", f"{data['bin_edges'][-1]:.2f}", f"{data['bin_edges'][len(data['bin_edges'])//3]:.2f}", f"{data['bin_edges'][2*len(data['bin_edges'])//3]:.2f}"])
+            ax.set_xticklabels(
+                [
+                    f"{data['bin_edges'][0]:.2f}",
+                    f"{data['bin_edges'][-1]:.2f}",
+                    f"{data['bin_edges'][len(data['bin_edges'])//3]:.2f}",
+                    f"{data['bin_edges'][2*len(data['bin_edges'])//3]:.2f}",
+                ]
+            )
 
         fig.savefig(os.path.join(plot_path, f"cluster_{Ids[n]}_tuning.png"))
     pass
 
+
 def plot_2D_position_tuning(x_matrix, y_matrix, neural, ax, condition, session, vmin, vmax):
     from behave_analysis.utils.arena_plotting import Arena
 
-    Arena(ax = ax, condition=condition, shelter_coordinates = session["shelter_location"], barrier_coordinates = session["barrier_location"])
+    Arena(ax=ax, condition=condition, shelter_coordinates=session["shelter_location"], barrier_coordinates=session["barrier_location"])
 
     tr_tot = 0
     sc = None
@@ -201,26 +211,31 @@ def plot_2D_position_tuning(x_matrix, y_matrix, neural, ax, condition, session, 
 
     return sc
 
+
 def bin_xy_position_time2(data, video_df):
     # bin the xy positions at the same rate as the ep_data so that we can plot the activity on each trial by frac route on the positions
-    tuning_onsets = (((np.where(np.diff(data["homing_vector"].astype(int))==1))[0]+1)/2).astype(int)
-    tuning_offsets = (((np.where(np.diff(data["homing_vector"].astype(int))==-1))[0]+1)/2).astype(int)
+    tuning_onsets = (((np.where(np.diff(data["homing_vector"].astype(int)) == 1))[0] + 1) / 2).astype(int)
+    tuning_offsets = (((np.where(np.diff(data["homing_vector"].astype(int)) == -1))[0] + 1) / 2).astype(int)
     current_time = np.arange(len(video_df))
-    multiplier = len(data["homing_vector"])/len(video_df)
+    multiplier = len(data["homing_vector"]) / len(video_df)
     new_time = np.arange(0, len(video_df), 1 / 2)
     y = np.interp(new_time, current_time, video_df["mouse_y_position"].to_numpy())
     x = np.interp(new_time, current_time, video_df["mouse_x_position"].to_numpy())
     assert np.equal(len(x), len(data["homing_vector"])), "Length of x does not match length of data['discretized_var']"
     offset = 0
-    x_matrix = np.full((data["mat_num_cond"].shape[0], data["mat_num_cond"].shape[2], data["mat_num_cond"].shape[3]), np.nan) # shucks, here we gotta figure out which condition each trial is in
-    y_matrix = np.full((data["mat_num_cond"].shape[0], data["mat_num_cond"].shape[2], data["mat_num_cond"].shape[3]), np.nan) # shucks, here we gotta figure out which condition each trial is in
+    x_matrix = np.full(
+        (data["mat_num_cond"].shape[0], data["mat_num_cond"].shape[2], data["mat_num_cond"].shape[3]), np.nan
+    )  # shucks, here we gotta figure out which condition each trial is in
+    y_matrix = np.full(
+        (data["mat_num_cond"].shape[0], data["mat_num_cond"].shape[2], data["mat_num_cond"].shape[3]), np.nan
+    )  # shucks, here we gotta figure out which condition each trial is in
     for on, off in zip(tuning_onsets, tuning_offsets):
-        binned_route = data["discretized_var"][offset:offset+((off-on)*2)].squeeze()
+        binned_route = data["discretized_var"][offset : offset + ((off - on) * 2)].squeeze()
         condition = int(data["condition_vector"][offset])
-        next_trial = np.where(np.isnan(x_matrix[condition,:,0]))[0][0]
-        offset += (off-on)*2
-        x_route = x[on*2:off*2]
-        y_route = y[on*2:off*2]
+        next_trial = np.where(np.isnan(x_matrix[condition, :, 0]))[0][0]
+        offset += (off - on) * 2
+        x_route = x[on * 2 : off * 2]
+        y_route = y[on * 2 : off * 2]
         for i in np.unique(binned_route).astype(int):
             x_matrix[condition, next_trial, i] = np.mean(x_route[binned_route == i])
             y_matrix[condition, next_trial, i] = np.mean(y_route[binned_route == i])
