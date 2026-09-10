@@ -6,21 +6,23 @@ from loguru import logger
 import os
 
 from behave_analysis.analyze.PlaceCells.place_cell_utils import create_centered_bins
-from behave_analysis.utils.creating_directories import make_directory
 
+RANGE_DICT = {"bird_dist_shelter": (0, 900), 
+              "frac_route": (0, 1), 
+              "distance_shelter": (0, 1200), 
+              "speed": (0, 100), 
+              "y_pos": (0, 1024)}
 
 def define_bin_edges(settings, tuning_var):
     """Define bin edges based on settings.tuning_var and settings.tuning_bins."""
     # if tuning_bins is an integer, create that many bins between min and max of the variable
 
-    range_dict = {"bird_dist_shelter": (0, 900), "frac_route": (0, 1), "distance_shelter": (0, 1200), "speed": (0, 100), "y_pos": (0, 1024)}
-
     if isinstance(settings.ep_bins, int):
         if tuning_var == "2D_position":
             bin_edges = create_centered_bins(bin_size=settings.place_cell_bin_size_pix)
         else:
-            if tuning_var in range_dict:
-                var_range = range_dict[tuning_var]
+            if tuning_var in RANGE_DICT:
+                var_range = RANGE_DICT[tuning_var]
                 bin_edges = np.linspace(var_range[0], var_range[1], settings.ep_bins + 1)
                 bin_edges[-1] = bin_edges[-1] + 1e-10  # add a tiny bit to the last edge to make sure the max value is included in the last bin
             else:
@@ -262,14 +264,18 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
     """
     # compute distance to shelter along the shortest path (i.e. around barrier if present)
     if tuning_var in ["distance_shelter"]:
-        shelter = [np.mean([aefizz.session["shelter_location"][0][0], aefizz.session["shelter_location"][1][0]]), aefizz.session["shelter_location"][0][1]]
+        if aefizz.session["shelter_location"] is None:
+            logger.warning("No shelter location found for this session - using center of arena as shelter location")
+            shelter = [aefizz.session["video"]["width"] / 2, aefizz.session["video"]["height"] / 2]
+        else:
+            shelter = [np.mean([aefizz.session["shelter_location"][0][0], aefizz.session["shelter_location"][1][0]]), aefizz.session["shelter_location"][0][1]]
         var = compute_dist_shelt(
             x,
             y,
             condition,
             shelter_location=shelter,
-            barrier_location1=aefizz.session["barrier_location"][0] if len(aefizz.session["barrier_location"]) > 0 else None,
-            barrier_location2=aefizz.session["barrier_location"][1] if len(aefizz.session["barrier_location"]) > 1 else None,
+            barrier_location1=aefizz.session["barrier_location"][0] if aefizz.session["barrier_location"] else None,
+            barrier_location2=aefizz.session["barrier_location"][1] if aefizz.session["barrier_location"] else None,
         )
 
     # compute distance to first goal (either shelter or subgoal)
@@ -278,14 +284,18 @@ def create_discretized_behave_var(aefizz, x, y, condition, tuning_var, time_mask
 
     # compute bird's eye distance to shelter or first goal (i.e. through barrier if present)
     elif tuning_var in ["bird_dist_shelter"]:
-        shelter = [np.mean([aefizz.session["shelter_location"][0][0], aefizz.session["shelter_location"][1][0]]), aefizz.session["shelter_location"][0][1]]
+        if aefizz.session["shelter_location"] is None:
+            logger.warning("No shelter location found for this session - using center of arena as shelter location")
+            shelter = [aefizz.session["video"]["width"] / 2, aefizz.session["video"]["height"] / 2]
+        else:
+            shelter = [np.mean([aefizz.session["shelter_location"][0][0], aefizz.session["shelter_location"][1][0]]), aefizz.session["shelter_location"][0][1]]
         var = compute_dist_shelt(
             x,
             y,
-            cond=np.full_like(x, "shelter_only"),
+            cond=np.repeat('shelter_only', len(x)),
             shelter_location=shelter,
-            barrier_location1=aefizz.session["barrier_location"][0] if len(aefizz.session["barrier_location"]) > 0 else None,
-            barrier_location2=aefizz.session["barrier_location"][1] if len(aefizz.session["barrier_location"]) > 1 else None,
+            barrier_location1=aefizz.session["barrier_location"][0] if aefizz.session["barrier_location"] else None,
+            barrier_location2=aefizz.session["barrier_location"][1] if aefizz.session["barrier_location"] else None,
         )
         # cond=np.zeros_like(x) is a hack which forces bird's eye distance, ignoring barrier
 

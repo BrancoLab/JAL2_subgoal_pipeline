@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
 	sys.path.insert(0, str(REPO_ROOT))
 
-from databank import cluster_experiments_objects, hab
+from databank import cluster_experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.postprocess.pp_main import Postprocessor
 from settings.settings_process import settings_process
@@ -54,18 +54,13 @@ def main():
 
 	# postprocess(cluster_experiments_objects)
 
-	# analysis_name='EscapePattern'
-	# variable = ['frac_route in homing&escape', 'frac_route in to_subgoal_homing&escape', 'frac_route in correct_full_homing&escape']
+	analysis_name='EscapePattern'
+	variable = ['residual: frac_route in homing&escape - 2D_position in explore',
+			 	'residual: frac_route in homing&escape - bird_dist_shelter in explore',
+			 	'residual: frac_route in homing&escape - speed in explore',
+			 	'residual: frac_route in homing&escape - distance_shelter in explore',]
 
-	analysis_name = "rayleigh"
-	variable = None
-	analyze_efizz(analysis_name, variable, experiments_objects=hab)
-
-	analysis_name = ['classify_cells']
-	variable = None
-
-	for a in analysis_name:
-		analyze_efizz(a, variable, experiments_objects=cluster_experiments_objects)
+	analyze_efizz(analysis_name, variable, experiments_objects=cluster_experiments_objects)
 
 if __name__ == "__main__":
 	main()

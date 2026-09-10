@@ -9,6 +9,7 @@ from pathlib import Path
 from behave_analysis.database.computer_ID import get_computer_specific_paths
 import os
 
+DEFAULT_SHELTER_LOCATION = [[500, 890], [520, 910]]
 
 @dataclass(frozen=False)
 class NEW_Session:

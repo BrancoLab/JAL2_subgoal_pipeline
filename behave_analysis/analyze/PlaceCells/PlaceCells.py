@@ -316,10 +316,11 @@ class PlaceCells:
 
             fig, axs = plt.subplots(3, len(self.aefizz.all_conditions), figsize=(5 * len(self.aefizz.all_conditions), 3 * 5))
             for j, c in enumerate(self.aefizz.all_conditions):
+                this_ax = axs[0, j] if len(self.aefizz.all_conditions) > 1 else axs[0]
                 # Plot real data rate map
                 real_map = self.results_dict[c]["rate_map"][:, :, idx]
                 Arena(
-                    ax=axs[0, j],
+                    ax=this_ax,
                     dim=real_map.shape[0] - 1,
                     condition=c + ("_tiny" if "tiny" in self.aefizz.session["experiment"] else ""),
                     barrier_coordinates=self.aefizz.session["barrier_location"][:-1] if self.aefizz.session["barrier_location"] is not None else None,
@@ -327,17 +328,18 @@ class PlaceCells:
                     full_image=False,
                 )
                 if np.isnan(real_map).all():
-                    axs[0, j].text(0.5, 0.5, "No data", ha="center", va="center")
-                    axs[0, j].axis("off")
+                    this_ax.text(0.5, 0.5, "No data", ha="center", va="center")
+                    this_ax.axis("off")
                     im = None
                 else:
-                    im = axs[0, j].imshow(real_map, vmin=min_rate, vmax=max_rate)
-                axs[0, j].set_title(f"Real data - {c}")
+                    im = this_ax.imshow(real_map, vmin=min_rate, vmax=max_rate)
+                this_ax.set_title(f"Real data - {c}")
 
                 # Plot null data rate map
+                this_ax = axs[1, j] if len(self.aefizz.all_conditions) > 1 else axs[1]
                 null_map = self.results_dict[c]["rate_map_null"][:, :, idx]
                 Arena(
-                    ax=axs[1, j],
+                    ax=this_ax,
                     dim=null_map.shape[0] - 1,
                     condition=c + ("_tiny" if "tiny" in self.aefizz.session["experiment"] else ""),
                     barrier_coordinates=self.aefizz.session["barrier_location"][:-1] if self.aefizz.session["barrier_location"] is not None else None,
@@ -345,22 +347,23 @@ class PlaceCells:
                     full_image=False,
                 )
                 if np.isnan(null_map).all():
-                    axs[1, j].text(0.5, 0.5, "No data", ha="center", va="center")
-                    axs[1, j].axis("off")
+                    this_ax.text(0.5, 0.5, "No data", ha="center", va="center")
+                    this_ax.axis("off")
                 else:
-                    axs[1, j].imshow(null_map, vmin=min_rate, vmax=max_rate)
-                axs[1, j].set_title("Null data")
+                    this_ax.imshow(null_map, vmin=min_rate, vmax=max_rate)
+                this_ax.set_title("Null data")
 
                 # Plot spatial information histogram
+                this_ax = axs[2, j] if len(self.aefizz.all_conditions) > 1 else axs[2]
                 si_shifted = self.results_dict[c]["spatial_info_bps_shifted"][:, idx]
                 si_real = self.results_dict[c]["spatial_info_bps"][idx]
                 si_null = self.results_dict[c]["spatial_info_bps_null"][idx]
                 if not np.isnan(si_shifted).all():
-                    axs[2, j].hist(si_shifted[~np.isnan(si_shifted)], bins=20)
-                axs[2, j].axvline(si_real, color="red", label="Real data SI")
-                axs[2, j].axvline(si_null, color="black", label="Null data SI")
-                axs[2, j].set_title(f"Spatial info (bps): {si_real:.2f}")
-                axs[2, j].legend()
+                    this_ax.hist(si_shifted[~np.isnan(si_shifted)], bins=20)
+                this_ax.axvline(si_real, color="red", label="Real data SI")
+                this_ax.axvline(si_null, color="black", label="Null data SI")
+                this_ax.set_title(f"Spatial info (bps): {si_real:.2f}")
+                this_ax.legend()
 
             # Only add colorbar if at least one imshow was created
             if valid_maps and im is not None:

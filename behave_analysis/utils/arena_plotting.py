@@ -30,7 +30,7 @@ class Arena:
         self.ax.set_aspect("equal")
         self.ax.invert_yaxis()
 
-        if not (condition == "pre_shelter"):
+        if not (condition == "pre_shelter" or condition == "habituation"):
             if not full_image:
                 shelter_coordinates = [[s + (512 - 460) for s in sh] for sh in shelter_coordinates]
             self.draw_shelter(shelter_coordinates)

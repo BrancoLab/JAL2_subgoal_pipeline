@@ -6,6 +6,7 @@ from loguru import logger
 import polars as pl
 import pandas as pd
 
+from behave_analysis.analyze.EscapePattern.escape_pattern_utils import parse_residual_string
 from behave_analysis.analyze.PlaceCells.PlaceCells import COLUMNS_TO_KEEP
 from behave_analysis.analyze.behaviour.homings_escapes.homings_add_to_video_df import add_homie_to_video_df, load_homing_for_aefizz
 from behave_analysis.analyze.filtering_data.filtering_functions import extract_all_or_custom_conditions, identify_angles
@@ -13,7 +14,6 @@ from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 from behave_analysis.utils.data_loading import load_or_extract_escapes
-
 
 class AnalyzeEfizz:
     """
@@ -214,7 +214,7 @@ class AnalyzeEfizz:
                 # this method computes tuning to behavioral variables (e.g. %escape, distance to shelter, speed)
                 # in different behavioral contexts (e.g. explore, homing, escape)
                 # it can also compute the residual tuning to these variables when subtracting the activity predicted by the tuning in different contexts
-                computeET = ComputeEscapeTuning(variable, aefizz=self)
+                computeET = ComputeEscapeTuning(tuning = variable, session=self.session, settings=self.settings, aefizz=self)
                 if computeET.do_analysis:
                     logger.info(
                         f"{'Computing Residual of ' if 'residual' in computeET.ET.name.lower() else 'Computing '}Escape Pattern Tuning on {computeET.ET.tuning_var} during {computeET.ET.escape_pattern_time} periods"
@@ -226,7 +226,21 @@ class AnalyzeEfizz:
                         return {}
                     computeET.filter_data_and_compute_tuning()
                     computeET.compute_statistical_significance()
-                    computeET.save_escape_tuning(variable)
+                    ET = computeET.save_escape_tuning(variable, return_dict = True)
+                if self.settings.show_plots:
+                    from behave_analysis.analyze.EscapePattern.escape_pattern_plotting import plot_escape_tuning
+                    if computeET.insufficient_data:
+                        logger.warning(f"Insufficient data for {variable}, skipping plotting")
+                        return
+                    if computeET.do_analysis == False:
+                        ET = computeET.load_results(prefer_hdf5=True)
+                    if "residual" in variable:
+                        var1, time1, var2, time2 = parse_residual_string(variable)
+                        var1ET = ComputeEscapeTuning(tuning = var1 + " in " + time1, session=self.session, settings=self.settings, aefizz=self).load_results(prefer_hdf5=True)
+                    plot_escape_tuning(ET, variable, self.session, 
+                                       cluster_type = self.cluster_type+self.qualifier, Ids = self.cluster_Ids,
+                                       video_df = self.video_df,
+                                       var1ET = var1ET if 'residual' in variable else None)
 
             logger.success("Escape Pattern Tuning analysis complete")
 

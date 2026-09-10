@@ -42,14 +42,14 @@ class ComputeEscapeTuning:
     4. Compute the statistical significance of the tuning curves via linear shift
     """
 
-    def __init__(self, tuning, aefizz):
+    def __init__(self, tuning, session, settings, aefizz):
 
         # metadata
-        self.ET = init_escape_tuning(aefizz.settings, tuning)
+        self.ET = init_escape_tuning(settings, tuning)
         self.aefizz = aefizz
         self.insufficient_data = False
-        self.settings = aefizz.settings
-        self.ET.all_conditions = self.simplify_condition()
+        self.settings = settings
+        self.ET.all_conditions = self.simplify_condition(session)
 
         print(f"computing tuning in conditions: {self.ET.all_conditions}")
 
@@ -63,8 +63,8 @@ class ComputeEscapeTuning:
         # build save path to dump data in
         self.ET.savepath = make_directory(
             os.path.join(
-                self.aefizz.session["base_path"],
-                self.aefizz.session["processed_path"],
+                session["base_path"],
+                session["processed_path"],
                 "models",
                 "escape_tuning",
             )
@@ -76,9 +76,9 @@ class ComputeEscapeTuning:
             settings=self.settings,
         )
 
-    def simplify_condition(self):
+    def simplify_condition(self, session):
         # ensures we have the minimum list of conditions, with
-        all_conditions = self.aefizz.all_conditions
+        all_conditions = identify_conditions(session)
         # Simplify the conditions if needed
         # 1. always remove all_time
         if "all_time" in all_conditions:
@@ -291,7 +291,8 @@ class ComputeEscapeTuning:
     def save_results_hdf5(self, results_dict=None, overwrite=True):
         """Save nested EP results to HDF5 hierarchy."""
         if results_dict is None:
-            results_dict = asdict(self.ET)
+            logger.warning("No results dict provided - skipping save")
+            return
         return save_hdf5(self._results_h5_path(), data_dict=results_dict, overwrite=overwrite)
 
     def load_results(self, prefer_hdf5=True):
@@ -585,7 +586,7 @@ def check_position_grid_consistency(residual_var2_all_time, pc_dict, settings, r
 
 
 def load_or_compute_escape_tuning(aefizz, variable):
-    computeET = ComputeEscapeTuning(variable, aefizz)
+    computeET = ComputeEscapeTuning(tuning = variable, session = aefizz.session, settings = aefizz.settings, aefizz = aefizz)
 
     if computeET.do_analysis is False:
         EP_dict = computeET.load_results(prefer_hdf5=True)
@@ -616,7 +617,9 @@ def load_or_compute_2d_position_tuning(aefizz, time_period):
     logger.info(f"Checking for existing place cell results in {time_period} in place cell database...")
 
     from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
+    from settings.settings_overrides import settings_overrides
 
+    aefizz.settings = settings_overrides(aefizz.settings, {"redo_compute": False})
     PC = PlaceCells(aefizz=aefizz, time_period=time_period)
 
     if PC.do_analysis == False:
