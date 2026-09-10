@@ -43,6 +43,8 @@ def classify_hdir(session: object, cluster_type: str = "good", conditions=["shel
             used_condition = "shelter_only"
         if "pre_shelter" in conditions:  # preferrably we use a condition with an empty arena?!
             used_condition = "pre_shelter"
+        if "habituation" in conditions:  # also empty arena
+            used_condition = "habituation"
 
     path = extract_rayleigh_path(session, cluster_type, condition=used_condition, file_name="hdir_Rayleigh.arrow")
     data = load_rayleigh_data(path)
