@@ -14,6 +14,7 @@ from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.visualize.visualize_utils import open_tracking_data
 from behave_analysis.analyze.results_database_utils import add_run_to_database, settings_to_check
 from behave_analysis.utils.data_loading import load_or_extract_escapes
+from settings.settings_overrides import settings_overrides
 
 class AnalyzeEfizz:
     """
@@ -229,6 +230,7 @@ class AnalyzeEfizz:
                     computeET.compute_statistical_significance()
                     ET = computeET.save_escape_tuning(variable, return_dict = True)
                 if self.settings.show_plots:
+                    logger.info(f"Plotting Escape Pattern Tuning on {variable}")
                     from behave_analysis.analyze.EscapePattern.escape_pattern_plotting import plot_escape_tuning
                     if computeET.insufficient_data:
                         logger.warning(f"Insufficient data for {variable}, skipping plotting")
@@ -237,7 +239,8 @@ class AnalyzeEfizz:
                         ET = computeET.load_results(prefer_hdf5=True)
                     if "residual" in variable:
                         var1, time1, var2, time2 = parse_residual_string(variable)
-                        var1ET = ComputeEscapeTuning(tuning = var1 + " in " + time1, session=self.session, settings=self.settings, aefizz=self).load_results(prefer_hdf5=True)
+                        settings_use = settings_overrides(self.settings, {"redo_compute": False})
+                        var1ET = ComputeEscapeTuning(tuning = var1 + " in " + time1, session=self.session, settings=settings_use, aefizz=self).load_results(prefer_hdf5=True)
                     plot_escape_tuning(ET, variable, self.session, 
                                        cluster_type = self.cluster_type+self.qualifier, Ids = self.cluster_Ids,
                                        video_df = self.video_df,
