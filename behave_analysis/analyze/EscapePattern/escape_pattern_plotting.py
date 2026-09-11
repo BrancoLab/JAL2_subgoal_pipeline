@@ -25,7 +25,9 @@ def plot_escape_tuning(ET, variable, session, cluster_type, Ids, video_df, var1E
     # compute signficance of tuning curves
     stat = "zscore_peak"
     real_stat, shift_stat = compute_tuning_stat(
-        stat=stat, shifted_matrix=ET["fr_shift"], shift0=int(np.shape(ET["fr_shift"])[0] / 2), neural_matrix=ET["neural_matrix"], condition=ET["condition_vector"]
+        stat=stat, shifted_matrix=ET["fr_shift"], shift0=int(np.shape(ET["fr_shift"])[0] / 2), 
+        neural_matrix=ET["neural_matrix"], 
+        condition=ET["condition_vector"]
     )
     sig_cells = real_stat > np.nanpercentile(shift_stat, 95, axis=0)
 

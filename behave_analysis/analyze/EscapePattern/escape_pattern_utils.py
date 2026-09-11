@@ -45,7 +45,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
     # initialize variables
     v2_predicted_matrix = np.full_like(neural_matrix_t1, np.nan)
     n_neur = neural_matrix_t1.shape[0]
-    n_cond = len(np.unique(cond_t1))
+    cond = np.unique(cond_t1).astype(int)
 
     # 1. make predicted neural matrix
     if var2_t1.ndim > 1:
@@ -53,7 +53,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
             # var2_t1 should be zero indexed
             valid_idx = ~np.isnan(var2_t1).any(axis=1)  # only consider time points where we have non-nan values for both dimensions of position
             for n in range(n_neur):
-                for c in range(n_cond):
+                for c in cond:
                     u = var2_t1[(cond_t1 == c) & valid_idx, :].astype(int)  # binned <var2> in <ctx1> and condition c
                     v = fr_var2_t2[c, :, :, n]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
                     pred = v[u[:, 0], u[:, 1]]
@@ -63,7 +63,7 @@ def residual_neural_matrix(neural_matrix_t1, cond_t1, var2_t1, fr_var2_t2):
             # identify non-nan time points in var2_t1
             valid_idx = ~np.isnan(var2_t1)
             for n in range(n_neur):
-                for c in range(n_cond):
+                for c in cond:
                     u = var2_t1[(cond_t1 == c) & valid_idx].astype(int)  # binned <var2> in <ctx1> and condition c
                     v = fr_var2_t2[c, n, :]  # firing rates for neuron n at each binned <var2> in <ctx2> and condition c
                     pred = v[u]
