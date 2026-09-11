@@ -10,7 +10,7 @@ Settings_ae = Settings_analyze_efizz(
     linear_shift=True,  # whether to run linear shift!
     parallel_pool_linshit=True,  # if True, uses parallel pool to compute linear shift
     # This does not effect Tuned, this model needs linear shift to work
-    redo_compute=False,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
+    redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type="good",  # 'synthetic','synthetichdir','all','good',
     cluster_labels="bombcell",  # 'bombcell','kilosort','manual'
     show_plots=True,

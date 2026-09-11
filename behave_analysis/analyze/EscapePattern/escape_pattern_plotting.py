@@ -29,7 +29,12 @@ def plot_escape_tuning(ET, variable, session, cluster_type, Ids, video_df, var1E
         neural_matrix=ET["neural_matrix"], 
         condition=ET["condition_vector"]
     )
-    sig_cells = real_stat > np.nanpercentile(shift_stat, 95, axis=0)
+    sig_cells = np.full((real_stat.shape[0], real_stat.shape[1]), False)
+    for c in range(shift_stat.shape[1]):
+        if np.isnan(shift_stat[:, c, :]).all():
+            continue
+        else:
+            sig_cells[c, :] = real_stat[c,:] > np.nanpercentile(shift_stat[:,c,:], 95, axis=0)
 
     if "residual" in variable:
         # check if figures exist already?

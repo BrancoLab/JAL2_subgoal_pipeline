@@ -435,8 +435,9 @@ def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural
             out=np.full_like(shifted_matrix, np.nan, dtype=np.float64),
             where=np.isfinite(safe_std)[np.newaxis, :, :, np.newaxis],
         )
-        zscored = np.where(np.isfinite(zscored), zscored, -np.inf)
-        shift_stat = np.nanmax(zscored, axis=3)
+        finite_mask = np.isfinite(zscored)
+        shift_stat = np.max(np.where(finite_mask, zscored, -np.inf), axis=3)
+        shift_stat[~np.any(finite_mask, axis=3)] = np.nan
     real_stat = shift_stat[shift0, :, :]
     shift_stat = np.delete(shift_stat, shift0, axis=0)
 
