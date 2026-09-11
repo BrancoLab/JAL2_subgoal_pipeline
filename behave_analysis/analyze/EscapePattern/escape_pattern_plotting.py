@@ -62,25 +62,38 @@ def plot_residual_tuning_results(data, plot_path, Ids, sig_cells, var2, session,
 
         def _safe_limits(arr):
             """Return robust color limits using 95th percentile for vmax."""
-            if np.isnan(arr).all():
+            arr = np.asarray(arr, dtype=float)
+            finite = arr[np.isfinite(arr)]
+            if finite.size == 0:
                 return None, None
-            vmin_local = np.nanmin(arr)
-            vmax_local = np.nanpercentile(arr, 95)
+            vmin_local = np.nanmin(finite)
+            vmax_local = np.nanpercentile(finite, 95)
             if not np.isfinite(vmax_local) or vmax_local <= vmin_local:
-                vmax_local = np.nanmax(arr)
+                vmax_local = np.nanmax(finite)
+            return vmin_local, vmax_local
+
+        def _combined_limits(*chunks):
+            finite_values = []
+            for chunk in chunks:
+                arr = np.asarray(chunk, dtype=float)
+                finite_values.extend(arr[np.isfinite(arr)].tolist())
+            if len(finite_values) == 0:
+                return np.nan, np.nan
+            vmin_local = min(finite_values)
+            vmax_local = max(finite_values)
             return vmin_local, vmax_local
 
         for c in range(n_cond):
             # plot the overlay of the tuning to the variable of interest and the residual tuning
-            vmin = min(np.nanmin(var1ET["fr_full"][:, n, :]), np.nanmin(data["fr_full"][:, n, :]))
-            vmax = max(np.nanmax(var1ET["fr_full"][:, n, :]), np.nanmax(data["fr_full"][:, n, :]))
+            vmin, vmax = _combined_limits(var1ET["fr_full"][:, n, :], data["fr_full"][:, n, :])
             ax = axs[c, 0] if n_cond > 1 else axs[0]
             bin_centers = (data["bin_edges"][:-1] + data["bin_edges"][1:]) / 2
             ax.plot(bin_centers, var1ET["fr_full"][c, n, :], label="Original Tuning Curve", color="blue")
             ax.plot(bin_centers, data["fr_full"][c, n, :], label="Residual Tuning Curve", color="orange")
             ax.set_xlabel(data["tuning_var"])
             ax.set_ylabel(f"Firing Rate (Hz) + \n in {data['all_conditions'][c]}")
-            ax.set_ylim(vmin, vmax + 2)
+            if np.isfinite(vmin) and np.isfinite(vmax):
+                ax.set_ylim(vmin, vmax + 2)
             ax.legend()
             if sig_cells[c, n]:
                 ax.set_title(f"Cluster {Ids[n]} in {data['all_conditions'][c]}: Significant Tuning")
@@ -106,14 +119,29 @@ def plot_residual_tuning_results(data, plot_path, Ids, sig_cells, var2, session,
                     if rate_map_mappable is None:
                         rate_map_mappable = im
             else:
-                vmin = np.nanmin(data["residual_fr_var2_t2"][:, n, :])
-                vmax = np.nanmax(data["residual_fr_var2_t2"][:, n, :])
+                finite = np.asarray(data["residual_fr_var2_t2"][:, n, :], dtype=float)
+                finite = finite[np.isfinite(finite)]
+                if finite.size > 0:
+                    vmin = np.nanmin(finite)
+                    vmax = np.nanmax(finite)
+                else:
+                    vmin = vmax = np.nan
                 ax.plot(data["residual_fr_var2_t2"][c, n, :], label=f"Tuning Curve for {var2} in {data['all_conditions'][c]}")
                 ax.set_xlabel(var2)
                 ax.set_ylabel(f"Firing Rate (Hz) + \n in {data['all_conditions'][c]}")
-                ax.set_ylim(vmin, vmax + 2)
-                ax.set_xticks(range(len(data["residual_fr_var2_t2"][c, n, :])))
-                ax.set_xticklabels(RANGE_DICT[var2])
+                if np.isfinite(vmin) and np.isfinite(vmax):
+                    ax.set_ylim(vmin, vmax + 2)
+                n_bins = data["residual_fr_var2_t2"].shape[2]
+                if n_bins > 0:
+                    tick_count = min(5, n_bins)
+                    tick_positions = np.unique(np.round(np.linspace(0, n_bins - 1, tick_count)).astype(int))
+                    ax.set_xticks(tick_positions)
+                    if var2 in RANGE_DICT:
+                        v2_min, v2_max = RANGE_DICT[var2]
+                        tick_values = np.linspace(v2_min, v2_max, len(tick_positions))
+                        ax.set_xticklabels([f"{val:.3g}" for val in tick_values])
+                    else:
+                        ax.set_xticklabels([str(int(pos)) for pos in tick_positions])
 
             # plot the tuning curve for the variable that is being regressed out in time_period1
             ax = axs[c, 2] if n_cond > 1 else axs[2]

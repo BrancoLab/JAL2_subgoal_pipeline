@@ -414,18 +414,28 @@ def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural
         shift_stat = np.nanmax(shifted_matrix, axis=3)
     elif stat == "zscore_peak":
         assert (neural_matrix is not None) & (condition is not None), "Need to pass neural_matrix and condition to compute zscore_peak"
-        mean_fr = np.zeros((shifted_matrix.shape[1], shifted_matrix.shape[2]))  # condition x neuron
-        std_fr = np.zeros((shifted_matrix.shape[1], shifted_matrix.shape[2]))  # condition x neuron
-        for c in np.unique(condition):
-            mean_fr[int(c), :] = np.nanmean(neural_matrix[:, condition == int(c)], axis=1)
-            std_fr[int(c), :] = np.nanstd(neural_matrix[:, condition == int(c)], axis=1)
-        # transform shifted_matrix to z-scores using mean and std of original neural matrix, extended to all shifts and bins
+        n_cond = shifted_matrix.shape[1]
+        n_neur = shifted_matrix.shape[2]
+        mean_fr = np.full((n_cond, n_neur), np.nan, dtype=np.float64)  # condition x neuron
+        std_fr = np.full((n_cond, n_neur), np.nan, dtype=np.float64)  # condition x neuron
+        for c in np.unique(condition).astype(int):
+            cond_mask = condition == int(c)
+            if not np.any(cond_mask):
+                continue
+            cond_neural = np.asarray(neural_matrix[:, cond_mask], dtype=np.float64)
+            if cond_neural.size == 0:
+                continue
+            mean_fr[int(c), :] = np.nanmean(cond_neural, axis=1)
+            std_fr[int(c), :] = np.nanstd(cond_neural, axis=1)
+
+        safe_std = np.where(np.isfinite(std_fr) & (std_fr != 0), std_fr, np.nan)
         zscored = np.divide(
             shifted_matrix - mean_fr[np.newaxis, :, :, np.newaxis],
-            std_fr[np.newaxis, :, :, np.newaxis],
-            out=np.zeros_like(shifted_matrix, dtype=np.float64),
-            where=std_fr[np.newaxis, :, :, np.newaxis] != 0,
+            safe_std[np.newaxis, :, :, np.newaxis],
+            out=np.full_like(shifted_matrix, np.nan, dtype=np.float64),
+            where=np.isfinite(safe_std)[np.newaxis, :, :, np.newaxis],
         )
+        zscored = np.where(np.isfinite(zscored), zscored, -np.inf)
         shift_stat = np.nanmax(zscored, axis=3)
     real_stat = shift_stat[shift0, :, :]
     shift_stat = np.delete(shift_stat, shift0, axis=0)
