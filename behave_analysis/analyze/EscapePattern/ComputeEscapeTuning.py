@@ -619,9 +619,11 @@ def load_or_compute_2d_position_tuning(aefizz, time_period):
     from behave_analysis.analyze.PlaceCells.PlaceCells import PlaceCells
     from settings.settings_overrides import settings_overrides
 
+    redo_compute = aefizz.settings.redo_compute
     aefizz.settings = settings_overrides(aefizz.settings, {"redo_compute": False})
     PC = PlaceCells(aefizz=aefizz, time_period=time_period)
-
+    aefizz.settings = settings_overrides(aefizz.settings, {"redo_compute": redo_compute})
+        
     if PC.do_analysis == False:
         PC_dict = PC.load_results(prefer_hdf5=True)
     else:

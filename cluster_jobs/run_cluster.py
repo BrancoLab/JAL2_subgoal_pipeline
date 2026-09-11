@@ -44,6 +44,7 @@ def analyze_efizz(analysis_name = None, variable = None, experiments_objects = [
 			aefizz.execute(analysis_name)
 		else:
 			for var in variable:
+				aefizz.settings = Settings_ae
 				aefizz.execute(analysis_name, var)
 
 	logger.success("Efizz analysis pipeline complete")
