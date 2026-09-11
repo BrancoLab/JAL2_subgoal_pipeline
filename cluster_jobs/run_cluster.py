@@ -55,7 +55,7 @@ def main():
 	# postprocess(cluster_experiments_objects)
 
 	analysis_name='EscapePattern'
-	variable = ['residual: frac_route in homing&escape - 2D_position in explore',
+	variable = [#'residual: frac_route in homing&escape - 2D_position in explore',
 			 	'residual: frac_route in homing&escape - bird_dist_shelter in explore',
 			 	'residual: frac_route in homing&escape - speed in explore',
 			 	'residual: frac_route in homing&escape - distance_shelter in explore',]

@@ -215,6 +215,7 @@ class AnalyzeEfizz:
                 # in different behavioral contexts (e.g. explore, homing, escape)
                 # it can also compute the residual tuning to these variables when subtracting the activity predicted by the tuning in different contexts
                 computeET = ComputeEscapeTuning(tuning = variable, session=self.session, settings=self.settings, aefizz=self)
+                # computeET.do_analysis = True
                 if computeET.do_analysis:
                     logger.info(
                         f"{'Computing Residual of ' if 'residual' in computeET.ET.name.lower() else 'Computing '}Escape Pattern Tuning on {computeET.ET.tuning_var} during {computeET.ET.escape_pattern_time} periods"
