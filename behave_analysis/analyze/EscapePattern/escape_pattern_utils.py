@@ -419,14 +419,28 @@ def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural
         mean_fr = np.full((n_cond, n_neur), np.nan, dtype=np.float64)  # condition x neuron
         std_fr = np.full((n_cond, n_neur), np.nan, dtype=np.float64)  # condition x neuron
         for c in np.unique(condition).astype(int):
+
+            cond_idx = int(c)
+            if cond_idx < 0 or cond_idx >= n_cond:
+                continue
+
             cond_mask = condition == int(c)
             if not np.any(cond_mask):
                 continue
+            
             cond_neural = np.asarray(neural_matrix[:, cond_mask], dtype=np.float64)
             if cond_neural.size == 0:
                 continue
-            mean_fr[int(c), :] = np.nanmean(cond_neural, axis=1)
-            std_fr[int(c), :] = np.nanstd(cond_neural, axis=1)
+
+            finite = np.isfinite(cond_neural)
+            valid_neurons = np.any(finite, axis=1)
+
+            if not np.any(valid_neurons):
+                continue
+
+            valid_matrix = np.where(finite, cond_neural, np.nan)
+            mean_fr[cond_idx, valid_neurons] = np.nanmean(valid_matrix[valid_neurons, :], axis=1)
+            std_fr[cond_idx, valid_neurons] = np.nanstd(valid_matrix[valid_neurons, :], axis=1)
 
         safe_std = np.where(np.isfinite(std_fr) & (std_fr != 0), std_fr, np.nan)
         zscored = np.divide(

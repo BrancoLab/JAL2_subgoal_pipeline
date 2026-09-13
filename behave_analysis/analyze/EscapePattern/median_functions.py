@@ -94,18 +94,25 @@ def firing_by_bin_winz_mean(var, neural_activity, nbins, remove_empty=False):
     return angles_firing
 
 def nan_valid_check(var, neural_activity):
-    """Check for NaN values in the input variable and neural activity. 
+    """Check for NaN values in the input variable and neural activity.
     And remove those timepoints from the binned firing.
-    var: vector of length time of binned <var> (e.g. speed) np.unique(<var>) = np.shape(fr_var_t2)[1]
-    neural_activity: vector of length time of firing rates of a single neuron to be binned by var"""    
-    valid_mask = ~np.isnan(var).ravel()
+
+    If the variable is entirely NaN, return empty arrays rather than raising.
+    Downstream code already handles empty/all-NaN outputs safely.
+    """
+    var = np.asarray(var).ravel()
+    neural_activity = np.asarray(neural_activity)
+
+    valid_mask = ~np.isnan(var)
     if not np.any(valid_mask):
-        raise ValueError("Input variable contains only NaN values.")
-    # if np.any(~valid_mask):
-    #     print(f"Warning: {np.sum(~valid_mask)} NaN values (likely out of bounds of bin edges) found in behavioral variable. These will be ignored.")
+        if neural_activity.ndim > 1:
+            return var[[]], neural_activity[:, []]
+        return var[[]], neural_activity[[]]
+
     var = var[valid_mask].astype(int)
-    if neural_activity.ndim > 1: # if neural activity is 2D (e.g. n_neur x time) we need to apply the valid mask to the second dimension
+    if neural_activity.ndim > 1:
         neural_activity = neural_activity[:, valid_mask]
-    else: # if neural activity is 1D (e.g. activity of 1 neuron overtime) we apply the valid mask directly
+    else:
         neural_activity = neural_activity[valid_mask]
+
     return var, neural_activity
