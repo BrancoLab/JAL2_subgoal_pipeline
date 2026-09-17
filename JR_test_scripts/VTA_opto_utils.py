@@ -120,8 +120,10 @@ def speed_over_time_around_dot_entry(speed, distance, fake_distance, fig_save_pa
     speed_in_dot = np.full((before + after, len(dot_entering)), np.nan)
     distance_in_dot = np.full((before + after, len(dot_entering)), np.nan)
     for i, de in enumerate(dot_entering):
-        speed_in_dot[:, i] = speed[de - before : de + after]
-        distance_in_dot[:, i] = distance[de - before : de + after]
+        speed_this_trial = speed[de - before : de + after]
+        distance_this_trial = distance[de - before : de + after]
+        speed_in_dot[:len(speed_this_trial), i] = speed_this_trial
+        distance_in_dot[:len(distance_this_trial), i] = distance_this_trial
     # plt.imshow(speed_in_dot.T, aspect='auto', cmap='viridis')
     fig, ax = plt.subplots(1, 2, figsize=(12, 5))
     ax[0].plot(np.nanmean(speed_in_dot, axis=1), color="blue", label="Mean Speed at dot entry")
@@ -130,10 +132,10 @@ def speed_over_time_around_dot_entry(speed, distance, fake_distance, fig_save_pa
     speed_in_dot = np.full((before + after, len(dot_entering)), np.nan)
     distance_in_dot = np.full((before + after, len(dot_entering)), np.nan)
     for i, de in enumerate(dot_entering):
-        if de - before < 0 or de + after > len(speed):
-            continue
-        speed_in_dot[:, i] = speed[de - before : de + after]
-        distance_in_dot[:, i] = fake_distance[de - before : de + after]
+        speed_this_trial = speed[de - before : de + after]
+        distance_this_trial = fake_distance[de - before : de + after]
+        speed_in_dot[:len(speed_this_trial), i] = speed_this_trial
+        distance_in_dot[:len(distance_this_trial), i] = distance_this_trial
     ax[0].plot(np.nanmean(speed_in_dot, axis=1), color="orange", label="Mean Speed at fake dot entry")
     ax[1].plot(np.nanmean(distance_in_dot, axis=1), color="orange", label="Mean Distance at fake dot entry")
     ax[0].axvline(before, color="red", linestyle="--", label="Dot Entry")
