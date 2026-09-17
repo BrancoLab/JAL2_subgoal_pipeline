@@ -13,7 +13,7 @@ Settings_ae = Settings_analyze_efizz(
     redo_compute=True,  # if True it will force recompute any pre-saved analyses (e.g. Rayleigh and LDA)
     cluster_type="good",  # 'synthetic','synthetichdir','all','good',
     cluster_labels="bombcell",  # 'bombcell','kilosort','manual'
-    show_plots=True,
+    show_plots=False,
     # possible experimental condition inputs: 'all_time' (don't filter based on shelter or barrier),
     #                                         'pre_shelter' (empty arena),
     #                                         'shelter_present',
