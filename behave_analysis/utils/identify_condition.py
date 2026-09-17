@@ -33,6 +33,38 @@ def build_flippedbarrier_condition_bool(flip_time: float, frame_idx: np.array, n
         print("barrier was not flipped in this session")
     return barrier_flipped
 
+def build_condition_vector(session, n_frames, fps, condition_list):
+
+    bar = build_condition_bool(
+        time_list=session["barrier_time"],
+        cond_name="barrier",
+        frame_idx=np.arange(n_frames) + 1,
+        n_frames=n_frames,
+        fps=fps,
+    )
+    barflip = build_flippedbarrier_condition_bool(
+        flip_time=session["barrier_flip_time"],
+        frame_idx=np.arange(n_frames) + 1,
+        n_frames=n_frames,
+        fps=fps,
+    )
+    shelter = build_condition_bool(
+        time_list=session["shelter_time"],
+        cond_name="shelter",
+        frame_idx=np.arange(n_frames) + 1,
+        n_frames=n_frames,
+        fps=fps,
+    )
+
+    condition = np.zeros(len(bar))  # nothing there
+    if "pre_shelter" in condition_list:
+        condition[shelter == True] += 1  # shelter present
+    condition[bar == True] += 1  # barrier is present
+    condition[(bar == True) & (barflip == True)] += 1  # barrier is present and flipped
+    if (np.sum(bar == True) > 0) & (bar[-1] == False):
+        bar_removed = np.where(np.diff(bar.astype(int)) < 0)[0][0] + 1
+        condition[bar_removed:] = np.amax(condition) + 1  # barrier was removed
+    return condition
 
 def identify_condition_of_trial(video_df, session) -> str:
     """
