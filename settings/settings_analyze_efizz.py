@@ -32,7 +32,7 @@ Settings_ae = Settings_analyze_efizz(
         # If 'all' it will run the model on all data, if 'threat_zone' it will only run on the threat zone data e.g
         # If 'by_position', it will compute LDA decoding by arena position
     number_of_bins=13,  # number of bin edges for angles, e.g. 13 or 19 are good numbers
-    homings = "auto",  # 'manual' or 'auto' or 'auto_curated', which homings to load to video_df,
+    homings = "manual",  # 'manual' or 'auto' or 'auto_curated', which homings to load to video_df,
         # if 'manual' it will load the manually detected homings, if 'auto' it will load the automatically detected homings, if 'auto_curated' it will load the automatically detected homings that have been manually curated
     # ------------- Linear Shift stats settings --------------------------
     linshift_min_step=120,  # in frames, minimum shift to consider for linear shift stats

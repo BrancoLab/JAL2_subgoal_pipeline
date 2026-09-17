@@ -15,19 +15,19 @@ from settings.settings_process import settings_process
 
 assert len(cluster_experiments_objects) != 0, "Session list should not be empty"
 
-def process(experiments_objects, settings_p):
-	for session_id in experiments_objects:
-		logger.info(f"Processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
-		process_object = Process(session_id)
-		process_object.create_session(settings_p)
-	logger.success("Processing complete")
+# def process(experiments_objects, settings_p):
+# 	for session_id in experiments_objects:
+# 		logger.info(f"Processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+# 		process_object = Process(session_id)
+# 		process_object.create_session(settings_p)
+# 	logger.success("Processing complete")
 
-def postprocess(experiments_objects):
-	for session_id in experiments_objects:
-		session = Process(session_id).load_session()
-		logger.info(f"Post-processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
-		Postprocessor(session)
-	logger.success("Postprocessing complete")
+# def postprocess(experiments_objects):
+# 	for session_id in experiments_objects:
+# 		session = Process(session_id).load_session()
+# 		logger.info(f"Post-processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+# 		Postprocessor(session)
+# 	logger.success("Postprocessing complete")
 
 # analyze efizz data
 from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
@@ -56,10 +56,15 @@ def main():
 	# postprocess(cluster_experiments_objects)
 
 	analysis_name='EscapePattern'
-	variable = ['residual: frac_route in homing&escape - 2D_position in explore',
+	variable = ['frac_route in homing&escape',
+				'residual: frac_route in homing&escape - 2D_position in explore',
 			 	'residual: frac_route in homing&escape - bird_dist_shelter in explore',
 			 	'residual: frac_route in homing&escape - speed in explore',
 			 	'residual: frac_route in homing&escape - distance_shelter in explore',]
+	# variable = ['residual: frac_route in homing&escape - 2D_position in explore',
+	# 		 	'residual: frac_route in homing&escape - bird_dist_shelter in explore',
+	# 		 	'residual: frac_route in homing&escape - speed in explore',
+	# 		 	'residual: frac_route in homing&escape - distance_shelter in explore',]
 
 	analyze_efizz(analysis_name, variable, experiments_objects=cluster_experiments_objects)
 
