@@ -153,11 +153,15 @@ class get_Homings:
             analyzer._compute_run_features(run)
             analyzer.all_runs.append(run)
 
+
         if self.settings.homings_classifiction_manual_gates is not None:
             logger.info("Using manually defined gates for homing classification")
-            candidates = analyzer.run_classification(use_learned_gates=False, manual_gates=self.settings.homings_classifiction_manual_gates)
+            candidates = analyzer.run_classification(use_learned_gates=False, 
+                                                     manual_gates=self.settings.homings_classifiction_manual_gates, 
+                                                     exclude_dy=self.session['experiment'] == 'mushroom' or self.session['experiment'] == 'habituation')
         else:
-            candidates = analyzer.run_classification(use_learned_gates=True)
+            candidates = analyzer.run_classification(use_learned_gates=True, 
+                                                     exclude_dy=self.session['experiment'] == 'mushroom' or self.session['experiment'] == 'habituation')
 
         # cadidates is list of tuple of onsets and offsets, so we can unpack it here
         candidates = np.array(candidates, dtype=int)

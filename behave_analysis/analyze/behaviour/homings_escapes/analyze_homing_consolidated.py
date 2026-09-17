@@ -48,7 +48,7 @@ class RunFeatures:
     speed_mean: float = np.nan
     speed_peak: float = np.nan
     speed_min: float = np.nan
-    head_turn_angle_initial: float = np.nan
+    initial_heading_angle: float = np.nan
     net_distance: float = np.nan
     net_dx: float = np.nan
     net_dy: float = np.nan
@@ -56,6 +56,8 @@ class RunFeatures:
     mean_initial_acceleration: float = np.nan
     initial_hdir_change_abs: float = np.nan
     mean_initial_angular_head_velocity: float = np.nan
+    speed_variance: float = np.nan
+    hdir_variance: float = np.nan
 
 
 @dataclass
@@ -353,7 +355,7 @@ class HomingAnalyzer:
         run.speed_min = float(np.nanpercentile(speed_seg, 10))  # float(np.nanmin(speed_seg))
 
         # Heading at run onset (wrapped to [-pi, pi])
-        run.head_turn_angle_initial = float(np.arctan2(np.sin(hdir_seg[0]), np.cos(hdir_seg[0])))
+        run.initial_heading_angle = float(np.arctan2(np.sin(hdir_seg[0]), np.cos(hdir_seg[0])))
 
         # Distance stats
         disp = xy_seg[-1] - xy_seg[0]
@@ -365,7 +367,7 @@ class HomingAnalyzer:
         # Initial acceleration (first 1.0s)
         window_frames = int(round(self.settings.homings_features_initial_window_s * fps))
         if len(speed_seg) > window_frames:
-            accel = (speed_seg[window_frames] - speed_seg[0]) / 1.0  # cm/s per second
+            accel = (speed_seg[window_frames] - speed_seg[0]) / window_frames  # cm/s per second
             run.mean_initial_acceleration = float(accel)
         else:
             run.mean_initial_acceleration = np.nan
@@ -428,16 +430,16 @@ class HomingAnalyzer:
         target_runs = self.manual_runs
 
         feature_names = [
-            "speed_mean",
-            "speed_peak",
-            "speed_variance",
-            "hdir_variance",
-            "head_turn_angle_initial",
-            "net_distance",
-            "net_dx",
-            "net_dy",
-            "displacement_vertical_ratio",
-            "mean_initial_acceleration",
+            "speed_mean", # mean speed in the whole bout
+            "speed_peak", # 90th percentile of speed in the whole bout
+            "speed_variance", # variance of speed in the whole bout
+            "hdir_variance", # circular variance of heading direction in the whole bout
+            "initial_heading_angle", # heading at run onset (first frame!) (wrapped to [-pi, pi])
+            "net_distance", # net distance between start and end of the run (cm)
+            "net_dx", # net displacement in the x-direction (cm)
+            "net_dy", # net displacement in the y-direction (cm)
+            "displacement_vertical_ratio", # vertical over total displacement (from -1 to 1)
+            "mean_initial_acceleration", # acceleration in the first 1.0s of the run (cm/s^2)
             "initial_hdir_change_abs",
             "mean_initial_angular_head_velocity",
         ]
@@ -519,25 +521,25 @@ class HomingAnalyzer:
             raise RuntimeError("Run compute_feature_distributions() first")
 
         xlim_map = {
-            "net_distance": (0.0, 90.0),
-            "net_dy": (-75.0, 75.0),
+            "net_distance": (0.0, 900.0),
+            "net_dy": (-750.0, 750.0),
             "speed_mean": (0.0, 60.0),
             "speed_peak": (0.0, 150.0),
-            "mean_initial_acceleration": (0.0, 50.0),
+            "mean_initial_acceleration": (0.0, 5.0),
             "displacement_vertical_ratio": (-1.0, 1.0),
             "run_duration": (0.0, 50.0),
-            "net_dx": (-75.0, 75.0),
-            "head_turn_angle_initial": (-np.pi, np.pi),
+            "net_dx": (-750.0, 750.0),
+            "initial_heading_angle": (-np.pi, np.pi),
             "initial_hdir_change_abs": (0.0, np.pi),
-            "mean_initial_angular_head_velocity": (0.0, 5.0),
+            "mean_initial_angular_head_velocity": (0.0, 1.0),
             "speed_variance": (0.0, 300.0),
             "hdir_variance": (0.0, 1.5),
         }
 
         n_plots = min(only_top_n, len(self.feature_ranking))
-        ncols = 3
+        ncols = 4
         nrows = (n_plots + ncols - 1) // ncols
-        fig, axs = plt.subplots(nrows, ncols, figsize=(ncols * 5, nrows * 4))
+        fig, axs = plt.subplots(nrows, ncols, figsize=(ncols * 3, nrows * 3))
         axs = axs.flatten()
 
         session_names = list(self.session_data.keys())
@@ -691,6 +693,7 @@ class HomingAnalyzer:
         self,
         manual_gates: Optional[Dict[str, Dict]] = None,
         use_learned_gates: bool = True,
+        exclude_dy: bool = False,
     ) -> List[Tuple[int, int]]:
         """
         Homing classification.
@@ -725,6 +728,10 @@ class HomingAnalyzer:
             )
         else:
             gates = manual_gates
+
+        if exclude_dy:
+            gates = {k: v for k, v in gates.items() if k != "net_dy"}
+            logger.info(f"  Excluding 'net_dy' gate")
         logger.info(f"Running Homing classification with {len(gates)} gates...")
 
         candidates = []

@@ -127,7 +127,8 @@ def plot_escape_trajectories(onset_frames, stimulus_durations, tracking_data, se
 
     if len(x_loc) == 0:
         print("oppsie")
-        return tracking_data["head_loc"][onset_frames, 0], tracking_data["head_loc"][onset_frames, 1], 0
+        # Return 1D arrays so downstream zip(real_x, real_y, ...) is always valid.
+        return np.array([tracking_data["head_loc"][onset_frames, 0]]), np.array([tracking_data["head_loc"][onset_frames, 1]]), 0
     trail_color = np.empty((len(speed), 3))
 
     distance_travelled = []
