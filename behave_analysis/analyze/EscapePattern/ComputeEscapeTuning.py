@@ -19,7 +19,7 @@ from behave_analysis.analyze.EscapePattern.escape_pattern_utils import (
     homing_escape_boolean_vectors,
     homing_escape_filtering_vector,
 )
-from behave_analysis.utils.identify_condition import build_condition_bool, build_flippedbarrier_condition_bool
+from behave_analysis.utils.identify_condition import build_condition_vector
 from behave_analysis.analyze.EscapePattern.tuning_functions import compute_tuning_curves, compute_tuning_curves_no_trials
 from behave_analysis.utils.creating_directories import make_directory
 from behave_analysis.analyze.results_database_utils import check_database_for_same_run, add_run_to_database, settings_to_check
@@ -407,26 +407,11 @@ class ComputeEscapeTuning:
         # load behavioral data
         self.y = self.aefizz.video_df["mouse_y_position"].to_numpy()
         self.x = self.aefizz.video_df["mouse_x_position"].to_numpy()
-        bar = build_condition_bool(
-            time_list=self.aefizz.session["barrier_time"],
-            cond_name="barrier",
-            frame_idx=np.arange(len(self.aefizz.video_df)) + 1,
-            n_frames=len(self.aefizz.video_df),
-            fps=self.aefizz.session["video"]["fps"],
-        )
-        barflip = build_flippedbarrier_condition_bool(
-            flip_time=self.aefizz.session["barrier_flip_time"],
-            frame_idx=np.arange(len(self.aefizz.video_df)) + 1,
-            n_frames=len(self.aefizz.video_df),
-            fps=self.aefizz.session["video"]["fps"],
-        )
-        shelter = build_condition_bool(
-            time_list=self.aefizz.session["shelter_time"],
-            cond_name="shelter",
-            frame_idx=np.arange(len(self.aefizz.video_df)) + 1,
-            n_frames=len(self.aefizz.video_df),
-            fps=self.aefizz.session["video"]["fps"],
-        )
+
+        self.condition = build_condition_vector(session = self.aefizz.session,
+                                                n_frames=len(self.aefizz.video_df),
+                                                fps=self.aefizz.session["video"]["fps"],
+                                                condition_list=self.ET.all_conditions)
 
         # interpolate time
         if self.settings.ep_interpolation_mult > 1:
@@ -436,9 +421,7 @@ class ComputeEscapeTuning:
             self.y = np.interp(new_time, current_time, self.y)
             self.x = np.interp(new_time, current_time, self.x)
             # experimental condition
-            shelter = np.repeat(shelter, self.settings.ep_interpolation_mult)
-            bar = np.repeat(bar, self.settings.ep_interpolation_mult)
-            barflip = np.repeat(barflip, self.settings.ep_interpolation_mult)
+            self.condition = np.repeat(self.condition, self.settings.ep_interpolation_mult)
             # neural data
             new_neur = np.zeros((len(self.y), np.shape(fcm)[1]))
             for i in np.arange(np.shape(fcm)[1]):
@@ -447,15 +430,6 @@ class ComputeEscapeTuning:
             del new_neur
             gc.collect()
 
-        # experimental condition vector
-        self.condition = np.zeros(len(bar))  # nothing there
-        if "pre_shelter" in self.ET.all_conditions:
-            self.condition[shelter == True] += 1  # shelter present
-        self.condition[bar == True] += 1  # barrier is present
-        self.condition[(bar == True) & (barflip == True)] += 1  # barrier is present and flipped
-        if (np.sum(bar == True) > 0) & (bar[-1] == False):
-            bar_removed = np.where(np.diff(bar.astype(int)) < 0)[0][0] + 1
-            self.condition[bar_removed:] = np.amax(self.condition) + 1  # barrier was removed
         assert np.unique(self.condition).size == len(self.ET.all_conditions), "Condition vector does not match expected conditions"
 
     def load_data_for_residual(self):
