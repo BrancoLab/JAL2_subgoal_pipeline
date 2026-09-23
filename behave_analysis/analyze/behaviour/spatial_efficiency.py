@@ -103,7 +103,7 @@ def spatial_efficiency(onset_frames, stimulus_durations, session, settings, tria
     return spatial_efficiency_value, trajectory_length
 
 
-def plot_escape_trajectories(onset_frames, stimulus_durations, tracking_data, settings, interp=100, ax=[]):
+def plot_escape_trajectories(all_onset_frames, all_stimulus_durations, tracking_data, settings, interp=100, ax=[]):
     """
     Plot escape trajectories.
     homings/escapes are cropped to when mouse enters the shelter
@@ -111,40 +111,53 @@ def plot_escape_trajectories(onset_frames, stimulus_durations, tracking_data, se
     RETURNS: x_loc and y_loc are vectors of x and y position during escape
     dist is cumulative path length of the trajectory until shelter is reached
     """
-    # compute and plot each trajectory
-    x_loc = tracking_data["head_loc"][onset_frames : onset_frames + stimulus_durations, 0]
-    y_loc = tracking_data["head_loc"][onset_frames : onset_frames + stimulus_durations, 1]
-    speed = tracking_data["avg_Velocity"][onset_frames : onset_frames + stimulus_durations]
-    # crop the points after the mouse has entered the shelter
-    if len(tracking_data["shelter_loc"]) > 0:
-        in_shelt_y = y_loc > tracking_data["shelter_loc"][0][1]
-        in_shelt_x = np.logical_and(x_loc > tracking_data["shelter_loc"][0][0], x_loc < tracking_data["shelter_loc"][1][0])
-        in_shelt = np.where(np.logical_and(in_shelt_x, in_shelt_y))[0]
-        if len(in_shelt) > 0:
-            x_loc = x_loc[: in_shelt[0]]
-            y_loc = y_loc[: in_shelt[0]]
-            speed = speed[: in_shelt[0]]
+    all_onset_frames = np.atleast_1d(all_onset_frames)
+    all_stimulus_durations = np.atleast_1d(all_stimulus_durations)
+    all_distance_travelled = np.full(len(all_onset_frames), np.nan)
+    x_loc = []
+    y_loc = []
 
-    if len(x_loc) == 0:
-        print("oppsie")
-        # Return 1D arrays so downstream zip(real_x, real_y, ...) is always valid.
-        return np.array([tracking_data["head_loc"][onset_frames, 0]]), np.array([tracking_data["head_loc"][onset_frames, 1]]), 0
-    trail_color = np.empty((len(speed), 3))
+    for idx, (onset_frames, stimulus_durations) in enumerate(zip(all_onset_frames, all_stimulus_durations)):
+        if np.isnan(onset_frames) or np.isnan(stimulus_durations):
+            continue
+        else:
+            onset_frames = int(onset_frames)
+            stimulus_durations = int(stimulus_durations)
+        # compute and plot each trajectory
+        x_loc = tracking_data["head_loc"][onset_frames : onset_frames + stimulus_durations, 0]
+        y_loc = tracking_data["head_loc"][onset_frames : onset_frames + stimulus_durations, 1]
+        speed = tracking_data["avg_Velocity"][onset_frames : onset_frames + stimulus_durations]
+        # crop the points after the mouse has entered the shelter
+        if len(tracking_data["shelter_loc"]) > 0:
+            in_shelt_y = y_loc > tracking_data["shelter_loc"][0][1]
+            in_shelt_x = np.logical_and(x_loc > tracking_data["shelter_loc"][0][0], x_loc < tracking_data["shelter_loc"][1][0])
+            in_shelt = np.where(np.logical_and(in_shelt_x, in_shelt_y))[0]
+            if len(in_shelt) > 0:
+                x_loc = x_loc[: in_shelt[0]]
+                y_loc = y_loc[: in_shelt[0]]
+                speed = speed[: in_shelt[0]]
 
-    distance_travelled = []
-    for i, stim_status in enumerate(np.arange(len(speed))):
+        if len(x_loc) == 0:
+            print("oppsie")
+            # Return 1D arrays so downstream zip(real_x, real_y, ...) is always valid.
+            return np.array([tracking_data["head_loc"][onset_frames, 0]]), np.array([tracking_data["head_loc"][onset_frames, 1]]), 0
+        trail_color = np.empty((len(speed), 3))
+
+        distance_travelled = []
+        for i, stim_status in enumerate(np.arange(len(speed))):
+            if ax:
+                trail_color[i, :] = get_color_based_on_speed(speed=speed[i], object_to_color="trail", stim_status=stim_status, stim_type=settings.stim_type)
+            if i > 0:
+                distance_travelled = np.append(distance_travelled, np.sqrt((x_loc[i] - x_loc[i - 1]) ** 2 + (y_loc[i] - y_loc[i - 1]) ** 2))
         if ax:
-            trail_color[i, :] = get_color_based_on_speed(speed=speed[i], object_to_color="trail", stim_status=stim_status, stim_type=settings.stim_type)
-        if i > 0:
-            distance_travelled = np.append(distance_travelled, np.sqrt((x_loc[i] - x_loc[i - 1]) ** 2 + (y_loc[i] - y_loc[i - 1]) ** 2))
-    if ax:
-        ax.scatter(x_loc, y_loc, s=5, c=trail_color / 255)
+            ax.scatter(x_loc, y_loc, s=5, c=trail_color / 255)
 
-    # interpolate to standard size
-    x_loc = np.interp(np.arange(0, len(x_loc), len(x_loc) / interp), np.arange(len(x_loc)), x_loc)
-    y_loc = np.interp(np.arange(0, len(y_loc), len(y_loc) / interp), np.arange(len(y_loc)), y_loc)
+        # interpolate to standard size
+        all_distance_travelled[idx] = np.sum(distance_travelled)
+        x_loc = np.interp(np.arange(0, len(x_loc), len(x_loc) / interp), np.arange(len(x_loc)), x_loc)
+        y_loc = np.interp(np.arange(0, len(y_loc), len(y_loc) / interp), np.arange(len(y_loc)), y_loc)
 
-    return x_loc, y_loc, np.sum(distance_travelled)
+    return x_loc, y_loc, all_distance_travelled
 
 
 def plot_optimal_trajectories(onset_frames, stimulus_durations, tracking_data, condition, interp=100, ax=[]):
@@ -155,6 +168,8 @@ def plot_optimal_trajectories(onset_frames, stimulus_durations, tracking_data, c
     # compute and plot each optimal trajectory to barrier
     if isinstance(condition, list):
         condition = condition[0]
+
+    
     if condition == "pre_shelter":
         opt_x = np.append(opt_x, tracking_data["head_loc"][onset_frames + stimulus_durations - 1, 0])
         opt_y = np.append(opt_y, tracking_data["head_loc"][onset_frames + stimulus_durations - 1, 1])
@@ -191,3 +206,59 @@ def plot_optimal_trajectories(onset_frames, stimulus_durations, tracking_data, c
         ax.scatter(opt_xn, opt_yn, s=5, c="r")
 
     return opt_xn, opt_yn
+
+def compute_optimal_trajectories(onset_frames, stimulus_durations, tracking_data, condition, fps = 40):
+    """Plot optimal escape path"""
+
+    # Normalize scalars so the function accepts either single values or sequences.
+    onset_frames = np.atleast_1d(onset_frames)
+    stimulus_durations = np.atleast_1d(stimulus_durations)
+
+    if isinstance(condition, (str, bytes)):
+        condition = np.array([condition] * len(onset_frames), dtype=object)
+    else:
+        condition = np.atleast_1d(condition)
+
+    n_trials = len(onset_frames)
+    if len(stimulus_durations) != n_trials or len(condition) != n_trials:
+        raise ValueError("onset_frames, stimulus_durations, and condition must have matching lengths")
+
+    distance_travelled = np.zeros(n_trials)
+    for idx, (on, stim, cond) in enumerate(zip(onset_frames, stimulus_durations, condition)):
+        if np.isnan(on) or np.isnan(stim):
+            distance_travelled[idx] = np.nan
+            continue
+        else:
+            on = int(on)
+            stim = int(stim*fps)
+
+        opt_x = tracking_data["head_loc"][on, 0]
+        opt_y = tracking_data["head_loc"][on, 1]
+        # compute and plot each optimal trajectory to barrier
+
+
+        if ("barrier" in cond) and not ("tiny" in cond):
+            if cond == "barrier_present":  # double sided barrier
+                nearest_barrier_edge = np.argmin(
+                    [
+                        np.sqrt((opt_x - tracking_data["barrier_loc"][0][0]) ** 2 + (opt_y - tracking_data["barrier_loc"][0][1]) ** 2),
+                        np.sqrt((opt_x - tracking_data["barrier_loc"][1][0]) ** 2 + (opt_y - tracking_data["barrier_loc"][1][1]) ** 2),
+                    ]
+                )
+            elif cond == "barrier_pre_flip":
+                nearest_barrier_edge = 0
+            elif cond == "barrier_post_flip":
+                nearest_barrier_edge = 1
+
+            if tracking_data["head_loc"][on + stim - 1, 1] > 512: # only if mouse actually makes it below the barrier
+                opt_x = np.append(opt_x, tracking_data["barrier_loc"][nearest_barrier_edge][0])
+                opt_y = np.append(opt_y, tracking_data["barrier_loc"][nearest_barrier_edge][1])
+
+        # in all cases, the last point is where the route ended!
+        opt_x = np.append(opt_x, tracking_data["head_loc"][on + stim - 1, 0])
+        opt_y = np.append(opt_y, tracking_data["head_loc"][on + stim - 1, 1])
+
+        # compute optimal trajectory length
+        distance_travelled[idx] = np.sum(np.sqrt(np.diff(opt_x) ** 2 + np.diff(opt_y) ** 2))
+
+    return distance_travelled
