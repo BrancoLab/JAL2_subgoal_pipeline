@@ -304,18 +304,13 @@ def get_avg_homing_angle_for_first15cm_of_run(session, onsets, offsets, tracking
     Returns:
     -- dic: dictionary with the above arrays stored as values
     """
-
+    
     # init arrays to store the average heading angles to the pre and post flip barrier locations
     avg_hsa = np.zeros(len(onsets))  # One value per homing
     avg_pre_flip_head_angle = np.zeros(len(onsets))
     avg_post_flip_head_angle = np.zeros(len(onsets))
     avg_hdir = np.zeros(len(onsets))
     starting_hdir = np.zeros(len(onsets))
-
-    # extract
-    hsa_data = tracking_data["hdir_shelt"]
-    pre_flip_head_angle = tracking_data["hdir_barrier"][:, 0]  # The first index is the pre flip barrier location
-    post_flip_head_angle = tracking_data["hdir_barrier"][:, 1]  # The second index is the post flip barrier location
 
     for i, (onset, offset) in enumerate(zip(onsets, offsets)):
 
@@ -337,12 +332,13 @@ def get_avg_homing_angle_for_first15cm_of_run(session, onsets, offsets, tracking
 
         avg_hdir[i] = circmean(tracking_data["hdir"][start_frame:frame_index])
 
-        hsa = hsa_data[start_frame:frame_index]
-        avg_hsa[i] = circmean(hsa)
+        if len(tracking_data['shelter_loc']) > 0:
+            hsa = tracking_data["hdir_shelt"][start_frame:frame_index]
+            avg_hsa[i] = circmean(hsa)
 
         if len(session["barrier_time"]) > 0:
-            pre_flip_window = pre_flip_head_angle[start_frame:frame_index]
-            post_flip_window = post_flip_head_angle[start_frame:frame_index]
+            pre_flip_window = tracking_data["hdir_barrier"][:, 0][start_frame:frame_index]
+            post_flip_window = tracking_data["hdir_barrier"][:, 1][start_frame:frame_index]
             avg_pre_flip_head_angle[i] = circmean(pre_flip_window)
             avg_post_flip_head_angle[i] = circmean(post_flip_window)
 
