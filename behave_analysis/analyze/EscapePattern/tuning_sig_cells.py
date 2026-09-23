@@ -36,7 +36,7 @@ def find_sig_tuned_cells_after_residual(session, settings, variable, vars_to_sub
         data = computeET.load_results()
         shift0 = int(np.shape(data["y_fitted_shift"])[0] / 2)
         real_stat, shift_stat = compute_tuning_stat(
-            stat=stat, shifted_matrix=data["fr_shift"], shift0=int(np.shape(data["fr_shift"])[0] / 2), neural_matrix=data["neural_matrix"], condition=data["condition_vector"]
+            stat=stat, shifted_tuning_curves=data["fr_shift"], shift0=int(np.shape(data["fr_shift"])[0] / 2), neural_matrix=data["neural_matrix"], condition=data["condition_vector"]
         )
         sig_escape = real_stat > np.nanpercentile(shift_stat, 95, axis=0)
         sig[v] = sig_escape

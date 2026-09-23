@@ -392,30 +392,30 @@ def compute_dist_shelt(x_pos, y_pos, cond, shelter_location, barrier_location1, 
     return dist
 
 
-def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural_matrix=None, condition=None):
+def compute_tuning_stat(stat: str, shifted_tuning_curves: np.array, shift0: int, neural_matrix=None, condition=None):
     """
     INPUTS:
-        shifted_matrix: a matrix of (shifts,conditions,n_neurons,n_bins) includes the zero shift!
+        shifted_tuning_curves: a matrix of (shifts,conditions,n_neurons,n_bins) includes the zero shift!
             most commonly this will be data['y_fitted_shift'], but could also be data['fr_shift']
-        shift0: which of the shifts of shifted_matrix is the zero shift
+        shift0: which of the shifts of shifted_tuning_curves is the zero shift
         stat: a string defining which statistic we want to compute
                 'zscore_peak' - the peak of the zscored trace
                 'peak' - the peak of the trace (can find a peak even for very flat curves)
                 'peak_to_mean' - the ratio of the peak to the mean firing of the tuning curve (high values for very low firing cells!)
         if stat == 'zscore_peak' need to pass:
-            neural_matrix: the original neural matrix used to compute shifted_matrix (neurons x time)
-            condition: vector of length time of the condition at each time point used to compute shifted_matrix
+            neural_matrix: the original neural matrix used to compute shifted_tuning_curves (neurons x time)
+            condition: vector of length time of the condition at each time point used to compute shifted_tuning_curves
     """
     if stat == "peak_to_mean":
-        peak = np.nanmax(shifted_matrix, axis=3)
-        mean = np.nanmean(shifted_matrix, axis=3)
+        peak = np.nanmax(shifted_tuning_curves, axis=3)
+        mean = np.nanmean(shifted_tuning_curves, axis=3)
         shift_stat = np.divide(peak, mean, out=np.zeros_like(peak, dtype=np.float64), where=mean != 0)
     elif stat == "peak":
-        shift_stat = np.nanmax(shifted_matrix, axis=3)
+        shift_stat = np.nanmax(shifted_tuning_curves, axis=3)
     elif stat == "zscore_peak":
         assert (neural_matrix is not None) & (condition is not None), "Need to pass neural_matrix and condition to compute zscore_peak"
-        n_cond = shifted_matrix.shape[1]
-        n_neur = shifted_matrix.shape[2]
+        n_cond = shifted_tuning_curves.shape[1]
+        n_neur = shifted_tuning_curves.shape[2]
         mean_fr = np.full((n_cond, n_neur), np.nan, dtype=np.float64)  # condition x neuron
         std_fr = np.full((n_cond, n_neur), np.nan, dtype=np.float64)  # condition x neuron
         for c in np.unique(condition).astype(int):
@@ -444,9 +444,9 @@ def compute_tuning_stat(stat: str, shifted_matrix: np.array, shift0: int, neural
 
         safe_std = np.where(np.isfinite(std_fr) & (std_fr != 0), std_fr, np.nan)
         zscored = np.divide(
-            shifted_matrix - mean_fr[np.newaxis, :, :, np.newaxis],
+            shifted_tuning_curves - mean_fr[np.newaxis, :, :, np.newaxis],
             safe_std[np.newaxis, :, :, np.newaxis],
-            out=np.full_like(shifted_matrix, np.nan, dtype=np.float64),
+            out=np.full_like(shifted_tuning_curves, np.nan, dtype=np.float64),
             where=np.isfinite(safe_std)[np.newaxis, :, :, np.newaxis],
         )
         finite_mask = np.isfinite(zscored)
