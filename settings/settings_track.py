@@ -9,13 +9,11 @@ settings_track = Settings_track(
     min_confidence_in_tracking = 0.9, # Abitraly set, can be changed. The higher the better but will break if too high
     max_deviation_from_rest_of_points = 75, # in pixels
     display_tracking_output = False, # show a plot of tracking data from DLC
-    by_experiment = False,
     experiments = ['no laser'],
-    by_session = True,
-    all_sessions = False,
     inverse_fisheye_correction_file = '.\\sample_data\\inverse_fisheye_maps.npy', # remove setting if n/a
     tracking_file_location = None,
     # Is will use the output of DLC nothing that has been processed
     save_labeled_video = False, # if you want to save the video with the DLC dots plotted on it
     random_points = None, # compute the head angle to extra points in the arena, 'manual' makes you input points in gui, 'full_arena' computes a full grid of points in the arena, None if you don't want angle with randompoints
+    max_deviation_from_arena = 10, # in pixels, points outside of the arena will be set to nan, this is used to correct for tracking points that are outside of the arena
 )

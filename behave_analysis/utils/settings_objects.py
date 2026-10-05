@@ -13,11 +13,6 @@ class Settings_process:
     fisheye_correction_file: str = None
     size: int = 1024
     pixels_per_cm: int = 10
-    by_experiment: bool = False
-    experiments: list = None
-    by_session: bool = False
-    sessions: list = None
-    all_sessions: bool = False
     efizz: bool = False
     efizzDataPath: str = None
     cluster_labels: str = "bombcell"  # 'bombcell' or "kilosort" or "manual"
@@ -34,11 +29,7 @@ class Settings_track:
     display_tracking_output: bool = False
     min_confidence_in_tracking: float = None
     max_deviation_from_rest_of_points: int = None
-    by_experiment: bool = False
-    experiments: list = None
-    by_session: bool = False
-    sessions: list = None
-    all_sessions: bool = False
+    max_deviation_from_arena: int = None
     tracking_file_location: str = None
     save_labeled_video: bool = False
     random_points: str = None
@@ -64,10 +55,6 @@ class Settings_visualize:
     seconds_after_threshold_crossing: int = 3
     save_folder: str = None
     fisheye_correction_file: str = None
-    by_experiment: bool = False
-    by_session: bool = False
-    sessions: list = None
-    all_sessions: bool = False
     efizz: bool = False
     show_plots: bool = False
     cluster_type: str = ""
