@@ -14,13 +14,12 @@ import datetime as datetime
 from pathlib import Path
 
 
-def get_Camera_trigger(session: NEW_Session, drop_frames=False):
+def get_Camera_trigger(session: NEW_Session, AI_file = '', drop_frames=False):
     """AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
     AI stands for analog input. However, I believe as this is a pulse, it is digital.
     A pulse generated from the NI box one part goes to the camera and another back to the NI box."""
 
-    full_file_path = Path(os.path.join(session.base_path, session.file_path))
-    AI_file = list(full_file_path.glob("*analog.bin"))[0]  # need lst and idx as its a generator
+    assert AI_file != '', "AI file path must be provided to load camera trigger data."
 
     if ".bin" in str(AI_file):
         AI_data = np.fromfile(AI_file)

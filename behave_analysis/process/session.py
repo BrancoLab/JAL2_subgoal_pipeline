@@ -25,6 +25,7 @@ class NEW_Session:
     file_path: str
     base_path: str
     processed_path: str
+    recording_script: str
     shelter_location: int = None
     barrier_location: int = None
     daq_sampling_rate: int = 15000
@@ -55,4 +56,5 @@ def get_experiment(experiment_data_class):
         base_path=base_path,
         file_path=file_path,
         processed_path=os.path.join(file_path, "processed_data"),
+        recording_script=experiment_data_class.recording_script,
     )

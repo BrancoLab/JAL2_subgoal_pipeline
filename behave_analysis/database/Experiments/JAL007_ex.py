@@ -18,6 +18,7 @@ JAL7_hab_1mar = Experiment(  # Mouse specific
     barrier_time=[],
     barrier_flip_time=None,
     experiment_path=Path(r"JAL007_Habituation_2024_03_01T14_13_42"),
+    recording_script="JAL",
 )
 
 JAL7_empty_shelter_5mar = Experiment(  # Mouse specific
@@ -36,6 +37,7 @@ JAL7_empty_shelter_5mar = Experiment(  # Mouse specific
     barrier_time=[],
     barrier_flip_time=None,
     experiment_path=Path(r"JAL007_empty_shelter_2024_03_05T13_45_47"),
+    recording_script="JAL",
 )
 
 JAL7_flip2_12mar = Experiment(  # Mouse specific
@@ -54,6 +56,7 @@ JAL7_flip2_12mar = Experiment(  # Mouse specific
     barrier_time=[59.5, -1],
     barrier_flip_time= 189,
     experiment_path=Path(r"JAL007_barrierflip2_2024_03_12T11_18_26"),
+    recording_script="JAL",
 )
 
 JAL7_flip3_15mar = Experiment(  # Mouse specific
@@ -72,6 +75,7 @@ JAL7_flip3_15mar = Experiment(  # Mouse specific
     barrier_time=[59.8, -1],
     barrier_flip_time= 188,
     experiment_path=Path(r"JAL007_barrier_flip3_2024_03_15T11_20_19"),
+    recording_script="JAL",
 )
 
 JAL7_flip4_19mar = Experiment(  # Mouse specific
@@ -90,6 +94,7 @@ JAL7_flip4_19mar = Experiment(  # Mouse specific
     barrier_time=[68.25, -1],
     barrier_flip_time= 189.5,
     experiment_path=Path(r"JAL007_barrier_flip4_2024_03_19T10_43_53"),
+    recording_script="JAL",
 )
 
 JAL7_flip5_22mar = Experiment(  # Mouse specific
@@ -108,6 +113,7 @@ JAL7_flip5_22mar = Experiment(  # Mouse specific
     barrier_time=[60.75, -1],
     barrier_flip_time=214.5,
     experiment_path=Path(r"JAL007_shelter_barrier_flip_5_2024_03_22T11_15_43"),
+    recording_script="JAL",
 )
 
 JAL7_flip7_4apr = Experiment(  # Mouse specific
@@ -126,6 +132,7 @@ JAL7_flip7_4apr = Experiment(  # Mouse specific
     barrier_time=[94.7 , -1],
     barrier_flip_time=209.75,
     experiment_path=Path(r"JAL007_shelter_barrier_flip_7_2024_04_04T11_03_24"),
+    recording_script="JAL",
 )
 
 JAL7_flip8_9apr = Experiment(  # Mouse specific
@@ -144,6 +151,7 @@ JAL7_flip8_9apr = Experiment(  # Mouse specific
     barrier_time=[116.5, -1],
     barrier_flip_time=227,
     experiment_path=Path(r"JAL007_shelter_barrier_flip_8_2024_04_09T10_07_45"),
+    recording_script="JAL",
 )
 
 JAL7_flip9_16apr = Experiment(  # Mouse specific
@@ -162,6 +170,7 @@ JAL7_flip9_16apr = Experiment(  # Mouse specific
     barrier_time=[73.5, -1],
     barrier_flip_time=200,
     experiment_path=Path(r"JAL007_shelter_barrier_flip_9_2024_04_16T11_13_05"),
+    recording_script="JAL",
 )
 
 JAL7_flip10_23apr = Experiment(  # Mouse specific
@@ -180,6 +189,7 @@ JAL7_flip10_23apr = Experiment(  # Mouse specific
     barrier_time=[73.5, -1],
     barrier_flip_time=196.3,
     experiment_path=Path(r"JAL007_shelter_barrier_flip_100_2024_04_23T09_59_40"),
+    recording_script="JAL",
 )
 
 JAL7_tiny_30apr = Experiment(  # Mouse specific
@@ -198,4 +208,5 @@ JAL7_tiny_30apr = Experiment(  # Mouse specific
     barrier_time=[63, -1],
     barrier_flip_time=174.5,
     experiment_path=Path(r"JAL007_tinnybarrier1_2024_04_30T10_57_04"),
+    recording_script="JAL",
 )

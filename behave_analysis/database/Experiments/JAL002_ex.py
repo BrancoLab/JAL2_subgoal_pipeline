@@ -17,7 +17,8 @@ firstConnection = Experiment(# Mouse specific
                     experiment_path = Path(r"002_firstConnect_2023_04_19T10_24_04"),
                     shelter_time = [],
                     barrier_time = [],
-                    barrier_flip_time = None)
+                    barrier_flip_time = None,
+                    recording_script = "JAL")
 
 habituation_002 = Experiment(# Mouse specific
                     nick_name = JAL002.nick_name,
@@ -34,6 +35,7 @@ habituation_002 = Experiment(# Mouse specific
                     shelter_time = [],
                     barrier_time = [],
                     barrier_flip_time = None,
+                    recording_script = "JAL",
                     experiment_path = Path(r"002_habituation_openfield_2023_04_20T08_41_44"))
 
 
@@ -52,7 +54,8 @@ mushroom1_002 = Experiment(# Mouse specific
                     shelter_time = [45, -1],
                     barrier_time = [],
                     barrier_flip_time = None,
-                    experiment_path = Path(r"002_mushroom1_2023_04_21T08_24_45"))
+                    experiment_path = Path(r"002_mushroom1_2023_04_21T08_24_45"),
+                    recording_script = "JAL")
 
 mushroom4_002 = Experiment(# Mouse specific
                     nick_name = JAL002.nick_name,
@@ -69,7 +72,8 @@ mushroom4_002 = Experiment(# Mouse specific
                     shelter_time = [40, -1],
                     barrier_time = [],
                     barrier_flip_time = None,
-                    experiment_path = Path(r"002_mushroom4_2023_05_01T08_16_14"))
+                    experiment_path = Path(r"002_mushroom4_2023_05_01T08_16_14"),
+                    recording_script = "JAL")
 
 seq1_3_002 = Experiment(# Mouse specific
                     nick_name = JAL002.nick_name,
@@ -86,7 +90,8 @@ seq1_3_002 = Experiment(# Mouse specific
                     shelter_time = [0, -1],
                     barrier_time = [30, -1],
                     barrier_flip_time = None,
-                    experiment_path = Path(r"002_Sequence1_3_2023_04_28T08_31_30"))
+                    experiment_path = Path(r"002_Sequence1_3_2023_04_28T08_31_30"),
+                    recording_script = "JAL")
 
 seq1_2_002 = Experiment(# Mouse specific
                     nick_name = JAL002.nick_name,
@@ -103,6 +108,7 @@ seq1_2_002 = Experiment(# Mouse specific
                     shelter_time = [0, -1],
                     barrier_time = [85, -1],
                     barrier_flip_time = None,
+                    recording_script = "JAL",
                     experiment_path = Path(r"002_seq1_2_2023_04_25T07_32_30"))
 
 mushroom2_002 = Experiment(# Mouse specific
@@ -120,6 +126,7 @@ mushroom2_002 = Experiment(# Mouse specific
                     shelter_time = [42, -1],
                     barrier_time = [],
                     barrier_flip_time = None,
+                    recording_script = "JAL",
                     experiment_path = Path(r"002_mushroom2_2023_04_24T08_38_34"))
 
 seq2_2_002 = Experiment(# Mouse specific
@@ -137,6 +144,7 @@ seq2_2_002 = Experiment(# Mouse specific
                     shelter_time = [31, -1],
                     barrier_time = [31, 80],
                     barrier_flip_time = None,
+                    recording_script = "JAL",
                     experiment_path = Path(r"002_seq2_2_2023_05_11T07_33_35"))
 
 mushy4 = Experiment(# Mouse specific
@@ -154,7 +162,8 @@ mushy4 = Experiment(# Mouse specific
                     shelter_time = [40, -1],
                     barrier_time = [],
                     barrier_flip_time = None,
-                    experiment_path = Path(r"002_mushroom4_2023_05_01T08_16_14"))
+                    experiment_path = Path(r"002_mushroom4_2023_05_01T08_16_14"),
+                    recording_script = "JAL")
 
 seq1_1 = Experiment(# Mouse specific
                     nick_name = JAL002.nick_name,
@@ -171,6 +180,7 @@ seq1_1 = Experiment(# Mouse specific
                     shelter_time = [0, -1],
                     barrier_time = [30, -1],
                     barrier_flip_time = None,
+                    recording_script = "JAL",
                     experiment_path = Path(r"002_Sequence1_2023_04_22T08_38_41"))
 
 mushroom_3_002 = Experiment(# Mouse specific
@@ -188,4 +198,5 @@ mushroom_3_002 = Experiment(# Mouse specific
                     shelter_time = [30, -1],
                     barrier_time = [],
                     barrier_flip_time = None,
-                    experiment_path = Path(r"002_mushroom3_2023_04_27T08_30_15"))
+                    experiment_path = Path(r"002_mushroom3_2023_04_27T08_30_15"),
+                    recording_script = "JAL")

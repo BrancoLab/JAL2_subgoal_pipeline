@@ -30,17 +30,11 @@ class Video:
     y_offset: int = 0  # (this is for the fisheye correction step)
 
 
-def get_Video(session: NEW_Session, settings: object, registration_transform: object = None) -> tuple:
+
+def get_Video(session: NEW_Session, camFilePath: str, settings: object, registration_transform: object = None) -> tuple:
     """A function that searchs through the directory for a camera avi file and returns a Video object."""
 
-    try:
-        full_file_path = Path(os.path.join(session.base_path, session.file_path))
-        # video_file = str(list(full_file_path.glob("*cam.avi"))[0]) # need lst and idx as its a generator
-        datapath_parts = (full_file_path / full_file_path.name).parts
-        camFilePath = datapath_parts[-1] + "_cam.avi"
-
-    except IndexError:
-        raise IndexError(f"No camera video file found with expected name in {session.file_path}")
+    assert camFilePath != '', "Camera file path must be provided to load video data."
 
     video_file = os.path.join(session.base_path, session.file_path, camFilePath)
     video_object = cv2.VideoCapture(video_file)

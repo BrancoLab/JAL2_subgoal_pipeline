@@ -17,7 +17,8 @@ seq1 = Experiment(# Mouse specific
                     experiment_path = Path(r"001_Seq1_2023_03_11T08_39_25"),
                     shelter_time = [],
                     barrier_time = [],
-                    barrier_flip_time = None)
+                    barrier_flip_time = None,
+                    recording_script = "JAL")
 
 seq3 = Experiment(# Mouse specific
                     nick_name = JAL001.nick_name,
@@ -34,7 +35,8 @@ seq3 = Experiment(# Mouse specific
                     experiment_path = Path(r"001_seq1_3_2023_03_17T08_38_03"),
                     shelter_time = [0, -1],
                     barrier_time = [30, -1],
-                    barrier_flip_time = None)
+                    barrier_flip_time = None,
+                    recording_script = "JAL")
 
 seq4 = Experiment(# Mouse specific
                     nick_name = JAL001.nick_name,
@@ -51,7 +53,8 @@ seq4 = Experiment(# Mouse specific
                     experiment_path = Path(r"001_seq1_4_barrierAndShelter_2023_03_20T09_41_15"),
                     shelter_time = [],
                     barrier_time = [],
-                    barrier_flip_time = None)
+                    barrier_flip_time = None,
+                    recording_script = "JAL")
 
 mush_3 = Experiment(# Mouse specific
                     nick_name = JAL001.nick_name,
@@ -68,7 +71,8 @@ mush_3 = Experiment(# Mouse specific
                     experiment_path = Path(r"001_mushroom3_2023_03_15T07_43_42"),
                     shelter_time = [28, -1],
                     barrier_time = [],
-                    barrier_flip_time = None)
+                    barrier_flip_time = None,
+                    recording_script = "JAL")
 
 seq1_2 = Experiment(# Mouse specific
                     nick_name = JAL001.nick_name,
@@ -85,4 +89,5 @@ seq1_2 = Experiment(# Mouse specific
                     experiment_path = Path(r"001_seq1_2_2023_03_14T08_11_32"),
                     shelter_time = [0, -1],
                     barrier_time = [29, -1],
-                    barrier_flip_time = None)
+                    barrier_flip_time = None,
+                    recording_script = "JAL")

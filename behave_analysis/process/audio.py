@@ -11,7 +11,8 @@ import dill as pickle
 from pathlib import Path
 
 
-def get_Audio(session: NEW_Session) -> Audio:
+
+def get_Audio(session: NEW_Session, AI_file = '') -> Audio:
     """AI data is a 4 channel interleaved signal. The audio signal is the second channel.
     AI stands for analog input. The audio signal is an offshot of the signal sent to the speaker and
     equals a voltage recording.
@@ -24,8 +25,7 @@ def get_Audio(session: NEW_Session) -> Audio:
     Returns:
         _type_: _description_
     """
-    full_file_path = Path(os.path.join(session.base_path, session.file_path))
-    AI_file = list(full_file_path.glob("*analog.bin"))[0]  # need lst and idx as its a generator
+    assert AI_file != '', "AI file path must be provided to load audio data."
 
     if ".bin" in str(AI_file):
         AI_data = np.fromfile(AI_file)

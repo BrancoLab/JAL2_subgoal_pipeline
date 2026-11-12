@@ -19,6 +19,7 @@ JAL4_shelt_17aug = Experiment(  # Mouse specific
     barrier_time=[],
     barrier_flip_time=None,
     experiment_path=Path(r"004_baseline_2023_08_17T13_41_44"),
+    recording_script="JAL",
 )
 
 JAL4_mush_18aug = Experiment(  # Mouse specific
@@ -37,6 +38,7 @@ JAL4_mush_18aug = Experiment(  # Mouse specific
     barrier_time=[],
     barrier_flip_time=None,
     experiment_path=Path(r"004_mushroom_2023_08_18T08_22_16"),
+    recording_script="JAL",
 )
 
 JAL4_flip1_21Aug = Experiment(  # Mouse specific
@@ -55,6 +57,7 @@ JAL4_flip1_21Aug = Experiment(  # Mouse specific
     barrier_time=[119.6, -1],
     barrier_flip_time=227.25,
     experiment_path=Path(r"004_flip_2023_08_21T12_53_10"),
+    recording_script="JAL",
 )
 
 JAL4_mush2_22Aug = Experiment(  # Mouse specific
@@ -73,6 +76,7 @@ JAL4_mush2_22Aug = Experiment(  # Mouse specific
     barrier_time=[],
     barrier_flip_time=None,
     experiment_path=Path(r"004_mush1_2023_08_22T13_13_41"),
+    recording_script="JAL",
 )
 
 JAL4_flip3_28aug = Experiment(  # Mouse specific
@@ -91,6 +95,7 @@ JAL4_flip3_28aug = Experiment(  # Mouse specific
     barrier_time=[84.25, -1],  # seconds needed to be more precise
     barrier_flip_time=159,
     experiment_path=Path(r"JAL004_flip_rotated_2023_08_28T09_36_04"),
+    recording_script="JAL",
 )
 
 JAL4_flip4_3Sept = Experiment(  # Mouse specific
@@ -109,6 +114,7 @@ JAL4_flip4_3Sept = Experiment(  # Mouse specific
     barrier_time=[54.75, -1],
     barrier_flip_time=171,
     experiment_path=Path(r"004_flip_2023_09_03T12_04_16"),
+    recording_script="JAL",
 )
 
 JAL4_flip5_11Sept = Experiment(  # Mouse specific
@@ -127,6 +133,7 @@ JAL4_flip5_11Sept = Experiment(  # Mouse specific
     barrier_time=[67.08, -1],  # seconds needed to be more precise
     barrier_flip_time=233.25,
     experiment_path=Path(r"004_flip_puff2_2023_09_11T09_32_25"),
+    recording_script="JAL",
 )
 
 JAL4_flip6_19Sept = Experiment(  # Mouse specific
@@ -145,5 +152,6 @@ JAL4_flip6_19Sept = Experiment(  # Mouse specific
     barrier_time=[56.36, 274.14],  # seconds needed to be more precise
     barrier_flip_time=160,
     experiment_path=Path(r"004_flipppuf19sept_2023_09_19T14_10_56"),
+    recording_script="JAL",
 )
 

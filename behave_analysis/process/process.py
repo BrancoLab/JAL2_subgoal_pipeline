@@ -63,6 +63,19 @@ class Process:
             "barrier_location": session.barrier_location,
             "audio": session.audio,
             "video": session.video,
+            "name": session.name,
+            "number": session.number,
+            "mouse": session.mouse,
+            "date": session.date,
+            "experiment": session.experiment,
+            "shelter_time": session.shelter_time,
+            "barrier_time": session.barrier_time,
+            "barrier_flip_time": session.barrier_flip_time,
+            "valid_time": session.valid_time,
+            "file_path": session.file_path,
+            "base_path": session.base_path,
+            "processed_path": session.processed_path,
+            "recording_script": session.recording_script,
         }
 
     def _apply_session_payload(self, session: NEW_Session, payload: dict) -> None:
@@ -73,27 +86,27 @@ class Process:
         audio_payload = payload.get("audio")
         if isinstance(audio_payload, dict):
             session.audio = Audio(
-                num_samples = int(audio_payload.get("num_samples", 0)),
-                onset_frames = np.asarray(audio_payload.get("onset_frames", [])),
-                stimulus_durations = np.asarray(audio_payload.get("stimulus_durations", [])),
+                num_samples=int(audio_payload.get("num_samples", 0)),
+                onset_frames=np.asarray(audio_payload.get("onset_frames", [])),
+                stimulus_durations=np.asarray(audio_payload.get("stimulus_durations", [])),
             )
 
         video_payload = payload.get("video")
         if isinstance(video_payload, dict):
             registration_size = video_payload.get("registration_size")
             session.video = Video(
-                num_frames = int(video_payload.get("num_frames", 0)),
-                camFilePath = video_payload.get("camFilePath"),
-                fps = int(video_payload.get("fps", 0)),
-                height = int(video_payload.get("height", 0)),
-                width = int(video_payload.get("width", 0)),
-                fisheye_correction_file = video_payload.get("fisheye_correction_file"),
-                registration_type = video_payload.get("registration_type"),
-                registration_size = tuple(registration_size) if registration_size is not None else tuple(),
-                pixels_per_cm = int(video_payload.get("pixels_per_cm", 0)),
-                radius = int(video_payload.get("radius", 0)),
-                x_offset = int(video_payload.get("x_offset", 128)),
-                y_offset = int(video_payload.get("y_offset", 0)),
+                num_frames=int(video_payload.get("num_frames", 0)),
+                camFilePath=video_payload.get("camFilePath"),
+                fps=int(video_payload.get("fps", 0)),
+                height=int(video_payload.get("height", 0)),
+                width=int(video_payload.get("width", 0)),
+                fisheye_correction_file=video_payload.get("fisheye_correction_file"),
+                registration_type=video_payload.get("registration_type"),
+                registration_size=tuple(registration_size) if registration_size is not None else tuple(),
+                pixels_per_cm=int(video_payload.get("pixels_per_cm", 0)),
+                radius=int(video_payload.get("radius", 0)),
+                x_offset=int(video_payload.get("x_offset", 128)),
+                y_offset=int(video_payload.get("y_offset", 0)),
             )
 
         return session
@@ -110,16 +123,16 @@ class Process:
             self.ttl = get_TTL(self.session, self.efizzDataLoaded.imec_sync_path)
 
         # Retrieve Dev 3 NIDAQ signals
-        self.camera_trigger = get_Camera_trigger(self.session, drop_frames=True)[0]
-        self.session.audio = get_Audio(self.session)
-        self.photo_resistor = get_Photoresistor(self.session)
+        self.camera_trigger = get_Camera_trigger(self.session, self.AI_file, drop_frames=True)[0]
+        self.session.audio = get_Audio(self.session, self.AI_file)
+        self.photo_resistor = get_Photoresistor(self.session, self.AI_file)
 
         # load or perform registration transform
         self.loaded_registration_transform = None
         if not settings.create_new_registration:
             self.loaded_registration_transform, self.session.shelter_location, self.session.barrier_location = self.load_registration_transform()
 
-        self.session.video, registration_transform = get_Video(self.session, settings, self.loaded_registration_transform)
+        self.session.video, registration_transform = get_Video(self.session, self.camFilePath, settings, self.loaded_registration_transform)
         self.save_registration_transform(registration_transform, self.session)
 
         # quality check the session
@@ -140,7 +153,6 @@ class Process:
                 firstPulse=firstPulse,
             )
 
-        
         self.save_session(self.session)
         logger.info(f"Session metadata saved, processing complete for session: {self.session.name} on {self.session.date} for experiment: {self.session.experiment}")
 
@@ -214,8 +226,8 @@ class Process:
             session = asdict(self.session)
             with open(meta_json_path, "r", encoding="utf-8") as json_file:
                 session_dict = json.load(json_file)
-            for key, val in session_dict.items():
-                session[key] = val
+            for key in ["shelter_location", "barrier_location", "audio", "video"]:
+                session[key] = session_dict[key]
 
         except FileNotFoundError:
             print(f"Meta data file for path {self._session_metadata_path(get_experiment(self.sesion_id))} not found, aborting script")
@@ -231,20 +243,45 @@ class Process:
         Check for camera data, frames and analog data. NOTE this was originally introduced
         because a bug where the path root was incorrect and the program wouldn't inform the user.
         """
-        full_file_path = Path(os.path.join(self.session.base_path, self.session.file_path))
-        datapath_parts = (full_file_path / full_file_path.name).parts
 
-        camlastpath = datapath_parts[-1] + "_cam.avi"
-        cam_path = Path(*datapath_parts[:-1]) / camlastpath
-        assert os.path.exists(cam_path), "No camera data found. Check file path"
+        if self.session.recording_script == "JAL":
+            full_file_path = Path(os.path.join(self.session.base_path, self.session.file_path))
+            datapath_parts = (full_file_path / full_file_path.name).parts
 
-        frameslastpath = datapath_parts[-1] + "_frames.csv"
-        frames_path = Path(*datapath_parts[:-1]) / frameslastpath
-        assert os.path.exists(frames_path), "No frames data found. Check file path"
+            camlastpath = datapath_parts[-1] + "_cam.avi"
+            self.camFilePath = Path(*datapath_parts[:-1]) / camlastpath
+            assert os.path.exists(self.camFilePath), "No camera data found. Check file path"
 
-        analoglastpath = datapath_parts[-1] + "_analog.bin"
-        analog_path = Path(*datapath_parts[:-1]) / analoglastpath
-        assert os.path.exists(analog_path), "No analog data found. Check file path"
+            frameslastpath = datapath_parts[-1] + "_frames.csv"
+            frames_path = Path(*datapath_parts[:-1]) / frameslastpath
+            assert os.path.exists(frames_path), "No frames data found. Check file path"
+
+            analoglastpath = datapath_parts[-1] + "_analog.bin"
+            self.AI_file = Path(*datapath_parts[:-1]) / analoglastpath
+            assert os.path.exists(self.AI_file), "No analog data found. Check file path"
+
+        if self.session.recording_script == "YT":
+            import re
+            full_file_path = Path(os.path.join(self.session.base_path, self.session.file_path))
+            datapath_parts = (full_file_path / full_file_path.name).parts
+            datetime = re.search(r"(\d{4})_(\d{2})_(\d{2}T\d{2}_\d{2}_\d{2})$", datapath_parts[-1])
+            if not datetime:
+                raise ValueError("No trailing datetime token found")
+            dt_formatted = f"{datetime.group(1)}-{datetime.group(2)}-{datetime.group(3)}"
+
+            camlastpath = "video_" + dt_formatted + ".avi"
+            cam_path = Path(*datapath_parts[:-1]) / camlastpath
+            self.camFilePath = cam_path
+            assert os.path.exists(self.camFilePath), "No camera data found. Check file path"
+
+            frameslastpath = "video_" + dt_formatted + ".csv"
+            frames_path = Path(*datapath_parts[:-1]) / frameslastpath
+            assert os.path.exists(frames_path), "No frames data found. Check file path"
+
+            analoglastpath = "AI_" + dt_formatted + ".bin" # or is it dev4?
+            self.AI_file = Path(*datapath_parts[:-1]) / analoglastpath
+            assert os.path.exists(self.AI_file), "No analog data found. Check file path"
+
 
     def save_registration_transform(self, registration_transform: object, session: NEW_Session = None) -> None:
         """
@@ -263,7 +300,7 @@ class Process:
     def _registration_metadata_path(self) -> str:
 
         return os.path.join(self.processed_path, "registration_data.json")
-    
+
     def load_registration_transform(self):
         """
         Load registration sidecar and return transform + manual arena locations.

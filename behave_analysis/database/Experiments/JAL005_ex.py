@@ -18,7 +18,8 @@ JAL5_shelt_2Sept = Experiment(# Mouse specific
                     shelter_time=[58.3, -1],
                     barrier_time=[],
                     barrier_flip_time=None,
-                    experiment_path=Path(r"005_baseline_2023_09_02T11_00_25"))
+                    experiment_path=Path(r"005_baseline_2023_09_02T11_00_25"),
+                    recording_script="JAL")
 
 JAL5_barr_5Sept = Experiment(# Mouse specific
                     nick_name = mouse.nick_name,
@@ -36,7 +37,8 @@ JAL5_barr_5Sept = Experiment(# Mouse specific
                     shelter_time=[62, -1],
                     barrier_time=[169, -1],
                     barrier_flip_time=None,
-                    experiment_path=Path(r"005_baseline_2023_09_05T07_48_58"))
+                    experiment_path=Path(r"005_baseline_2023_09_05T07_48_58"),
+                    recording_script="JAL")
 
 JAL5_flip1_8Sept = Experiment(# Mouse specific
                     nick_name = mouse.nick_name,
@@ -54,8 +56,9 @@ JAL5_flip1_8Sept = Experiment(# Mouse specific
                     shelter_time=[0, -1],
                     barrier_time=[52.08, -1],
                     barrier_flip_time=204.54,
-                    experiment_path=Path(r"005_flip1_2023_09_08T07_36_54"))
-                    
+                    experiment_path=Path(r"005_flip1_2023_09_08T07_36_54"),
+                    recording_script="JAL")
+
 JAL5_flip3_21Sept = Experiment(# Mouse specific
                     nick_name = mouse.nick_name,
                     total_sessions = mouse.total_sessions,
@@ -72,7 +75,8 @@ JAL5_flip3_21Sept = Experiment(# Mouse specific
                     shelter_time=[0, -1],
                     barrier_time=[69.18, -1],
                     barrier_flip_time=180.40,
-                    experiment_path=Path(r"005_flippuff3_2023_09_21T11_11_13"))
+                    experiment_path=Path(r"005_flippuff3_2023_09_21T11_11_13"),
+                    recording_script="JAL")
 
 JAL5_mush_3oct = Experiment(# Mouse specific
                     nick_name = mouse.nick_name,
@@ -90,4 +94,5 @@ JAL5_mush_3oct = Experiment(# Mouse specific
                     shelter_time = [68, -1],
                     barrier_time = [],
                     barrier_flip_time = None,
+                    recording_script = "JAL",
                     experiment_path = Path(r"005_mushy1_2023_10_03T08_11_08"))
