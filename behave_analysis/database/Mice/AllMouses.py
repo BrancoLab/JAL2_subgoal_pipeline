@@ -67,6 +67,15 @@ JAL008 = Mouse(
     root_path = Path(r"JAL008")
 )
 
+## -------------Rokas mice
+RS001 = Mouse(
+    nick_name="RS001",
+    total_sessions=1,
+    mouse_number_pyrat="",
+    experiment_file_names=None,
+    root_path = Path(r"RS001")
+)
+
 ## -------------JR BEHAVIOR MICE
 
 JR3440 = Mouse(
