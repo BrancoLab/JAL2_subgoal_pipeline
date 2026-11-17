@@ -31,6 +31,7 @@ class NEW_Session:
     daq_sampling_rate: int = 15000
     audio: object = None
     video: object = None
+    airpuff: object = None
 
 def get_experiment(experiment_data_class):
     """

@@ -1,8 +1,10 @@
 # Import custom libaries
+from behave_analysis.process import session
 from behave_analysis.utils.creating_directories import make_directory
 from settings.settings_process import settings_process as settings_p
 from behave_analysis.process.camera_trigger import get_Camera_trigger
 from behave_analysis.process.audio import get_Audio
+from behave_analysis.process.airpuff import get_Airpuff
 from behave_analysis.process.video import get_Video, Video
 from behave_analysis.process.photoresistor import get_Photoresistor
 from behave_analysis.process.electrophysiology.ttl_sync import get_TTL
@@ -10,8 +12,7 @@ from behave_analysis.process.verify import Verifications
 from behave_analysis.process.electrophysiology.load_electrophysiology import LoadEfizz
 from behave_analysis.process.electrophysiology.process_electrophysiology import ProcessedEfizz
 from behave_analysis.process.session import NEW_Session, get_experiment
-from behave_analysis.database.computer_ID import get_computer_specific_paths
-from behave_analysis.utils.AI_dataClass_objects import Audio
+from behave_analysis.utils.AI_dataClass_objects import Audio, Airpuff
 
 # Import OS libraries
 import json
@@ -62,6 +63,7 @@ class Process:
             "shelter_location": session.shelter_location,
             "barrier_location": session.barrier_location,
             "audio": session.audio,
+            "airpuff": session.airpuff,
             "video": session.video,
             "name": session.name,
             "number": session.number,
@@ -91,6 +93,13 @@ class Process:
                 stimulus_durations=np.asarray(audio_payload.get("stimulus_durations", [])),
             )
 
+        airpuff_payload = payload.get("airpuff")
+        if isinstance(airpuff_payload, dict):
+            session.airpuff = Airpuff(
+                onset_frames=np.asarray(airpuff_payload.get("onset_frames", [])),
+                stimulus_durations=np.asarray(airpuff_payload.get("stimulus_durations", [])),
+            )
+
         video_payload = payload.get("video")
         if isinstance(video_payload, dict):
             registration_size = video_payload.get("registration_size")
@@ -117,15 +126,20 @@ class Process:
         Resamples and aligns signals etc. Need to refactor as a lot is happening.
         """
         self.__check_files_exist()  # Check that all behavioural files exist
+        self.load_AI_bin()
 
         if settings_p.efizz:
             self.efizzDataLoaded = LoadEfizz(self.session, settings).select_and_load_efizz_files()
-            self.ttl = get_TTL(self.session, self.efizzDataLoaded.imec_sync_path)
+            self.ttl = get_TTL(self.session, self.efizzDataLoaded.imec_sync_path, self. AI_data)
 
         # Retrieve Dev 3 NIDAQ signals
-        self.camera_trigger = get_Camera_trigger(self.session, self.AI_file, drop_frames=True)[0]
-        self.session.audio = get_Audio(self.session, self.AI_file)
-        self.photo_resistor = get_Photoresistor(self.session, self.AI_file)
+        self.camera_trigger = get_Camera_trigger(self.session, self.AI_data, drop_frames=True, frames_path=self.frames_path)[0]
+        self.session.audio = get_Audio(self.session, self.AI_data)
+        self.photo_resistor = get_Photoresistor(self.session, self.AI_data)
+        if self.session.recording_script == "YT":
+            self.session.airpuff = get_Airpuff(self.session, self.dev4_file)
+        elif self.session.recording_script == "JAL":
+            self.session.airpuff = get_Airpuff(self.session)
 
         # load or perform registration transform
         self.loaded_registration_transform = None
@@ -253,8 +267,8 @@ class Process:
             assert os.path.exists(self.camFilePath), "No camera data found. Check file path"
 
             frameslastpath = datapath_parts[-1] + "_frames.csv"
-            frames_path = Path(*datapath_parts[:-1]) / frameslastpath
-            assert os.path.exists(frames_path), "No frames data found. Check file path"
+            self.frames_path = Path(*datapath_parts[:-1]) / frameslastpath
+            assert os.path.exists(self.frames_path), "No frames data found. Check file path"
 
             analoglastpath = datapath_parts[-1] + "_analog.bin"
             self.AI_file = Path(*datapath_parts[:-1]) / analoglastpath
@@ -263,24 +277,54 @@ class Process:
         if self.session.recording_script == "YT":
             import re
             full_file_path = Path(os.path.join(self.session.base_path, self.session.file_path))
-            datapath_parts = (full_file_path / full_file_path.name).parts
-            datetime = re.search(r"(\d{4})_(\d{2})_(\d{2}T\d{2}_\d{2}_\d{2})$", datapath_parts[-1])
-            if not datetime:
-                raise ValueError("No trailing datetime token found")
-            dt_formatted = f"{datetime.group(1)}-{datetime.group(2)}-{datetime.group(3)}"
+            # datapath_parts = (full_file_path / full_file_path.name).parts
+            # datetime = re.search(r"(\d{4})_(\d{2})_(\d{2}T\d{2}_\d{2}_\d{2})$", datapath_parts[-1])
+            # if not datetime:
+            #     raise ValueError("No trailing datetime token found")
+            # dt_formatted = f"{datetime.group(1)}-{datetime.group(2)}-{datetime.group(3)}"
 
-            camlastpath = "video_" + dt_formatted + ".avi"
-            cam_path = Path(*datapath_parts[:-1]) / camlastpath
-            self.camFilePath = cam_path
-            assert os.path.exists(self.camFilePath), "No camera data found. Check file path"
+            for p in full_file_path.iterdir():
+                if p.is_file() and p.name.startswith("video_") and p.suffix.lower() == ".avi":
+                    self.camFilePath = p
+            
+                if p.is_file() and p.name.startswith("video_") and p.suffix.lower() == ".csv":
+                    self.frames_path = p
+            
+                if p.is_file() and p.name.startswith("AI_20") and p.suffix.lower() == ".bin":
+                    self.AI_file = p
 
-            frameslastpath = "video_" + dt_formatted + ".csv"
-            frames_path = Path(*datapath_parts[:-1]) / frameslastpath
-            assert os.path.exists(frames_path), "No frames data found. Check file path"
+                if p.is_file() and p.name.startswith("AI_dev4") and p.suffix.lower() == ".bin":
+                    self.dev4_file = p
 
-            analoglastpath = "AI_" + dt_formatted + ".bin" # or is it dev4?
-            self.AI_file = Path(*datapath_parts[:-1]) / analoglastpath
-            assert os.path.exists(self.AI_file), "No analog data found. Check file path"
+            assert self.AI_file, "No analog data found. Check file path"
+            assert self.camFilePath, "No camera data found. Check file path"
+            assert self.frames_path, "No frames data found. Check file path"
+
+    def load_AI_bin(self):
+        """
+        Load the analog input binary file. This is a 4 channel interleaved signal. 
+        
+        The channels are:
+        1. Camera trigger (Dev3/ai0)
+        2. Audio/microphone (ai3)
+        3. Photoresistor (ai4)
+        4. TTL (if efizz is used) (ai2)
+        5. analog-audio copy (YT script only) (ai5)
+        6. WAV-output copy (YT script only) (ai6)
+        """
+
+        if ".bin" in str(self.AI_file):
+            AI_data = np.fromfile(self.AI_file, dtype=np.float32)
+        else:
+            with open(self.AI_file, "rb") as dill_file:
+                AI_data = pickle.load(dill_file)
+
+        if self.session.recording_script == "YT":
+            self.AI_data = AI_data.reshape(-1, 6)  # Reshape to 6 channels for YT script
+        elif self.session.recording_script == "JAL":
+            self.AI_data = AI_data.reshape(-1, 4)  # Reshape to 4 channels for JAL script
+        else:
+            raise ValueError(f"Unknown recording script: {self.session.recording_script}")
 
 
     def save_registration_transform(self, registration_transform: object, session: NEW_Session = None) -> None:

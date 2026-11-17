@@ -15,3 +15,4 @@ class Experiment(Mouse):
     shelter_time: list  # in minutes when there was a shelter present e.g. [30, -1] (if until the end of session put -1 as second in list, if barrier comes in after 30 mins. put [0, 30])
     barrier_time: list  # in minutes when the barrier was present e.g. [30, -1] (if until the end of session put -1 as second in list)
     barrier_flip_time: float  # time in minutes and seconds when the barrier was flipped e.g. 184.34 (184 minutes and 34 seconds)
+    recording_script: str  # the script used to record the experiment e.g. JAL, YT, etc.

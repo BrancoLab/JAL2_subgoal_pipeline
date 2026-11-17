@@ -49,7 +49,7 @@ def get_Video(session: NEW_Session, camFilePath: str, settings: object, registra
     registration_type = settings.registration
     pixels_per_cm = settings.pixels_per_cm
 
-    video = Video(num_frames, camFilePath, fps, height, width, fisheye_correction_file, registration_type, registration_size, pixels_per_cm, settings.radius)
+    video = Video(num_frames, str(camFilePath), fps, height, width, fisheye_correction_file, registration_type, registration_size, pixels_per_cm, settings.radius)
 
     if settings.create_new_registration or registration_transform is None:
         logger.info("Registration will be performed!")

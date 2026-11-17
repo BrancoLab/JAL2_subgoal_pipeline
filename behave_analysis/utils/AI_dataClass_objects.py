@@ -43,3 +43,8 @@ class Audio:
     num_samples: int
     onset_frames: object
     stimulus_durations: object
+
+@dataclass(frozen=True)
+class Airpuff:
+    onset_frames: object
+    stimulus_durations: object

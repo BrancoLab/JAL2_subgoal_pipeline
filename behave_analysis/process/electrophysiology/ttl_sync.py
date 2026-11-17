@@ -45,7 +45,7 @@ from pathlib import Path
 sampling_rate = 30000
 
 
-def get_TTL(session: NEW_Session, TTL_bin_path: str):
+def get_TTL(session: NEW_Session, TTL_bin_path: str, AI_data: np.ndarray) -> TTL_Sync:
     """Returns the TTL_sync dataclass.
 
     Args:
@@ -56,7 +56,7 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
         TTL_Sync: data class
     """
 
-    bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path)
+    bonsai_ttl, imec_TTL = retrieve_TTL_signals(session, TTL_bin_path, AI_data)
 
     logger.info("The length of the bonsai TTL is: {} and the imec TTL is: {}".format(len(bonsai_ttl), len(imec_TTL)))
     # assert len(imec_TTL) > len(bonsai_ttl), "Bonsai TTL is longer than imec TTL this can't be - the session likely crashed or disconnected"
@@ -136,27 +136,19 @@ def get_TTL(session: NEW_Session, TTL_bin_path: str):
 
 
 # Retrieve TTL signals
-def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str):
+def retrieve_TTL_signals(session: NEW_Session, TTL_bin_path: str, AI_data: np.ndarray):
     """Retrieves TTL signals for both the bonsai machine and the imec machine
 
     Args:
         session (Session): _description_
+        TTL_bin_path (str): _description_
+        AI_data (np.ndarray): matrix of signals from the NIDAQ file, this is used to extract the bonsai TTL signal
 
     Returns:
     - TTL signals from bonsai machine and imec board
     """
     # Retrieve sync pulse from bonsai NIDAQ file -----------------------------------------------
-    full_file_path = Path(os.path.join(session.base_path, session.file_path))
-    AI_file = list(full_file_path.glob("*analog.bin"))[0]  # need lst and idx as its a generator
-
-    if ".bin" in str(AI_file):
-        AI_data = np.fromfile(AI_file)
-
-    else:
-        with open(AI_file, "rb") as dill_file:
-            AI_data = pickle.load(dill_file)
-
-    bonsai_ttl = AI_data[np.arange(3, len(AI_data), 4)]  # From the 4 index until the end select every 4th sample
+    bonsai_ttl = AI_data[:, 3]  # From the 4 index until the end select every 4th sample
 
     # Retrieve sync pulse from imec spikeglx file -----------------------------------------------
     if "exported" in TTL_bin_path:

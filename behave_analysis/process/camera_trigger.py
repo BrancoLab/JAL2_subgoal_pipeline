@@ -14,22 +14,17 @@ import datetime as datetime
 from pathlib import Path
 
 
-def get_Camera_trigger(session: NEW_Session, AI_file = '', drop_frames=False):
+
+def get_Camera_trigger(session: NEW_Session, AI_data=None, drop_frames=False, frames_path=None) -> tuple:
     """AI data is a 4 channel interleaved signal. The camera pulse is the first channel.
     AI stands for analog input. However, I believe as this is a pulse, it is digital.
     A pulse generated from the NI box one part goes to the camera and another back to the NI box."""
 
-    assert AI_file != '', "AI file path must be provided to load camera trigger data."
+    assert AI_data is not None, "AI file path must be provided to load camera trigger data."
 
-    if ".bin" in str(AI_file):
-        AI_data = np.fromfile(AI_file)
-    else:
-        with open(AI_file, "rb") as dill_file:
-            AI_data = pickle.load(dill_file)
-
-    camera_trigger_data = AI_data[np.arange(0, len(AI_data), 4)]  # four interleaved time series
+    camera_trigger_data = AI_data[:,0]
     camera_trigger_num_samples = len(camera_trigger_data)
-    num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames)
+    num_frames_expected, duration_of_video, frame_trigger_onsets_idx = get_num_frames_expected(session, camera_trigger_data, drop_frames=drop_frames, frames_path=frames_path)
     fps = get_fps(session, num_frames_expected, duration_of_video)
     camera_trigger = Camera_trigger(camera_trigger_num_samples, num_frames_expected, frame_trigger_onsets_idx, fps)
 
@@ -69,7 +64,7 @@ def load_camera_trigger(session: dict, trig_file_path) -> Camera_trigger:
     )
 
 
-def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, drop_frames=False) -> int:
+def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, drop_frames=False, frames_path=None) -> int:
     """Find the onset of the frame triggers. And count the onset of pulses as expected number of frames in the camera.
 
     Args:
@@ -88,7 +83,7 @@ def get_num_frames_expected(session: NEW_Session, camera_trigger_data: object, d
     frame_trigger_onsets_idx = np.where(frame_trigger_onsets > 1)[0] + 1  # compensate for the fact that diff shifts the index by 1
 
     if drop_frames == True:
-        frame_trigger_onsets_idx = find_drop_frames(session, frame_trigger_onsets_idx)
+        frame_trigger_onsets_idx = find_drop_frames(session, frame_trigger_onsets_idx, frames_path=frames_path)
 
     num_frames_expected = len(frame_trigger_onsets_idx)
     duration_of_video = (frame_trigger_onsets_idx[-1] - frame_trigger_onsets_idx[0]) / session.daq_sampling_rate
@@ -103,7 +98,7 @@ def get_fps(session: NEW_Session, num_frames_expected: int, duration_of_video: i
     return fps
 
 
-def find_drop_frames(session: NEW_Session, frame_trigger_onsets_idx, for_video_reader=False):
+def find_drop_frames(session: NEW_Session, frame_trigger_onsets_idx, frames_path=None, for_video_reader=False):
     """Find any dropped frames in the video.
 
     Args:
@@ -114,14 +109,15 @@ def find_drop_frames(session: NEW_Session, frame_trigger_onsets_idx, for_video_r
     Returns:
         _type_: _description_
     """
-    full_file_path = Path(os.path.join(session.base_path, session.file_path))
-    frames_csv_path = list(full_file_path.glob("*frames.csv"))[0]
+    if frames_path is None:
+        logger.warning("No frames_path provided. Attempting to find frames CSV in session file path.")
 
-    # frames_csv_path = glob(os.path.join(session.file_path, "frames*"))[-1]
-
-    frames_csv = pd.read_csv(frames_csv_path, names=["frame number", "zero", "timestamp"])
-    logger.info(f"Number of frames timestamps: {len(frames_csv['timestamp'])}")
-    difference_between_frames = np.diff(frames_csv["timestamp"]) / 125000
+    if session.recording_script == "JAL":
+        frames_csv = pd.read_csv(frames_path, names=["frame number", "zero", "Timestamp"])
+    elif session.recording_script == "YT":
+        frames_csv = pd.read_csv(frames_path)
+    logger.info(f"Number of frames timestamps: {len(frames_csv['Timestamp'])}")
+    difference_between_frames = np.diff(frames_csv["Timestamp"]) / 125000
     # TODO: figure out if it works better when we divide by 125000
 
     min_difference = np.min(difference_between_frames)

@@ -13,19 +13,14 @@ from pathlib import Path
 
 
 
-def get_Photoresistor(session: NEW_Session, AI_file = '') -> photoresistor_trigger:
+
+def get_Photoresistor(session: NEW_Session, AI_data=None) -> photoresistor_trigger:
     """AI data is a 4 channel interleaved signal. The photoresistor voltage is the third signal.
     AI stands for analog input. This is the voltage recording of the photoresistor."""
 
-    assert AI_file != '', "AI file path must be provided to load photoresistor data."
-
-    if ".bin" in str(AI_file):
-        AI_data = np.fromfile(AI_file)
-    else:
-        with open(AI_file, "rb") as dill_file:
-            AI_data = pickle.load(dill_file)
-
-    resistor_data = AI_data[np.arange(2, len(AI_data), 4)]  # four interleaved time series
+    assert AI_data is not None, "AI file path must be provided to load camera trigger data."
+    
+    resistor_data = AI_data[:,2]
 
     num_samples = len(resistor_data)
     resistor_on = resistor_data < 4.8
