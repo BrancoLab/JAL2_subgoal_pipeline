@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=gpu_branco # lab partition — 30-day limit
+#SBATCH --partition=cpu_branco # lab partition — 30-day limit
 #SBATCH --output=logs/JALpipeline_%j.out
 #SBATCH --error=logs/JALpipeline_%j.err
 #SBATCH --time=40:00:00
