@@ -6,7 +6,6 @@ from dataclasses import dataclass
 import dill as pickle
 from typing import Tuple
 
-from databank import experiments_objects
 import polars as pl
 import numpy as np
 from loguru import logger
@@ -159,8 +158,9 @@ def return_spike_times_locked_to_behavioural_direction(
 
 
 ## UTIL FUNCTIONS ----------------------------------------------------
-def load_tracking_data():
+def load_tracking_data(experiments_objects=None) -> Tuple[dict, dict]:
     """Just for first session, load the tracking data."""
+    assert experiments_objects is not None, "Please provide a list of experiments objects - TODO: need to refactor passing the experiments list to synthetic generator"
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         break
