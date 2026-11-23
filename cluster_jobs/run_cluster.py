@@ -12,26 +12,41 @@ from databank import cluster_experiments_objects
 from behave_analysis.process.process import Process
 from behave_analysis.postprocess.pp_main import Postprocessor
 from settings.settings_process import settings_process
+from settings.settings_track import settings_track
+from behave_analysis.track.track import Track
+from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
+from settings.settings_analyze_efizz import Settings_ae
 
 assert len(cluster_experiments_objects) != 0, "Session list should not be empty"
 
-# def process(experiments_objects, settings_p):
-# 	for session_id in experiments_objects:
-# 		logger.info(f"Processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
-# 		process_object = Process(session_id)
-# 		process_object.create_session(settings_p)
-# 	logger.success("Processing complete")
+def process(experiments_objects, settings_p):
+	for session_id in experiments_objects:
+		logger.info(f"Processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+		process_object = Process(session_id)
+		process_object.create_session(settings_p)
+	logger.success("Processing complete")
 
-# def postprocess(experiments_objects):
-# 	for session_id in experiments_objects:
-# 		session = Process(session_id).load_session()
-# 		logger.info(f"Post-processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
-# 		Postprocessor(session)
-# 	logger.success("Postprocessing complete")
+def postprocess(experiments_objects):
+	for session_id in experiments_objects:
+		session = Process(session_id).load_session()
+		logger.info(f"Post-processing session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+		Postprocessor(session)
+	logger.success("Postprocessing complete")
 
+def track(experiments_objects, settings_t):
+    """
+    A function that collects sessions from the databank, puts the sessions through a tracking
+    in Deep lab cut.
+    """
+    logger.info("The tracking pipeline has started")
+    for session_id in experiments_objects:
+        session = Process(session_id).load_session()
+        logger.info(f"Tracking for session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
+        track = Track(settings_t, session)
+        track.process_tracking_data(session)
+    logger.success("Tracking complete")
+    
 # analyze efizz data
-from behave_analysis.analyze.analyze_efizz import AnalyzeEfizz
-from settings.settings_analyze_efizz import Settings_ae
 
 def analyze_efizz(analysis_name = None, variable = None, experiments_objects = []):
 	for session_id in experiments_objects:
@@ -55,18 +70,20 @@ def main():
 
 	# postprocess(cluster_experiments_objects)
 
-	analysis_name='EscapePattern'
-	variable = ['frac_route in homing&escape',
-				'residual: frac_route in homing&escape - 2D_position in explore',
-			 	'residual: frac_route in homing&escape - bird_dist_shelter in explore',
-			 	'residual: frac_route in homing&escape - speed in explore',
-			 	'residual: frac_route in homing&escape - distance_shelter in explore',]
+	# analysis_name='EscapePattern'
+	# variable = ['frac_route in homing&escape',
+	# 			'residual: frac_route in homing&escape - 2D_position in explore',
+	# 		 	'residual: frac_route in homing&escape - bird_dist_shelter in explore',
+	# 		 	'residual: frac_route in homing&escape - speed in explore',
+	# 		 	'residual: frac_route in homing&escape - distance_shelter in explore',]
 	# variable = ['residual: frac_route in homing&escape - 2D_position in explore',
 	# 		 	'residual: frac_route in homing&escape - bird_dist_shelter in explore',
 	# 		 	'residual: frac_route in homing&escape - speed in explore',
 	# 		 	'residual: frac_route in homing&escape - distance_shelter in explore',]
 
-	analyze_efizz(analysis_name, variable, experiments_objects=cluster_experiments_objects)
+	# analyze_efizz(analysis_name, variable, experiments_objects=cluster_experiments_objects)
+
+	track(cluster_experiments_objects, settings_track)
 
 if __name__ == "__main__":
 	main()
