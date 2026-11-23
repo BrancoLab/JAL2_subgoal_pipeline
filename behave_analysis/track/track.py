@@ -552,6 +552,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 def resolve_repo_path(path):
     if path is None:
         return None
+
+    # A value saved on Windows may contain backslashes even when the pipeline
+    # is running on Linux.  Normalize separators before constructing a Path.
+    path = os.path.expanduser(str(path).replace("\\", os.sep).replace("/", os.sep))
     path = Path(path)
     if path.is_absolute():
         return path
