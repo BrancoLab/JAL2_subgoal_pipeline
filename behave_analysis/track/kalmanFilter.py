@@ -4,15 +4,15 @@ estimates:
    1) The x and y position of the animal at each frame for a single part of the body
    2) The x and y velocity of the animal at each frame for a single part of the body
    3) The x and y acceleration of the animal at each frame for a single part of the body
-   
+
 The code is a combination from the following sources:
     1) https://github.com/joacorapela/lds_python
     2) https://github.com/BrancoLab/LocomotionControl/blob/9308a4cde55e475eb86130a6084d460eda9137ad/data/dbase/_kallman_filtering.py#L162
-    3) barShalomEtAl01-estimationWithApplicationToTrackingAndNavigation.pdf 
-    
+    3) barShalomEtAl01-estimationWithApplicationToTrackingAndNavigation.pdf
+
 Currently the parameters are hard coded, but in the future they could be estimated from the data. It is not clear whether the model
 would perform better with learnt parameters or hard coded parameters.
-   
+
 """
 
 import numpy as np
@@ -45,7 +45,7 @@ def filterLDS_SS_withMissingValues_np(y, B, Q, m0, V0, Z, R):
     Vnn1 = np.empty(shape=[M, M, N])  ## covariances of the predicted state
     xnn = np.empty(shape=[M, 1, N])  # filtered means
     Vnn = np.empty(shape=[M, M, N])  # filtered state covariances
-    innov = np.empty(shape=[P, 1, N])  # innovations (The difference between the observed value and the predicted value)
+    innov = np.zeros(shape=[P, 1, N])  # innovations (The difference between the observed value and the predicted value)
     Sn = np.empty(shape=[P, P, N])  # innovations covariance matrices
 
     # For the first observation where k==0
@@ -55,12 +55,17 @@ def filterLDS_SS_withMissingValues_np(y, B, Q, m0, V0, Z, R):
     Sn[:, :, 0] = (Stmp + Stmp.T) / 2  # Calculate the initial innovations covariance matrix
     Sinv = np.linalg.inv(Sn[:, :, 0])  # Inverse of the innovations covariance matrix
     K = Vnn1[:, :, 0] @ Z.T @ Sinv  # Kalman gain
-    innov[:, 0, 0] = y[:, 0] - (Z @ xnn1[:, :, 0]).squeeze()  # Calculate the initial innovation
-    xnn[:, :, 0] = xnn1[:, :, 0] + K @ innov[:, :, 0]  # Update the state estimate with the innovation, kalman gain and predicted state
-    Vnn[:, :, 0] = Vnn1[:, :, 0] - K @ Z @ Vnn1[:, :, 0]  # Update the state covariance with the kalman gain and predicted state covariance
+    if np.any(np.isnan(y[:, 0])):
+        xnn[:, :, 0] = xnn1[:, :, 0]
+        Vnn[:, :, 0] = Vnn1[:, :, 0]
+        logLike = 0.0
+    else:
+        innov[:, 0, 0] = y[:, 0] - (Z @ xnn1[:, :, 0]).squeeze()  # Calculate the initial innovation
+        xnn[:, :, 0] = xnn1[:, :, 0] + K @ innov[:, :, 0]  # Update the state estimate with the innovation, kalman gain and predicted state
+        Vnn[:, :, 0] = Vnn1[:, :, 0] - K @ Z @ Vnn1[:, :, 0]  # Update the state covariance with the kalman gain and predicted state covariance
 
-    # log likelihood
-    logLike = -N * P * np.log(2 * np.pi) - np.linalg.slogdet(Sn[:, :, 0])[1] - innov[:, :, 0].T @ Sinv @ innov[:, :, 0]
+        # log likelihood
+        logLike = -N * P * np.log(2 * np.pi) - np.linalg.slogdet(Sn[:, :, 0])[1] - innov[:, :, 0].T @ Sinv @ innov[:, :, 0]
 
     # Continue for the rest of the observations starting from the second observation where k>1
     for k in range(1, N):
@@ -70,6 +75,8 @@ def filterLDS_SS_withMissingValues_np(y, B, Q, m0, V0, Z, R):
         if np.any(np.isnan(y[:, k])):
             xnn[:, :, k] = xnn1[:, :, k]
             Vnn[:, :, k] = Vnn1[:, :, k]
+            innov[:, :, k] = 0
+            Sn[:, :, k] = Sn[:, :, k - 1]
         else:
             Stmp = Z @ Vnn1[:, :, k] @ Z.T + R
             Sn[:, :, k] = (Stmp + Stmp.T) / 2
@@ -78,7 +85,7 @@ def filterLDS_SS_withMissingValues_np(y, B, Q, m0, V0, Z, R):
             innov[:, 0, k] = y[:, k] - (Z @ xnn1[:, :, k]).squeeze()
             xnn[:, :, k] = xnn1[:, :, k] + K @ innov[:, :, k]
             Vnn[:, :, k] = Vnn1[:, :, k] - K @ Z @ Vnn1[:, :, k]
-        logLike = logLike - np.linalg.slogdet(Sn[:, :, k])[1] - innov[:, :, k].T @ Sinv @ innov[:, :, k]
+            logLike = logLike - np.linalg.slogdet(Sn[:, :, k])[1] - innov[:, :, k].T @ Sinv @ innov[:, :, k]
     logLike = 0.5 * logLike
     answer = {
         "xnn1": xnn1,
@@ -94,7 +101,6 @@ def filterLDS_SS_withMissingValues_np(y, B, Q, m0, V0, Z, R):
 
 
 def smoothLDS_SS(B, xnn, Vnn, xnn1, Vnn1, m0, V0):
-
     """Kalman smoother implementation
     :param: B: state transition matrix
     :type: B: numpy matrix (MxM)
@@ -146,7 +152,7 @@ def kalmann(
     sigma_x=0.001,  # standard deviation of x coordinate of position
     sigma_y=0.001,  # standard deviation of y coordinate of position
     V0_diag_value0=0.001,  # initial state variance
-    dt=1 / 40, # Assuming 40 fps, this is the time between frames in seconds
+    dt=1 / 40,  # Assuming 40 fps, this is the time between frames in seconds
 ) -> dict:
     """
     Does Kalmann filtering/smoothing as described in: https://github.com/joacorapela/lds_python
@@ -197,7 +203,21 @@ def kalmann(
     )
 
     R = np.diag([sigma_x**2, sigma_y**2])
-    m0 = np.array([xy[0, 0], 0, 0, xy[1, 0], 0, 0], dtype=np.double)
+    valid_obs = np.isfinite(xy).all(axis=0)
+    if not np.any(valid_obs):
+        n = xy.shape[1]
+        nan_series = np.full(n, np.nan)
+        return {
+            "x": nan_series.copy(),
+            "xVelocity": nan_series.copy(),
+            "xAccel": nan_series.copy(),
+            "y": nan_series.copy(),
+            "yVelocity": nan_series.copy(),
+            "yAccel": nan_series.copy(),
+        }
+
+    first_valid_idx = int(np.argmax(valid_obs))
+    m0 = np.array([xy[0, first_valid_idx], 0, 0, xy[1, first_valid_idx], 0, 0], dtype=np.double)
     V0 = np.diag(np.ones(len(m0)) * V0_diag_value0)
 
     # ----------------------------- FILTER AND SMOOTH ---------------------------- #

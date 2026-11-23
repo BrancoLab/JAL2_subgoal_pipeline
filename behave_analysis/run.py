@@ -39,7 +39,8 @@ def track():
     for session_ID in experiments_objects:
         session = Process(session_ID).load_session()
         logger.info("Loaded a session with the following details: {}".format(session_ID))
-        Track(settings_t, session)
+        track = Track(settings_t, session)
+        track.process_tracking_data(session)
     logger.success("Tracking complete")
 
 def postprocess():

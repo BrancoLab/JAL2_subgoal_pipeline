@@ -30,6 +30,10 @@ class Settings_track:
     min_confidence_in_tracking: float = None
     max_deviation_from_rest_of_points: int = None
     max_deviation_from_arena: int = None
+    interpolation_max_gap_frames: int = 4
+    jump_reject_max_speed_cm_s: float = 120.0
+    jump_reject_expand_frames: int = 1
+    use_kalman: bool = True
     tracking_file_location: str = None
     save_labeled_video: bool = False
     random_points: str = None
@@ -80,10 +84,10 @@ class Settings_analyze_behave:
     homings_classifiction_manual_gates: dict = None  # dictionary of manually defined gates for homing classification
     redo_compute: bool = False
     homings_use_boris: bool = False
-    homings_distance_threshold: int = 25 # in cm, minimum lengthto be kept as a homings
+    homings_distance_threshold: int = 25  # in cm, minimum lengthto be kept as a homings
     # escape_settings
     escape_stim_type: str = "audio"
-    escape_response_thresh: int = 5 # in s, window after stim in which run needs to happen to be considered an escape
+    escape_response_thresh: int = 5  # in s, window after stim in which run needs to happen to be considered an escape
     escape_speed_threshold: float = 10.0  # cm/s, used to find bouts of running that may be escapes
 
 

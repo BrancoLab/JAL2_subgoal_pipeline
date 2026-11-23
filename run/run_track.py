@@ -13,7 +13,8 @@ def track():
     for session_id in experiments_objects:
         session = Process(session_id).load_session()
         logger.info(f"Tracking for session: {session_id.nick_name} on {session_id.experiment_date} for experiment: {session_id.experiment_name}")
-        Track(settings_t, session)
+        track = Track(settings_t, session)
+        track.process_tracking_data(session)
     logger.success("Tracking complete")
     
 track()
